@@ -37,12 +37,12 @@ impl NetflowParser {
                         Err(e) => Err(NetflowError::ByteParseError(e)),
                     },
                     _ => {
-                        // Unsupported protocted
+                        // Unsupported protocol
                         return netflow_results;
                     }
                 },
                 Err(_e) => {
-                    // Unsupported protocted
+                    // Unsupported protocol
                     return netflow_results;
                 }
             };
