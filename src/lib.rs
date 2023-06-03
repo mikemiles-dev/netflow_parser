@@ -18,15 +18,16 @@ pub enum NetflowParser {
 
 #[derive(Nom)]
 pub struct NetflowMessage {
-    version: u16,
+    version: u8,
 }
 
 impl NetflowParser {
     pub fn try_from_bytes(packet: &[u8]) -> Result<NetflowParser, NetflowError> {
-        let (packet, netflow_version) = match NetflowMessage::parse_be(packet) {
-            Ok((packet, netflow_version)) => (packet, netflow_version),
+        let netflow_version = match NetflowMessage::parse_be(packet) {
+            Ok((_, netflow_version)) => netflow_version,
             Err(_e) => return Err(NetflowError::NotSupported),
         };
+        println!("{:?}", netflow_version.version);
         match netflow_version.version {
             5 => V5::try_from_bytes(packet),
             _ => Err(NetflowError::NotSupported),
@@ -47,7 +48,10 @@ mod tests {
 
     #[test]
     fn it_parses_v5() {
-        let packet = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let _v5 = V5::try_from_bytes(&packet).unwrap();
+        let packet = [5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 10];
+        match NetflowParser::try_from_bytes(&packet) {
+            Ok(NetflowParser::V5(v5)) => assert_eq!(v5.header.version, 5),
+            Err(e) => panic!("{:?}", e),
+        }
     }
 }
