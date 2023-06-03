@@ -1,11 +1,11 @@
 # netflow_parser
-A netflow_parser for V5, V7, V9, V10, IPFIX.
+A netflow_parser library for V5, V7, V9, V10, IPFIX written in Rust.
 
 # Example:
 
 ## V5:
 
-```
+```rust
 use netflow_parser::NetflowParser;
 
 let v5_packet = [5, 1, 2...];
