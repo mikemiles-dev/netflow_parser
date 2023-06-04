@@ -52,7 +52,13 @@ impl NetflowParser {
                     NetflowVersion::V5 => V5::parse_bytes(packet),
                     _ => (
                         None,
-                        ParsedNetflow::ParseError("Unsupported Version".to_string()),
+                        ParsedNetflow::ParseError(
+                            format!(
+                                "Unsupported Version for packet: {:?}",
+                                packet_to_be_processed
+                            )
+                            .to_string(),
+                        ),
                     ),
                 };
             if let Some(remaining) = remaining {
@@ -78,7 +84,11 @@ mod tests {
 
     #[test]
     fn it_parses_v5() {
-        let packet = [5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 10];
+        let packet = [
+            5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5,
+            6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+            5, 6, 7,
+        ];
         match NetflowParser::parse_bytes(&packet).first() {
             Some(ParsedNetflow::V5(v5)) => assert_eq!(v5.header.version, 5),
             _ => panic!("V5 Parse Error!"),
