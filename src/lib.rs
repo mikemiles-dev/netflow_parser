@@ -4,7 +4,7 @@ use v5::V5;
 use nom_derive::{Nom, Parse};
 
 #[derive(Debug, Clone)]
-pub enum NetflowParser {
+pub enum ParsedNetflow {
     V5(V5),
     ParseError(String),
 }
@@ -33,13 +33,15 @@ impl NetflowHeader {
 }
 
 pub trait NetflowByteParser {
-    fn parse_bytes(packet: &[u8]) -> (Option<&[u8]>, NetflowParser);
+    fn parse_bytes(packet: &[u8]) -> (Option<&[u8]>, ParsedNetflow);
 }
 
+pub struct NetflowParser;
+
 impl NetflowParser {
-    /// Takes a Netflow packet slice and returns a vector of Reuslts of type NetflowParser.
+    /// Takes a Netflow packet slice and returns a vector of Parsed Netflows.
     /// If we reach some parse error we return what items be have.
-    pub fn parse_bytes(packet: &[u8]) -> Vec<NetflowParser> {
+    pub fn parse_bytes(packet: &[u8]) -> Vec<ParsedNetflow> {
         let mut packet_to_be_processed = <&[u8]>::clone(&packet);
         let mut netflow_results = vec![];
 
@@ -50,16 +52,16 @@ impl NetflowParser {
                     NetflowVersion::V5 => V5::parse_bytes(packet),
                     _ => (
                         None,
-                        NetflowParser::ParseError("Unsupported Version".to_string()),
+                        ParsedNetflow::ParseError("Unsupported Version".to_string()),
                     ),
                 };
             if let Some(remaining) = remaining {
                 packet_to_be_processed = remaining;
             }
             // Either output error or add result to result Vector.
-            if let NetflowParser::ParseError(parsed_error) = parsed_result {
+            if let ParsedNetflow::ParseError(parsed_error) = parsed_result {
                 println!("{parsed_error}");
-                break
+                break;
             } else {
                 println!("Parsed: {:?}", parsed_result);
                 netflow_results.push(parsed_result)
@@ -78,7 +80,7 @@ mod tests {
     fn it_parses_v5() {
         let packet = [5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 10];
         match NetflowParser::parse_bytes(&packet).first() {
-            Some(NetflowParser::V5(v5)) => assert_eq!(v5.header.version, 5),
+            Some(ParsedNetflow::V5(v5)) => assert_eq!(v5.header.version, 5),
             _ => panic!("V5 Parse Error!"),
         }
     }

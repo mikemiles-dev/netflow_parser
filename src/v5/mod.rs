@@ -1,4 +1,4 @@
-use crate::{NetflowByteParser, NetflowParser};
+use crate::{NetflowByteParser, ParsedNetflow};
 
 use nom_derive::*;
 use Nom;
@@ -10,10 +10,10 @@ pub struct V5 {
 }
 
 impl NetflowByteParser for V5 {
-    fn parse_bytes(packet: &[u8]) -> (Option<&[u8]>, NetflowParser) {
+    fn parse_bytes(packet: &[u8]) -> (Option<&[u8]>, ParsedNetflow) {
         match V5::parse_be(packet) {
-            Ok((remaining, v5)) => (Some(remaining), NetflowParser::V5(v5)),
-            Err(error) => (None, NetflowParser::ParseError(error.to_string())),
+            Ok((remaining, v5)) => (Some(remaining), ParsedNetflow::V5(v5)),
+            Err(error) => (None, ParsedNetflow::ParseError(error.to_string())),
         }
     }
 }
