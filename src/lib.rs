@@ -1,3 +1,4 @@
+pub mod proto;
 pub mod v5;
 use log::*;
 use v5::V5;
@@ -82,6 +83,7 @@ impl NetflowParser {
 mod tests {
 
     use super::*;
+    use crate::proto::Protocol;
 
     #[test]
     fn it_parses_v5() {
@@ -91,7 +93,10 @@ mod tests {
             5, 6, 7,
         ];
         match NetflowParser::parse_bytes(&packet).first() {
-            Some(ParsedNetflow::V5(v5)) => assert_eq!(v5.header.version, 5),
+            Some(ParsedNetflow::V5(v5)) => {
+                assert_eq!(v5.header.version, 5);
+                assert_eq!(v5.body.protocol, Protocol::EGP);
+            }
             _ => panic!("V5 Parse Error!"),
         }
     }

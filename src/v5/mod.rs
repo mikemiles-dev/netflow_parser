@@ -1,3 +1,4 @@
+use crate::proto::Protocol;
 use crate::{NetflowByteParser, ParsedNetflow};
 
 use nom::number::complete::be_u32;
@@ -53,7 +54,8 @@ pub struct V5Body {
     pub dst_port: u16,
     pub pad1: u8,
     pub tcp_flags: u8,
-    pub prot: u8,
+    #[nom(Parse = "{ Protocol::parse }")]
+    pub protocol: Protocol,
     pub tos: u8,
     pub src_as: u16,
     pub dst_as: u16,
