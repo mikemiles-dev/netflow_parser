@@ -37,11 +37,11 @@ pub struct V5Header {
 
 #[derive(Debug, PartialEq, Eq, Clone, Nom)]
 pub struct V5Body {
-    #[nom(Map = "|i| Ipv4Addr::from(i)", Parse = "be_u32")]
+    #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub src_addr: Ipv4Addr,
-    #[nom(Map = "|i| Ipv4Addr::from(i)", Parse = "be_u32")]
+    #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub dst_addr: Ipv4Addr,
-    #[nom(Map = "|i| Ipv4Addr::from(i)", Parse = "be_u32")]
+    #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub next_hop: Ipv4Addr,
     pub input: u16,
     pub output: u16,

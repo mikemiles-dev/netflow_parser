@@ -1,4 +1,5 @@
 pub mod v5;
+use log::*;
 use v5::V5;
 
 use nom_derive::{Nom, Parse};
@@ -66,10 +67,10 @@ impl NetflowParser {
             }
             // Either output error or add result to result Vector.
             if let ParsedNetflow::ParseError(parsed_error) = parsed_result {
-                println!("{parsed_error}");
+                warn!("{parsed_error}");
                 break;
             } else {
-                println!("Parsed: {:?}", parsed_result);
+                debug!("Parsed: {:?}", parsed_result);
                 netflow_results.push(parsed_result)
             }
         }
