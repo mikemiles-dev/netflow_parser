@@ -6,43 +6,64 @@ use nom_derive::{Nom, Parse};
 #[derive(Debug, Clone)]
 pub enum NetflowParser {
     V5(V5),
+    ParseError(String),
 }
 
 #[derive(Nom)]
-pub struct NetflowMessage {
+pub struct NetflowHeader {
     version: u8,
+}
+
+pub enum NetflowVersion {
+    V5,
+    V7,
+    V9,
+    Unsupported,
+}
+
+impl NetflowHeader {
+    fn get_version_from_bytes(packet: &[u8]) -> NetflowVersion {
+        match NetflowHeader::parse_be(packet) {
+            Ok((_, netflow_header)) if netflow_header.version == 5 => NetflowVersion::V5,
+            Ok((_, netflow_header)) if netflow_header.version == 7 => NetflowVersion::V7,
+            Ok((_, netflow_header)) if netflow_header.version == 9 => NetflowVersion::V9,
+            _ => NetflowVersion::Unsupported,
+        }
+    }
+}
+
+pub trait NetflowByteParser {
+    fn parse_bytes(packet: &[u8]) -> (Option<&[u8]>, NetflowParser);
 }
 
 impl NetflowParser {
     /// Takes a Netflow packet slice and returns a vector of Reuslts of type NetflowParser.
     /// If we reach some parse error we return what items be have.
     pub fn parse_bytes(packet: &[u8]) -> Vec<NetflowParser> {
-        let mut processed_packet = <&[u8]>::clone(&packet);
+        let mut packet_to_be_processed = <&[u8]>::clone(&packet);
         let mut netflow_results = vec![];
-        while !processed_packet.is_empty() {
-            let netflow_result = match NetflowMessage::parse_be(processed_packet) {
-                Ok((_, netflow_version)) => match netflow_version.version {
-                    5 => match V5::parse_be(processed_packet) {
-                        Ok((remaining, v5)) => {
-                            processed_packet = remaining;
-                            NetflowParser::V5(v5)
-                        }
-                        Err(_e) => {
-                            // Parse Error
-                            return netflow_results;
-                        }
-                    },
-                    _ => {
-                        // Unsupported protocol
-                        return netflow_results;
-                    }
-                },
-                Err(_e) => {
-                    // Unsupported protocol
-                    return netflow_results;
-                }
-            };
-            netflow_results.push(netflow_result);
+
+        // If we have bytes to parse
+        while !packet_to_be_processed.is_empty() {
+            let (remaining, parsed_result) =
+                match NetflowHeader::get_version_from_bytes(packet_to_be_processed) {
+                    NetflowVersion::V5 => V5::parse_bytes(packet),
+                    _ => (
+                        None,
+                        NetflowParser::ParseError("Unsupported Version".to_string()),
+                    ),
+                };
+            if let Some(remaining) = remaining {
+                packet_to_be_processed = remaining;
+            }
+            // Either output error or add result to result Vector.
+            if let NetflowParser::ParseError(parsed_error) = parsed_result {
+                println!("{parsed_error}");
+                break
+            } else {
+                println!("Parsed: {:?}", parsed_result);
+                netflow_results.push(parsed_result)
+            }
         }
         netflow_results
     }
@@ -58,7 +79,7 @@ mod tests {
         let packet = [5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 10];
         match NetflowParser::parse_bytes(&packet).first() {
             Some(NetflowParser::V5(v5)) => assert_eq!(v5.header.version, 5),
-            None => panic!("V5 Parse Error!"),
+            _ => panic!("V5 Parse Error!"),
         }
     }
 }

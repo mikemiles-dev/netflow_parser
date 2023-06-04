@@ -1,3 +1,5 @@
+use crate::{NetflowByteParser, NetflowParser};
+
 use nom_derive::*;
 use Nom;
 
@@ -5,6 +7,15 @@ use Nom;
 pub struct V5 {
     #[nom(Parse = "{ V5Header::parse }")]
     pub header: V5Header,
+}
+
+impl NetflowByteParser for V5 {
+    fn parse_bytes(packet: &[u8]) -> (Option<&[u8]>, NetflowParser) {
+        match V5::parse_be(packet) {
+            Ok((remaining, v5)) => (Some(remaining), NetflowParser::V5(v5)),
+            Err(error) => (None, NetflowParser::ParseError(error.to_string())),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Nom)]
