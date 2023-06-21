@@ -1,5 +1,5 @@
 use crate::proto::Protocol;
-use crate::{NetflowByteParser, ParsedNetflow};
+use crate::{NetflowByteParser, NetflowPacket, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 use nom_derive::*;
@@ -15,11 +15,12 @@ pub struct V5 {
 }
 
 impl NetflowByteParser for V5 {
-    fn parse_bytes(packet: &[u8]) -> (Option<&[u8]>, ParsedNetflow) {
-        match V5::parse_be(packet) {
-            Ok((remaining, v5)) => (Some(remaining), ParsedNetflow::V5(v5)),
-            Err(error) => (None, ParsedNetflow::ParseError(error.to_string())),
-        }
+    fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
+        let parsed_packet = V5::parse_be(packet).map_err(|e| format!("{e}"))?;
+        Ok(ParsedNetflow {
+            remaining_bytes: parsed_packet.0,
+            netflow_packet: NetflowPacket::V5(parsed_packet.1),
+        })
     }
 }
 
