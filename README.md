@@ -10,7 +10,7 @@ use netflow_parser::NetflowParser;
 
 let v5_packet = [5, 1, 2...];
 match NetflowParser::parse_bytes(&v5_packet).first() {
-    Some(NetflowParser::V5(v5)) => assert_eq!(v5.header.version, 5),
+    Some(NetflowPacket::V5(v5)) => assert_eq!(v5.header.version, 5),
     ...
 }
 
