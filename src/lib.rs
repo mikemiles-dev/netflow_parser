@@ -1,13 +1,16 @@
 pub mod proto;
 pub mod v5;
+pub mod v7;
 use log::*;
 use v5::V5;
+use v7::V7;
 
 use nom_derive::{Nom, Parse};
 
 #[derive(Debug, Clone)]
 pub enum NetflowPacket {
     V5(V5),
+    V7(V7),
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +61,7 @@ impl NetflowParser {
             let parsed_netflow = match NetflowHeader::get_version_from_bytes(packet_to_be_processed)
             {
                 NetflowVersion::V5 => V5::parse_bytes(packet),
+                NetflowVersion::V7 => V7::parse_bytes(packet),
                 _ => Err("Unsupported Version!".to_string().into()),
             };
             // Handle Result of Parsed Bytes
@@ -85,9 +89,9 @@ mod tests {
     #[test]
     fn it_parses_v5() {
         let packet = [
-            0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
-            5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+            0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5,
+            6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+            5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7
         ];
         match NetflowParser::parse_bytes(&packet).first() {
             Some(NetflowPacket::V5(v5)) => {
