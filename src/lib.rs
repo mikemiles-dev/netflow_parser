@@ -89,9 +89,9 @@ mod tests {
     #[test]
     fn it_parses_v5() {
         let packet = [
-            0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5,
-            6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
-            5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7
+            0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+            5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
         match NetflowParser::parse_bytes(&packet).first() {
             Some(NetflowPacket::V5(v5)) => {
@@ -99,6 +99,22 @@ mod tests {
                 assert_eq!(v5.body.protocol, Protocol::EGP);
             }
             _ => panic!("V5 Parse Error!"),
+        }
+    }
+
+    #[test]
+    fn it_parses_v7() {
+        let packet = [
+            0, 7, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+            5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+        match NetflowParser::parse_bytes(&packet).first() {
+            Some(NetflowPacket::V7(v7)) => {
+                assert_eq!(v7.header.version, 7);
+                assert_eq!(v7.body.protocol, Protocol::EGP);
+            }
+            _ => panic!("V7 Parse Error!"),
         }
     }
 }
