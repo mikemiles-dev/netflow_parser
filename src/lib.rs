@@ -18,7 +18,7 @@ pub struct ParsedNetflow<'a> {
 
 #[derive(Nom)]
 pub struct NetflowHeader {
-    version: u8,
+    version: u16,
 }
 
 pub enum NetflowVersion {
@@ -85,9 +85,9 @@ mod tests {
     #[test]
     fn it_parses_v5() {
         let packet = [
-            5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5,
-            6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
-            5, 6, 7,
+            0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+            5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
         match NetflowParser::parse_bytes(&packet).first() {
             Some(NetflowPacket::V5(v5)) => {

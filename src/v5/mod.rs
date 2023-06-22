@@ -26,15 +26,15 @@ impl NetflowByteParser for V5 {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Nom)]
 pub struct V5Header {
-    pub version: u8,
-    pub count: u8,
-    pub sys_up_time: u16,
-    pub unix_secs: u16,
-    pub unix_nsecs: u16,
-    pub flow_sequence: u16,
+    pub version: u16,
+    pub count: u16,
+    pub sys_up_time: u32,
+    pub unix_secs: u32,
+    pub unix_nsecs: u32,
+    pub flow_sequence: u32,
     pub engine_type: u8,
     pub engine_id: u8,
-    pub sampling_interval: u8,
+    pub sampling_interval: u16,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Nom)]
