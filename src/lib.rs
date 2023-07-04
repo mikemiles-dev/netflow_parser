@@ -1,11 +1,9 @@
+pub mod legacy;
 pub mod proto;
 pub mod time;
-pub mod v5;
-pub mod v7;
+use legacy::{v5::V5, v7::V7};
 use log::*;
 use serde::Serialize;
-use v5::V5;
-use v7::V7;
 
 use nom_derive::{Nom, Parse};
 
