@@ -3,10 +3,11 @@ use crate::{NetflowByteParser, NetflowPacket, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 use nom_derive::*;
+use serde::Serialize;
 use std::net::Ipv4Addr;
 use Nom;
 
-#[derive(Debug, Nom, Clone)]
+#[derive(Debug, Nom, Clone, Serialize)]
 pub struct V7 {
     #[nom(Parse = "{ V7Header::parse }")]
     pub header: V7Header,
@@ -24,7 +25,7 @@ impl NetflowByteParser for V7 {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Nom)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Nom, Serialize)]
 pub struct V7Header {
     pub version: u16,
     pub count: u16,
@@ -35,7 +36,7 @@ pub struct V7Header {
     pub reserved: u32,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Nom)]
+#[derive(Debug, PartialEq, Eq, Clone, Nom, Serialize)]
 pub struct V7Body {
     #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub src_addr: Ipv4Addr,
@@ -51,7 +52,7 @@ pub struct V7Body {
     pub last: u32,
     pub src_port: u16,
     pub dst_port: u16,
-    pub pad1: u8,
+    pub flags_fields_valid: u8,
     pub tcp_flags: u8,
     #[nom(Parse = "{ Protocol::parse }")]
     pub protocol: Protocol,
@@ -60,5 +61,7 @@ pub struct V7Body {
     pub dst_as: u16,
     pub src_mask: u8,
     pub dst_mask: u8,
-    pub pad2: u16,
+    pub flags_fields_invalid: u16,
+    #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
+    pub router_src: Ipv4Addr,
 }

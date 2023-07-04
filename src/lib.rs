@@ -2,12 +2,13 @@ pub mod proto;
 pub mod v5;
 pub mod v7;
 use log::*;
+use serde::Serialize;
 use v5::V5;
 use v7::V7;
 
 use nom_derive::{Nom, Parse};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum NetflowPacket {
     V5(V5),
     V7(V7),
@@ -84,7 +85,7 @@ impl NetflowParser {
 mod tests {
 
     use super::*;
-    use crate::proto::Protocol;
+    use insta::assert_yaml_snapshot;
 
     #[test]
     fn it_parses_v5() {
@@ -93,13 +94,7 @@ mod tests {
             5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
             4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
-        match NetflowParser::parse_bytes(&packet).first() {
-            Some(NetflowPacket::V5(v5)) => {
-                assert_eq!(v5.header.version, 5);
-                assert_eq!(v5.body.protocol, Protocol::EGP);
-            }
-            _ => panic!("V5 Parse Error!"),
-        }
+        assert_yaml_snapshot!(NetflowParser::parse_bytes(&packet));
     }
 
     #[test]
@@ -107,14 +102,8 @@ mod tests {
         let packet = [
             0, 7, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
             5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
         ];
-        match NetflowParser::parse_bytes(&packet).first() {
-            Some(NetflowPacket::V7(v7)) => {
-                assert_eq!(v7.header.version, 7);
-                assert_eq!(v7.body.protocol, Protocol::EGP);
-            }
-            _ => panic!("V7 Parse Error!"),
-        }
+        assert_yaml_snapshot!(NetflowParser::parse_bytes(&packet));
     }
 }

@@ -3,10 +3,11 @@ use crate::{NetflowByteParser, NetflowPacket, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 use nom_derive::*;
+use serde::Serialize;
 use std::net::Ipv4Addr;
 use Nom;
 
-#[derive(Debug, Nom, Clone)]
+#[derive(Debug, Nom, Clone, Serialize)]
 pub struct V5 {
     #[nom(Parse = "{ V5Header::parse }")]
     pub header: V5Header,
@@ -24,7 +25,7 @@ impl NetflowByteParser for V5 {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Nom)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
 pub struct V5Header {
     pub version: u16,
     pub count: u16,
@@ -37,7 +38,7 @@ pub struct V5Header {
     pub sampling_interval: u16,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Nom)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct V5Body {
     #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub src_addr: Ipv4Addr,
