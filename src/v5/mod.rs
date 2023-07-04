@@ -1,10 +1,12 @@
 use crate::proto::Protocol;
+use crate::time::convert_system_time;
 use crate::{NetflowByteParser, NetflowPacket, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 use nom_derive::*;
 use serde::Serialize;
 use std::net::Ipv4Addr;
+use std::time::SystemTime;
 use Nom;
 
 #[derive(Debug, Nom, Clone, Serialize)]
@@ -29,7 +31,8 @@ impl NetflowByteParser for V5 {
 pub struct V5Header {
     pub version: u16,
     pub count: u16,
-    pub sys_up_time: u32,
+    #[nom(Map = "convert_system_time", Parse = "be_u32")]
+    pub sys_up_time: SystemTime,
     pub unix_secs: u32,
     pub unix_nsecs: u32,
     pub flow_sequence: u32,

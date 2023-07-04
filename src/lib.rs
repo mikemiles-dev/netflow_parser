@@ -1,4 +1,5 @@
 pub mod proto;
+pub mod time;
 pub mod v5;
 pub mod v7;
 use log::*;
