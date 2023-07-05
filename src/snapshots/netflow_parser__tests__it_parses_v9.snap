@@ -13,4 +13,6 @@ expression: "NetflowParser::parse_bytes(&packet)"
         nanos_since_epoch: 0
       sequence_number: 1
       source_id: 1
+    body:
+      flow_set_id: 0
 

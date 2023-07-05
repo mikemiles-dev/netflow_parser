@@ -1,30 +1,41 @@
-use crate::protocol::ProtocolTypes;
 use crate::time::build_unix_time;
-use crate::{NetflowByteParser, NetflowPacket, ParsedNetflow};
+use crate::{NetflowByteParserVariable, NetflowPacket, ParsedNetflow};
 
-use nom::number::complete::be_u32;
 use nom::IResult;
 use nom_derive::*;
 use serde::Serialize;
-use std::net::Ipv4Addr;
 use std::time::SystemTime;
 use Nom;
 
-#[derive(Debug, Nom, Clone, Serialize)]
-pub struct V9 {
-    /// V9 Header
-    #[nom(Parse = "{ parse_v9_header }")]
-    pub header: V9Header,
+#[derive(Default)]
+pub struct V9Parser {
+    pub templates: Vec<V9Template>,
 }
 
-impl NetflowByteParser for V9 {
-    fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
+#[derive(Default)]
+pub struct V9Template {}
+
+impl NetflowByteParserVariable for V9Parser {
+    fn parse_bytes<'a>(
+        &'a self,
+        packet: &'a [u8],
+    ) -> Result<ParsedNetflow<'a>, Box<dyn std::error::Error>> {
         let parsed_packet = V9::parse_be(packet).map_err(|e| format!("{e}"))?;
         Ok(ParsedNetflow {
             remaining_bytes: parsed_packet.0,
             netflow_packet: NetflowPacket::V9(parsed_packet.1),
         })
     }
+}
+
+#[derive(Debug, Nom, Clone, Serialize)]
+pub struct V9 {
+    /// V9 Header
+    #[nom(Parse = "{ parse_v9_header }")]
+    pub header: V9Header,
+    /// V9 Body
+    #[nom(Parse = "{ V9Body::parse }")]
+    pub body: V9Body,
 }
 
 /// Custom V9 Header Parser to set unix_time as a SystemTime from parsed unix_secs fields.
@@ -66,4 +77,12 @@ pub struct V9Header {
     /// address plus the Source ID field to associate an incoming NetFlow export packet with a unique
     /// instance of NetFlow on a particular device.
     pub source_id: u32,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
+pub struct V9Body {
+    /// A FlowSet ID precedes each group of records within a NetFlow Version 9 data FlowSet. The FlowSet ID
+    /// maps to a (previously received) template ID. The collector and display applications should use the
+    /// FlowSet ID to map the appropriate type and length to any field values that follow.
+    pub flow_set_id: u16,
 }

@@ -1,6 +1,6 @@
 use crate::protocol::ProtocolTypes;
 use crate::time::build_unix_time;
-use crate::{NetflowByteParser, NetflowPacket, ParsedNetflow};
+use crate::{NetflowByteParserStatic, NetflowPacket, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 use nom::IResult;
@@ -20,7 +20,7 @@ pub struct V5 {
     pub body: V5Body,
 }
 
-impl NetflowByteParser for V5 {
+impl NetflowByteParserStatic for V5 {
     fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
         let parsed_packet = V5::parse_be(packet).map_err(|e| format!("{e}"))?;
         Ok(ParsedNetflow {
