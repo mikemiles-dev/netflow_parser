@@ -64,7 +64,8 @@ struct NetflowHeader {
     version: u16,
 }
 
-pub trait NetflowByteParser {
+/// Trait provided for all parser versions
+trait NetflowByteParser {
     fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>>;
 }
 
