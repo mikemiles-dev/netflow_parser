@@ -50,7 +50,8 @@ pub enum NetflowPacket {
 #[derive(Debug, Clone)]
 pub struct ParsedNetflow<'a> {
     remaining_bytes: &'a [u8],
-    netflow_packet: NetflowPacket,
+    /// Parsed Netflow Packet
+    pub netflow_packet: NetflowPacket,
 }
 
 /// Struct is used simply to match how to handle the result of the packet
