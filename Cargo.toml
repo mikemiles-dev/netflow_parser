@@ -16,3 +16,4 @@ insta = { version = "1.30.0", features = ["yaml"] }
 
 [dev-dependencies]
 insta = { version = "1.30.0", features = ["yaml"] }
+serde_json = "1.0.100"
