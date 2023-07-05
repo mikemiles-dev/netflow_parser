@@ -77,12 +77,12 @@ impl NetflowParser {
         // If we have bytes to parse
         while !packet_to_be_processed.is_empty() {
             // Attempt to Parse Bytes
-            let parsed_netflow = match NetflowHeader::get_version_from_bytes(packet_to_be_processed)
-            {
-                NetflowVersion::V5 => V5::parse_bytes(packet),
-                NetflowVersion::V7 => V7::parse_bytes(packet),
-                _ => Err("Unsupported Version!".to_string().into()),
-            };
+            let parsed_netflow =
+                match NetflowHeader::get_version_from_bytes(packet_to_be_processed) {
+                    NetflowVersion::V5 => V5::parse_bytes(packet),
+                    NetflowVersion::V7 => V7::parse_bytes(packet),
+                    _ => Err("Unsupported Version!".to_string().into()),
+                };
             // Handle Result of Parsed Bytes
             match parsed_netflow {
                 Ok(parsed_netflow) => {
@@ -108,9 +108,9 @@ mod tests {
     #[test]
     fn it_parses_v5() {
         let packet = [
-            0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
-            5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+            0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
         assert_yaml_snapshot!(NetflowParser::parse_bytes(&packet));
     }
@@ -118,9 +118,9 @@ mod tests {
     #[test]
     fn it_parses_v7() {
         let packet = [
-            0, 7, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
-            5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            0, 7, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
         ];
         assert_yaml_snapshot!(NetflowParser::parse_bytes(&packet));
     }

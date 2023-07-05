@@ -34,7 +34,8 @@ impl NetflowByteParser for V7 {
 fn parse_v7_header(i: &[u8]) -> IResult<&[u8], V7Header> {
     match V7Header::parse(i) {
         Ok((i, mut v7_header)) => {
-            v7_header.unix_time = Some(build_unix_time(v7_header.unix_secs, v7_header.unix_nsecs));
+            v7_header.unix_time =
+                Some(build_unix_time(v7_header.unix_secs, v7_header.unix_nsecs));
             Ok((i, v7_header))
         }
         Err(e) => Err(e),

@@ -34,7 +34,8 @@ impl NetflowByteParser for V5 {
 fn parse_v5_header(i: &[u8]) -> IResult<&[u8], V5Header> {
     match V5Header::parse(i) {
         Ok((i, mut v5_header)) => {
-            v5_header.unix_time = Some(build_unix_time(v5_header.unix_secs, v5_header.unix_nsecs));
+            v5_header.unix_time =
+                Some(build_unix_time(v5_header.unix_secs, v5_header.unix_nsecs));
             Ok((i, v5_header))
         }
         Err(e) => Err(e),
