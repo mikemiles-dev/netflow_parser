@@ -2,7 +2,7 @@
 name = "netflow_parser"
 version = "0.1.0"
 edition = "2021"
-author = "mmileusnich@gmail.com"
+author = "michael.mileusnich@gmail.com"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -16,3 +16,4 @@ insta = { version = "1.30.0", features = ["yaml"] }
 
 [dev-dependencies]
 insta = { version = "1.30.0", features = ["yaml"] }
+serde_json = "1.0.100"
