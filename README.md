@@ -1,5 +1,5 @@
 # netflow_parser
-A netflow_parser library for V5, V7, V9, V10, IPFIX written in Rust.
+A netflow_parser library for V5, V7, V9, IPFIX written in Rust.
 
 # Example:
 

@@ -1,3 +1,21 @@
+//! # netflow_parser
+//! A netflow_parser library for V5, V7, V9, IPFIX written in Rust.
+
+//! # Example:
+
+//! ## V5:
+
+//! ```rust
+//! use netflow_parser::NetflowParser;
+
+//! let v5_packet = [5, 1, 2...];
+//! match NetflowParser::parse_bytes(&v5_packet).first() {
+//!     Some(NetflowPacket::V5(v5)) => assert_eq!(v5.header.version, 5),
+//!     ...
+//! }
+
+//! ```
+
 pub mod protocol;
 pub mod static_versions;
 mod time;
