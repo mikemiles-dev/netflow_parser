@@ -21,11 +21,11 @@ pub struct ParsedNetflow<'a> {
 }
 
 #[derive(Nom)]
-pub struct NetflowHeader {
+struct NetflowHeader {
     version: u16,
 }
 
-pub enum NetflowVersion {
+enum NetflowVersion {
     V5,
     V7,
     V9,
