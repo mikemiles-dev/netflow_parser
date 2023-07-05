@@ -34,10 +34,12 @@
 pub mod protocol;
 pub mod static_versions;
 mod time;
+pub mod variable_versions;
 
 use log::*;
 use serde::Serialize;
 use static_versions::{v5::V5, v7::V7};
+use variable_versions::v9::V9;
 
 use nom_derive::{Nom, Parse};
 
@@ -48,6 +50,8 @@ pub enum NetflowPacket {
     V5(V5),
     /// Version 7
     V7(V7),
+    /// Version 9
+    V9(V9),
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +81,7 @@ impl NetflowParser {
         match NetflowHeader::parse_be(packet) {
             Ok((_, netflow_header)) if netflow_header.version == 5 => V5::parse_bytes(packet),
             Ok((_, netflow_header)) if netflow_header.version == 7 => V7::parse_bytes(packet),
+            Ok((_, netflow_header)) if netflow_header.version == 9 => V9::parse_bytes(packet),
             _ => Err("Not Supported".to_string().into()),
         }
     }
