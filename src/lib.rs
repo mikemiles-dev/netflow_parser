@@ -1,9 +1,10 @@
-pub mod legacy;
 pub mod proto;
+pub mod static_versions;
 pub mod time;
-use legacy::{v5::V5, v7::V7};
+
 use log::*;
 use serde::Serialize;
+use static_versions::{v5::V5, v7::V7};
 
 use nom_derive::{Nom, Parse};
 
@@ -83,7 +84,7 @@ impl NetflowParser {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
+    use super::NetflowParser;
     use insta::assert_yaml_snapshot;
 
     #[test]
