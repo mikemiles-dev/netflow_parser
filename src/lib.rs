@@ -53,27 +53,11 @@ pub struct ParsedNetflow<'a> {
     netflow_packet: NetflowPacket,
 }
 
+/// Struct is used simply to match how to handle the result of the packet
 #[derive(Nom)]
 struct NetflowHeader {
+    /// Netflow Version
     version: u16,
-}
-
-enum NetflowVersion {
-    V5,
-    V7,
-    V9,
-    Unsupported,
-}
-
-impl NetflowHeader {
-    fn get_version_from_bytes(packet: &[u8]) -> NetflowVersion {
-        match NetflowHeader::parse_be(packet) {
-            Ok((_, netflow_header)) if netflow_header.version == 5 => NetflowVersion::V5,
-            Ok((_, netflow_header)) if netflow_header.version == 7 => NetflowVersion::V7,
-            Ok((_, netflow_header)) if netflow_header.version == 9 => NetflowVersion::V9,
-            _ => NetflowVersion::Unsupported,
-        }
-    }
 }
 
 pub trait NetflowByteParser {
@@ -83,6 +67,15 @@ pub trait NetflowByteParser {
 pub struct NetflowParser;
 
 impl NetflowParser {
+    /// We match versions to parsers.
+    fn parse_version(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
+        match NetflowHeader::parse_be(packet) {
+            Ok((_, netflow_header)) if netflow_header.version == 5 => V5::parse_bytes(packet),
+            Ok((_, netflow_header)) if netflow_header.version == 7 => V7::parse_bytes(packet),
+            _ => Err(format!("Not Supported").into()),
+        }
+    }
+
     /// Takes a Netflow packet slice and returns a vector of Parsed Netflows.
     /// If we reach some parse error we return what items be have.
     pub fn parse_bytes(packet: &[u8]) -> Vec<NetflowPacket> {
@@ -91,15 +84,7 @@ impl NetflowParser {
 
         // If we have bytes to parse
         while !packet_to_be_processed.is_empty() {
-            // Attempt to Parse Bytes
-            let parsed_netflow =
-                match NetflowHeader::get_version_from_bytes(packet_to_be_processed) {
-                    NetflowVersion::V5 => V5::parse_bytes(packet),
-                    NetflowVersion::V7 => V7::parse_bytes(packet),
-                    _ => Err("Unsupported Version!".to_string().into()),
-                };
-            // Handle Result of Parsed Bytes
-            match parsed_netflow {
+            match Self::parse_version(packet_to_be_processed) {
                 Ok(parsed_netflow) => {
                     packet_to_be_processed = parsed_netflow.remaining_bytes;
                     netflow_results.push(parsed_netflow.netflow_packet);
