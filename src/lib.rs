@@ -41,9 +41,12 @@ use static_versions::{v5::V5, v7::V7};
 
 use nom_derive::{Nom, Parse};
 
+/// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
 pub enum NetflowPacket {
+    /// Version 5
     V5(V5),
+    /// Version 7
     V7(V7),
 }
 
