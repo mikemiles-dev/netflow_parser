@@ -1,4 +1,4 @@
-use crate::proto::Protocol;
+use crate::protocol::ProtocolTypes;
 use crate::time::build_unix_time;
 use crate::{NetflowByteParser, NetflowPacket, ParsedNetflow};
 
@@ -94,8 +94,8 @@ pub struct V7Body {
     /// TCP flags; always set to zero.
     pub tcp_flags: u8,
     /// IP protocol type (for example, TCP = 6; UDP = 17); set to zero if flow mask is destination-only or source-destination.
-    #[nom(Parse = "{ Protocol::parse }")]
-    pub protocol: Protocol,
+    #[nom(Parse = "{ ProtocolTypes::parse }")]
+    pub protocol: ProtocolTypes,
     /// IP type of service; switch sets it to the ToS of the first packet of the flow.
     pub tos: u8,
     /// Source autonomous system number, either origin or peer; always set to zero.

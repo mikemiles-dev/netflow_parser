@@ -1,4 +1,4 @@
-use crate::proto::Protocol;
+use crate::protocol::ProtocolTypes;
 use crate::time::build_unix_time;
 use crate::{NetflowByteParser, NetflowPacket, ParsedNetflow};
 
@@ -98,8 +98,8 @@ pub struct V5Body {
     /// Cumulative OR of TCP flags
     pub tcp_flags: u8,
     /// IP protocol type (for example, TCP = 6; UDP = 17)
-    #[nom(Parse = "{ Protocol::parse }")]
-    pub protocol: Protocol,
+    #[nom(Parse = "{ ProtocolTypes::parse }")]
+    pub protocol: ProtocolTypes,
     /// IP type of service (ToS)
     pub tos: u8,
     /// Autonomous system number of the source, either origin or peer

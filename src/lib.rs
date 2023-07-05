@@ -1,4 +1,4 @@
-pub mod proto;
+pub mod protocol;
 pub mod static_versions;
 pub mod time;
 
