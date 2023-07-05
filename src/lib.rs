@@ -151,4 +151,12 @@ mod tests {
         ];
         assert_yaml_snapshot!(NetflowParser::parse_bytes(&packet));
     }
+
+    #[test]
+    fn it_parses_v9() {
+        let packet = [
+            0, 9, 0, 4, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1
+        ];
+        assert_yaml_snapshot!(NetflowParser::parse_bytes(&packet));
+    }
 }
