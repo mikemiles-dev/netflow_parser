@@ -1,6 +1,8 @@
 //! # netflow_parser
 //!
-//! A netflow_parser library for V5, V7, V9, IPFIX written in Rust.
+//! A netflow_parser library for V5, V7, V9, IPFIX written in Rust (More Versions coming soon).
+//!
+//! See: <https://en.wikipedia.org/wiki/NetFlow>
 //!
 //! # Example:
 //!
@@ -55,8 +57,8 @@ pub enum NetflowPacket {
 }
 
 #[derive(Debug, Clone)]
-pub struct ParsedNetflow<'a> {
-    remaining_bytes: &'a [u8],
+pub struct ParsedNetflow {
+    remaining: Vec<u8>,
     /// Parsed Netflow Packet
     pub netflow_packet: NetflowPacket,
 }
@@ -75,10 +77,10 @@ trait NetflowByteParserStatic {
 
 /// Trait provided for all variable parser versions
 trait NetflowByteParserVariable {
-    fn parse_bytes<'a>(
-        &'a self,
-        packet: &'a [u8],
-    ) -> Result<ParsedNetflow<'a>, Box<dyn std::error::Error>>;
+    fn parse_bytes(
+        &mut self,
+        packet: &[u8],
+    ) -> Result<ParsedNetflow, Box<dyn std::error::Error>>;
 }
 
 #[derive(Default)]
@@ -89,7 +91,7 @@ pub struct NetflowParser {
 impl NetflowParser {
     /// We match versions to parsers.
     fn parse_version<'a>(
-        &'a self,
+        &'a mut self,
         packet: &'a [u8],
     ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
         match NetflowHeader::parse_be(packet) {
@@ -121,11 +123,11 @@ impl NetflowParser {
     /// [{"V5":{"body":{"d_octets":66051,"d_pkts":101124105,"dst_addr":"4.5.6.7","dst_as":515,"dst_mask":5,"dst_port":1029,"first":67438087,"input":515,"last":134807553,"next_hop":"8.9.0.1","output":1029,"pad1":6,"pad2":1543,"protocol":"EGP","src_addr":"0.1.2.3","src_as":1,"src_mask":4,"src_port":515,"tcp_flags":7,"tos":9},"header":{"count":512,"engine_id":7,"engine_type":6,"flow_sequence":33752069,"sampling_interval":2057,"sys_up_time":50332672,"unix_nsecs":134807553,"unix_secs":83887623,"unix_time":{"nanos_since_epoch":134807553,"secs_since_epoch":83887623},"version":5}}}]
     /// ```
     ///
-    pub fn parse_bytes(&self, packet: &[u8]) -> Vec<NetflowPacket> {
+    pub fn parse_bytes(&mut self, packet: &[u8]) -> Vec<NetflowPacket> {
         match self.parse_version(packet) {
             Ok(parsed_netflow) => {
                 let mut parsed = vec![parsed_netflow.netflow_packet];
-                parsed.append(&mut self.parse_bytes(parsed_netflow.remaining_bytes));
+                parsed.append(&mut self.parse_bytes(parsed_netflow.remaining.as_slice()));
                 parsed
             }
             Err(parsed_error) => {
@@ -165,7 +167,8 @@ mod tests {
     #[test]
     fn it_parses_v9() {
         let packet = [
-            0, 9, 0, 4, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0,
+            0, 9, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,
+            2, 0, 1, 0, 4, 0, 8, 0, 4, 1, 2, 0, 12, 9, 2, 3, 4, 9, 9, 9, 8,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }

@@ -1,9 +1,13 @@
+//! # Netflow V7
+//!
+//! References:
+//! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
+
 use crate::protocol::ProtocolTypes;
 use crate::time::build_unix_time;
 use crate::{NetflowByteParserStatic, NetflowPacket, ParsedNetflow};
 
 use nom::number::complete::be_u32;
-use nom::IResult;
 use nom_derive::*;
 use serde::Serialize;
 use std::net::Ipv4Addr;
@@ -13,10 +17,8 @@ use Nom;
 #[derive(Debug, Nom, Clone, Serialize)]
 pub struct V7 {
     /// V7 Header
-    #[nom(Parse = "{ parse_v7_header }")]
     pub header: V7Header,
     /// V7 Body
-    #[nom(Parse = "{ V7Body::parse }")]
     pub body: V7Body,
 }
 
@@ -24,21 +26,9 @@ impl NetflowByteParserStatic for V7 {
     fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
         let parsed_packet = V7::parse_be(packet).map_err(|e| format!("{e}"))?;
         Ok(ParsedNetflow {
-            remaining_bytes: parsed_packet.0,
+            remaining: parsed_packet.0.to_vec(),
             netflow_packet: NetflowPacket::V7(parsed_packet.1),
         })
-    }
-}
-
-/// Custom V7 Header Parser to set unix_time as a SystemTime from parsed unix_secs and unix_nsecs fields.
-fn parse_v7_header(i: &[u8]) -> IResult<&[u8], V7Header> {
-    match V7Header::parse(i) {
-        Ok((i, mut v7_header)) => {
-            v7_header.unix_time =
-                Some(build_unix_time(v7_header.unix_secs, v7_header.unix_nsecs));
-            Ok((i, v7_header))
-        }
-        Err(e) => Err(e),
     }
 }
 
@@ -55,8 +45,8 @@ pub struct V7Header {
     /// Residual nanoseconds since 0000 UTC 1970
     pub unix_nsecs: u32,
     /// SystemTime build from unix_secs and unix_nsecs
-    #[nom(Ignore)]
-    pub unix_time: Option<SystemTime>,
+    #[nom(Parse = "{ |i| Ok((i, build_unix_time(unix_secs, unix_nsecs))) }")]
+    pub unix_time: SystemTime,
     /// Sequence counter of total flows seen
     pub flow_sequence: u32,
     /// Unused (zero) bytes
@@ -95,7 +85,6 @@ pub struct V7Body {
     /// TCP flags; always set to zero.
     pub tcp_flags: u8,
     /// IP protocol type (for example, TCP = 6; UDP = 17); set to zero if flow mask is destination-only or source-destination.
-    #[nom(Parse = "{ ProtocolTypes::parse }")]
     pub protocol: ProtocolTypes,
     /// IP type of service; switch sets it to the ToS of the first packet of the flow.
     pub tos: u8,
