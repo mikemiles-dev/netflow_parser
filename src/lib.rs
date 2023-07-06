@@ -122,23 +122,17 @@ impl NetflowParser {
     /// ```
     ///
     pub fn parse_bytes(&self, packet: &[u8]) -> Vec<NetflowPacket> {
-        let mut packet_to_be_processed = <&[u8]>::clone(&packet);
-        let mut netflow_results = vec![];
-
-        // If we have bytes to parse
-        while !packet_to_be_processed.is_empty() {
-            match self.parse_version(packet_to_be_processed) {
-                Ok(parsed_netflow) => {
-                    packet_to_be_processed = parsed_netflow.remaining_bytes;
-                    netflow_results.push(parsed_netflow.netflow_packet);
-                }
-                Err(parsed_error) => {
-                    warn!("{parsed_error}");
-                    break;
-                }
+        match self.parse_version(packet) {
+            Ok(parsed_netflow) => {
+                let mut parsed = vec![parsed_netflow.netflow_packet];
+                parsed.append(&mut self.parse_bytes(parsed_netflow.remaining_bytes));
+                parsed
+            }
+            Err(parsed_error) => {
+                warn!("{parsed_error}");
+                vec![]
             }
         }
-        netflow_results
     }
 }
 
