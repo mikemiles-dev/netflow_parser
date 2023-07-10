@@ -294,7 +294,6 @@ pub struct V9DataField {
     /// System uptime at which the first packet of this flow was switched
     #[nom(Cond = "field.field_type == 22")]
     pub first_switched: Option<u32>,
-    
 }
 
 /// Custom  Field Parse function.
