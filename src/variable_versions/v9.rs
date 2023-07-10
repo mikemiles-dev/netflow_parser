@@ -233,7 +233,68 @@ pub struct V9DataField {
         Cond = "field.field_type == 14",
         Take = "field.field_length"
     )]
-    output_snmp: Option<Vec<u8>>,
+    pub output_snmp: Option<Vec<u8>>,
+    /// IPv4 address of next-hop router
+    #[nom(
+        Cond = "field.field_type == 15",
+        Map = "Ipv4Addr::from",
+        Parse = "be_u32"
+    )]
+    pub ipv4_next_hop: Option<Ipv4Addr>,
+    /// Source BGP autonomous system number where N could be 2 or 4
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == 16",
+        Take = "field.field_length"
+    )]
+    pub src_as: Option<Vec<u8>>,
+    /// Destination BGP autonomous system number where N could be 2 or 4
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == 17",
+        Take = "field.field_length"
+    )]
+    pub dst_as: Option<Vec<u8>>,
+    /// Next-hop router's IP in the BGP domain
+    #[nom(
+        Cond = "field.field_type == 18",
+        Map = "Ipv4Addr::from",
+        Parse = "be_u32"
+    )]
+    pub bgp_ipv4_next_hop: Option<Ipv4Addr>,
+    /// IP multicast outgoing packet counter with length N x 8 bits for packets associated with the IP Flow
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == 19",
+        Take = "field.field_length"
+    )]
+    pub mul_dst_pkts: Option<Vec<u8>>,
+    /// IP multicast outgoing byte counter with length N x 8 bits for bytes associated with the IP Flow
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == 20",
+        Take = "field.field_length"
+    )]
+    pub mul_dst_bytes: Option<Vec<u8>>,
+    /// System uptime at which the last packet of this flow was switched
+    #[nom(Cond = "field.field_type == 21")]
+    pub last_switched: Option<u32>,
+    /// System uptime at which the first packet of this flow was switched
+    #[nom(Cond = "field.field_type == 22")]
+    pub first_switched: Option<u32>,
+    
 }
 
 /// Custom  Field Parse function.

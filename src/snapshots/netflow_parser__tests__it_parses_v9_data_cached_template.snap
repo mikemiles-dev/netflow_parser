@@ -37,6 +37,14 @@ expression: parser.parse_bytes(&packet)
               ipv4_dst_addr: ~
               dst_mask: ~
               output_snmp: ~
+              ipv4_next_hop: ~
+              src_as: ~
+              dst_as: ~
+              bgp_ipv4_next_hop: ~
+              mul_dst_pkts: ~
+              mul_dst_bytes: ~
+              last_switched: ~
+              first_switched: ~
             - in_bytes: ~
               in_pkts: ~
               flows: ~
@@ -51,4 +59,12 @@ expression: parser.parse_bytes(&packet)
               ipv4_dst_addr: ~
               dst_mask: ~
               output_snmp: ~
+              ipv4_next_hop: ~
+              src_as: ~
+              dst_as: ~
+              bgp_ipv4_next_hop: ~
+              mul_dst_pkts: ~
+              mul_dst_bytes: ~
+              last_switched: ~
+              first_switched: ~
 
