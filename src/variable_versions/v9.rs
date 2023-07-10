@@ -334,6 +334,12 @@ pub struct V9DataField {
         Parse = "be_u128"
     )]
     pub ipv6_dist_addr: Option<Ipv6Addr>,
+    /// Length of the IPv6 source mask in contiguous bits
+    #[nom(Cond = "field.field_type == 29")]
+    pub ipv6_src_mask: Option<u8>,
+    /// Length of the IPv6 destination mask in contiguous bits
+    #[nom(Cond = "field.field_type == 30")]
+    pub ipv6_dst_mask: Option<u8>,
 }
 
 /// Custom  Field Parse function.

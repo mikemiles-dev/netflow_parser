@@ -51,6 +51,8 @@ expression: parser.parse_bytes(&packet)
               max_pkt_lngth: ~
               ipv6_src_addr: ~
               ipv6_dist_addr: ~
+              ipv6_src_mask: ~
+              ipv6_dst_mask: ~
             - in_bytes: ~
               in_pkts: ~
               flows: ~
@@ -79,4 +81,6 @@ expression: parser.parse_bytes(&packet)
               max_pkt_lngth: ~
               ipv6_src_addr: ~
               ipv6_dist_addr: ~
+              ipv6_src_mask: ~
+              ipv6_dst_mask: ~
 
