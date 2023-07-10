@@ -82,7 +82,7 @@ trait NetflowByteParserStatic {
     fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>>;
 }
 
-/// Trait provided for all variable parser versions
+/// Trait provided for all variable parser versions.  We need a mutable self reference to store things like tempalates.
 trait NetflowByteParserVariable {
     fn parse_bytes(
         &mut self,
@@ -97,7 +97,7 @@ pub struct NetflowParser {
 
 impl NetflowParser {
     /// We match versions to parsers.
-    fn parse_version<'a>(
+    fn parse_by_version<'a>(
         &'a mut self,
         packet: &'a [u8],
     ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
@@ -131,7 +131,7 @@ impl NetflowParser {
     /// ```
     ///
     pub fn parse_bytes(&mut self, packet: &[u8]) -> Vec<NetflowPacket> {
-        match self.parse_version(packet) {
+        match self.parse_by_version(packet) {
             Ok(parsed_netflow) => {
                 let mut parsed = vec![parsed_netflow.netflow_packet];
                 parsed.append(&mut self.parse_bytes(parsed_netflow.remaining.as_slice()));
