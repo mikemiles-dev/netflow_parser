@@ -9,7 +9,7 @@ use crate::time::build_unix_time;
 use crate::{NetflowByteParserVariable, NetflowPacket, ParsedNetflow};
 
 use nom::error::{Error as NomError, ErrorKind};
-use nom::number::complete::be_u32;
+use nom::number::complete::{be_u128, be_u32};
 use nom::Err as NomErr;
 use nom::IResult;
 use nom_derive::*;
@@ -19,7 +19,7 @@ use Nom;
 
 use log::error;
 use std::collections::HashMap;
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, Ipv6Addr};
 
 const TEMPLATE_ID: u16 = 0;
 const OPTIONS_TEMPLATE_MAX_RANGE: u16 = 255;
@@ -294,6 +294,46 @@ pub struct V9DataField {
     /// System uptime at which the first packet of this flow was switched
     #[nom(Cond = "field.field_type == 22")]
     pub first_switched: Option<u32>,
+    /// Outgoing counter with length N x 8 bits for the number of bytes associated with an IP Flow
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == 23",
+        Take = "field.field_length"
+    )]
+    pub out_bytes: Option<Vec<u8>>,
+    /// Outgoing counter with length N x 8 bits for the number of packets associated with an IP Flow.
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == 24",
+        Take = "field.field_length"
+    )]
+    pub out_pkts: Option<Vec<u8>>,
+    /// Minimum IP packet length on incoming packets of the flow
+    #[nom(Cond = "field.field_type == 25")]
+    pub min_pkt_lngth: Option<u16>,
+    /// Maximum IP packet length on incoming packets of the flow
+    #[nom(Cond = "field.field_type == 26")]
+    pub max_pkt_lngth: Option<u16>,
+    /// IPv6 Source Address
+    #[nom(
+        Cond = "field.field_type == 27",
+        Map = "Ipv6Addr::from",
+        Parse = "be_u128"
+    )]
+    pub ipv6_src_addr: Option<Ipv6Addr>,
+    /// IPv6 Destination Address
+    #[nom(
+        Cond = "field.field_type == 28",
+        Map = "Ipv6Addr::from",
+        Parse = "be_u128"
+    )]
+    pub ipv6_dist_addr: Option<Ipv6Addr>,
 }
 
 /// Custom  Field Parse function.

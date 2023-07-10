@@ -45,6 +45,12 @@ expression: parser.parse_bytes(&packet)
               mul_dst_bytes: ~
               last_switched: ~
               first_switched: ~
+              out_bytes: ~
+              out_pkts: ~
+              min_pkt_lngth: ~
+              max_pkt_lngth: ~
+              ipv6_src_addr: ~
+              ipv6_dist_addr: ~
             - in_bytes: ~
               in_pkts: ~
               flows: ~
@@ -67,4 +73,10 @@ expression: parser.parse_bytes(&packet)
               mul_dst_bytes: ~
               last_switched: ~
               first_switched: ~
+              out_bytes: ~
+              out_pkts: ~
+              min_pkt_lngth: ~
+              max_pkt_lngth: ~
+              ipv6_src_addr: ~
+              ipv6_dist_addr: ~
 
