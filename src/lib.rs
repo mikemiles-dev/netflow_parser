@@ -1,6 +1,5 @@
 //! # netflow_parser
 //!
-//! # Description:
 //! A netflow_parser library for V5, V7, V9, IPFIX written in Rust (More Versions coming soon).
 //! Supports chaining of multple versions in the same stream.  (<v5 packet>, <v7packet>, <v5packet>, <v9packet>, etc.)
 //!
