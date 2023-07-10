@@ -21,6 +21,7 @@ match NetflowParser::default().parse_bytes(&v5_packet).first() {
 ```
 
 ## Want JSON?
+Structures fully support serialization.  Below is an example using the serde_json macro:
 ```rust
 use serde_json::json;
 use netflow_parser::NetflowParser;
