@@ -64,6 +64,8 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               ipv6_dist_addr: ~
               ipv6_src_mask: ~
               ipv6_dst_mask: ~
+              ipv6_flow_label: ~
+              icmp_type: ~
             - in_bytes: ~
               in_pkts: ~
               flows: ~
@@ -94,4 +96,6 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               ipv6_dist_addr: ~
               ipv6_src_mask: ~
               ipv6_dst_mask: ~
+              ipv6_flow_label: ~
+              icmp_type: ~
 

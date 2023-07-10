@@ -340,6 +340,19 @@ pub struct V9DataField {
     /// Length of the IPv6 destination mask in contiguous bits
     #[nom(Cond = "field.field_type == 30")]
     pub ipv6_dst_mask: Option<u8>,
+    /// IPv6 flow label as per RFC 2460 definition
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == 31",
+        Take = "3"
+    )]
+    pub ipv6_flow_label: Option<Vec<u8>>,
+    /// Internet Control Message Protocol (ICMP) packet type; reported as ((ICMP Type*256) + ICMP code)
+    #[nom(Cond = "field.field_type == 32")]
+    pub icmp_type: Option<u16>,
 }
 
 /// Custom  Field Parse function.
