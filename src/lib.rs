@@ -141,6 +141,8 @@ impl NetflowParser {
 #[cfg(test)]
 mod tests {
 
+    use crate::variable_versions::v9::{V9Template, V9TemplateField};
+
     use super::NetflowParser;
     use insta::assert_yaml_snapshot;
 
@@ -171,5 +173,32 @@ mod tests {
             2, 0, 1, 0, 4, 0, 8, 0, 4, 1, 2, 0, 12, 9, 2, 3, 4, 9, 9, 9, 8,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_parses_v9_data_cached_template() {
+        let packet = [
+            0, 9, 0, 1, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 1, 2, 0, 12, 9, 2, 3,
+            4, 9, 9, 9, 8,
+        ];
+        let fields = vec![
+            V9TemplateField {
+                field_type: 1,
+                field_length: 4,
+            },
+            V9TemplateField {
+                field_type: 8,
+                field_length: 4,
+            },
+        ];
+        let template = V9Template {
+            length: 16,
+            field_count: 2,
+            template_id: 258,
+            fields,
+        };
+        let mut parser = NetflowParser::default();
+        parser.v9_parser.templates.insert(258, template);
+        assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
 }

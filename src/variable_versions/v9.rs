@@ -221,6 +221,19 @@ pub struct V9DataField {
         Parse = "be_u32"
     )]
     pub ipv4_dst_addr: Option<Ipv4Addr>,
+    /// The number of contiguous bits in the destination address subnet mask i.e.: the submask in slash notation
+    #[nom(Cond = "field.field_type == 13")]
+    pub dst_mask: Option<u8>,
+    /// Output interface index; default for N is 2 but higher values could be used
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == 14",
+        Take = "field.field_length"
+    )]
+    output_snmp: Option<Vec<u8>>,
 }
 
 /// Custom  Field Parse function.
