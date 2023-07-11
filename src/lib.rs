@@ -1,6 +1,6 @@
 //! # netflow_parser
 //!
-//! A netflow_parser library for V5, V7, V9, IPFIX written in Rust (More Versions coming soon).
+//! A netflow_parser library for V5, V7, V9, IPFIX written in Rust.
 //! Supports chaining of multple versions in the same stream.  ({v5 packet}, {v7packet}, {v5packet}, {v9packet}, etc.)
 //!
 //! # References
@@ -38,7 +38,11 @@
 //!
 //! ## V9/IPFix notes:
 //!
-//! Parse the data (&[u8] as any other versions.  The parser (NetflowParser) holds onto already parsed templates, so you can just send a header/data flowset combo and it will use the cached templates.)
+//! Parse the data (&[u8] as any other versions.  The parser (NetflowParser) holds onto already parsed templates, so you can just send a header/data flowset combo and it will use the cached templates.)   To see cached templates simply use the parser for the correct version (v9_parser for v9, ipfix_parser for IPFix.)
+//! ```rust
+//! dbg!(parserv9_parer);
+//! ```
+//! To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attirute on the Parsed Record.  In there you can find Templates, Option Templates, and Data Flowsets.
 
 pub mod protocol;
 pub mod static_versions;
@@ -90,7 +94,7 @@ trait NetflowByteParserVariable {
     ) -> Result<ParsedNetflow, Box<dyn std::error::Error>>;
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct NetflowParser {
     v9_parser: V9Parser,
 }

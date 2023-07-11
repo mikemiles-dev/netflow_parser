@@ -26,7 +26,7 @@ const OPTIONS_TEMPLATE_MAX_RANGE: u16 = 255;
 
 type TemplateId = u16;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct V9Parser {
     pub templates: HashMap<TemplateId, V9Template>,
 }
