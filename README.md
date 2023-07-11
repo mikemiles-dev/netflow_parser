@@ -41,7 +41,7 @@ println!("{}", json!(NetflowParser::default().parse_bytes(&v5_packet)).to_string
 Parse the data (&[u8] as any other versions.  The parser (NetflowParser) holds onto already parsed templates, so you can just send a header/data flowset combo and it will use the cached templates.)   To see cached templates simply use the parser for the correct version (v9_parser for v9, ipfix_parser for IPFix.)
 
 ```rust
-dbg!(parserv9_parer);
+dbg!(parser.v9_parer);
 ```
 
 To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attirute on the Parsed Record.  In there you can find Templates, Option Templates, and Data Flowsets.
