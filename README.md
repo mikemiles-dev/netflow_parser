@@ -44,4 +44,4 @@ Parse the data (&[u8] as any other versions.  The parser (NetflowParser) holds o
 dbg!(parser.v9_parer);
 ```
 
-To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attirute on the Parsed Record.  In there you can find Templates, Option Templates, and Data Flowsets.
+To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attirute on the Parsed Record.  In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
