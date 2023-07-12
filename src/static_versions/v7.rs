@@ -17,9 +17,9 @@ use Nom;
 #[derive(Debug, Nom, Clone, Serialize)]
 pub struct V7 {
     /// V7 Header
-    pub header: V7Header,
+    pub header: Header,
     /// V7 Body
-    pub body: V7Body,
+    pub body: Body,
 }
 
 impl NetflowByteParserStatic for V7 {
@@ -33,7 +33,7 @@ impl NetflowByteParserStatic for V7 {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Nom, Serialize)]
-pub struct V7Header {
+pub struct Header {
     /// NetFlow export format version number
     pub version: u16,
     /// Number of flows exported in this flow frame (protocol data unit, or PDU)
@@ -54,7 +54,7 @@ pub struct V7Header {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Nom, Serialize)]
-pub struct V7Body {
+pub struct Body {
     /// Source IP address; in case of destination-only flows, set to zero.
     #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub src_addr: Ipv4Addr,

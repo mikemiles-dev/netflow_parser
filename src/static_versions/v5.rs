@@ -17,9 +17,9 @@ use Nom;
 #[derive(Debug, Nom, Clone, Serialize)]
 pub struct V5 {
     /// V5 Header
-    pub header: V5Header,
+    pub header: Header,
     /// V5 Body
-    pub body: V5Body,
+    pub body: Body,
 }
 
 impl NetflowByteParserStatic for V5 {
@@ -33,7 +33,7 @@ impl NetflowByteParserStatic for V5 {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
-pub struct V5Header {
+pub struct Header {
     /// NetFlow export format version number
     pub version: u16,
     /// Number of flows exported in this packet (1-30)
@@ -58,7 +58,7 @@ pub struct V5Header {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-pub struct V5Body {
+pub struct Body {
     /// Source IP address
     #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub src_addr: Ipv4Addr,

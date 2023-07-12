@@ -155,7 +155,7 @@ impl NetflowParser {
 #[cfg(test)]
 mod tests {
 
-    use crate::variable_versions::v9::{V9Template, V9TemplateField};
+    use crate::variable_versions::v9::{Template, TemplateField};
 
     use super::NetflowParser;
     use insta::assert_yaml_snapshot;
@@ -196,16 +196,16 @@ mod tests {
             4, 9, 9, 9, 8,
         ];
         let fields = vec![
-            V9TemplateField {
+            TemplateField {
                 field_type: 1,
                 field_length: 4,
             },
-            V9TemplateField {
+            TemplateField {
                 field_type: 8,
                 field_length: 4,
             },
         ];
-        let template = V9Template {
+        let template = Template {
             length: 16,
             field_count: 2,
             template_id: 258,
