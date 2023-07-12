@@ -353,6 +353,27 @@ pub struct V9DataField {
     /// Internet Control Message Protocol (ICMP) packet type; reported as ((ICMP Type*256) + ICMP code)
     #[nom(Cond = "field.field_type == 32")]
     pub icmp_type: Option<u16>,
+    /// Internet Group Management Protocol (IGMP) packet type
+    #[nom(Cond = "field.field_type == 33")]
+    pub mul_igmp_type: Option<u8>,
+    /// When using sampled NetFlow, the rate at which packets are sampled i.e.: a value of 100 indicates that one of every 100 packets is sampled
+    #[nom(Cond = "field.field_type == 34")]
+    pub sampling_interval: Option<u32>,
+    /// The type of algorithm used for sampled NetFlow: 0x01 Deterministic Sampling ,0x02 Random Sampling
+    #[nom(Cond = "field.field_type == 35")]
+    pub sampling_algorithm: Option<u8>,
+    /// Timeout value (in seconds) for active flow entries in the NetFlow cache
+    #[nom(Cond = "field.field_type == 36")]
+    pub flow_active_timeout: Option<u16>,
+    /// Timeout value (in seconds) for inactive flow entries in the NetFlow cache
+    #[nom(Cond = "field.field_type == 37")]
+    pub flow_inactive_timeout: Option<u16>,
+    /// Type of flow switching engine: RP = 0, VIP/Linecard = 1
+    #[nom(Cond = "field.field_type == 38")]
+    pub engine_type: Option<u8>,
+    /// ID number of the flow switching engine
+    #[nom(Cond = "field.field_type == 39")]
+    pub engine_id: Option<u8>,
 }
 
 /// Custom Field Parse function.

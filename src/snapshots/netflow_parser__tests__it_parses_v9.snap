@@ -66,6 +66,13 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               ipv6_dst_mask: ~
               ipv6_flow_label: ~
               icmp_type: ~
+              mul_igmp_type: ~
+              sampling_interval: ~
+              sampling_algorithm: ~
+              flow_active_timeout: ~
+              flow_inactive_timeout: ~
+              engine_type: ~
+              engine_id: ~
             - in_bytes: ~
               in_pkts: ~
               flows: ~
@@ -98,4 +105,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               ipv6_dst_mask: ~
               ipv6_flow_label: ~
               icmp_type: ~
+              mul_igmp_type: ~
+              sampling_interval: ~
+              sampling_algorithm: ~
+              flow_active_timeout: ~
+              flow_inactive_timeout: ~
+              engine_type: ~
+              engine_id: ~
 
