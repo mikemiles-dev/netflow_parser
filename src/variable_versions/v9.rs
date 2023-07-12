@@ -23,13 +23,15 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 const TEMPLATE_ID: u16 = 0;
-const OPTIONS_TEMPLATE_MAX_RANGE: u16 = 255;
+const OPTIONS_TEMPLATE_ID: u16 = 1;
+const FLOW_SET_MIN_RANGE: u16 = 255;
 
 type TemplateId = u16;
 
 #[derive(Default, Debug)]
 pub struct V9Parser {
     pub templates: HashMap<TemplateId, V9Template>,
+    pub options_templates: HashMap<TemplateId, V9OptionsTemplate>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -87,10 +89,16 @@ pub struct FlowSet {
         // Save our templates
         PostExec = "if let Some(template) = template.clone() { parser.templates.insert(template.template_id, template); }"
     )]
-    // Todo add options template
     pub template: Option<V9Template>,
+    // Options template
     #[nom(
-        Cond = "flow_set_id > OPTIONS_TEMPLATE_MAX_RANGE",
+        Cond = "flow_set_id == OPTIONS_TEMPLATE_ID",
+        // Save our options templates
+        PostExec = "if let Some(options_template) = options_template.clone() { parser.options_templates.insert(options_template.template_id, options_template); }"
+    )]
+    pub options_template: Option<V9OptionsTemplate>,
+    #[nom(
+        Cond = "flow_set_id > FLOW_SET_MIN_RANGE",
         Parse = "{ |i| V9Data::parse(i, parser, flow_set_id) }"
     )]
     pub data: Option<V9Data>,
@@ -119,6 +127,15 @@ pub struct V9Template {
     /// Template Fields.
     #[nom(Count = "field_count")]
     pub fields: Vec<V9TemplateField>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
+pub struct V9OptionsTemplate {
+    /// This field gives the total length of this FlowSet. Because an individual template FlowSet might contain multiple template IDs, the length value must be used to determine the position of the next FlowSet record, which might be either a template or a data FlowSet.
+    /// Length is expressed in TLV format, meaning that the value includes the bytes used for the FlowSet ID and the length bytes themselves, and the combined lengths of all template records included in this FlowSet.
+    pub length: u16,
+    /// As a router generates different template FlowSets to match the type of NetFlow data it is exporting, each template is given a unique ID. This uniqueness is local to the router that generated the template ID. The Template ID is greater than 255. Template IDs inferior to 255 are reserved.
+    pub template_id: u16,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]

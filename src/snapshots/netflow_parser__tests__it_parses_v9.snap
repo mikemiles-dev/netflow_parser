@@ -24,9 +24,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               field_length: 4
             - field_type: 8
               field_length: 4
+        options_template: ~
         data: ~
       - flow_set_id: 258
         template: ~
+        options_template: ~
         data:
           length: 12
           data_fields:

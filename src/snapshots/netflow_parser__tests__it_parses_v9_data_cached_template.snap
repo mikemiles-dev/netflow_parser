@@ -16,6 +16,7 @@ expression: parser.parse_bytes(&packet)
     flowsets:
       - flow_set_id: 258
         template: ~
+        options_template: ~
         data:
           length: 12
           data_fields:
