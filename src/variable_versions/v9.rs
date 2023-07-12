@@ -6,6 +6,7 @@
 
 use crate::protocol::ProtocolTypes;
 use crate::time::build_unix_time;
+//use crate::variable_versions::v9_lookup::*;
 use crate::{NetflowByteParserVariable, NetflowPacket, ParsedNetflow};
 
 use nom::error::{Error as NomError, ErrorKind};
