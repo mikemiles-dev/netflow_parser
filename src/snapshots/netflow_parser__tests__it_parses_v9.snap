@@ -73,6 +73,8 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               flow_inactive_timeout: ~
               engine_type: ~
               engine_id: ~
+              vendor_proprietary: ~
+              future_use: ~
             - in_bytes: ~
               in_pkts: ~
               flows: ~
@@ -112,4 +114,6 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               flow_inactive_timeout: ~
               engine_type: ~
               engine_id: ~
+              vendor_proprietary: ~
+              future_use: ~
 

@@ -374,6 +374,26 @@ pub struct V9DataField {
     /// ID number of the flow switching engine
     #[nom(Cond = "field.field_type == 39")]
     pub engine_id: Option<u8>,
+    // Vendor Proprietary
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == 65 || field.field_type == 66 || field.field_type == 67 || field.field_type == 68 || field.field_type == 69 || field.field_type == 87",
+        Take = "field.field_length"
+    )]
+    pub vendor_proprietary: Option<Vec<u8>>,
+    // Cisco Future Use
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type >= 105",
+        Take = "field.field_length"
+    )]
+    pub future_use: Option<Vec<u8>>,
 }
 
 /// Custom Field Parse function.
