@@ -154,7 +154,7 @@ pub struct V9OptionsTemplate {
     pub scope_fields: Vec<V9OptionsTemplateScopeField>,
     /// Options Fields
     #[nom(Count = "(options_length / 4) as usize")]
-    pub option_fields: Vec<V9OptionsTemplateField>,
+    pub option_fields: Vec<V9TemplateField>,
     /// Padding
     #[nom(
         Map = "|i: &[u8]| i.to_vec()",
@@ -163,15 +163,10 @@ pub struct V9OptionsTemplate {
     padding: Vec<u8>,
 }
 
+/// Options Scope Fields
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct V9OptionsTemplateScopeField {
     pub field_type: ScopeFieldType,
-    pub field_length: u16,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-pub struct V9OptionsTemplateField {
-    pub field_type: u16,
     pub field_length: u16,
 }
 
@@ -190,15 +185,77 @@ pub struct V9TemplateField {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(_parser: &mut V9Parser, _flow_set_id: u16))]
+#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
 pub struct V9OptionsData {
     // Template Id
     pub template_id: u16,
     // Length
     pub length: u16,
+    // Scope Data
+    #[nom(
+        Parse = "{ |i| parse_v9_scope_data_fields(i, flow_set_id, parser.options_templates.clone()) }"
+    )]
+    pub scope_fields: Vec<V9ScopeDataField>,
     // Options Data Fields
-    // #[nom(Parse = "{ |i| parse_v9_data_fields(i, flow_set_id, parser.templates.clone()) }")]
-    // pub data_fields: Vec<V9DataField>,
+    #[nom(
+        Parse = "{ |i| parse_v9_options_data_fields(i, flow_set_id, parser.options_templates.clone()) }"
+    )]
+    pub options_fields: Vec<V9DataField>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(field: V9OptionsTemplateScopeField))]
+pub struct V9ScopeDataField {
+    /// System
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == ScopeFieldType::System",
+        Take = "field.field_length"
+    )]
+    pub system: Option<Vec<u8>>,
+    /// Interface
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == ScopeFieldType::Interface",
+        Take = "field.field_length"
+    )]
+    pub interface: Option<Vec<u8>>,
+    /// LineCard
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == ScopeFieldType::LineCard",
+        Take = "field.field_length"
+    )]
+    pub line_card: Option<Vec<u8>>,
+    /// NetFlowCache
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == ScopeFieldType::NetflowCache",
+        Take = "field.field_length"
+    )]
+    pub net_flow_cache: Option<Vec<u8>>,
+    /// Template
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == ScopeFieldType::Template",
+        Take = "field.field_length"
+    )]
+    pub template: Option<Vec<u8>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -463,9 +520,6 @@ pub struct V9DataField {
     pub future_use: Option<Vec<u8>>,
 }
 
-/// Custom Field Parse function.
-/// Pass all templates and iter through the template fields.
-/// Use those fields to parse each FlowSet Data Fields.
 fn parse_v9_data_fields(
     i: &[u8],
     flow_set_id: u16,
@@ -479,6 +533,44 @@ fn parse_v9_data_fields(
     let mut remaining = i;
     for field in template.fields.iter() {
         let (i, v9_data_field) = V9DataField::parse(remaining, field.clone())?;
+        remaining = i;
+        fields.push(v9_data_field)
+    }
+    Ok((remaining, fields))
+}
+
+fn parse_v9_options_data_fields(
+    i: &[u8],
+    flow_set_id: u16,
+    templates: HashMap<u16, V9OptionsTemplate>,
+) -> IResult<&[u8], Vec<V9DataField>> {
+    let template = templates.get(&flow_set_id).ok_or_else(|| {
+        error!("Could not fetch any v9 templates!");
+        NomErr::Error(NomError::new(i, ErrorKind::Fail))
+    })?;
+    let mut fields = vec![];
+    let mut remaining = i;
+    for field in template.option_fields.iter() {
+        let (i, v9_data_field) = V9DataField::parse(remaining, field.clone())?;
+        remaining = i;
+        fields.push(v9_data_field)
+    }
+    Ok((remaining, fields))
+}
+
+fn parse_v9_scope_data_fields(
+    i: &[u8],
+    flow_set_id: u16,
+    templates: HashMap<u16, V9OptionsTemplate>,
+) -> IResult<&[u8], Vec<V9ScopeDataField>> {
+    let template = templates.get(&flow_set_id).ok_or_else(|| {
+        error!("Could not fetch any v9 options templates!");
+        NomErr::Error(NomError::new(i, ErrorKind::Fail))
+    })?;
+    let mut fields = vec![];
+    let mut remaining = i;
+    for field in template.scope_fields.iter() {
+        let (i, v9_data_field) = V9ScopeDataField::parse(remaining, field.clone())?;
         remaining = i;
         fields.push(v9_data_field)
     }
