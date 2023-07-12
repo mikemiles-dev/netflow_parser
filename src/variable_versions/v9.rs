@@ -22,6 +22,8 @@ use log::error;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
+use super::v9_lookup::ScopeFieldType;
+
 const TEMPLATE_ID: u16 = 0;
 const OPTIONS_TEMPLATE_ID: u16 = 1;
 const FLOW_SET_MIN_RANGE: u16 = 255;
@@ -162,10 +164,16 @@ pub struct V9OptionsTemplate {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-pub struct V9OptionsTemplateScopeField {}
+pub struct V9OptionsTemplateScopeField {
+    pub field_type: ScopeFieldType,
+    pub field_length: u16,
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-pub struct V9OptionsTemplateField {}
+pub struct V9OptionsTemplateField {
+    pub field_type: u16,
+    pub field_length: u16,
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct V9TemplateField {
