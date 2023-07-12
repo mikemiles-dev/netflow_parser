@@ -333,7 +333,7 @@ pub struct V9DataField {
         Map = "Ipv6Addr::from",
         Parse = "be_u128"
     )]
-    pub ipv6_dist_addr: Option<Ipv6Addr>,
+    pub ipv6_dst_addr: Option<Ipv6Addr>,
     /// Length of the IPv6 source mask in contiguous bits
     #[nom(Cond = "field.field_type == 29")]
     pub ipv6_src_mask: Option<u8>,
@@ -355,7 +355,7 @@ pub struct V9DataField {
     pub icmp_type: Option<u16>,
 }
 
-/// Custom  Field Parse function.
+/// Custom Field Parse function.
 /// Pass all templates and iter through the template fields.
 /// Use those fields to parse each FlowSet Data Fields.
 fn parse_v9_data_fields(

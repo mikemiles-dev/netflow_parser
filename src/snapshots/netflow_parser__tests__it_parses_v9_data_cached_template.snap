@@ -50,7 +50,7 @@ expression: parser.parse_bytes(&packet)
               min_pkt_lngth: ~
               max_pkt_lngth: ~
               ipv6_src_addr: ~
-              ipv6_dist_addr: ~
+              ipv6_dst_addr: ~
               ipv6_src_mask: ~
               ipv6_dst_mask: ~
               ipv6_flow_label: ~
@@ -82,7 +82,7 @@ expression: parser.parse_bytes(&packet)
               min_pkt_lngth: ~
               max_pkt_lngth: ~
               ipv6_src_addr: ~
-              ipv6_dist_addr: ~
+              ipv6_dst_addr: ~
               ipv6_src_mask: ~
               ipv6_dst_mask: ~
               ipv6_flow_label: ~
