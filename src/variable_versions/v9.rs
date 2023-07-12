@@ -97,8 +97,15 @@ pub struct FlowSet {
         PostExec = "if let Some(options_template) = options_template.clone() { parser.options_templates.insert(options_template.template_id, options_template); }"
     )]
     pub options_template: Option<V9OptionsTemplate>,
+    // Options Data
     #[nom(
-        Cond = "flow_set_id > FLOW_SET_MIN_RANGE",
+        Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.options_templates.get(&flow_set_id).is_some()",
+        Parse = "{ |i| V9OptionsData::parse(i, parser, flow_set_id) }"
+    )]
+    pub options_data: Option<V9OptionsData>,
+    // Data
+    #[nom(
+        Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.templates.get(&flow_set_id).is_some()",
         Parse = "{ |i| V9Data::parse(i, parser, flow_set_id) }"
     )]
     pub data: Option<V9Data>,
@@ -150,6 +157,18 @@ pub struct V9TemplateField {
     pub field_type: u16,
     /// This number gives the length of the above-defined field, in bytes.
     pub field_length: u16,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(_parser: &mut V9Parser, _flow_set_id: u16))]
+pub struct V9OptionsData {
+    // Template Id
+    pub template_id: u16,
+    // Length
+    pub length: u16,
+    // Options Data Fields
+    // #[nom(Parse = "{ |i| parse_v9_data_fields(i, flow_set_id, parser.templates.clone()) }")]
+    // pub data_fields: Vec<V9DataField>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
