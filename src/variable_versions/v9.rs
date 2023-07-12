@@ -143,7 +143,29 @@ pub struct V9OptionsTemplate {
     pub length: u16,
     /// As a router generates different template FlowSets to match the type of NetFlow data it is exporting, each template is given a unique ID. This uniqueness is local to the router that generated the template ID. The Template ID is greater than 255. Template IDs inferior to 255 are reserved.
     pub template_id: u16,
+    /// This field gives the length in bytes of any scope fields that are contained in this options template.
+    pub options_scope_length: u16,
+    /// This field gives the length (in bytes) of any Options field definitions that are contained in this options template
+    pub options_length: u16,
+    /// Options Scope Fields
+    #[nom(Count = "(options_scope_length / 4) as usize")]
+    pub scope_fields: Vec<V9OptionsTemplateScopeField>,
+    /// Options Fields
+    #[nom(Count = "(options_length / 4) as usize")]
+    pub option_fields: Vec<V9OptionsTemplateField>,
+    /// Padding
+    #[nom(
+        Map = "|i: &[u8]| i.to_vec()",
+        Take = "(length - (options_scope_length / 4) - (options_length / 4)) as usize"
+    )]
+    padding: Vec<u8>,
 }
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
+pub struct V9OptionsTemplateScopeField {}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
+pub struct V9OptionsTemplateField {}
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct V9TemplateField {
