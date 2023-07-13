@@ -5,7 +5,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
 - V9:
     header:
       version: 9
-      count: 1
+      count: 2
       sys_up_time: 2313
       unix_secs: 66051
       unix_time:
@@ -25,11 +25,35 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             - field_type: Interface
               field_length: 2
           option_fields:
-            - field_type: 22
+            - field_type: 34
               field_length: 2
-            - field_type: 24
+            - field_type: 36
               field_length: 1
           padding: []
         options_data: ~
+        data: ~
+      - flow_set_id: 275
+        template: ~
+        options_template: ~
+        options_data:
+          length: 9
+          scope_fields:
+            - system: ~
+              interface:
+                - 0
+                - 2
+              line_card: ~
+              net_flow_cache: ~
+              template: ~
+          options_fields:
+            - field_name: 34
+              field_value:
+                - 0
+                - 100
+            - field_name: 36
+              field_value:
+                - 1
+          padding:
+            - 0
         data: ~
 
