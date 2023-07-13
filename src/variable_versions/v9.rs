@@ -201,6 +201,35 @@ pub struct OptionsData {
         Parse = "{ |i| parse_options_data_fields(i, flow_set_id, parser.options_templates.clone()) }"
     )]
     pub options_fields: Vec<DataField>,
+    #[nom(
+        Map = "|i: &[u8]| i.to_vec()",
+        Take = "get_total_options_length(flow_set_id, length, parser)"
+    )]
+    padding: Vec<u8>,
+}
+
+fn get_total_options_length(flow_set_id: u16, length: u16, parser: &mut V9Parser) -> usize {
+    let options_length = match parser.options_templates.get(&flow_set_id) {
+        Some(o) => o
+            .option_fields
+            .iter()
+            .map(|o| o.field_length)
+            .collect::<Vec<u16>>()
+            .iter()
+            .sum(),
+        None => 0,
+    };
+    let scope_length = match parser.options_templates.get(&flow_set_id) {
+        Some(s) => s
+            .scope_fields
+            .iter()
+            .map(|o| o.field_length)
+            .collect::<Vec<u16>>()
+            .iter()
+            .sum(),
+        None => 0,
+    };
+    (length - options_length + scope_length - 4).into()
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
