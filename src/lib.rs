@@ -190,6 +190,15 @@ mod tests {
     }
 
     #[test]
+    fn it_parses_v9_options_template() {
+        let packet = [
+            0, 9, 0, 1, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 22, 1, 19, 0,
+            4, 0, 8, 0, 2, 0, 2, 0, 22, 0, 2, 0, 24, 0, 1, 0, 0,
+        ];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
     fn it_parses_v9_data_cached_template() {
         let packet = [
             0, 9, 0, 1, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 1, 2, 0, 12, 9, 2, 3,

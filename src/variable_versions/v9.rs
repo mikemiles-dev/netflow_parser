@@ -158,7 +158,7 @@ pub struct OptionsTemplate {
     /// Padding
     #[nom(
         Map = "|i: &[u8]| i.to_vec()",
-        Take = "(length - (options_scope_length / 4) - (options_length / 4)) as usize"
+        Take = "(length - options_scope_length - options_length - 10)  as usize"
     )]
     padding: Vec<u8>,
 }
