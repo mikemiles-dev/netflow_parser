@@ -326,7 +326,7 @@ pub struct Data {
 #[nom(ExtraArgs(field: TemplateField))]
 pub struct OptionDataField {
     #[nom(Value(field.field_type))]
-    pub field_name: FieldTypes,
+    pub field_type: FieldTypes,
     #[nom(Map = "|i: &[u8]| i.to_vec()", Take = "field.field_length")]
     pub field_value: Vec<u8>,
 }

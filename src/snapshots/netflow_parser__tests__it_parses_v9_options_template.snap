@@ -35,11 +35,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 - 0
                 - 2
           options_fields:
-            - field_name: SAMPLINGINTERVAL
+            - field_type: SAMPLINGINTERVAL
               field_value:
                 - 0
                 - 100
-            - field_name: FLOWACTIVETIMEOUT
+            - field_type: FLOWACTIVETIMEOUT
               field_value:
                 - 1
 
