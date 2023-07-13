@@ -199,17 +199,32 @@ pub struct OptionsData {
         Parse = "{ |i| parse_options_data_fields(i, flow_set_id, parser.options_templates.clone()) }"
     )]
     pub options_fields: Vec<OptionDataField>,
-    #[nom(Map = "|i: &[u8]| i.to_vec()", Take = "get_total_options_length(flow_set_id, length, parser)")]
+    #[nom(
+        Map = "|i: &[u8]| i.to_vec()",
+        Take = "get_total_options_length(flow_set_id, length, parser)"
+    )]
     padding: Vec<u8>,
 }
 
 fn get_total_options_length(flow_set_id: u16, length: u16, parser: &mut V9Parser) -> usize {
     let options_length = match parser.options_templates.get(&flow_set_id) {
-        Some(o) => o.option_fields.iter().map(|o| o.field_length).collect::<Vec<u16>>().iter().sum(),
+        Some(o) => o
+            .option_fields
+            .iter()
+            .map(|o| o.field_length)
+            .collect::<Vec<u16>>()
+            .iter()
+            .sum(),
         None => 0,
     };
     let scope_length = match parser.options_templates.get(&flow_set_id) {
-        Some(s) => s.scope_fields.iter().map(|o| o.field_length).collect::<Vec<u16>>().iter().sum(),
+        Some(s) => s
+            .scope_fields
+            .iter()
+            .map(|o| o.field_length)
+            .collect::<Vec<u16>>()
+            .iter()
+            .sum(),
         None => 0,
     };
     let total_length: usize = (length - 4 - (options_length + scope_length)).into();
@@ -291,7 +306,7 @@ pub struct Data {
 #[nom(ExtraArgs(field: TemplateField))]
 pub struct OptionDataField {
     #[nom(Parse = "{ |i| Ok((i, field.field_type)) }")]
-    pub field_name: u16, // Todo add field lookup 
+    pub field_name: u16, // Todo add field lookup
     #[nom(Map = "|i: &[u8]| i.to_vec()", Take = "field.field_length")]
     pub field_value: Vec<u8>,
 }
