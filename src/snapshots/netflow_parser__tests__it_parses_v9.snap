@@ -7,7 +7,6 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       version: 9
       count: 2
       sys_up_time: 2313
-      unix_secs: 66051
       unix_time:
         secs_since_epoch: 66051
         nanos_since_epoch: 0
@@ -24,13 +23,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               field_length: 4
             - field_type: IPV4SRCADDR
               field_length: 4
-        options_template: ~
-        options_data: ~
-        data: ~
       - flow_set_id: 258
-        template: ~
-        options_template: ~
-        options_data: ~
         data:
           length: 12
           data_fields:

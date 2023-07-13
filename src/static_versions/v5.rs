@@ -41,11 +41,13 @@ pub struct Header {
     /// Current time in milliseconds since the export device booted
     pub sys_up_time: u32,
     /// Current count of seconds since 0000 UTC 1970
+    #[serde(skip_serializing)]
     unix_secs: u32,
     /// Residual nanoseconds since 0000 UTC 1970
+    #[serde(skip_serializing)]
     unix_nsecs: u32,
     /// SystemTime build from unix_secs and unix_nsecs
-    #[nom(Parse = "{ |i| Ok((i, build_unix_time(unix_secs, unix_nsecs))) }")]
+    #[nom(Value(build_unix_time(unix_secs, unix_nsecs)))]
     pub unix_time: SystemTime,
     /// Sequence counter of total flows seen
     pub flow_sequence: u32,

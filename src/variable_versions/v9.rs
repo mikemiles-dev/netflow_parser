@@ -55,9 +55,10 @@ pub struct Header {
     /// Time in milliseconds since this device was first booted
     pub sys_up_time: u32,
     /// Seconds since 0000 Coordinated Universal Time (UTC) 1970
+    #[serde(skip_serializing)]
     pub unix_secs: u32,
     /// SystemTime build from unix_secs
-    #[nom(Parse = "{ |i| Ok((i, build_unix_time(unix_secs, 0))) }")]
+    #[nom(Value(build_unix_time(unix_secs, 0)))]
     pub unix_time: SystemTime,
     /// Incremental sequence counter of all export packets sent by this export device; this value is
     /// cumulative, and it can be used to identify whether any export packets have been missed.
@@ -91,6 +92,7 @@ pub struct FlowSet {
         // Save our templates
         PostExec = "if let Some(template) = template.clone() { parser.templates.insert(template.template_id, template); }"
     )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub template: Option<Template>,
     // Options template
     #[nom(
@@ -98,18 +100,21 @@ pub struct FlowSet {
         // Save our options templates
         PostExec = "if let Some(options_template) = options_template.clone() { parser.options_templates.insert(options_template.template_id, options_template); }"
     )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub options_template: Option<OptionsTemplate>,
     // Options Data
     #[nom(
         Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.options_templates.get(&flow_set_id).is_some()",
         Parse = "{ |i| OptionsData::parse(i, parser, flow_set_id) }"
     )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub options_data: Option<OptionsData>,
     // Data
     #[nom(
         Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.templates.get(&flow_set_id).is_some()",
         Parse = "{ |i| Data::parse(i, parser, flow_set_id) }"
     )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Data>,
 }
 

@@ -7,7 +7,6 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       version: 9
       count: 2
       sys_up_time: 2313
-      unix_secs: 66051
       unix_time:
         secs_since_epoch: 66051
         nanos_since_epoch: 0
@@ -15,7 +14,6 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       source_id: 1
     flowsets:
       - flow_set_id: 1
-        template: ~
         options_template:
           length: 22
           template_id: 275
@@ -29,11 +27,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               field_length: 2
             - field_type: FLOWACTIVETIMEOUT
               field_length: 1
-        options_data: ~
-        data: ~
       - flow_set_id: 275
-        template: ~
-        options_template: ~
         options_data:
           length: 9
           scope_fields:
@@ -48,5 +42,4 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             - field_name: FLOWACTIVETIMEOUT
               field_value:
                 - 1
-        data: ~
 

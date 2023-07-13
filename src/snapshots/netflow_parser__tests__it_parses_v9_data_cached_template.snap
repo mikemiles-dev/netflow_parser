@@ -7,7 +7,6 @@ expression: parser.parse_bytes(&packet)
       version: 9
       count: 1
       sys_up_time: 2313
-      unix_secs: 66051
       unix_time:
         secs_since_epoch: 66051
         nanos_since_epoch: 0
@@ -15,9 +14,6 @@ expression: parser.parse_bytes(&packet)
       source_id: 1
     flowsets:
       - flow_set_id: 258
-        template: ~
-        options_template: ~
-        options_data: ~
         data:
           length: 12
           data_fields:
