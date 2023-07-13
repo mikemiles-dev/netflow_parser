@@ -29,7 +29,6 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               field_length: 2
             - field_type: FLOWACTIVETIMEOUT
               field_length: 1
-          padding: []
         options_data: ~
         data: ~
       - flow_set_id: 275
@@ -38,13 +37,9 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         options_data:
           length: 9
           scope_fields:
-            - system: ~
-              interface:
+            - interface:
                 - 0
                 - 2
-              line_card: ~
-              net_flow_cache: ~
-              template: ~
           options_fields:
             - field_name: SAMPLINGINTERVAL
               field_value:
@@ -53,7 +48,5 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             - field_name: FLOWACTIVETIMEOUT
               field_value:
                 - 1
-          padding:
-            - 0
         data: ~
 
