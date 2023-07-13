@@ -20,9 +20,9 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           template_id: 258
           field_count: 2
           fields:
-            - field_type: 1
+            - field_type: INBYTES
               field_length: 4
-            - field_type: 8
+            - field_type: IPV4SRCADDR
               field_length: 4
         options_template: ~
         options_data: ~
@@ -77,8 +77,6 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               flow_inactive_timeout: ~
               engine_type: ~
               engine_id: ~
-              vendor_proprietary: ~
-              future_use: ~
             - in_bytes: ~
               in_pkts: ~
               flows: ~
@@ -118,6 +116,4 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               flow_inactive_timeout: ~
               engine_type: ~
               engine_id: ~
-              vendor_proprietary: ~
-              future_use: ~
 

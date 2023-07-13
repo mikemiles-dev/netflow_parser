@@ -64,8 +64,6 @@ expression: parser.parse_bytes(&packet)
               flow_inactive_timeout: ~
               engine_type: ~
               engine_id: ~
-              vendor_proprietary: ~
-              future_use: ~
             - in_bytes: ~
               in_pkts: ~
               flows: ~
@@ -105,6 +103,4 @@ expression: parser.parse_bytes(&packet)
               flow_inactive_timeout: ~
               engine_type: ~
               engine_id: ~
-              vendor_proprietary: ~
-              future_use: ~
 

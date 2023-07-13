@@ -22,7 +22,7 @@ use log::error;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use super::v9_lookup::ScopeFieldType;
+use super::v9_lookup::{FieldTypes, ScopeFieldType};
 
 const TEMPLATE_ID: u16 = 0;
 const OPTIONS_TEMPLATE_ID: u16 = 1;
@@ -170,6 +170,13 @@ pub struct OptionsTemplateScopeField {
     pub field_length: u16,
 }
 
+// Hacky function to parse field types
+fn parse_field_type(i: &[u8]) -> IResult<&[u8], FieldTypes> {
+    let (remaining, val) = u16::parse_be(i)?;
+    let field_type = FieldTypes::parse(i, val)?;
+    Ok((remaining, field_type.1))
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct TemplateField {
     /// This numeric value represents the type of the field. The possible values of the
@@ -179,7 +186,8 @@ pub struct TemplateField {
     /// subsequent changes that could add new field-type definitions), Cisco provides a file
     /// that defines the known field types and their lengths.
     /// The currently defined field types are detailed in Table 6.
-    pub field_type: u16,
+    #[nom(Parse = "parse_field_type")]
+    pub field_type: FieldTypes,
     /// This number gives the length of the above-defined field, in bytes.
     pub field_length: u16,
 }
@@ -305,8 +313,8 @@ pub struct Data {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(field: TemplateField))]
 pub struct OptionDataField {
-    #[nom(Parse = "{ |i| Ok((i, field.field_type)) }")]
-    pub field_name: u16, // Todo add field lookup
+    #[nom(Value(field.field_type))]
+    pub field_name: FieldTypes,
     #[nom(Map = "|i: &[u8]| i.to_vec()", Take = "field.field_length")]
     pub field_value: Vec<u8>,
 }
@@ -320,7 +328,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 1",
+        Cond = "field.field_type == FieldTypes::INBYTES",
         Take = "field.field_length"
     )]
     pub in_bytes: Option<Vec<u8>>,
@@ -330,7 +338,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 2",
+        Cond = "field.field_type == FieldTypes::INPKTS",
         Take = "field.field_length"
     )]
     pub in_pkts: Option<Vec<u8>>,
@@ -340,31 +348,31 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 3",
+        Cond = "field.field_type == FieldTypes::FLOWS",
         Take = "field.field_length"
     )]
     pub flows: Option<Vec<u8>>,
     /// IP protocol byte
-    #[nom(Cond = "field.field_type == 4")]
+    #[nom(Cond = "field.field_type == FieldTypes::PROTOCOL")]
     protocol: Option<ProtocolTypes>,
     /// Type of Service byte setting when entering incoming interface
-    #[nom(Cond = "field.field_type == 5")]
+    #[nom(Cond = "field.field_type == FieldTypes::SRCTOS")]
     src_tos: Option<u8>,
     /// Cumulative of all the TCP flags seen for this flow
-    #[nom(Cond = "field.field_type == 6")]
+    #[nom(Cond = "field.field_type == FieldTypes::TCPFLAGS")]
     pub tcp_flags: Option<u8>,
     /// TCP/UDP source port number i.e.: FTP, Telnet, or equivalent
-    #[nom(Cond = "field.field_type == 7")]
+    #[nom(Cond = "field.field_type == FieldTypes::L4SRCPORT")]
     pub l4_src_port: Option<u16>,
     /// IPv4 source address
     #[nom(
-        Cond = "field.field_type == 8",
+        Cond = "field.field_type == FieldTypes::IPV4SRCADDR",
         Map = "Ipv4Addr::from",
         Parse = "be_u32"
     )]
     pub ipv4_src_addr: Option<Ipv4Addr>,
     /// The number of contiguous bits in the source address subnet mask i.e.: the submask in slash notation
-    #[nom(Cond = "field.field_type == 9")]
+    #[nom(Cond = "field.field_type == FieldTypes::SRCMASK")]
     pub src_mask: Option<u8>,
     /// Input interface index; default for N is 2 but higher values could be used
     #[nom(
@@ -372,22 +380,22 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 10",
+        Cond = "field.field_type == FieldTypes::INPUTSNMP",
         Take = "field.field_length"
     )]
     pub input_snmp: Option<Vec<u8>>,
     /// TCP/UDP destination port number i.e.: FTP, Telnet, or equivalent
-    #[nom(Cond = "field.field_type == 11")]
+    #[nom(Cond = "field.field_type == FieldTypes::L4DSTPORT")]
     pub l4_dst_port: Option<u16>,
     /// IPv4 destination address
     #[nom(
-        Cond = "field.field_type == 12",
+        Cond = "field.field_type == FieldTypes::IPV4DSTADDR",
         Map = "Ipv4Addr::from",
         Parse = "be_u32"
     )]
     pub ipv4_dst_addr: Option<Ipv4Addr>,
     /// The number of contiguous bits in the destination address subnet mask i.e.: the submask in slash notation
-    #[nom(Cond = "field.field_type == 13")]
+    #[nom(Cond = "field.field_type == FieldTypes::DSTMASK")]
     pub dst_mask: Option<u8>,
     /// Output interface index; default for N is 2 but higher values could be used
     #[nom(
@@ -395,13 +403,13 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 14",
+        Cond = "field.field_type == FieldTypes::OUTPUTSNMP",
         Take = "field.field_length"
     )]
     pub output_snmp: Option<Vec<u8>>,
     /// IPv4 address of next-hop router
     #[nom(
-        Cond = "field.field_type == 15",
+        Cond = "field.field_type == FieldTypes::IPV4NEXTHOP",
         Map = "Ipv4Addr::from",
         Parse = "be_u32"
     )]
@@ -412,7 +420,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 16",
+        Cond = "field.field_type == FieldTypes::SRCAS",
         Take = "field.field_length"
     )]
     pub src_as: Option<Vec<u8>>,
@@ -422,13 +430,13 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 17",
+        Cond = "field.field_type == FieldTypes::DSTAS",
         Take = "field.field_length"
     )]
     pub dst_as: Option<Vec<u8>>,
     /// Next-hop router's IP in the BGP domain
     #[nom(
-        Cond = "field.field_type == 18",
+        Cond = "field.field_type == FieldTypes::BGPIPV4NEXTHOP",
         Map = "Ipv4Addr::from",
         Parse = "be_u32"
     )]
@@ -439,7 +447,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 19",
+        Cond = "field.field_type == FieldTypes::MULDSTPKTS",
         Take = "field.field_length"
     )]
     pub mul_dst_pkts: Option<Vec<u8>>,
@@ -449,15 +457,15 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 20",
+        Cond = "field.field_type == FieldTypes::MULDSTBYTES",
         Take = "field.field_length"
     )]
     pub mul_dst_bytes: Option<Vec<u8>>,
     /// System uptime at which the last packet of this flow was switched
-    #[nom(Cond = "field.field_type == 21")]
+    #[nom(Cond = "field.field_type == FieldTypes::LASTSWITCHED")]
     pub last_switched: Option<u32>,
     /// System uptime at which the first packet of this flow was switched
-    #[nom(Cond = "field.field_type == 22")]
+    #[nom(Cond = "field.field_type == FieldTypes::FIRSTSWITCHED")]
     pub first_switched: Option<u32>,
     /// Outgoing counter with length N x 8 bits for the number of bytes associated with an IP Flow
     #[nom(
@@ -465,7 +473,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 23",
+        Cond = "field.field_type == FieldTypes::OUTBYTES",
         Take = "field.field_length"
     )]
     pub out_bytes: Option<Vec<u8>>,
@@ -475,35 +483,35 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 24",
+        Cond = "field.field_type == FieldTypes::OUTPKTS",
         Take = "field.field_length"
     )]
     pub out_pkts: Option<Vec<u8>>,
     /// Minimum IP packet length on incoming packets of the flow
-    #[nom(Cond = "field.field_type == 25")]
+    #[nom(Cond = "field.field_type == FieldTypes::MINPKTLNGTH")]
     pub min_pkt_lngth: Option<u16>,
     /// Maximum IP packet length on incoming packets of the flow
-    #[nom(Cond = "field.field_type == 26")]
+    #[nom(Cond = "field.field_type == FieldTypes::MAXPKTLNGTH")]
     pub max_pkt_lngth: Option<u16>,
     /// IPv6 Source Address
     #[nom(
-        Cond = "field.field_type == 27",
+        Cond = "field.field_type == FieldTypes::IPV6SRCADDR",
         Map = "Ipv6Addr::from",
         Parse = "be_u128"
     )]
     pub ipv6_src_addr: Option<Ipv6Addr>,
     /// IPv6 Destination Address
     #[nom(
-        Cond = "field.field_type == 28",
+        Cond = "field.field_type == FieldTypes::IPV6DSTADDR",
         Map = "Ipv6Addr::from",
         Parse = "be_u128"
     )]
     pub ipv6_dst_addr: Option<Ipv6Addr>,
     /// Length of the IPv6 source mask in contiguous bits
-    #[nom(Cond = "field.field_type == 29")]
+    #[nom(Cond = "field.field_type == FieldTypes::IPV6SRCMASK")]
     pub ipv6_src_mask: Option<u8>,
     /// Length of the IPv6 destination mask in contiguous bits
-    #[nom(Cond = "field.field_type == 30")]
+    #[nom(Cond = "field.field_type == FieldTypes::IPV6DSTMASK")]
     pub ipv6_dst_mask: Option<u8>,
     /// IPv6 flow label as per RFC 2460 definition
     #[nom(
@@ -511,54 +519,44 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == 31",
+        Cond = "field.field_type == FieldTypes::IPV6FLOWLABEL",
         Take = "3"
     )]
     pub ipv6_flow_label: Option<Vec<u8>>,
     /// Internet Control Message Protocol (ICMP) packet type; reported as ((ICMP Type*256) + ICMP code)
-    #[nom(Cond = "field.field_type == 32")]
+    #[nom(Cond = "field.field_type == FieldTypes::ICMPTYPE")]
     pub icmp_type: Option<u16>,
     /// Internet Group Management Protocol (IGMP) packet type
-    #[nom(Cond = "field.field_type == 33")]
+    #[nom(Cond = "field.field_type == FieldTypes::MULIGMPTYPE")]
     pub mul_igmp_type: Option<u8>,
     /// When using sampled NetFlow, the rate at which packets are sampled i.e.: a value of 100 indicates that one of every 100 packets is sampled
-    #[nom(Cond = "field.field_type == 34")]
+    #[nom(Cond = "field.field_type == FieldTypes::SAMPLINGINTERVAL")]
     pub sampling_interval: Option<u32>,
     /// The type of algorithm used for sampled NetFlow: 0x01 Deterministic Sampling ,0x02 Random Sampling
-    #[nom(Cond = "field.field_type == 35")]
+    #[nom(Cond = "field.field_type == FieldTypes::SAMPLINGALGORITHM")]
     pub sampling_algorithm: Option<u8>,
     /// Timeout value (in seconds) for active flow entries in the NetFlow cache
-    #[nom(Cond = "field.field_type == 36")]
+    #[nom(Cond = "field.field_type == FieldTypes::FLOWACTIVETIMEOUT")]
     pub flow_active_timeout: Option<u16>,
     /// Timeout value (in seconds) for inactive flow entries in the NetFlow cache
-    #[nom(Cond = "field.field_type == 37")]
+    #[nom(Cond = "field.field_type == FieldTypes::FLOWINACTIVETIMEOUT")]
     pub flow_inactive_timeout: Option<u16>,
     /// Type of flow switching engine: RP = 0, VIP/Linecard = 1
-    #[nom(Cond = "field.field_type == 38")]
+    #[nom(Cond = "field.field_type == FieldTypes::ENGINETYPE")]
     pub engine_type: Option<u8>,
     /// ID number of the flow switching engine
-    #[nom(Cond = "field.field_type == 39")]
+    #[nom(Cond = "field.field_type == FieldTypes::ENGINEID")]
     pub engine_id: Option<u8>,
-    // Vendor Proprietary
-    #[nom(
-        Map = "|i: Option<&[u8]>| match i {
-        Some(n) => Some(n.to_vec()),
-        None => None,
-    }",
-        Cond = "field.field_type == 65 || field.field_type == 66 || field.field_type == 67 || field.field_type == 68 || field.field_type == 69 || field.field_type == 87",
-        Take = "field.field_length"
-    )]
-    pub vendor_proprietary: Option<Vec<u8>>,
-    // Cisco Future Use
-    #[nom(
-        Map = "|i: Option<&[u8]>| match i {
-        Some(n) => Some(n.to_vec()),
-        None => None,
-    }",
-        Cond = "field.field_type >= 105",
-        Take = "field.field_length"
-    )]
-    pub future_use: Option<Vec<u8>>,
+    // // Unknown
+    // #[nom(
+    //     Map = "|i: Option<&[u8]>| match i {
+    //     Some(n) => Some(n.to_vec()),
+    //     None => None,
+    // }",
+    //     Cond = "field.field_type == FieldTypes::Unknown",
+    //     Take = "field.field_length"
+    // )]
+    // pub unknown: Option<Vec<u8>>,
 }
 
 fn parse_data_fields(

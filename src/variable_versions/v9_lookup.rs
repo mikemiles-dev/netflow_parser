@@ -19,11 +19,12 @@ pub enum ForwaringStatus {
     Unknown = 0,
 }
 
+#[repr(u16)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
 #[nom(Selector = "u16")]
 pub enum FieldTypes {
     #[nom(Selector = "1")]
-    NBYTES,
+    INBYTES,
     #[nom(Selector = "2")]
     INPKTS,
     #[nom(Selector = "3")]
@@ -211,5 +212,5 @@ pub enum FieldTypes {
     #[nom(Selector = "104")]
     Layer2packetSectionData,
     #[nom(Selector = "_")]
-    Unknown(u32),
+    Unknown(u16),
 }
