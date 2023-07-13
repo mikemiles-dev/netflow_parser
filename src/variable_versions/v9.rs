@@ -599,15 +599,16 @@ pub struct DataField {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub engine_id: Option<u8>,
     // // Unknown
-    // #[nom(
-    //     Map = "|i: Option<&[u8]>| match i {
-    //     Some(n) => Some(n.to_vec()),
-    //     None => None,
-    // }",
-    //     Cond = "field.field_type == FieldTypes::Unknown",
-    //     Take = "field.field_length"
-    // )]
-    // pub unknown: Option<Vec<u8>>,
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == FieldTypes::Unknown",
+        Take = "field.field_length"
+    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unknown: Option<Vec<u8>>,
 }
 
 fn parse_data_fields(

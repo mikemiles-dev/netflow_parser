@@ -212,5 +212,5 @@ pub enum FieldTypes {
     #[nom(Selector = "104")]
     Layer2packetSectionData,
     #[nom(Selector = "_")]
-    Unknown(u16),
+    Unknown,
 }
