@@ -87,7 +87,9 @@ pub struct Body {
     /// TCP flags; always set to zero.
     pub tcp_flags: u8,
     /// IP protocol type (for example, TCP = 6; UDP = 17); set to zero if flow mask is destination-only or source-destination.
-    pub protocol: ProtocolTypes,
+    pub protocol_number: u8,
+    #[nom(Value(ProtocolTypes::from(protocol_number)))]
+    pub protocol_type: ProtocolTypes,
     /// IP type of service; switch sets it to the ToS of the first packet of the flow.
     pub tos: u8,
     /// Source autonomous system number, either origin or peer; always set to zero.

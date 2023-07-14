@@ -28,7 +28,8 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       dst_port: 1029
       pad1: 6
       tcp_flags: 7
-      protocol: EGP
+      protocol_number: 8
+      protocol_type: EGP
       tos: 9
       src_as: 1
       dst_as: 515

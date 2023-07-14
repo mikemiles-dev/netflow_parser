@@ -91,7 +91,9 @@ pub struct Body {
     /// Cumulative OR of TCP flags
     pub tcp_flags: u8,
     /// IP protocol type (for example, TCP = 6; UDP = 17)
-    pub protocol: ProtocolTypes,
+    pub protocol_number: u8,
+    #[nom(Value(ProtocolTypes::from(protocol_number)))]
+    pub protocol_type: ProtocolTypes,
     /// IP type of service (ToS)
     pub tos: u8,
     /// Autonomous system number of the source, either origin or peer
