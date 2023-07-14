@@ -20,7 +20,8 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           options_scope_length: 4
           options_length: 8
           scope_fields:
-            - field_type: Interface
+            - field_type_number: 2
+              field_type: Interface
               field_length: 2
           option_fields:
             - field_type_number: 34

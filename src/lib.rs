@@ -162,7 +162,6 @@ mod tests {
 
     use super::NetflowParser;
     use insta::assert_yaml_snapshot;
-    use nom_derive::Parse;
 
     #[test]
     fn it_parses_v5() {

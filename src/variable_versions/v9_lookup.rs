@@ -10,7 +10,20 @@ pub enum ScopeFieldType {
     NetflowCache = 4,
     Template = 5,
     #[default]
-    Unknown = 0,
+    Unknown,
+}
+
+impl From<u16> for ScopeFieldType {
+    fn from(item: u16) -> Self {
+        match item {
+            1 => ScopeFieldType::System,
+            2 => ScopeFieldType::Interface,
+            3 => ScopeFieldType::LineCard,
+            4 => ScopeFieldType::NetflowCache,
+            5 => ScopeFieldType::Template,
+            _ => ScopeFieldType::Unknown,
+        }
+    }
 }
 
 #[repr(u8)]

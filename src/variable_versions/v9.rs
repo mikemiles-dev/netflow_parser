@@ -172,6 +172,8 @@ pub struct OptionsTemplate {
 /// Options Scope Fields
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct OptionsTemplateScopeField {
+    pub field_type_number: u16,
+    #[nom(Value(ScopeFieldType::from(field_type_number)))]
     pub field_type: ScopeFieldType,
     pub field_length: u16,
 }
