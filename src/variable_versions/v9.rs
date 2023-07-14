@@ -595,6 +595,55 @@ pub struct DataField {
     #[nom(Cond = "field.field_type == DataFieldType::ENGINEID")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub engine_id: Option<u8>,
+    /// Counter with length N x 8 bits for bytes for the number of bytes exported by the Observation Domain
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == DataFieldType::TOTALBYTESEXP",
+        Take = "field.field_length"
+    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_bytes_exp: Option<Vec<u8>>,
+    /// Counter with length N x 8 bits for bytes for the number of bytes exported by the Observation Domain
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == DataFieldType::TOTALPKTSEXP",
+        Take = "field.field_length"
+    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_pkts_exp: Option<Vec<u8>>,
+    /// Counter with length N x 8 bits for bytes for the number of flows exported by the Observation Domain
+    #[nom(
+        Map = "|i: Option<&[u8]>| match i {
+        Some(n) => Some(n.to_vec()),
+        None => None,
+    }",
+        Cond = "field.field_type == DataFieldType::TOTALFLOWSEXP",
+        Take = "field.field_length"
+    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_flows_exp: Option<Vec<u8>>,
+    /// IPv4 source address prefix (specific for Catalyst architecture)
+    #[nom(
+        Cond = "field.field_type == DataFieldType::IPV4SRCPREFIX",
+        Map = "Ipv4Addr::from",
+        Parse = "be_u32"
+    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ipv4_src_prefix: Option<Ipv4Addr>,
+    /// IPv4 destination address prefix (specific for Catalyst architecture)
+    #[nom(
+        Cond = "field.field_type == DataFieldType::IPV4DSTPREFIX",
+        Map = "Ipv4Addr::from",
+        Parse = "be_u32"
+    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ipv4_dst_prefix: Option<Ipv4Addr>,
     // Unknown/Vendor Specific
     #[nom(
         Cond = "field.field_type == DataFieldType::Unknown",
