@@ -186,6 +186,7 @@ pub struct TemplateField {
     /// that defines the known field types and their lengths.
     /// The currently defined field types are detailed in Table 6.
     pub field_type_number: u16,
+    /// Human readable type
     #[nom(Value(DataFieldType::from(field_type_number)))]
     pub field_type: DataFieldType,
     /// This number gives the length of the above-defined field, in bytes.
