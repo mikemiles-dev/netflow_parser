@@ -20,7 +20,7 @@ fn main() {
             Some(parser) => parser.parse_bytes(filled_buf),
             None => {
                 let mut new_parser = NetflowParser::default();
-                let result = new_parser.parse_bytes(&filled_buf);
+                let result = new_parser.parse_bytes(filled_buf);
                 parsers.insert(src_addr, new_parser);
                 result
             }
