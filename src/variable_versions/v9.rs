@@ -176,13 +176,6 @@ pub struct OptionsTemplateScopeField {
     pub field_length: u16,
 }
 
-// Hacky function to parse field types
-fn parse_field_type(i: &[u8]) -> IResult<&[u8], DataFieldType> {
-    let (remaining, val) = u16::parse_be(i)?;
-    let field_type = DataFieldType::parse(i, val)?;
-    Ok((remaining, field_type.1))
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct TemplateField {
     /// This numeric value represents the type of the field. The possible values of the
@@ -192,7 +185,6 @@ pub struct TemplateField {
     /// subsequent changes that could add new field-type definitions), Cisco provides a file
     /// that defines the known field types and their lengths.
     /// The currently defined field types are detailed in Table 6.
-    #[nom(Parse = "parse_field_type")]
     pub field_type: DataFieldType,
     /// This number gives the length of the above-defined field, in bytes.
     pub field_length: u16,

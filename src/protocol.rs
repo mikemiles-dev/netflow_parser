@@ -149,5 +149,6 @@ pub enum ProtocolTypes {
     ROHC = 142,
     Ethernet = 143,
     AGGFRAG = 144,
+    Unknown,
     Reserved = 255,
 }

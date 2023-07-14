@@ -19,197 +19,102 @@ pub enum ForwaringStatus {
     Unknown = 0,
 }
 
+#[repr(u16)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
-#[nom(Selector = "u16")]
 pub enum DataFieldType {
-    #[nom(Selector = "1")]
-    INBYTES,
-    #[nom(Selector = "2")]
-    INPKTS,
-    #[nom(Selector = "3")]
-    FLOWS,
-    #[nom(Selector = "4")]
-    PROTOCOL,
-    #[nom(Selector = "5")]
-    SRCTOS,
-    #[nom(Selector = "6")]
-    TCPFLAGS,
-    #[nom(Selector = "7")]
-    L4SRCPORT,
-    #[nom(Selector = "8")]
-    IPV4SRCADDR,
-    #[nom(Selector = "9")]
-    SRCMASK,
-    #[nom(Selector = "10")]
-    INPUTSNMP,
-    #[nom(Selector = "11")]
-    L4DSTPORT,
-    #[nom(Selector = "12")]
-    IPV4DSTADDR,
-    #[nom(Selector = "13")]
-    DSTMASK,
-    #[nom(Selector = "14")]
-    OUTPUTSNMP,
-    #[nom(Selector = "15")]
-    IPV4NEXTHOP,
-    #[nom(Selector = "16")]
-    SRCAS,
-    #[nom(Selector = "17")]
-    DSTAS,
-    #[nom(Selector = "18")]
-    BGPIPV4NEXTHOP,
-    #[nom(Selector = "19")]
-    MULDSTPKTS,
-    #[nom(Selector = "20")]
-    MULDSTBYTES,
-    #[nom(Selector = "21")]
-    LASTSWITCHED,
-    #[nom(Selector = "22")]
-    FIRSTSWITCHED,
-    #[nom(Selector = "23")]
-    OUTBYTES,
-    #[nom(Selector = "24")]
-    OUTPKTS,
-    #[nom(Selector = "25")]
-    MINPKTLNGTH,
-    #[nom(Selector = "26")]
-    MAXPKTLNGTH,
-    #[nom(Selector = "27")]
-    IPV6SRCADDR,
-    #[nom(Selector = "28")]
-    IPV6DSTADDR,
-    #[nom(Selector = "29")]
-    IPV6SRCMASK,
-    #[nom(Selector = "30")]
-    IPV6DSTMASK,
-    #[nom(Selector = "31")]
-    IPV6FLOWLABEL,
-    #[nom(Selector = "32")]
-    ICMPTYPE,
-    #[nom(Selector = "33")]
-    MULIGMPTYPE,
-    #[nom(Selector = "34")]
-    SAMPLINGINTERVAL,
-    #[nom(Selector = "35")]
-    SAMPLINGALGORITHM,
-    #[nom(Selector = "36")]
-    FLOWACTIVETIMEOUT,
-    #[nom(Selector = "37")]
-    FLOWINACTIVETIMEOUT,
-    #[nom(Selector = "38")]
-    ENGINETYPE,
-    #[nom(Selector = "39")]
-    ENGINEID,
-    #[nom(Selector = "40")]
-    TOTALBYTESEXP,
-    #[nom(Selector = "41")]
-    TOTALPKTSEXP,
-    #[nom(Selector = "42")]
-    TOTALFLOWSEXP,
-    #[nom(Selector = "44")]
-    IPV4SRCPREFIX,
-    #[nom(Selector = "45")]
-    IPV4DSTPREFIX,
-    #[nom(Selector = "46")]
-    MPLSTOPLABELTYPE,
-    #[nom(Selector = "47")]
-    MPLSTOPLABELIPADDR,
-    #[nom(Selector = "48")]
-    FLOWSAMPLERID,
-    #[nom(Selector = "49")]
-    FLOWSAMPLERMODE,
-    #[nom(Selector = "50")]
-    FLOWSAMPLERRANDOMINTERVAL,
-    #[nom(Selector = "52")]
-    MINTTL,
-    #[nom(Selector = "53")]
-    MAXTTL,
-    #[nom(Selector = "54")]
-    IPV4IDENT,
-    #[nom(Selector = "55")]
-    DSTTOS,
-    #[nom(Selector = "56")]
-    INSRCMAC,
-    #[nom(Selector = "57")]
-    OUTDSTMAC,
-    #[nom(Selector = "58")]
-    SRCVLAN,
-    #[nom(Selector = "59")]
-    DSTVLAN,
-    #[nom(Selector = "60")]
-    IPPROTOCOLVERSION,
-    #[nom(Selector = "61")]
-    DIRECTION,
-    #[nom(Selector = "62")]
-    IPV6NEXTHOP,
-    #[nom(Selector = "63")]
-    BPGIPV6NEXTHOP,
-    #[nom(Selector = "64")]
-    IPV6OPTIONHEADERS,
-    #[nom(Selector = "70")]
-    MPLSLABEL1,
-    #[nom(Selector = "71")]
-    MPLSLABEL2,
-    #[nom(Selector = "72")]
-    MPLSLABEL3,
-    #[nom(Selector = "73")]
-    MPLSLABEL4,
-    #[nom(Selector = "74")]
-    MPLSLABEL5,
-    #[nom(Selector = "75")]
-    MPLSLABEL6,
-    #[nom(Selector = "76")]
-    MPLSLABEL7,
-    #[nom(Selector = "77")]
-    MPLSLABEL8,
-    #[nom(Selector = "78")]
-    MPLSLABEL9,
-    #[nom(Selector = "79")]
-    MPLSLABEL10,
-    #[nom(Selector = "80")]
-    INDSTMAC,
-    #[nom(Selector = "81")]
-    OUTSRCMAC,
-    #[nom(Selector = "82")]
-    IFNAME,
-    #[nom(Selector = "83")]
-    IFDESC,
-    #[nom(Selector = "84")]
-    SAMPLERNAME,
-    #[nom(Selector = "85")]
-    INPERMANENTBYTES,
-    #[nom(Selector = "86")]
-    INPERMANENTPKTS,
-    #[nom(Selector = "88")]
-    FRAGMENTOFFSET,
-    #[nom(Selector = "89")]
-    FORWARDINGSTATUS,
-    #[nom(Selector = "90")]
-    MPLSPALRD,
-    #[nom(Selector = "91")]
-    MPLSPREFIXLEN,
-    #[nom(Selector = "92")]
-    SRCTRAFFICINDEX,
-    #[nom(Selector = "93")]
-    DSTTRAFFICINDEX,
-    #[nom(Selector = "94")]
-    APPLICATIONDESCRIPTION,
-    #[nom(Selector = "95")]
-    APPLICATIONTAG,
-    #[nom(Selector = "96")]
-    APPLICATIONNAME,
-    #[nom(Selector = "98")]
-    PostipDiffServCodePoint,
-    #[nom(Selector = "99")]
-    ReplicationFactor,
-    #[nom(Selector = "100")]
-    DEPRECATED,
-    #[nom(Selector = "102")]
-    Layer2packetSectionOffset,
-    #[nom(Selector = "103")]
-    Layer2packetSectionSize,
-    #[nom(Selector = "104")]
-    Layer2packetSectionData,
-    #[nom(Selector = "_")]
+    INBYTES = 1,
+    INPKTS = 2,
+    FLOWS = 3,
+    PROTOCOL = 4,
+    SRCTOS = 5,
+    TCPFLAGS = 6,
+    L4SRCPORT = 7,
+    IPV4SRCADDR = 8,
+    SRCMASK = 9,
+    INPUTSNMP = 10,
+    L4DSTPORT = 11,
+    IPV4DSTADDR = 12,
+    DSTMASK = 13,
+    OUTPUTSNMP = 14,
+    IPV4NEXTHOP = 15,
+    SRCAS = 16,
+    DSTAS = 17,
+    BGPIPV4NEXTHOP = 18,
+    MULDSTPKTS = 19,
+    MULDSTBYTES = 20,
+    LASTSWITCHED = 21,
+    FIRSTSWITCHED = 22,
+    OUTBYTES = 23,
+    OUTPKTS = 24,
+    MINPKTLNGTH = 25,
+    MAXPKTLNGTH = 26,
+    IPV6SRCADDR = 27,
+    IPV6DSTADDR = 28,
+    IPV6SRCMASK = 29,
+    IPV6DSTMASK = 30,
+    IPV6FLOWLABEL = 31,
+    ICMPTYPE = 32,
+    MULIGMPTYPE = 33,
+    SAMPLINGINTERVAL = 34,
+    SAMPLINGALGORITHM = 35,
+    FLOWACTIVETIMEOUT = 36,
+    FLOWINACTIVETIMEOUT = 37,
+    ENGINETYPE = 38,
+    ENGINEID = 39,
+    TOTALBYTESEXP = 40,
+    TOTALPKTSEXP = 41,
+    TOTALFLOWSEXP = 42,
+    IPV4SRCPREFIX = 44,
+    IPV4DSTPREFIX = 45,
+    MPLSTOPLABELTYPE = 46,
+    MPLSTOPLABELIPADDR = 47,
+    FLOWSAMPLERID = 48,
+    FLOWSAMPLERMODE = 49,
+    FLOWSAMPLERRANDOMINTERVAL = 50,
+    MINTTL = 52,
+    MAXTTL = 53,
+    IPV4IDENT = 54,
+    DSTTOS = 55,
+    INSRCMAC = 56,
+    OUTDSTMAC = 57,
+    SRCVLAN = 58,
+    DSTVLAN = 59,
+    IPPROTOCOLVERSION = 60,
+    DIRECTION = 61,
+    IPV6NEXTHOP = 62,
+    BPGIPV6NEXTHOP = 63,
+    IPV6OPTIONHEADERS = 64,
+    MPLSLABEL1 = 70,
+    MPLSLABEL2 = 71,
+    MPLSLABEL3 = 72,
+    MPLSLABEL4 = 73,
+    MPLSLABEL5 = 74,
+    MPLSLABEL6 = 75,
+    MPLSLABEL7 = 76,
+    MPLSLABEL8 = 77,
+    MPLSLABEL9 = 78,
+    MPLSLABEL10 = 79,
+    INDSTMAC = 80,
+    OUTSRCMAC = 81,
+    IFNAME = 82,
+    IFDESC = 83,
+    SAMPLERNAME = 84,
+    INPERMANENTBYTES = 85,
+    INPERMANENTPKTS = 86,
+    FRAGMENTOFFSET = 87,
+    FORWARDINGSTATUS = 88,
+    MPLSPALRD = 90,
+    MPLSPREFIXLEN = 91,
+    SRCTRAFFICINDEX = 92,
+    DSTTRAFFICINDEX = 93,
+    APPLICATIONDESCRIPTION = 94,
+    APPLICATIONTAG = 95,
+    APPLICATIONNAME = 96,
+    PostipDiffServCodePoint = 98,
+    ReplicationFactor = 99,
+    DEPRECATED = 100,
+    Layer2packetSectionOffset = 102,
+    Layer2packetSectionSize = 103,
+    Layer2packetSectionData = 104,
     Unknown,
 }
