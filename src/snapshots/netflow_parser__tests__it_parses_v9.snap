@@ -19,9 +19,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           template_id: 258
           field_count: 2
           fields:
-            - field_type: INBYTES
+            - field_type_number: 1
+              field_type: INBYTES
               field_length: 4
-            - field_type: IPV4SRCADDR
+            - field_type_number: 8
+              field_type: IPV4SRCADDR
               field_length: 4
       - flow_set_id: 258
         data:

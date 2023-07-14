@@ -159,6 +159,7 @@ mod tests {
 
     use super::NetflowParser;
     use insta::assert_yaml_snapshot;
+    use nom_derive::Parse;
 
     #[test]
     fn it_parses_v5() {
@@ -206,10 +207,12 @@ mod tests {
         ];
         let fields = vec![
             TemplateField {
+                field_type_number: 1,
                 field_type: super::variable_versions::v9_lookup::DataFieldType::INBYTES,
                 field_length: 4,
             },
             TemplateField {
+                field_type_number: 8,
                 field_type: super::variable_versions::v9_lookup::DataFieldType::IPV4SRCADDR,
                 field_length: 4,
             },

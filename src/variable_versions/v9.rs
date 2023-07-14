@@ -185,6 +185,8 @@ pub struct TemplateField {
     /// subsequent changes that could add new field-type definitions), Cisco provides a file
     /// that defines the known field types and their lengths.
     /// The currently defined field types are detailed in Table 6.
+    pub field_type_number: u16,
+    #[nom(Value(DataFieldType::from(field_type_number)))]
     pub field_type: DataFieldType,
     /// This number gives the length of the above-defined field, in bytes.
     pub field_length: u16,
@@ -591,6 +593,12 @@ pub struct DataField {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub engine_id: Option<u8>,
     // Unknown/Vendor Specific
+    #[nom(
+        Cond = "field.field_type == DataFieldType::Unknown",
+        Value(field.field_type_number),
+    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unknown_field_type_number: Option<u16>,
     #[nom(
         Map = "|i: Option<&[u8]>| match i {
         Some(n) => Some(n.to_vec()),
