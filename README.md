@@ -20,7 +20,7 @@ match NetflowParser::default().parse_bytes(&v5_packet).first() {
 }
 ```
 
-## Want JSON?
+## Want Serialization such as JSON?
 Structures fully support serialization.  Below is an example using the serde_json macro:
 ```rust
 use serde_json::json;
@@ -48,3 +48,7 @@ dbg!(parser.v9_parser.options_templates);
 ```
 
 To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attribute on the Parsed Record.  In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
+
+## Examples
+
+Some examples has been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
