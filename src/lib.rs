@@ -206,11 +206,11 @@ mod tests {
         ];
         let fields = vec![
             TemplateField {
-                field_type: super::variable_versions::v9_lookup::FieldTypes::INBYTES,
+                field_type: super::variable_versions::v9_lookup::DataFieldType::INBYTES,
                 field_length: 4,
             },
             TemplateField {
-                field_type: super::variable_versions::v9_lookup::FieldTypes::IPV4SRCADDR,
+                field_type: super::variable_versions::v9_lookup::DataFieldType::IPV4SRCADDR,
                 field_length: 4,
             },
         ];

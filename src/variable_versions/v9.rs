@@ -22,7 +22,7 @@ use log::error;
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
-use super::v9_lookup::{FieldTypes, ScopeFieldType};
+use super::v9_lookup::{DataFieldType, ScopeFieldType};
 
 const TEMPLATE_ID: u16 = 0;
 const OPTIONS_TEMPLATE_ID: u16 = 1;
@@ -177,9 +177,9 @@ pub struct OptionsTemplateScopeField {
 }
 
 // Hacky function to parse field types
-fn parse_field_type(i: &[u8]) -> IResult<&[u8], FieldTypes> {
+fn parse_field_type(i: &[u8]) -> IResult<&[u8], DataFieldType> {
     let (remaining, val) = u16::parse_be(i)?;
-    let field_type = FieldTypes::parse(i, val)?;
+    let field_type = DataFieldType::parse(i, val)?;
     Ok((remaining, field_type.1))
 }
 
@@ -193,7 +193,7 @@ pub struct TemplateField {
     /// that defines the known field types and their lengths.
     /// The currently defined field types are detailed in Table 6.
     #[nom(Parse = "parse_field_type")]
-    pub field_type: FieldTypes,
+    pub field_type: DataFieldType,
     /// This number gives the length of the above-defined field, in bytes.
     pub field_length: u16,
 }
@@ -326,7 +326,7 @@ pub struct Data {
 #[nom(ExtraArgs(field: TemplateField))]
 pub struct OptionDataField {
     #[nom(Value(field.field_type))]
-    pub field_type: FieldTypes,
+    pub field_type: DataFieldType,
     #[nom(Map = "|i: &[u8]| i.to_vec()", Take = "field.field_length")]
     pub field_value: Vec<u8>,
 }
@@ -340,7 +340,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::INBYTES",
+        Cond = "field.field_type == DataFieldType::INBYTES",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -351,7 +351,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::INPKTS",
+        Cond = "field.field_type == DataFieldType::INPKTS",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -362,37 +362,37 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::FLOWS",
+        Cond = "field.field_type == DataFieldType::FLOWS",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flows: Option<Vec<u8>>,
     /// IP protocol byte
-    #[nom(Cond = "field.field_type == FieldTypes::PROTOCOL")]
+    #[nom(Cond = "field.field_type == DataFieldType::PROTOCOL")]
     #[serde(skip_serializing_if = "Option::is_none")]
     protocol: Option<ProtocolTypes>,
     /// Type of Service byte setting when entering incoming interface
-    #[nom(Cond = "field.field_type == FieldTypes::SRCTOS")]
+    #[nom(Cond = "field.field_type == DataFieldType::SRCTOS")]
     #[serde(skip_serializing_if = "Option::is_none")]
     src_tos: Option<u8>,
     /// Cumulative of all the TCP flags seen for this flow
-    #[nom(Cond = "field.field_type == FieldTypes::TCPFLAGS")]
+    #[nom(Cond = "field.field_type == DataFieldType::TCPFLAGS")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tcp_flags: Option<u8>,
     /// TCP/UDP source port number i.e.: FTP, Telnet, or equivalent
-    #[nom(Cond = "field.field_type == FieldTypes::L4SRCPORT")]
+    #[nom(Cond = "field.field_type == DataFieldType::L4SRCPORT")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub l4_src_port: Option<u16>,
     /// IPv4 source address
     #[nom(
-        Cond = "field.field_type == FieldTypes::IPV4SRCADDR",
+        Cond = "field.field_type == DataFieldType::IPV4SRCADDR",
         Map = "Ipv4Addr::from",
         Parse = "be_u32"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ipv4_src_addr: Option<Ipv4Addr>,
     /// The number of contiguous bits in the source address subnet mask i.e.: the submask in slash notation
-    #[nom(Cond = "field.field_type == FieldTypes::SRCMASK")]
+    #[nom(Cond = "field.field_type == DataFieldType::SRCMASK")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub src_mask: Option<u8>,
     /// Input interface index; default for N is 2 but higher values could be used
@@ -401,25 +401,25 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::INPUTSNMP",
+        Cond = "field.field_type == DataFieldType::INPUTSNMP",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub input_snmp: Option<Vec<u8>>,
     /// TCP/UDP destination port number i.e.: FTP, Telnet, or equivalent
-    #[nom(Cond = "field.field_type == FieldTypes::L4DSTPORT")]
+    #[nom(Cond = "field.field_type == DataFieldType::L4DSTPORT")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub l4_dst_port: Option<u16>,
     /// IPv4 destination address
     #[nom(
-        Cond = "field.field_type == FieldTypes::IPV4DSTADDR",
+        Cond = "field.field_type == DataFieldType::IPV4DSTADDR",
         Map = "Ipv4Addr::from",
         Parse = "be_u32"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ipv4_dst_addr: Option<Ipv4Addr>,
     /// The number of contiguous bits in the destination address subnet mask i.e.: the submask in slash notation
-    #[nom(Cond = "field.field_type == FieldTypes::DSTMASK")]
+    #[nom(Cond = "field.field_type == DataFieldType::DSTMASK")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dst_mask: Option<u8>,
     /// Output interface index; default for N is 2 but higher values could be used
@@ -428,14 +428,14 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::OUTPUTSNMP",
+        Cond = "field.field_type == DataFieldType::OUTPUTSNMP",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_snmp: Option<Vec<u8>>,
     /// IPv4 address of next-hop router
     #[nom(
-        Cond = "field.field_type == FieldTypes::IPV4NEXTHOP",
+        Cond = "field.field_type == DataFieldType::IPV4NEXTHOP",
         Map = "Ipv4Addr::from",
         Parse = "be_u32"
     )]
@@ -447,7 +447,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::SRCAS",
+        Cond = "field.field_type == DataFieldType::SRCAS",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -458,14 +458,14 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::DSTAS",
+        Cond = "field.field_type == DataFieldType::DSTAS",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dst_as: Option<Vec<u8>>,
     /// Next-hop router's IP in the BGP domain
     #[nom(
-        Cond = "field.field_type == FieldTypes::BGPIPV4NEXTHOP",
+        Cond = "field.field_type == DataFieldType::BGPIPV4NEXTHOP",
         Map = "Ipv4Addr::from",
         Parse = "be_u32"
     )]
@@ -477,7 +477,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::MULDSTPKTS",
+        Cond = "field.field_type == DataFieldType::MULDSTPKTS",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -488,17 +488,17 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::MULDSTBYTES",
+        Cond = "field.field_type == DataFieldType::MULDSTBYTES",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mul_dst_bytes: Option<Vec<u8>>,
     /// System uptime at which the last packet of this flow was switched
-    #[nom(Cond = "field.field_type == FieldTypes::LASTSWITCHED")]
+    #[nom(Cond = "field.field_type == DataFieldType::LASTSWITCHED")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_switched: Option<u32>,
     /// System uptime at which the first packet of this flow was switched
-    #[nom(Cond = "field.field_type == FieldTypes::FIRSTSWITCHED")]
+    #[nom(Cond = "field.field_type == DataFieldType::FIRSTSWITCHED")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub first_switched: Option<u32>,
     /// Outgoing counter with length N x 8 bits for the number of bytes associated with an IP Flow
@@ -507,7 +507,7 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::OUTBYTES",
+        Cond = "field.field_type == DataFieldType::OUTBYTES",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -518,22 +518,22 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::OUTPKTS",
+        Cond = "field.field_type == DataFieldType::OUTPKTS",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub out_pkts: Option<Vec<u8>>,
     /// Minimum IP packet length on incoming packets of the flow
-    #[nom(Cond = "field.field_type == FieldTypes::MINPKTLNGTH")]
+    #[nom(Cond = "field.field_type == DataFieldType::MINPKTLNGTH")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min_pkt_lngth: Option<u16>,
     /// Maximum IP packet length on incoming packets of the flow
-    #[nom(Cond = "field.field_type == FieldTypes::MAXPKTLNGTH")]
+    #[nom(Cond = "field.field_type == DataFieldType::MAXPKTLNGTH")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_pkt_lngth: Option<u16>,
     /// IPv6 Source Address
     #[nom(
-        Cond = "field.field_type == FieldTypes::IPV6SRCADDR",
+        Cond = "field.field_type == DataFieldType::IPV6SRCADDR",
         Map = "Ipv6Addr::from",
         Parse = "be_u128"
     )]
@@ -541,18 +541,18 @@ pub struct DataField {
     pub ipv6_src_addr: Option<Ipv6Addr>,
     /// IPv6 Destination Address
     #[nom(
-        Cond = "field.field_type == FieldTypes::IPV6DSTADDR",
+        Cond = "field.field_type == DataFieldType::IPV6DSTADDR",
         Map = "Ipv6Addr::from",
         Parse = "be_u128"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ipv6_dst_addr: Option<Ipv6Addr>,
     /// Length of the IPv6 source mask in contiguous bits
-    #[nom(Cond = "field.field_type == FieldTypes::IPV6SRCMASK")]
+    #[nom(Cond = "field.field_type == DataFieldType::IPV6SRCMASK")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ipv6_src_mask: Option<u8>,
     /// Length of the IPv6 destination mask in contiguous bits
-    #[nom(Cond = "field.field_type == FieldTypes::IPV6DSTMASK")]
+    #[nom(Cond = "field.field_type == DataFieldType::IPV6DSTMASK")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ipv6_dst_mask: Option<u8>,
     /// IPv6 flow label as per RFC 2460 definition
@@ -561,50 +561,50 @@ pub struct DataField {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::IPV6FLOWLABEL",
+        Cond = "field.field_type == DataFieldType::IPV6FLOWLABEL",
         Take = "3"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ipv6_flow_label: Option<Vec<u8>>,
     /// Internet Control Message Protocol (ICMP) packet type; reported as ((ICMP Type*256) + ICMP code)
-    #[nom(Cond = "field.field_type == FieldTypes::ICMPTYPE")]
+    #[nom(Cond = "field.field_type == DataFieldType::ICMPTYPE")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icmp_type: Option<u16>,
     /// Internet Group Management Protocol (IGMP) packet type
-    #[nom(Cond = "field.field_type == FieldTypes::MULIGMPTYPE")]
+    #[nom(Cond = "field.field_type == DataFieldType::MULIGMPTYPE")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mul_igmp_type: Option<u8>,
     /// When using sampled NetFlow, the rate at which packets are sampled i.e.: a value of 100 indicates that one of every 100 packets is sampled
-    #[nom(Cond = "field.field_type == FieldTypes::SAMPLINGINTERVAL")]
+    #[nom(Cond = "field.field_type == DataFieldType::SAMPLINGINTERVAL")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sampling_interval: Option<u32>,
     /// The type of algorithm used for sampled NetFlow: 0x01 Deterministic Sampling ,0x02 Random Sampling
-    #[nom(Cond = "field.field_type == FieldTypes::SAMPLINGALGORITHM")]
+    #[nom(Cond = "field.field_type == DataFieldType::SAMPLINGALGORITHM")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sampling_algorithm: Option<u8>,
     /// Timeout value (in seconds) for active flow entries in the NetFlow cache
-    #[nom(Cond = "field.field_type == FieldTypes::FLOWACTIVETIMEOUT")]
+    #[nom(Cond = "field.field_type == DataFieldType::FLOWACTIVETIMEOUT")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flow_active_timeout: Option<u16>,
     /// Timeout value (in seconds) for inactive flow entries in the NetFlow cache
-    #[nom(Cond = "field.field_type == FieldTypes::FLOWINACTIVETIMEOUT")]
+    #[nom(Cond = "field.field_type == DataFieldType::FLOWINACTIVETIMEOUT")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flow_inactive_timeout: Option<u16>,
     /// Type of flow switching engine: RP = 0, VIP/Linecard = 1
-    #[nom(Cond = "field.field_type == FieldTypes::ENGINETYPE")]
+    #[nom(Cond = "field.field_type == DataFieldType::ENGINETYPE")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub engine_type: Option<u8>,
     /// ID number of the flow switching engine
-    #[nom(Cond = "field.field_type == FieldTypes::ENGINEID")]
+    #[nom(Cond = "field.field_type == DataFieldType::ENGINEID")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub engine_id: Option<u8>,
-    // // Unknown
+    // Unknown/Vendor Specific
     #[nom(
         Map = "|i: Option<&[u8]>| match i {
         Some(n) => Some(n.to_vec()),
         None => None,
     }",
-        Cond = "field.field_type == FieldTypes::Unknown",
+        Cond = "field.field_type == DataFieldType::Unknown",
         Take = "field.field_length"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -19,10 +19,9 @@ pub enum ForwaringStatus {
     Unknown = 0,
 }
 
-#[repr(u16)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
 #[nom(Selector = "u16")]
-pub enum FieldTypes {
+pub enum DataFieldType {
     #[nom(Selector = "1")]
     INBYTES,
     #[nom(Selector = "2")]
