@@ -1,6 +1,5 @@
-use std::net::UdpSocket;
+use std::net::{UdpSocket, SocketAddr};
 use std::collections::HashMap;
-use std::net::SocketAddr;
 
 use netflow_parser::NetflowParser;
 
