@@ -9,8 +9,10 @@ use crate::{NetflowByteParserStatic, NetflowPacket, ParsedNetflow};
 use nom::number::complete::be_u32;
 use nom_derive::*;
 use serde::Serialize;
-use std::net::Ipv4Addr;
 use Nom;
+
+use std::net::Ipv4Addr;
+use std::time::Duration;
 
 #[derive(Debug, Nom, Clone, Serialize)]
 pub struct V5 {
@@ -21,6 +23,7 @@ pub struct V5 {
 }
 
 impl NetflowByteParserStatic for V5 {
+    #[inline]
     fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
         let parsed_packet = V5::parse_be(packet).map_err(|e| format!("{e}"))?;
         Ok(ParsedNetflow {
@@ -37,11 +40,14 @@ pub struct Header {
     /// Number of flows exported in this packet (1-30)
     pub count: u16,
     /// Current time in milliseconds since the export device booted
-    pub sys_up_time: u32,
+    #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
+    pub sys_up_time: Duration,
     /// Current count of seconds since 0000 UTC 1970
-    unix_secs: u32,
+    #[nom(Map = "|i| Duration::from_secs(i.into())", Parse = "be_u32")]
+    unix_secs: Duration,
     /// Residual nanoseconds since 0000 UTC 1970
-    unix_nsecs: u32,
+    #[nom(Map = "|i| Duration::from_nanos(i.into())", Parse = "be_u32")]
+    unix_nsecs: Duration,
     /// Sequence counter of total flows seen
     pub flow_sequence: u32,
     /// Type of flow-switching engine
@@ -72,9 +78,11 @@ pub struct Body {
     /// Total number of Layer 3 bytes in the packets of the flow
     pub d_octets: u32,
     /// SysUptime at start of flow
-    pub first: u32,
+    #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
+    pub first: Duration,
+    #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
     /// SysUptime at the time the last packet of the flow was received
-    pub last: u32,
+    pub last: Duration,
     /// TCP/UDP source port number or equivalent
     pub src_port: u16,
     /// TCP/UDP destination port number or equivalent

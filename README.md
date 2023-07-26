@@ -64,3 +64,11 @@ To access templates flowset of a processed V9/IPFix flowset you can find the `fl
 ## Examples
 
 Some examples has been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
+
+To run:
+
+```cargo run --example netflow_udp_listener_multi_threaded```
+
+or 
+
+```cargo run --example netflow_udp_listener_single_threaded```

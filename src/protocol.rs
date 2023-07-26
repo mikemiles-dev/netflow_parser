@@ -2,7 +2,7 @@ use nom_derive::*;
 use serde::Serialize;
 
 #[repr(u8)]
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Serialize, Nom)]
 pub enum ProtocolTypes {
     HOPOPT = 0,
     ICMP = 1,

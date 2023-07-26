@@ -1,0 +1,23 @@
+---
+source: src/lib.rs
+expression: parser.parse_bytes(&packet)
+---
+- IPFix:
+    header:
+      version: 10
+      length: 26
+      export_time:
+        secs: 1
+        nanos: 0
+      sequence_number: 1
+      observation_domain_id: 0
+    sets:
+      - id: 258
+        length: 10
+        data:
+          data_fields:
+            - PacketDeltaCount:
+                DataNumber: 8
+              SourceIpv4address:
+                Ip4Addr: 0.0.1.1
+

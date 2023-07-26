@@ -61,6 +61,14 @@
 //!
 //! ## Examples
 //! Some examples has been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
+//!
+//! To run:
+//!
+//! ```cargo run --example netflow_udp_listener_multi_threaded```
+//!
+//! or
+//!
+//! ```cargo run --example netflow_udp_listener_single_threaded```
 
 pub mod protocol;
 pub mod static_versions;
@@ -97,7 +105,6 @@ impl NetflowPacket {
     pub fn is_v9(&self) -> bool {
         matches!(self, Self::V9(_v))
     }
-
     pub fn is_ipfix(&self) -> bool {
         matches!(self, Self::IPFix(_v))
     }
@@ -174,6 +181,7 @@ impl NetflowParser {
     /// [{"V5":{"body":{"d_octets":66051,"d_pkts":101124105,"dst_addr":"4.5.6.7","dst_as":515,"dst_mask":5,"dst_port":1029,"first":67438087,"input":515,"last":134807553,"next_hop":"8.9.0.1","output":1029,"pad1":6,"pad2":1543,"protocol":"EGP","src_addr":"0.1.2.3","src_as":1,"src_mask":4,"src_port":515,"tcp_flags":7,"tos":9},"header":{"count":512,"engine_id":7,"engine_type":6,"flow_sequence":33752069,"sampling_interval":2057,"sys_up_time":50332672,"unix_nsecs":134807553,"unix_secs":83887623,"unix_time":{"nanos_since_epoch":134807553,"secs_since_epoch":83887623},"version":5}}}]
     /// ```
     ///
+    #[inline]
     pub fn parse_bytes(&mut self, packet: &[u8]) -> Vec<NetflowPacket> {
         match self.parse_by_version(packet) {
             Ok(parsed_netflow) => {
@@ -192,9 +200,13 @@ impl NetflowParser {
 #[cfg(test)]
 mod tests {
 
-    use crate::variable_versions::v9::{Template, TemplateField};
-
-    use super::NetflowParser;
+    use crate::variable_versions::ipfix::{
+        Template as IPFixTemplate, TemplateField as IPFixTemplateField,
+    };
+    use crate::variable_versions::v9::{
+        Template as V9Template, TemplateField as V9TemplateField,
+    };
+    use crate::NetflowParser;
     use insta::assert_yaml_snapshot;
 
     #[test]
@@ -242,18 +254,18 @@ mod tests {
             4, 9, 9, 9, 8,
         ];
         let fields = vec![
-            TemplateField {
+            V9TemplateField {
                 field_type_number: 1,
-                field_type: super::variable_versions::v9_lookup::DataFieldType::INBYTES,
+                field_type: super::variable_versions::v9_lookup::V9Field::InBytes,
                 field_length: 4,
             },
-            TemplateField {
+            V9TemplateField {
                 field_type_number: 8,
-                field_type: super::variable_versions::v9_lookup::DataFieldType::IPV4SRCADDR,
+                field_type: super::variable_versions::v9_lookup::V9Field::Ipv4SrcAddr,
                 field_length: 4,
             },
         ];
-        let template = Template {
+        let template = V9Template {
             length: 16,
             field_count: 2,
             template_id: 258,
@@ -267,8 +279,57 @@ mod tests {
     #[test]
     fn it_parses_ipfix() {
         let packet = [
-            0, 10, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,
-            2, 0, 1, 0, 4, 0, 8, 0, 4, 1, 2, 0, 12, 9, 2, 3, 4, 9, 9, 9, 8,
+            0, 10, 0, 64, 1, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 0, 20, 1, 0, 0, 3, 0, 8, 0,
+            4, 0, 12, 0, 4, 0, 2, 0, 4, 1, 0, 0, 28, 1, 2, 3, 4, 1, 2, 3, 3, 1, 2, 3, 2, 0, 2,
+            0, 2, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_parses_ipfix_data_cached_template() {
+        let packet = [
+            0, 10, 0, 26, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 2, 0, 10, 0, 8, 0, 0, 1, 1,
+        ];
+        let fields = vec![
+            IPFixTemplateField {
+                field_type_number: 2,
+                field_type:
+                    super::variable_versions::ipfix_lookup::IPFixField::PacketDeltaCount,
+                field_length: 2,
+            },
+            IPFixTemplateField {
+                field_type_number: 8,
+                field_type:
+                    super::variable_versions::ipfix_lookup::IPFixField::SourceIpv4address,
+                field_length: 4,
+            },
+        ];
+        let template = IPFixTemplate {
+            field_count: 2,
+            template_id: 258,
+            fields,
+        };
+        let mut parser = NetflowParser::default();
+        parser.ipfix_parser.templates.insert(258, template);
+        assert_yaml_snapshot!(parser.parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_parses_ipfix_options_template() {
+        let packet = [
+            0, 10, 0, 44, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 3, 0, 28, 1, 4, 0, 3, 0, 1,
+            128, 123, 0, 4, 0, 0, 0, 2, 0, 41, 0, 2, 0, 42, 0, 2, 0, 0,
+        ];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_parses_ipfix_options_template_with_data() {
+        let packet = [
+            0, 10, 0, 64, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 3, 0, 28, 1, 4, 0, 3, 0, 1,
+            128, 123, 0, 4, 0, 0, 0, 2, 0, 41, 0, 2, 0, 42, 0, 2, 0, 0, 1, 4, 0, 20, 0, 0, 0,
+            1, 1, 20, 20, 20, 0, 0, 0, 2, 20, 20, 30, 30,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }

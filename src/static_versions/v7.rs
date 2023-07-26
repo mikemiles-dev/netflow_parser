@@ -9,8 +9,10 @@ use crate::{NetflowByteParserStatic, NetflowPacket, ParsedNetflow};
 use nom::number::complete::be_u32;
 use nom_derive::*;
 use serde::Serialize;
-use std::net::Ipv4Addr;
 use Nom;
+
+use std::net::Ipv4Addr;
+use std::time::Duration;
 
 #[derive(Debug, Nom, Clone, Serialize)]
 pub struct V7 {
@@ -21,6 +23,7 @@ pub struct V7 {
 }
 
 impl NetflowByteParserStatic for V7 {
+    #[inline]
     fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
         let parsed_packet = V7::parse_be(packet).map_err(|e| format!("{e}"))?;
         Ok(ParsedNetflow {
@@ -37,11 +40,14 @@ pub struct Header {
     /// Number of flows exported in this flow frame (protocol data unit, or PDU)
     pub count: u16,
     /// Current time in milliseconds since the export device booted
-    pub sys_up_time: u32,
+    #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
+    pub sys_up_time: Duration,
     /// Current seconds since 0000 UTC 1970
-    pub unix_secs: u32,
+    #[nom(Map = "|i| Duration::from_secs(i.into())", Parse = "be_u32")]
+    pub unix_secs: Duration,
     /// Residual nanoseconds since 0000 UTC 1970
-    pub unix_nsecs: u32,
+    #[nom(Map = "|i| Duration::from_nanos(i.into())", Parse = "be_u32")]
+    pub unix_nsecs: Duration,
     /// Sequence counter of total flows seen
     pub flow_sequence: u32,
     /// Unused (zero) bytes
@@ -68,9 +74,11 @@ pub struct Body {
     /// Total number of Layer 3 bytes in the packets of the flow.
     pub d_octets: u32,
     /// SysUptime, in milliseconds, at start of flow.
-    pub first: u32,
+    #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
+    pub first: Duration,
     /// SysUptime, in milliseconds, at the time the last packet of the flow was received.
-    pub last: u32,
+    #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
+    pub last: Duration,
     /// TCP/UDP source port number; set to zero if flow mask is destination-only or source-destination.
     pub src_port: u16,
     /// TCP/UDP destination port number; set to zero if flow mask is destination-only or source-destination.

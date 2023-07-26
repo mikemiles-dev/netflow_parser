@@ -23,10 +23,10 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               field_length: 2
           option_fields:
             - field_type_number: 34
-              field_type: SAMPLINGINTERVAL
+              field_type: SamplingInterval
               field_length: 2
             - field_type_number: 36
-              field_type: FLOWACTIVETIMEOUT
+              field_type: FlowActiveTimeout
               field_length: 1
       - flow_set_id: 275
         options_data:
@@ -36,11 +36,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 - 0
                 - 2
           options_fields:
-            - field_type: SAMPLINGINTERVAL
+            - field_type: SamplingInterval
               field_value:
                 - 0
                 - 100
-            - field_type: FLOWACTIVETIMEOUT
+            - field_type: FlowActiveTimeout
               field_value:
                 - 1
 
