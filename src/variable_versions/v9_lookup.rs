@@ -1,5 +1,3 @@
-//! See <https://www.iana.org/assignments/ipfix/ipfix.xhtml> for more details on fields
-
 use super::common::*;
 
 use nom_derive::*;
