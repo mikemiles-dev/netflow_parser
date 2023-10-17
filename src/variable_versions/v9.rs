@@ -159,7 +159,7 @@ pub struct OptionsTemplate {
     /// Padding
     #[nom(
         Map = "|i: &[u8]| i.to_vec()",
-        Take = "(length - options_scope_length - options_length - 10)  as usize"
+        Take = "(length.saturating_sub(options_scope_length).saturating_sub(options_length).saturating_sub(10)) as usize"
     )]
     #[serde(skip_serializing)]
     padding: Vec<u8>,
@@ -235,11 +235,17 @@ fn get_total_options_length(flow_set_id: u16, length: u16, parser: &mut V9Parser
             .sum(),
         None => 0,
     };
-    let total_length: usize = (length - 4 - (options_length + scope_length)).into();
+    let total_length: usize = length
+        .checked_sub(
+            4u16.checked_sub(options_length.checked_add(scope_length).unwrap_or(length))
+                .unwrap_or(length),
+        )
+        .unwrap_or(length)
+        .into();
     if length % 2 == 0 {
         total_length
     } else {
-        total_length + 1
+        total_length.checked_add(1).unwrap_or(total_length)
     }
 }
 

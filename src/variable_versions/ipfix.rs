@@ -123,7 +123,9 @@ pub struct OptionsTemplate {
     pub scope_field_count: u16,
     #[nom(Count = "scope_field_count")]
     pub scope_field_specifiers: Vec<OptionsTemplateField>,
-    #[nom(Count = "(field_count - scope_field_count) as usize")]
+    #[nom(
+        Count = "(field_count.checked_sub(scope_field_count).unwrap_or(field_count)) as usize"
+    )]
     pub field_specifiers: Vec<OptionsTemplateField>,
     #[nom(Cond = "!i.is_empty()")]
     #[serde(skip_serializing)]
@@ -170,7 +172,7 @@ pub struct TemplateField {
 
 /// Parses options template
 fn parse_options_template(i: &[u8], length: u16) -> IResult<&[u8], OptionsTemplate> {
-    let (remaining, taken) = take(length - 4)(i)?;
+    let (remaining, taken) = take(length.checked_sub(4).unwrap_or(length))(i)?;
     let (_, option_template) = OptionsTemplate::parse(taken).unwrap();
     Ok((remaining, option_template))
 }
@@ -339,7 +341,9 @@ impl NetflowByteParserVariable for IPFixParser {
                 .map_err(|e| format!("Could not parse v10_set: {e}"))?;
             dbg!("left remaining: {}", left_remaining);
             remaining = left_remaining;
-            let parsed = total_left - remaining.len();
+            let parsed = total_left
+                .checked_sub(remaining.len())
+                .unwrap_or(total_left);
             total_left -= parsed;
             sets.push(v10_set.clone());
         }
