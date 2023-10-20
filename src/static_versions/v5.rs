@@ -44,10 +44,10 @@ pub struct Header {
     pub sys_up_time: Duration,
     /// Current count of seconds since 0000 UTC 1970
     #[nom(Map = "|i| Duration::from_secs(i.into())", Parse = "be_u32")]
-    unix_secs: Duration,
+    pub unix_secs: Duration,
     /// Residual nanoseconds since 0000 UTC 1970
     #[nom(Map = "|i| Duration::from_nanos(i.into())", Parse = "be_u32")]
-    unix_nsecs: Duration,
+    pub unix_nsecs: Duration,
     /// Sequence counter of total flows seen
     pub flow_sequence: u32,
     /// Type of flow-switching engine
