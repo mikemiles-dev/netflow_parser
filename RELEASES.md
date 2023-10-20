@@ -1,3 +1,6 @@
+# 0.1.3
+  * unix_secs and unix_nsecs for V5 are now pub.
+
 # 0.1.2
   * Added Cisco to README.md
   * Fixed some IPFIX Fields not being correctly mapped.
