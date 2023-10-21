@@ -1,3 +1,6 @@
+# 0.1.4
+  * Removed insta for non dev-dependency.
+
 # 0.1.3
   * unix_secs and unix_nsecs for V5 are now pub.
 
