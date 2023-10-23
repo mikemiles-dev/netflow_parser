@@ -1,5 +1,5 @@
 # 0.1.5
-  * Removed logging crate dependancy
+  * Removed logging crate dependency 
 
 # 0.1.4
   * Removed insta for non dev-dependency.
