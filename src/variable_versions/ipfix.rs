@@ -11,7 +11,6 @@ use crate::protocol::ProtocolTypes;
 use crate::variable_versions::ipfix_lookup::*;
 use crate::{NetflowByteParserVariable, NetflowPacket, ParsedNetflow};
 
-use log::error;
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
 use nom::number::complete::{be_u128, be_u32};
@@ -217,7 +216,7 @@ fn parse_fields<T: CommonTemplateFields>(
     let template = match template {
         Some(t) => t,
         None => {
-            error!("Could not fetch any v10 templates!");
+            dbg!("Could not fetch any v10 templates!");
             return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
         }
     };
