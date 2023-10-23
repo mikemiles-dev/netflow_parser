@@ -73,7 +73,6 @@ pub mod protocol;
 pub mod static_versions;
 pub mod variable_versions;
 
-use log::*;
 use serde::Serialize;
 use static_versions::{v5::V5, v7::V7};
 use variable_versions::ipfix::{IPFix, IPFixParser};
@@ -189,7 +188,7 @@ impl NetflowParser {
                 parsed
             }
             Err(parsed_error) => {
-                warn!("{parsed_error}");
+                dbg!("{parsed_error}", parsed_error);
                 vec![]
             }
         }
