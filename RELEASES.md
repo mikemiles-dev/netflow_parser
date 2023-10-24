@@ -1,3 +1,6 @@
+# 0.1.6
+  * Fixed bug when parsing empty byte arrays or empty remaining slices.
+
 # 0.1.5
   * Removed logging crate dependency 
 

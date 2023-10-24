@@ -181,10 +181,15 @@ impl NetflowParser {
     ///
     #[inline]
     pub fn parse_bytes(&mut self, packet: &[u8]) -> Vec<NetflowPacket> {
+        if packet.is_empty() {
+            return vec![];
+        }
         match self.parse_by_version(packet) {
             Ok(parsed_netflow) => {
                 let mut parsed = vec![parsed_netflow.netflow_packet];
-                parsed.append(&mut self.parse_bytes(parsed_netflow.remaining.as_slice()));
+                if !parsed_netflow.remaining.is_empty() {
+                    parsed.append(&mut self.parse_bytes(parsed_netflow.remaining.as_slice()));
+                }
                 parsed
             }
             Err(parsed_error) => {
