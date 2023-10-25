@@ -4,7 +4,7 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use crate::protocol::ProtocolTypes;
-use crate::{NetflowByteParserStatic, NetflowPacket, ParsedNetflow};
+use crate::{NetflowByteParserStatic, NetflowPacketResult, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 use nom_derive::*;
@@ -28,7 +28,7 @@ impl NetflowByteParserStatic for V7 {
         let parsed_packet = V7::parse_be(packet).map_err(|e| format!("{e}"))?;
         Ok(ParsedNetflow {
             remaining: parsed_packet.0.to_vec(),
-            netflow_packet: NetflowPacket::V7(parsed_packet.1),
+            netflow_packet: NetflowPacketResult::V7(parsed_packet.1),
         })
     }
 }

@@ -11,11 +11,12 @@
 //! ## V5:
 //!
 //! ```rust
-//! use netflow_parser::{NetflowParser, NetflowPacket};
+//! use netflow_parser::{NetflowParser, NetflowPacketResult};
 //!
 //! let v5_packet = [0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
 //! match NetflowParser::default().parse_bytes(&v5_packet).first() {
-//!     Some(NetflowPacket::V5(v5)) => assert_eq!(v5.header.version, 5),
+//!     Some(NetflowPacketResult::V5(v5)) => assert_eq!(v5.header.version, 5),
+//!     Some(NetflowPacketResult::Error(e)) => println!("{:?}", e),
 //!     _ => (),
 //! }
 //! ```
@@ -39,12 +40,12 @@
 //! ## Filtering for a specific version
 //!
 //! ```rust
-//! use netflow_parser::{NetflowParser, NetflowPacket};
+//! use netflow_parser::{NetflowParser, NetflowPacketResult};
 //!
 //! let v5_packet = [0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
 //! let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 //!
-//! let v5_parsed: Vec<NetflowPacket> = parsed.iter().filter(|p| p.is_v5()).map(|p| p.clone()).collect();
+//! let v5_parsed: Vec<NetflowPacketResult> = parsed.iter().filter(|p| p.is_v5()).map(|p| p.clone()).collect();
 //! ```
 //!
 //! ## V9/IPFix notes:
@@ -80,9 +81,15 @@ use variable_versions::v9::{V9Parser, V9};
 
 use nom_derive::{Nom, Parse};
 
+#[derive(Debug, Clone, Serialize)]
+pub struct NetflowPacketError {
+    pub error_message: String,
+    pub bytes: Vec<u8>,
+}
+
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
-pub enum NetflowPacket {
+pub enum NetflowPacketResult {
     /// Version 5
     V5(V5),
     /// Version 7
@@ -91,9 +98,11 @@ pub enum NetflowPacket {
     V9(V9),
     /// IPFix  
     IPFix(IPFix),
+    /// Error
+    Error(NetflowPacketError),
 }
 
-impl NetflowPacket {
+impl NetflowPacketResult {
     pub fn is_v5(&self) -> bool {
         matches!(self, Self::V5(_v))
     }
@@ -106,13 +115,16 @@ impl NetflowPacket {
     pub fn is_ipfix(&self) -> bool {
         matches!(self, Self::IPFix(_v))
     }
+    pub fn is_error(&self) -> bool {
+        matches!(self, Self::Error(_v))
+    }
 }
 
 #[derive(Debug, Clone)]
 struct ParsedNetflow {
     remaining: Vec<u8>,
     /// Parsed Netflow Packet
-    netflow_packet: NetflowPacket,
+    netflow_packet: NetflowPacketResult,
 }
 
 /// Struct is used simply to match how to handle the result of the packet
@@ -180,7 +192,7 @@ impl NetflowParser {
     /// ```
     ///
     #[inline]
-    pub fn parse_bytes(&mut self, packet: &[u8]) -> Vec<NetflowPacket> {
+    pub fn parse_bytes(&mut self, packet: &[u8]) -> Vec<NetflowPacketResult> {
         if packet.is_empty() {
             return vec![];
         }
@@ -193,8 +205,11 @@ impl NetflowParser {
                 parsed
             }
             Err(parsed_error) => {
-                dbg!("{parsed_error}", parsed_error);
-                vec![]
+                let netflow_packet_error = NetflowPacketError {
+                    error_message: parsed_error.to_string(),
+                    bytes: packet.to_vec(),
+                };
+                vec![NetflowPacketResult::Error(netflow_packet_error)]
             }
         }
     }
@@ -219,6 +234,12 @@ mod tests {
             4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
             2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_creates_error() {
+        let packet = [12, 13, 14];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }
 

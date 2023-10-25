@@ -9,7 +9,7 @@
 use super::common::*;
 use crate::protocol::ProtocolTypes;
 use crate::variable_versions::ipfix_lookup::*;
-use crate::{NetflowByteParserVariable, NetflowPacket, ParsedNetflow};
+use crate::{NetflowByteParserVariable, NetflowPacketResult, ParsedNetflow};
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
@@ -354,7 +354,7 @@ impl NetflowByteParserVariable for IPFixParser {
 
         Ok(ParsedNetflow {
             remaining: remaining.to_vec(),
-            netflow_packet: NetflowPacket::IPFix(v10_parsed),
+            netflow_packet: NetflowPacketResult::IPFix(v10_parsed),
         })
     }
 }

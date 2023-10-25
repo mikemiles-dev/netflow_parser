@@ -1,3 +1,7 @@
+# 0.1.7
+  * Renamed NetflowPacket to NetflowPacketResult.
+  * Created an Error Type on NetflowPacketResult.  Contains the error message and bytes that was trying to be parsed.
+
 # 0.1.6
   * Fixed bug when parsing empty byte arrays or empty remaining slices.
 

@@ -1,0 +1,11 @@
+---
+source: src/lib.rs
+expression: "NetflowParser::default().parse_bytes(&packet)"
+---
+- Error:
+    error_message: Not Supported
+    bytes:
+      - 12
+      - 13
+      - 14
+
