@@ -7,7 +7,7 @@
 use super::common::*;
 use crate::protocol::ProtocolTypes;
 use crate::variable_versions::v9_lookup::*;
-use crate::{NetflowByteParserVariable, NetflowPacket, ParsedNetflow};
+use crate::{NetflowByteParserVariable, NetflowPacketResult, ParsedNetflow};
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
@@ -463,7 +463,7 @@ impl NetflowByteParserVariable for V9Parser {
 
         Ok(ParsedNetflow {
             remaining: remaining.to_vec(),
-            netflow_packet: NetflowPacket::V9(v9_parsed),
+            netflow_packet: NetflowPacketResult::V9(v9_parsed),
         })
     }
 }
