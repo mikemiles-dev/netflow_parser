@@ -1,3 +1,6 @@
+# 0.1.8
+  * Introduced parse unix_timestamp feature. 
+
 # 0.1.7
   * Renamed NetflowPacket to NetflowPacketResult.
   * Created an Error Type on NetflowPacketResult.  Contains the error message and bytes that was trying to be parsed.
