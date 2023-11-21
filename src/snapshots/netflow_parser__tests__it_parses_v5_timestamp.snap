@@ -1,5 +1,6 @@
 ---
 source: src/lib.rs
+assertion_line: 263
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
 - V5:
@@ -9,8 +10,9 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       sys_up_time:
         secs: 50332
         nanos: 672000000
-      unix_secs: 83887623
-      unix_nsecs: 134807553
+      unix_time:
+        secs: 83887623
+        nanos: 134807553
       flow_sequence: 33752069
       engine_type: 6
       engine_id: 7

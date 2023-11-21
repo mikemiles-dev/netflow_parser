@@ -228,7 +228,45 @@ mod tests {
     use insta::assert_yaml_snapshot;
 
     #[test]
+    fn it_parses_unix_timestamp_correctly() {
+        use nom::number::complete::{be_u32, be_u64};
+        use std::time::Duration;
+
+        let packet = [5, 0, 6, 7, 8, 9, 0, 1];
+        let (remain, secs1) =
+            be_u32::<&[u8], nom::error::Error<&[u8]>>(packet.as_slice()).unwrap();
+        let (remain, nsecs1) = be_u32::<&[u8], nom::error::Error<&[u8]>>(remain).unwrap();
+        assert_eq!(remain, []);
+
+        let time1 = Duration::from_nanos(nsecs1 as u64) + Duration::from_secs(secs1 as u64);
+
+        let (remain, secs_nsecs) =
+            be_u64::<&[u8], nom::error::Error<&[u8]>>(packet.as_slice()).unwrap();
+        assert_eq!(remain, []);
+        let secs2 = (secs_nsecs >> 32) as u32 as u64;
+        let nsecs2 = secs_nsecs as u32;
+
+        let time2 = Duration::new(secs2, nsecs2);
+
+        assert_eq!(secs1 as u64, secs2);
+        assert_eq!(nsecs1, nsecs2);
+        assert_eq!(time1, time2);
+    }
+
+    #[test]
+    #[cfg(not(feature = "unix_timestamp"))]
     fn it_parses_v5() {
+        let packet = [
+            0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    #[cfg(feature = "unix_timestamp")]
+    fn it_parses_v5_timestamp() {
         let packet = [
             0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
             4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
@@ -244,7 +282,19 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "unix_timestamp"))]
     fn it_parses_v7() {
+        let packet = [
+            0, 7, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+        ];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    #[cfg(feature = "unix_timestamp")]
+    fn it_parses_v7_timestamp() {
         let packet = [
             0, 7, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
             4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
