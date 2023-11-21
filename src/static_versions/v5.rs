@@ -7,6 +7,8 @@ use crate::protocol::ProtocolTypes;
 use crate::{NetflowByteParserStatic, NetflowPacketResult, ParsedNetflow};
 
 use nom::number::complete::be_u32;
+#[cfg(feature = "unix_timestamp")]
+use nom::number::complete::be_u64;
 use nom_derive::*;
 use serde::Serialize;
 use Nom;
@@ -42,12 +44,22 @@ pub struct Header {
     /// Current time in milliseconds since the export device booted
     #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
     pub sys_up_time: Duration,
+
+    /// Current count since 0000 UTC 1970
+    #[cfg(feature = "unix_timestamp")]
+    #[nom(
+        Map = "|i| Duration::new((i >> 32) as u32 as u64, (i as u32))",
+        Parse = "be_u64"
+    )]
+    pub unix_time: Duration,
+
     /// Current count of seconds since 0000 UTC 1970
-    #[nom(Map = "|i| Duration::from_secs(i.into())", Parse = "be_u32")]
-    pub unix_secs: Duration,
+    #[cfg(not(feature = "unix_timestamp"))]
+    pub unix_secs: u32,
     /// Residual nanoseconds since 0000 UTC 1970
-    #[nom(Map = "|i| Duration::from_nanos(i.into())", Parse = "be_u32")]
-    pub unix_nsecs: Duration,
+    #[cfg(not(feature = "unix_timestamp"))]
+    pub unix_nsecs: u32,
+
     /// Sequence counter of total flows seen
     pub flow_sequence: u32,
     /// Type of flow-switching engine

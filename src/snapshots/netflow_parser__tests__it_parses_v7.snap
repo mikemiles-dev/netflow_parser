@@ -9,12 +9,8 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       sys_up_time:
         secs: 50332
         nanos: 672000000
-      unix_secs:
-        secs: 83887623
-        nanos: 0
-      unix_nsecs:
-        secs: 0
-        nanos: 134807553
+      unix_secs: 83887623
+      unix_nsecs: 134807553
       flow_sequence: 33752069
       reserved: 101124105
     body:

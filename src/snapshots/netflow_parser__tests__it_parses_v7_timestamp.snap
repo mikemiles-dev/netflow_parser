@@ -1,20 +1,20 @@
 ---
 source: src/lib.rs
+assertion_line: 279
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
-- V5:
+- V7:
     header:
-      version: 5
+      version: 7
       count: 512
       sys_up_time:
         secs: 50332
         nanos: 672000000
-      unix_secs: 83887623
-      unix_nsecs: 134807553
+      unix_time:
+        secs: 83887623
+        nanos: 134807553
       flow_sequence: 33752069
-      engine_type: 6
-      engine_id: 7
-      sampling_interval: 2057
+      reserved: 101124105
     body:
       src_addr: 0.1.2.3
       dst_addr: 4.5.6.7
@@ -31,7 +31,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         nanos: 553000000
       src_port: 515
       dst_port: 1029
-      pad1: 6
+      flags_fields_valid: 6
       tcp_flags: 7
       protocol_number: 8
       protocol_type: EGP
@@ -40,5 +40,6 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       dst_as: 515
       src_mask: 4
       dst_mask: 5
-      pad2: 1543
+      flags_fields_invalid: 1543
+      router_src: 8.9.0.1
 
