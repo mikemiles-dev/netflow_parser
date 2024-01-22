@@ -1,3 +1,6 @@
+# 0.1.9
+  * Fixed bug with flow counts in V9.
+
 # 0.1.8
   * Introduced parse unix_timestamp feature. 
 
