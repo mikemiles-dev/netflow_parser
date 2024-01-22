@@ -41,8 +41,35 @@ pub struct V9 {
     /// V9 Header
     pub header: Header,
     /// Flowsets
-    #[nom(Count = "header.count", Parse = "{ |i| FlowSet::parse(i, parser) }")]
+    #[nom(Parse = "{ |i| parse_flowsets(i, parser, header.count as usize) }")]
     pub flowsets: Vec<FlowSet>,
+}
+
+fn parse_flowsets<'a, 'b>(
+    i: &'a [u8],
+    parser: &'b mut V9Parser,
+    mut count: usize,
+) -> IResult<&'a [u8], Vec<FlowSet>> {
+    let mut flowsets = vec![];
+    let mut remaining = i;
+
+    // Header.count represents total number of records in data + records in templates
+    while count > 0 {
+        let (i, flowset) = FlowSet::parse(remaining, parser)?;
+        remaining = i;
+
+        if flowset.template.is_some() || flowset.options_template.is_some() {
+            count = count.saturating_sub(1);
+        } else if let Some(data) = flowset.data.as_ref() {
+            count = count.saturating_sub(data.data_fields.len());
+        } else if let Some(_) = flowset.options_data.as_ref() {
+            count = count.saturating_sub(1);
+        }
+
+        flowsets.push(flowset)
+    }
+
+    Ok((remaining, flowsets))
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Nom)]
