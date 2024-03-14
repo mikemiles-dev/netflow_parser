@@ -348,7 +348,7 @@ fn parse_fields(
     let template = match template {
         Some(t) => t,
         None => {
-            dbg!("Could not fetch any v10 templates!");
+            // dbg!("Could not fetch any v9 templates!");
             return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
         }
     };
@@ -446,7 +446,7 @@ fn parse_options_data_fields(
     templates: HashMap<u16, OptionsTemplate>,
 ) -> IResult<&[u8], Vec<OptionDataField>> {
     let template = templates.get(&flow_set_id).ok_or_else(|| {
-        dbg!("Could not fetch any v9 options templates!");
+        // dbg!("Could not fetch any v9 options templates!");
         NomErr::Error(NomError::new(i, ErrorKind::Fail))
     })?;
     let mut fields = vec![];
@@ -465,7 +465,7 @@ fn parse_scope_data_fields(
     templates: HashMap<u16, OptionsTemplate>,
 ) -> IResult<&[u8], Vec<ScopeDataField>> {
     let template = templates.get(&flow_set_id).ok_or_else(|| {
-        dbg!("Could not fetch any v9 options templates!");
+        // dbg!("Could not fetch any v9 options templates!");
         NomErr::Error(NomError::new(i, ErrorKind::Fail))
     })?;
     let mut fields = vec![];

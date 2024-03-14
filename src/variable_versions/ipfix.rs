@@ -172,7 +172,7 @@ pub struct TemplateField {
 /// Parses options template
 fn parse_options_template(i: &[u8], length: u16) -> IResult<&[u8], OptionsTemplate> {
     let (remaining, taken) = take(length.checked_sub(4).unwrap_or(length))(i)?;
-    let (_, option_template) = OptionsTemplate::parse(taken).unwrap();
+    let (_, option_template) = OptionsTemplate::parse(taken)?;
     Ok((remaining, option_template))
 }
 
@@ -216,7 +216,7 @@ fn parse_fields<T: CommonTemplateFields>(
     let template = match template {
         Some(t) => t,
         None => {
-            dbg!("Could not fetch any v10 templates!");
+            // dbg!("Could not fetch any v10 templates!");
             return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
         }
     };
@@ -333,12 +333,12 @@ impl NetflowByteParserVariable for IPFixParser {
 
         let mut total_left = v10_header.length as usize;
 
-        dbg!("remaining: {}", remaining);
+        // dbg!("remaining: {}", remaining);
 
         while total_left != 0 {
             let (left_remaining, v10_set) = Set::parse(remaining, self)
                 .map_err(|e| format!("Could not parse v10_set: {e}"))?;
-            dbg!("left remaining: {}", left_remaining);
+            // dbg!("left remaining: {}", left_remaining);
             remaining = left_remaining;
             let parsed = total_left
                 .checked_sub(remaining.len())
