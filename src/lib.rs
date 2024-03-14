@@ -371,6 +371,15 @@ mod tests {
     }
 
     #[test]
+    fn it_doesnt_panic_with_invalid_options_ipfix_template() {
+        let packet = [
+            0, 10, 0, 44, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 3, 0, 28, 1, 4, 0, 13, 0, 1,
+            128, 123, 0, 4, 0, 0, 0, 2, 0, 41, 0, 2, 0, 42, 0, 2, 0, 0,
+        ];
+        NetflowParser::default().parse_bytes(&packet);
+    }
+
+    #[test]
     fn it_parses_ipfix_data_cached_template() {
         let packet = [
             0, 10, 0, 26, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 2, 0, 10, 0, 8, 0, 0, 1, 1,

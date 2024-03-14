@@ -1,5 +1,7 @@
 # 0.2.0
   * Clippy updates for 1.76
+  * Removed dbg! macros for now for performance reason until we have a better solution.
+  * Fixed issue where bad IPFIX options template causes panic.
 
 # 0.1.9
   * Fixed bug with flow counts in V9.
