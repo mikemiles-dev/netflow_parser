@@ -45,9 +45,9 @@ pub struct V9 {
     pub flowsets: Vec<FlowSet>,
 }
 
-fn parse_flowsets<'a, 'b>(
+fn parse_flowsets<'a>(
     i: &'a [u8],
-    parser: &'b mut V9Parser,
+    parser: &mut V9Parser,
     mut count: usize,
 ) -> IResult<&'a [u8], Vec<FlowSet>> {
     let mut flowsets = vec![];
@@ -62,7 +62,7 @@ fn parse_flowsets<'a, 'b>(
             count = count.saturating_sub(1);
         } else if let Some(data) = flowset.data.as_ref() {
             count = count.saturating_sub(data.data_fields.len());
-        } else if let Some(_) = flowset.options_data.as_ref() {
+        } else if flowset.options_data.as_ref().is_some() {
             count = count.saturating_sub(1);
         }
 

@@ -1,3 +1,6 @@
+# 0.2.0
+  * Clippy updates for 1.76
+
 # 0.1.9
   * Fixed bug with flow counts in V9.
 
