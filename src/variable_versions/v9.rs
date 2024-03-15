@@ -353,6 +353,11 @@ fn parse_fields(
         }
     };
     let mut fields = vec![];
+    // If no fields there are no fields to parse
+    if template.fields.is_empty() {
+        // dbg!("Template without fields!");
+        return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
+    };
     let mut remaining = i;
     while !remaining.is_empty() {
         let mut data_field = BTreeMap::new();
