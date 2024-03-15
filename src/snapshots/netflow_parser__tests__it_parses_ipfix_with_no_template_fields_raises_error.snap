@@ -1,0 +1,34 @@
+---
+source: src/lib.rs
+expression: parser.parse_bytes(&packet)
+---
+- Error:
+    error_message: "Could not parse v10_set: Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: Fail }"
+    bytes:
+      - 0
+      - 10
+      - 0
+      - 26
+      - 0
+      - 0
+      - 0
+      - 1
+      - 0
+      - 0
+      - 0
+      - 1
+      - 0
+      - 0
+      - 0
+      - 0
+      - 1
+      - 2
+      - 0
+      - 10
+      - 0
+      - 8
+      - 0
+      - 0
+      - 1
+      - 1
+

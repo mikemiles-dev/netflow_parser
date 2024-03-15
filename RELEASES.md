@@ -1,5 +1,5 @@
 # 0.2.1
-  * Fixed issue where no ipfix tempalte can infinite loop.
+  * Fixed issue where no ipfix template fields can infinite loop.
 
 # 0.2.0
   * Clippy updates for 1.76
