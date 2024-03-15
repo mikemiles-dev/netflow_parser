@@ -409,6 +409,21 @@ mod tests {
     }
 
     #[test]
+    fn it_parses_ipfix_with_no_template_fields_raises_error() {
+        let packet = [
+            0, 10, 0, 26, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 2, 0, 10, 0, 8, 0, 0, 1, 1,
+        ];
+        let template = IPFixTemplate {
+            field_count: 2,
+            template_id: 258,
+            fields: vec![],
+        };
+        let mut parser = NetflowParser::default();
+        parser.ipfix_parser.templates.insert(258, template);
+        assert_yaml_snapshot!(parser.parse_bytes(&packet));
+    }
+
+    #[test]
     fn it_parses_ipfix_options_template() {
         let packet = [
             0, 10, 0, 44, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2, 0, 3, 0, 28, 1, 4, 0, 3, 0, 1,
