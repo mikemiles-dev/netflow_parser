@@ -220,6 +220,11 @@ fn parse_fields<T: CommonTemplateFields>(
             return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
         }
     };
+    // If no fields there are no fields to parse
+    if template.get_fields().is_empty() {
+        // dbg!("Template without fields!");
+        return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
+    };
     let mut fields = vec![];
     let mut remaining = i;
     while !remaining.is_empty() {

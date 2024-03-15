@@ -1,3 +1,6 @@
+# 0.2.1
+  * Fixed issue where no ipfix tempalte can infinite loop.
+
 # 0.2.0
   * Clippy updates for 1.76
   * Removed dbg! macros for now for performance reason until we have a better solution.
