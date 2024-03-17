@@ -390,12 +390,14 @@ mod tests {
                 field_type:
                     super::variable_versions::ipfix_lookup::IPFixField::PacketDeltaCount,
                 field_length: 2,
+                enterprise_number: None,
             },
             IPFixTemplateField {
                 field_type_number: 8,
                 field_type:
                     super::variable_versions::ipfix_lookup::IPFixField::SourceIpv4address,
                 field_length: 4,
+                enterprise_number: None,
             },
         ];
         let template = IPFixTemplate {

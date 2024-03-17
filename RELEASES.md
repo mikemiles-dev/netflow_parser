@@ -1,3 +1,8 @@
+# 0.2.2
+  * Optimizations in V9/IPFIX, removed some clone/cloned.
+  * Reworked Template Fields/Option Template Fields into single struct.
+    This avoids having to make an additional clone for each parse.
+
 # 0.2.1
   * Fixed issue where v9/ipfix template fields can infinite loop.
 

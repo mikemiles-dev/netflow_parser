@@ -13,6 +13,7 @@ use crate::{NetflowByteParserVariable, NetflowPacketResult, ParsedNetflow};
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
+use nom::multi::count;
 use nom::number::complete::{be_u128, be_u32};
 use nom::Err as NomErr;
 use nom::IResult;
@@ -100,9 +101,7 @@ pub struct Set {
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut IPFixParser, set_id: u16))]
 pub struct Data {
-    #[nom(
-        Parse = "{ |i| parse_fields::<Template>(i, parser.templates.get(&set_id).cloned()) }"
-    )]
+    #[nom(Parse = "{ |i| parse_fields::<Template>(i, parser.templates.get(&set_id)) }")]
     pub data_fields: Vec<BTreeMap<IPFixField, FieldValue>>,
 }
 
@@ -110,7 +109,7 @@ pub struct Data {
 #[nom(ExtraArgs(parser: &mut IPFixParser, set_id: u16))]
 pub struct OptionsData {
     #[nom(
-        Parse = "{ |i| parse_fields::<OptionsTemplate>(i, parser.options_templates.get(&set_id).cloned()) }"
+        Parse = "{ |i| parse_fields::<OptionsTemplate>(i, parser.options_templates.get(&set_id)) }"
     )]
     pub data_fields: Vec<BTreeMap<IPFixField, FieldValue>>,
 }
@@ -120,12 +119,12 @@ pub struct OptionsTemplate {
     pub template_id: u16,
     pub field_count: u16,
     pub scope_field_count: u16,
-    #[nom(Count = "scope_field_count")]
-    pub scope_field_specifiers: Vec<OptionsTemplateField>,
     #[nom(
-        Count = "(field_count.checked_sub(scope_field_count).unwrap_or(field_count)) as usize"
+        PreExec = "let combined_count = scope_field_count as usize + 
+                       field_count.checked_sub(scope_field_count).unwrap_or(field_count) as usize;",
+        Parse = "count(|i| TemplateField::parse(i, true), combined_count)"
     )]
-    pub field_specifiers: Vec<OptionsTemplateField>,
+    pub fields: Vec<TemplateField>,
     #[nom(Cond = "!i.is_empty()")]
     #[serde(skip_serializing)]
     padding: Option<u16>,
@@ -135,23 +134,28 @@ pub struct OptionsTemplate {
 pub struct Template {
     pub template_id: u16,
     pub field_count: u16,
-    #[nom(Count = "field_count")]
+    #[nom(Parse = "count(|i| TemplateField::parse(i, false), field_count as usize)")]
     pub fields: Vec<TemplateField>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-pub struct OptionsTemplateField {
+#[nom(ExtraArgs(options_template: bool))]
+pub struct TemplateField {
     pub field_type_number: u16,
     #[nom(Value(IPFixField::from(field_type_number)))]
     pub field_type: IPFixField,
-    field_length: u16,
+    pub field_length: u16,
     #[nom(
-        Cond = "field_type_number > 32767",
-        PostExec = "let field_type_number = field_type_number.overflowing_sub(32768).0;",
-        PostExec = "let field_type = set_entperprise_field(field_type, enterprise_number);"
+        Cond = "options_template && field_type_number > 32767",
+        PostExec = "let field_type_number = if options_template {
+                      field_type_number.overflowing_sub(32768).0
+                    } else { field_type_number };",
+        PostExec = "let field_type = if options_template {
+                      set_entperprise_field(field_type, enterprise_number)
+                    } else { field_type };"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    enterprise_number: Option<u32>,
+    pub enterprise_number: Option<u32>,
 }
 
 fn set_entperprise_field(field_type: IPFixField, enterprise_number: Option<u32>) -> IPFixField {
@@ -159,14 +163,6 @@ fn set_entperprise_field(field_type: IPFixField, enterprise_number: Option<u32>)
         Some(_) => IPFixField::Enterprise,
         None => field_type,
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, PartialOrd, Ord, Nom)]
-pub struct TemplateField {
-    pub field_type_number: u16,
-    #[nom(Value(IPFixField::from(field_type_number)))]
-    pub field_type: IPFixField,
-    pub field_length: u16,
 }
 
 /// Parses options template
@@ -179,40 +175,29 @@ fn parse_options_template(i: &[u8], length: u16) -> IResult<&[u8], OptionsTempla
 // Hacky way when using Template as generic T to cast to a common field type.
 // We use OptionsTemplateField as it is the same as type Template Field but
 // with enterprise_field.  In TemplateField tpe enterprise_field is just None.
-trait CommonTemplateFields {
-    fn get_fields(&self) -> Vec<OptionsTemplateField>;
+trait CommonTemplate {
+    fn get_fields(&self) -> &Vec<TemplateField>;
 }
 
-impl CommonTemplateFields for Template {
-    fn get_fields(&self) -> Vec<OptionsTemplateField> {
-        self.fields
-            .iter()
-            .map(|f| OptionsTemplateField {
-                field_length: f.field_length,
-                field_type: f.field_type,
-                field_type_number: f.field_type_number,
-                enterprise_number: None,
-            })
-            .collect()
+impl CommonTemplate for Template {
+    fn get_fields(&self) -> &Vec<TemplateField> {
+        &self.fields
     }
 }
 
-impl CommonTemplateFields for OptionsTemplate {
-    fn get_fields(&self) -> Vec<OptionsTemplateField> {
-        let mut temp = vec![];
-        temp.append(&mut self.scope_field_specifiers.clone());
-        temp.append(&mut self.field_specifiers.clone());
-        temp
+impl CommonTemplate for OptionsTemplate {
+    fn get_fields(&self) -> &Vec<TemplateField> {
+        &self.fields
     }
 }
 
 /// Takes a byte stream and a cached template.
 /// Fields get matched to static types.
 /// Returns BTree of IPFix Types & Fields or IResult Error.
-fn parse_fields<T: CommonTemplateFields>(
-    i: &[u8],
-    template: Option<T>,
-) -> IResult<&[u8], Vec<BTreeMap<IPFixField, FieldValue>>> {
+fn parse_fields<'a, T: CommonTemplate>(
+    i: &'a [u8],
+    template: Option<&T>,
+) -> IResult<&'a [u8], Vec<BTreeMap<IPFixField, FieldValue>>> {
     let template = match template {
         Some(t) => t,
         None => {
@@ -220,8 +205,9 @@ fn parse_fields<T: CommonTemplateFields>(
             return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
         }
     };
+    let template_fields = template.get_fields();
     // If no fields there are no fields to parse
-    if template.get_fields().is_empty() {
+    if template_fields.is_empty() {
         // dbg!("Template without fields!");
         return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
     };
@@ -229,7 +215,7 @@ fn parse_fields<T: CommonTemplateFields>(
     let mut remaining = i;
     while !remaining.is_empty() {
         let mut data_field = BTreeMap::new();
-        for template_field in template.get_fields().iter() {
+        for template_field in template_fields.iter() {
             let field_type: FieldDataType = template_field.field_type.into();
             // Enterprise Number
             if template_field.enterprise_number.is_some() {
@@ -349,7 +335,7 @@ impl NetflowByteParserVariable for IPFixParser {
                 .checked_sub(remaining.len())
                 .unwrap_or(total_left);
             total_left -= parsed;
-            sets.push(v10_set.clone());
+            sets.push(v10_set);
         }
 
         let v10_parsed = IPFix {
