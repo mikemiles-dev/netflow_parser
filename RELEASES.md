@@ -1,3 +1,6 @@
+# 0.2.3
+  * General Code cleanup for field_types and DataNumbers.
+
 # 0.2.2
   * Optimizations in V9/IPFIX, removed some clone/cloned.
   * Reworked Template Fields/Option Template Fields into single struct.

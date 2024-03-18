@@ -5,13 +5,10 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use super::common::*;
-use crate::protocol::ProtocolTypes;
 use crate::variable_versions::v9_lookup::*;
 use crate::{NetflowByteParserVariable, NetflowPacketResult, ParsedNetflow};
 
-use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
-use nom::number::complete::{be_u128, be_u32};
 use nom::Err as NomErr;
 use nom::IResult;
 use nom_derive::*;
@@ -20,8 +17,6 @@ use Nom;
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, Ipv6Addr};
-use std::time::Duration;
 
 const TEMPLATE_ID: u16 = 0;
 const OPTIONS_TEMPLATE_ID: u16 = 1;
@@ -363,81 +358,12 @@ fn parse_fields<'a>(
         let mut data_field = BTreeMap::new();
         for template_field in template.fields.iter() {
             let field_type: FieldDataType = template_field.field_type.into();
-            let field_value = match field_type {
-                FieldDataType::UnsignedDataNumber => {
-                    let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
-                    remaining = i;
-                    FieldValue::DataNumber(data_number)
-                }
-                FieldDataType::SignedDataNumber => {
-                    let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, true)?;
-                    remaining = i;
-                    FieldValue::DataNumber(data_number)
-                }
-                FieldDataType::String => {
-                    let (i, taken) = take(template_field.field_length)(remaining)?;
-                    remaining = i;
-                    FieldValue::String(String::from_utf8_lossy(taken).to_string())
-                }
-                FieldDataType::Ip4Addr => {
-                    let (i, taken) = be_u32(remaining)?;
-                    remaining = i;
-                    let ip_addr = Ipv4Addr::from(taken);
-                    FieldValue::Ip4Addr(ip_addr)
-                }
-                FieldDataType::Ip6Addr => {
-                    let (i, taken) = be_u128(remaining)?;
-                    remaining = i;
-                    let ip_addr = Ipv6Addr::from(taken);
-                    FieldValue::Ip6Addr(ip_addr)
-                }
-                FieldDataType::DurationSeconds => {
-                    let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
-                    remaining = i;
-                    FieldValue::Duration(Duration::from_secs(data_number.get_value() as u64))
-                }
-                FieldDataType::DurationMillis => {
-                    let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
-                    remaining = i;
-                    FieldValue::Duration(Duration::from_millis(data_number.get_value() as u64))
-                }
-                FieldDataType::DurationMicros => {
-                    let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
-                    remaining = i;
-                    FieldValue::Duration(Duration::from_micros(data_number.get_value() as u64))
-                }
-                FieldDataType::DurationNanos => {
-                    let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
-                    remaining = i;
-                    FieldValue::Duration(Duration::from_nanos(data_number.get_value() as u64))
-                }
-                FieldDataType::ProtocolType => {
-                    let (i, protocol) = ProtocolTypes::parse(remaining)?;
-                    remaining = i;
-                    FieldValue::ProtocolType(protocol)
-                }
-                FieldDataType::Float64 => {
-                    let (i, f) = f64::parse(remaining)?;
-                    remaining = i;
-                    FieldValue::Float64(f)
-                }
-                FieldDataType::Vec => {
-                    let (i, taken) = take(template_field.field_length)(remaining)?;
-                    remaining = i;
-                    FieldValue::Vec(taken.to_vec())
-                }
-                FieldDataType::Unknown => {
-                    let (i, taken) = take(template_field.field_length)(remaining)?;
-                    remaining = i;
-                    FieldValue::Vec(taken.to_vec())
-                }
-            };
+            let (i, field_value) = DataNumber::from_field_type(
+                remaining,
+                field_type,
+                template_field.field_length,
+            )?;
+            remaining = i;
             data_field.insert(template_field.field_type, field_value);
         }
         fields.push(data_field);
