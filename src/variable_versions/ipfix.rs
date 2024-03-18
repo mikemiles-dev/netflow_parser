@@ -216,8 +216,7 @@ fn parse_fields<'a, T: CommonTemplate>(
             // Enterprise Number
             let (i, field_value) = if template_field.enterprise_number.is_some() {
                 let (i, data_number) = DataNumber::parse(remaining, 4, false)?;
-                let field = FieldValue::DataNumber(data_number);
-                (i, field)
+                (i, FieldValue::DataNumber(data_number))
             // Type matching
             } else {
                 DataNumber::from_field_type(remaining, field_type, template_field.field_length)?
