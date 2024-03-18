@@ -157,9 +157,10 @@ pub struct TemplateField {
 }
 
 fn set_entperprise_field(field_type: IPFixField, enterprise_number: Option<u32>) -> IPFixField {
-    match enterprise_number {
-        Some(_) => IPFixField::Enterprise,
-        None => field_type,
+    if enterprise_number.is_some() {
+        IPFixField::Enterprise
+    } else {
+        field_type
     }
 }
 
@@ -170,9 +171,7 @@ fn parse_options_template(i: &[u8], length: u16) -> IResult<&[u8], OptionsTempla
     Ok((remaining, option_template))
 }
 
-// Hacky way when using Template as generic T to cast to a common field type.
-// We use OptionsTemplateField as it is the same as type Template Field but
-// with enterprise_field.  In TemplateField tpe enterprise_field is just None.
+// Common trait for both templates.  Mainly for fetching fields.
 trait CommonTemplate {
     fn get_fields(&self) -> &Vec<TemplateField>;
 }
@@ -196,47 +195,48 @@ fn parse_fields<'a, T: CommonTemplate>(
     i: &'a [u8],
     template: Option<&T>,
 ) -> IResult<&'a [u8], Vec<BTreeMap<IPFixField, FieldValue>>> {
-    let template = match template {
-        Some(t) => t,
-        None => {
-            // dbg!("Could not fetch any v10 templates!");
-            return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
+    fn parse_field<'a>(
+        i: &'a [u8],
+        template_field: &TemplateField,
+    ) -> IResult<&'a [u8], FieldValue> {
+        // Enterprise Number
+        if template_field.enterprise_number.is_some() {
+            let (remaining, data_number) = DataNumber::parse(i, 4, false)?;
+            Ok((remaining, FieldValue::DataNumber(data_number)))
+        // Type matching
+        } else {
+            Ok(DataNumber::from_field_type(
+                i,
+                template_field.field_type.into(),
+                template_field.field_length,
+            ))?
         }
-    };
-    let template_fields = template.get_fields();
-    // If no fields there are no fields to parse
+    }
+
+    // If no fields there are no fields to parse, return an error.
+    let template_fields = template
+        .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?
+        .get_fields();
+
     if template_fields.is_empty() {
         // dbg!("Template without fields!");
         return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
     };
+
     let mut fields = vec![];
     let mut remaining = i;
+
+    // While we have bytes remaining
     while !remaining.is_empty() {
         let mut data_field = BTreeMap::new();
         for template_field in template_fields.iter() {
-            let field_type: FieldDataType = template_field.field_type.into();
-            // Enterprise Number
-            if template_field.enterprise_number.is_some() {
-                let (i, data_number) = DataNumber::parse(remaining, 4, false)?;
-                remaining = i;
-                data_field.insert(
-                    template_field.field_type,
-                    FieldValue::DataNumber(data_number),
-                );
-                continue;
-            }
-            // Type matching
-            let (i, field_value) = DataNumber::from_field_type(
-                remaining,
-                field_type,
-                template_field.field_length,
-            )?;
+            let (i, field_value) = parse_field(remaining, template_field)?;
             remaining = i;
             data_field.insert(template_field.field_type, field_value);
         }
         fields.push(data_field);
     }
-    Ok((remaining, fields))
+    Ok((&[], fields))
 }
 
 impl NetflowByteParserVariable for IPFixParser {
