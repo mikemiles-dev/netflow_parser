@@ -366,13 +366,13 @@ fn parse_fields<'a>(
             let field_value = match field_type {
                 FieldDataType::UnsignedDataNumber => {
                     let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
                     remaining = i;
                     FieldValue::DataNumber(data_number)
                 }
                 FieldDataType::SignedDataNumber => {
                     let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, true)?;
+                        DataNumber::parse(remaining, template_field.field_length, true)?;
                     remaining = i;
                     FieldValue::DataNumber(data_number)
                 }
@@ -395,25 +395,25 @@ fn parse_fields<'a>(
                 }
                 FieldDataType::DurationSeconds => {
                     let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
                     remaining = i;
                     FieldValue::Duration(Duration::from_secs(data_number.get_value() as u64))
                 }
                 FieldDataType::DurationMillis => {
                     let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
                     remaining = i;
                     FieldValue::Duration(Duration::from_millis(data_number.get_value() as u64))
                 }
                 FieldDataType::DurationMicros => {
                     let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
                     remaining = i;
                     FieldValue::Duration(Duration::from_micros(data_number.get_value() as u64))
                 }
                 FieldDataType::DurationNanos => {
                     let (i, data_number) =
-                        parse_data_number(remaining, template_field.field_length, false)?;
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
                     remaining = i;
                     FieldValue::Duration(Duration::from_nanos(data_number.get_value() as u64))
                 }

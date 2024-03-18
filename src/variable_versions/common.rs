@@ -9,23 +9,6 @@ use serde::Serialize;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
-/// Parse bytes into DataNumber Type
-pub fn parse_data_number(
-    i: &[u8],
-    field_length: u16,
-    signed: bool,
-) -> IResult<&[u8], DataNumber> {
-    match field_length {
-        1 if !signed => Ok(u8::parse(i)?).map(|(i, j)| (i, DataNumber::U8(j))),
-        2 if !signed => Ok(u16::parse(i)?).map(|(i, j)| (i, DataNumber::U16(j))),
-        4 if signed => Ok(i32::parse(i)?).map(|(i, j)| (i, DataNumber::I32(j))),
-        4 if !signed => Ok(u32::parse(i)?).map(|(i, j)| (i, DataNumber::U32(j))),
-        8 if !signed => Ok(u64::parse(i)?).map(|(i, j)| (i, DataNumber::U64(j))),
-        16 if !signed => Ok(u128::parse(i)?).map(|(i, j)| (i, DataNumber::U128(j))),
-        _ => Err(NomErr::Error(NomError::new(i, ErrorKind::Fail))),
-    }
-}
-
 /// Holds our datatypes and values post parsing
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
 #[serde(untagged)]
@@ -43,6 +26,97 @@ impl DataNumber {
     pub fn get_value(self) -> usize {
         let result: usize = self.into();
         result
+    }
+
+    /// Parse bytes into DataNumber Type
+    pub fn parse(i: &[u8], field_length: u16, signed: bool) -> IResult<&[u8], DataNumber> {
+        match field_length {
+            1 if !signed => Ok(u8::parse(i)?).map(|(i, j)| (i, Self::U8(j))),
+            2 if !signed => Ok(u16::parse(i)?).map(|(i, j)| (i, Self::U16(j))),
+            4 if signed => Ok(i32::parse(i)?).map(|(i, j)| (i, Self::I32(j))),
+            4 if !signed => Ok(u32::parse(i)?).map(|(i, j)| (i, Self::U32(j))),
+            8 if !signed => Ok(u64::parse(i)?).map(|(i, j)| (i, Self::U64(j))),
+            16 if !signed => Ok(u128::parse(i)?).map(|(i, j)| (i, Self::U128(j))),
+            _ => Err(NomErr::Error(NomError::new(i, ErrorKind::Fail))),
+        }
+    }
+
+    pub fn foo() -> FieldValue {
+         match field_type {
+                FieldDataType::UnsignedDataNumber => {
+                    let (i, data_number) =
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
+                    remaining = i;
+                    FieldValue::DataNumber(data_number)
+                }
+                FieldDataType::SignedDataNumber => {
+                    let (i, data_number) =
+                        DataNumber::parse(remaining, template_field.field_length, true)?;
+                    remaining = i;
+                    FieldValue::DataNumber(data_number)
+                }
+                FieldDataType::String => {
+                    let (i, taken) = take(template_field.field_length)(remaining)?;
+                    remaining = i;
+                    FieldValue::String(String::from_utf8_lossy(taken).to_string())
+                }
+                FieldDataType::Ip4Addr => {
+                    let (i, taken) = be_u32(remaining)?;
+                    remaining = i;
+                    let ip_addr = Ipv4Addr::from(taken);
+                    FieldValue::Ip4Addr(ip_addr)
+                }
+                FieldDataType::Ip6Addr => {
+                    let (i, taken) = be_u128(remaining)?;
+                    remaining = i;
+                    let ip_addr = Ipv6Addr::from(taken);
+                    FieldValue::Ip6Addr(ip_addr)
+                }
+                FieldDataType::DurationSeconds => {
+                    let (i, data_number) =
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
+                    remaining = i;
+                    FieldValue::Duration(Duration::from_secs(data_number.get_value() as u64))
+                }
+                FieldDataType::DurationMillis => {
+                    let (i, data_number) =
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
+                    remaining = i;
+                    FieldValue::Duration(Duration::from_millis(data_number.get_value() as u64))
+                }
+                FieldDataType::DurationMicros => {
+                    let (i, data_number) =
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
+                    remaining = i;
+                    FieldValue::Duration(Duration::from_micros(data_number.get_value() as u64))
+                }
+                FieldDataType::DurationNanos => {
+                    let (i, data_number) =
+                        DataNumber::parse(remaining, template_field.field_length, false)?;
+                    remaining = i;
+                    FieldValue::Duration(Duration::from_nanos(data_number.get_value() as u64))
+                }
+                FieldDataType::ProtocolType => {
+                    let (i, protocol) = ProtocolTypes::parse(remaining)?;
+                    remaining = i;
+                    FieldValue::ProtocolType(protocol)
+                }
+                FieldDataType::Float64 => {
+                    let (i, f) = f64::parse(remaining)?;
+                    remaining = i;
+                    FieldValue::Float64(f)
+                }
+                FieldDataType::Vec => {
+                    let (i, taken) = take(template_field.field_length)(remaining)?;
+                    remaining = i;
+                    FieldValue::Vec(taken.to_vec())
+                }
+                FieldDataType::Unknown => {
+                    let (i, taken) = take(template_field.field_length)(remaining)?;
+                    remaining = i;
+                    FieldValue::Vec(taken.to_vec())
+                }
+            }
     }
 }
 /// Convert into usize, mainly for serialization purposes
