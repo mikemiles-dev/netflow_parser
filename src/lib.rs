@@ -70,16 +70,17 @@
 //!
 //! ```cargo run --example netflow_udp_listener_single_threaded```
 
+pub mod netflow_header;
 pub mod protocol;
 pub mod static_versions;
 pub mod variable_versions;
 
 use serde::Serialize;
+
+use netflow_header::{NetflowHeader, NetflowVersion};
 use static_versions::{v5::V5, v7::V7};
 use variable_versions::ipfix::{IPFix, IPFixParser};
 use variable_versions::v9::{V9Parser, V9};
-
-use nom_derive::{Nom, Parse};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct NetflowPacketError {
@@ -127,13 +128,6 @@ struct ParsedNetflow {
     netflow_packet: NetflowPacketResult,
 }
 
-/// Struct is used simply to match how to handle the result of the packet
-#[derive(Nom)]
-struct NetflowHeader {
-    /// Netflow Version
-    version: u16,
-}
-
 /// Trait provided for all static parser versions
 trait NetflowByteParserStatic {
     fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>>;
@@ -159,13 +153,17 @@ impl NetflowParser {
         &'a mut self,
         packet: &'a [u8],
     ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        match NetflowHeader::parse_be(packet) {
-            Ok((i, netflow_header)) if netflow_header.version == 5 => V5::parse_bytes(i),
-            Ok((i, netflow_header)) if netflow_header.version == 7 => V7::parse_bytes(i),
-            Ok((i, netflow_header)) if netflow_header.version == 9 => {
+        match NetflowHeader::parse_header(packet) {
+            Ok((i, netflow_header)) if netflow_header.version == NetflowVersion::V5 => {
+                V5::parse_bytes(i)
+            }
+            Ok((i, netflow_header)) if netflow_header.version == NetflowVersion::V7 => {
+                V7::parse_bytes(i)
+            }
+            Ok((i, netflow_header)) if netflow_header.version == NetflowVersion::V9 => {
                 self.v9_parser.parse_bytes(i)
             }
-            Ok((i, netflow_header)) if netflow_header.version == 10 => {
+            Ok((i, netflow_header)) if netflow_header.version == NetflowVersion::IPFix => {
                 self.ipfix_parser.parse_bytes(i)
             }
             _ => Err("Not Supported".to_string().into()),
@@ -196,22 +194,18 @@ impl NetflowParser {
         if packet.is_empty() {
             return vec![];
         }
-        match self.parse_by_version(packet) {
-            Ok(parsed_netflow) => {
+        self.parse_by_version(packet)
+            .map(|parsed_netflow| {
                 let mut parsed = vec![parsed_netflow.netflow_packet];
-                if !parsed_netflow.remaining.is_empty() {
-                    parsed.append(&mut self.parse_bytes(parsed_netflow.remaining.as_slice()));
-                }
+                parsed.append(&mut self.parse_bytes(parsed_netflow.remaining.as_slice()));
                 parsed
-            }
-            Err(parsed_error) => {
-                let netflow_packet_error = NetflowPacketError {
-                    error_message: parsed_error.to_string(),
+            })
+            .unwrap_or_else(|e| {
+                vec![NetflowPacketResult::Error(NetflowPacketError {
+                    error_message: e.to_string(),
                     bytes: packet.to_vec(),
-                };
-                vec![NetflowPacketResult::Error(netflow_packet_error)]
-            }
-        }
+                })]
+            })
     }
 }
 
