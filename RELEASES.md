@@ -1,4 +1,5 @@
 # 0.2.3
+  * Small performance improvement by not parsing netflow version twice each packet.
   * General Code cleanup for field_types and DataNumbers.
 
 # 0.2.2
