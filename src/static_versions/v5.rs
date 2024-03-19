@@ -38,6 +38,7 @@ impl NetflowByteParserStatic for V5 {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
 pub struct Header {
     /// NetFlow export format version number
+    #[nom(Value = "5")]
     pub version: u16,
     /// Number of flows exported in this packet (1-30)
     pub count: u16,

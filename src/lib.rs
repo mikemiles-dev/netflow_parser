@@ -160,13 +160,13 @@ impl NetflowParser {
         packet: &'a [u8],
     ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
         match NetflowHeader::parse_be(packet) {
-            Ok((_, netflow_header)) if netflow_header.version == 5 => V5::parse_bytes(packet),
-            Ok((_, netflow_header)) if netflow_header.version == 7 => V7::parse_bytes(packet),
-            Ok((_, netflow_header)) if netflow_header.version == 9 => {
-                self.v9_parser.parse_bytes(packet)
+            Ok((i, netflow_header)) if netflow_header.version == 5 => V5::parse_bytes(i),
+            Ok((i, netflow_header)) if netflow_header.version == 7 => V7::parse_bytes(i),
+            Ok((i, netflow_header)) if netflow_header.version == 9 => {
+                self.v9_parser.parse_bytes(i)
             }
-            Ok((_, netflow_header)) if netflow_header.version == 10 => {
-                self.ipfix_parser.parse_bytes(packet)
+            Ok((i, netflow_header)) if netflow_header.version == 10 => {
+                self.ipfix_parser.parse_bytes(i)
             }
             _ => Err("Not Supported".to_string().into()),
         }

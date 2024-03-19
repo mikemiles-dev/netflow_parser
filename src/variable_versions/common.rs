@@ -8,6 +8,7 @@ use nom::IResult;
 use nom_derive::*;
 use serde::Serialize;
 
+use std::convert::Into;
 use std::net::{Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
@@ -25,11 +26,6 @@ pub enum DataNumber {
 
 /// Convert into usize, mainly for serialization purposes
 impl DataNumber {
-    pub fn get_value(self) -> usize {
-        let result: usize = self.into();
-        result
-    }
-
     /// Parse bytes into DataNumber Type
     pub fn parse(i: &[u8], field_length: u16, signed: bool) -> IResult<&[u8], DataNumber> {
         match field_length {
@@ -78,28 +74,36 @@ impl DataNumber {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
                 (
                     i,
-                    FieldValue::Duration(Duration::from_secs(data_number.get_value() as u64)),
+                    FieldValue::Duration(Duration::from_secs(
+                        <DataNumber as Into<usize>>::into(data_number) as u64,
+                    )),
                 )
             }
             FieldDataType::DurationMillis => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
                 (
                     i,
-                    FieldValue::Duration(Duration::from_millis(data_number.get_value() as u64)),
+                    FieldValue::Duration(Duration::from_millis(
+                        <DataNumber as Into<usize>>::into(data_number) as u64,
+                    )),
                 )
             }
             FieldDataType::DurationMicros => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
                 (
                     i,
-                    FieldValue::Duration(Duration::from_micros(data_number.get_value() as u64)),
+                    FieldValue::Duration(Duration::from_micros(
+                        <DataNumber as Into<usize>>::into(data_number) as u64,
+                    )),
                 )
             }
             FieldDataType::DurationNanos => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
                 (
                     i,
-                    FieldValue::Duration(Duration::from_nanos(data_number.get_value() as u64)),
+                    FieldValue::Duration(Duration::from_nanos(
+                        <DataNumber as Into<usize>>::into(data_number) as u64,
+                    )),
                 )
             }
             FieldDataType::ProtocolType => {

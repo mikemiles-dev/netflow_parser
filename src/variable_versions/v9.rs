@@ -70,6 +70,7 @@ fn parse_flowsets<'a>(
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Nom)]
 pub struct Header {
     /// The version of NetFlow records exported in this packet; for Version 9, this value is 9
+    #[nom(Value = "9")]
     pub version: u16,
     /// Number of FlowSet records (both template and data) contained within this packet
     pub count: u16,

@@ -46,6 +46,7 @@ pub struct IPFix {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
 pub struct Header {
     /// Version of Flow Record format that is exported in this message. The value of this field is 0x000a for the current version, incrementing by one the version that is used in the NetFlow services export version 9
+    #[nom(Value = "10")]
     pub version: u16,
     /// Total length of the IPFIX Message, which is measured in octets, including Message Header and Sets.
     pub length: u16,
