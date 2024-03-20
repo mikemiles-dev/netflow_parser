@@ -2,25 +2,19 @@
 source: src/lib.rs
 expression: parser.parse_bytes(&packet)
 ---
+- IPFix:
+    header:
+      version: 10
+      length: 26
+      export_time:
+        secs: 1
+        nanos: 0
+      sequence_number: 1
+      observation_domain_id: 0
+    sets: []
 - Error:
-    error_message: "Could not parse v10_set: Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: Fail }"
+    error_message: Not Supported
     bytes:
-      - 0
-      - 10
-      - 0
-      - 26
-      - 0
-      - 0
-      - 0
-      - 1
-      - 0
-      - 0
-      - 0
-      - 1
-      - 0
-      - 0
-      - 0
-      - 0
       - 1
       - 2
       - 0

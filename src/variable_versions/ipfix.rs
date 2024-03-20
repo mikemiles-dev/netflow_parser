@@ -11,8 +11,9 @@ use crate::variable_versions::ipfix_lookup::*;
 use crate::{NetflowByteParserVariable, NetflowPacketResult, ParsedNetflow};
 
 use nom::bytes::complete::take;
+use nom::combinator::complete;
 use nom::error::{Error as NomError, ErrorKind};
-use nom::multi::count;
+use nom::multi::{count, many0};
 use nom::number::complete::be_u32;
 use nom::Err as NomErr;
 use nom::IResult;
@@ -35,11 +36,16 @@ pub struct IPFixParser {
     pub options_templates: BTreeMap<TemplateId, OptionsTemplate>,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize)]
+#[derive(Nom, Debug, PartialEq, Clone, Serialize)]
+#[nom(ExtraArgs(parser: &mut IPFixParser))]
 pub struct IPFix {
     /// IPFix Header
     pub header: Header,
     /// Sets
+    #[nom(
+        Parse = "many0(complete(|i| Set::parse(i, parser)))",
+        Verify = "header.length as usize == i.len()"
+    )]
     pub sets: Vec<Set>,
 }
 
@@ -247,35 +253,11 @@ impl NetflowByteParserVariable for IPFixParser {
         &'a mut self,
         packet: &'a [u8],
     ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        let mut sets = vec![];
-
-        let (mut remaining, v10_header) =
-            Header::parse(packet).map_err(|_| "Could not parse v10_packet".to_string())?;
-
-        let mut total_left = v10_header.length as usize;
-
-        // dbg!("remaining: {}", remaining);
-
-        while total_left != 0 {
-            let (left_remaining, v10_set) = Set::parse(remaining, self)
-                .map_err(|e| format!("Could not parse v10_set: {e}"))?;
-            // dbg!("left remaining: {}", left_remaining);
-            remaining = left_remaining;
-            let parsed = total_left
-                .checked_sub(remaining.len())
-                .unwrap_or(total_left);
-            total_left -= parsed;
-            sets.push(v10_set);
-        }
-
-        let v10_parsed = IPFix {
-            header: v10_header,
-            sets,
-        };
-
-        Ok(ParsedNetflow {
-            remaining: remaining.to_vec(),
-            netflow_packet: NetflowPacketResult::IPFix(v10_parsed),
-        })
+        IPFix::parse(packet, self)
+            .map_err(|e| format!("Could not parse v10_packet: {e}").into())
+            .map(|(remaining, v10_parsed)| ParsedNetflow {
+                remaining: remaining.to_vec(),
+                netflow_packet: NetflowPacketResult::IPFix(v10_parsed),
+            })
     }
 }
