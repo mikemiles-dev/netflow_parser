@@ -6,7 +6,6 @@
 
 use super::common::*;
 use crate::variable_versions::v9_lookup::*;
-use crate::{NetflowByteParserVariable, NetflowPacketResult, ParsedNetflow};
 
 use nom::error::{Error as NomError, ErrorKind};
 use nom::Err as NomErr;
@@ -408,21 +407,4 @@ fn parse_scope_data_fields<'a>(
         fields.push(v9_data_field)
     }
     Ok((remaining, fields))
-}
-
-impl NetflowByteParserVariable for V9Parser {
-    /// Main V9 Parse function.
-    #[inline]
-    fn parse_bytes<'a>(
-        &'a mut self,
-        packet: &'a [u8],
-    ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        let (remaining, v9_parsed) =
-            V9::parse(packet, self).map_err(|_| "Could not parse v9_packet".to_string())?;
-
-        Ok(ParsedNetflow {
-            remaining: remaining.to_vec(),
-            netflow_packet: NetflowPacketResult::V9(v9_parsed),
-        })
-    }
 }

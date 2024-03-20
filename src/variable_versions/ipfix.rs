@@ -8,7 +8,6 @@
 
 use super::common::*;
 use crate::variable_versions::ipfix_lookup::*;
-use crate::{NetflowByteParserVariable, NetflowPacketResult, ParsedNetflow};
 
 use nom::bytes::complete::take;
 use nom::combinator::complete;
@@ -42,10 +41,7 @@ pub struct IPFix {
     /// IPFix Header
     pub header: Header,
     /// Sets
-    #[nom(
-        Parse = "many0(complete(|i| Set::parse(i, parser)))",
-        Verify = "header.length as usize == i.len()"
-    )]
+    #[nom(Parse = "many0(complete(|i| Set::parse(i, parser)))")]
     pub sets: Vec<Set>,
 }
 
@@ -244,20 +240,4 @@ fn parse_fields<'a, T: CommonTemplate>(
         fields.push(data_field);
     }
     Ok((&[], fields))
-}
-
-impl NetflowByteParserVariable for IPFixParser {
-    /// Takes a byte stream, returns either a Parsed Netflow or a Boxed Error.
-    #[inline]
-    fn parse_bytes<'a>(
-        &'a mut self,
-        packet: &'a [u8],
-    ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        IPFix::parse(packet, self)
-            .map_err(|e| format!("Could not parse v10_packet: {e}").into())
-            .map(|(remaining, v10_parsed)| ParsedNetflow {
-                remaining: remaining.to_vec(),
-                netflow_packet: NetflowPacketResult::IPFix(v10_parsed),
-            })
-    }
 }

@@ -4,7 +4,6 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use crate::protocol::ProtocolTypes;
-use crate::{NetflowByteParserStatic, NetflowPacketResult, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 #[cfg(feature = "unix_timestamp")]
@@ -22,17 +21,6 @@ pub struct V7 {
     pub header: Header,
     /// V7 Body
     pub body: Body,
-}
-
-impl NetflowByteParserStatic for V7 {
-    #[inline]
-    fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        let parsed_packet = V7::parse_be(packet).map_err(|e| format!("{e}"))?;
-        Ok(ParsedNetflow {
-            remaining: parsed_packet.0.to_vec(),
-            netflow_packet: NetflowPacketResult::V7(parsed_packet.1),
-        })
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Nom, Serialize)]
