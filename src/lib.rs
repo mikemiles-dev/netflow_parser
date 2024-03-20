@@ -76,6 +76,7 @@ pub mod static_versions;
 pub mod variable_versions;
 
 use serde::Serialize;
+use nom_derive::Parse;
 
 use netflow_header::NetflowHeader;
 use static_versions::{v5::V5, v7::V7};
@@ -121,6 +122,30 @@ impl NetflowPacketResult {
     }
 }
 
+impl From<V5> for NetflowPacketResult {
+    fn from(v5: V5) -> Self {
+        Self::V5(v5)
+    }
+}
+
+impl From<V7> for NetflowPacketResult {
+    fn from(v7: V7) -> Self {
+        Self::V7(v7)
+    }
+}
+
+impl From<V9> for NetflowPacketResult {
+    fn from(v9: V9) -> Self {
+        Self::V9(v9)
+    }
+}
+
+impl From<IPFix> for NetflowPacketResult {
+    fn from(ipfix: IPFix) -> Self {
+        Self::IPFix(ipfix)
+    }
+}
+
 #[derive(Debug, Clone)]
 struct ParsedNetflow {
     remaining: Vec<u8>,
@@ -143,8 +168,6 @@ pub struct NetflowParser {
     pub ipfix_parser: IPFixParser,
 }
 
-use nom_derive::Parse;
-
 impl NetflowParser {
     /// Parses a Netflow by version packet and returns a Parsed Netflow.
     fn parse_by_version<'a>(
@@ -154,26 +177,22 @@ impl NetflowParser {
         match NetflowHeader::parse_header(packet) {
             Ok((i, netflow_header)) if netflow_header.version.is_v5() => V5::parse(i)
                 .map_err(|e| format!("Could not parse V5 packet: {e}").into())
-                .map(|(remaining, v5_parsed)| {
-                    ParsedNetflow::new(remaining, NetflowPacketResult::V5(v5_parsed))
-                }),
+                .map(|(remaining, v5_parsed)| ParsedNetflow::new(remaining, v5_parsed.into())),
             Ok((i, netflow_header)) if netflow_header.version.is_v7() => V7::parse(i)
                 .map_err(|e| format!("Could not parse V7 packet: {e}").into())
-                .map(|(remaining, v7_parsed)| {
-                    ParsedNetflow::new(remaining, NetflowPacketResult::V7(v7_parsed))
-                }),
+                .map(|(remaining, v7_parsed)| ParsedNetflow::new(remaining, v7_parsed.into())),
             Ok((i, netflow_header)) if netflow_header.version.is_v9() => {
                 V9::parse(i, &mut self.v9_parser)
                     .map_err(|e| format!("Could not parse v9_packet: {e}").into())
                     .map(|(remaining, v9_parsed)| {
-                        ParsedNetflow::new(remaining, NetflowPacketResult::V9(v9_parsed))
+                        ParsedNetflow::new(remaining, v9_parsed.into())
                     })
             }
             Ok((i, netflow_header)) if netflow_header.version.is_ipfix() => {
                 IPFix::parse(i, &mut self.ipfix_parser)
                     .map_err(|e| format!("Could not parse v10_packet: {e}").into())
                     .map(|(remaining, ipfix_parsed)| {
-                        ParsedNetflow::new(remaining, NetflowPacketResult::IPFix(ipfix_parsed))
+                        ParsedNetflow::new(remaining, ipfix_parsed.into())
                     })
             }
             _ => Err("Not Supported".to_string().into()),
