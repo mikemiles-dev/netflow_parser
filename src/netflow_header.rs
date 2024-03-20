@@ -25,6 +25,21 @@ pub enum NetflowVersion {
     Unsupported,
 }
 
+impl NetflowVersion {
+    pub fn is_v5(&self) -> bool {
+        *self == NetflowVersion::V5
+    }
+    pub fn is_v7(&self) -> bool {
+        *self == NetflowVersion::V7
+    }
+    pub fn is_v9(&self) -> bool {
+        *self == NetflowVersion::V9
+    }
+    pub fn is_ipfix(&self) -> bool {
+        *self == NetflowVersion::IPFix
+    }
+}
+
 impl From<u16> for NetflowVersion {
     fn from(version: u16) -> Self {
         match version {
