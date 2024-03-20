@@ -3,7 +3,7 @@ source: src/lib.rs
 expression: parser.parse_bytes(&packet)
 ---
 - Error:
-    error_message: "Could not parse v9_packet: Parsing requires 2 bytes/chars"
+    error_message: "Could not parse V9 packet: Parsing requires 2 bytes/chars"
     bytes:
       - 0
       - 9
