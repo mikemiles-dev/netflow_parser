@@ -1,6 +1,5 @@
 ---
-source: src/lib.rs
-assertion_line: 263
+source: src/tests.rs
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
 - V5:
@@ -10,9 +9,8 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       sys_up_time:
         secs: 50332
         nanos: 672000000
-      unix_time:
-        secs: 83887623
-        nanos: 134807553
+      unix_secs: 83887623
+      unix_nsecs: 134807553
       flow_sequence: 33752069
       engine_type: 6
       engine_id: 7
@@ -36,7 +34,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       pad1: 6
       tcp_flags: 7
       protocol_number: 8
-      protocol_type: EGP
+      protocol_type: Egp
       tos: 9
       src_as: 1
       dst_as: 515

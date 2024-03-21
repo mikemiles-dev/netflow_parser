@@ -1,5 +1,5 @@
 ---
-source: src/lib.rs
+source: src/tests.rs
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
 - V9:

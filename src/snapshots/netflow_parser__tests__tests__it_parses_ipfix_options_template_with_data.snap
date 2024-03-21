@@ -1,5 +1,5 @@
 ---
-source: src/lib.rs
+source: src/tests.rs
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
 - IPFix:
@@ -45,3 +45,4 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 DataNumber: 7710
               Enterprise:
                 DataNumber: 2
+

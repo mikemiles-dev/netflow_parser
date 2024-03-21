@@ -1,5 +1,5 @@
 ---
-source: src/lib.rs
+source: src/tests.rs
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
 - IPFix:
@@ -29,3 +29,4 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             - field_type_number: 32810
               field_type: ExportedFlowRecordTotalCount
               field_length: 2
+
