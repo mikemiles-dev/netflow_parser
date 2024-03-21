@@ -2,33 +2,22 @@
 source: src/lib.rs
 expression: parser.parse_bytes(&packet)
 ---
-- Error:
-    error_message: Could not parse v9_packet
-    bytes:
-      - 0
-      - 9
-      - 0
-      - 26
-      - 0
-      - 0
-      - 0
-      - 1
-      - 0
-      - 0
-      - 0
-      - 1
-      - 0
-      - 0
-      - 0
-      - 0
-      - 1
-      - 2
-      - 0
-      - 10
-      - 0
-      - 8
-      - 0
-      - 0
-      - 1
-      - 1
+- V9:
+    header:
+      version: 9
+      count: 26
+      sys_up_time: 1
+      unix_secs: 1
+      sequence_number: 0
+      source_id: 16908298
+    flowsets:
+      - flow_set_id: 8
+        length: 0
+        unparsed_data:
+          - 0
+          - 8
+          - 0
+          - 0
+          - 1
+          - 1
 
