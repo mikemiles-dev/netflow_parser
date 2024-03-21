@@ -89,6 +89,28 @@ pub struct NetflowPacketError {
     pub bytes: Vec<u8>,
 }
 
+#[derive(Debug, Clone)]
+struct ParsedNetflow {
+    remaining: Vec<u8>,
+    /// Parsed Netflow Packet
+    netflow_packet: NetflowPacketResult,
+}
+
+impl ParsedNetflow {
+    fn new(remaining: &[u8], netflow_packet: NetflowPacketResult) -> Self {
+        Self {
+            remaining: remaining.to_vec(),
+            netflow_packet,
+        }
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct NetflowParser {
+    pub v9_parser: V9Parser,
+    pub ipfix_parser: IPFixParser,
+}
+
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
 pub enum NetflowPacketResult {
@@ -146,26 +168,33 @@ impl From<IPFix> for NetflowPacketResult {
     }
 }
 
-#[derive(Debug, Clone)]
-struct ParsedNetflow {
-    remaining: Vec<u8>,
-    /// Parsed Netflow Packet
-    netflow_packet: NetflowPacketResult,
-}
+type V5ParsedResult<'a> = (&'a [u8], V5);
+type V7ParsedResult<'a> = (&'a [u8], V7);
+type V9ParsedResult<'a> = (&'a [u8], V9);
+type IPFixParsedResult<'a> = (&'a [u8], IPFix);
 
-impl ParsedNetflow {
-    fn new(remaining: &[u8], netflow_packet: NetflowPacketResult) -> Self {
-        Self {
-            remaining: remaining.to_vec(),
-            netflow_packet,
-        }
+impl<'a> From<V5ParsedResult<'a>> for ParsedNetflow {
+    fn from((remaining, v5_parsed): V5ParsedResult) -> ParsedNetflow {
+        Self::new(remaining, v5_parsed.into())
     }
 }
 
-#[derive(Default, Debug)]
-pub struct NetflowParser {
-    pub v9_parser: V9Parser,
-    pub ipfix_parser: IPFixParser,
+impl<'a> From<V7ParsedResult<'a>> for ParsedNetflow {
+    fn from((remaining, v7_parsed): V7ParsedResult) -> ParsedNetflow {
+        Self::new(remaining, v7_parsed.into())
+    }
+}
+
+impl<'a> From<V9ParsedResult<'a>> for ParsedNetflow {
+    fn from((remaining, v9_parsed): V9ParsedResult) -> ParsedNetflow {
+        Self::new(remaining, v9_parsed.into())
+    }
+}
+
+impl<'a> From<IPFixParsedResult<'a>> for ParsedNetflow {
+    fn from((remaining, ipfix_parsed): IPFixParsedResult) -> ParsedNetflow {
+        Self::new(remaining, ipfix_parsed.into())
+    }
 }
 
 impl NetflowParser {
@@ -175,42 +204,22 @@ impl NetflowParser {
         packet: &'a [u8],
     ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
         match NetflowHeader::parse_header(packet) {
-            Ok(NetflowHeaderResult::V5(v5_packet)) => Self::parse_v5(v5_packet),
-            Ok(NetflowHeaderResult::V7(v7_packet)) => Self::parse_v7(v7_packet),
-            Ok(NetflowHeaderResult::V9(v9_packet)) => self.parse_v9(v9_packet),
-            Ok(NetflowHeaderResult::IPFix(ipfix_packet)) => self.parse_ipfix(ipfix_packet),
+            Ok(NetflowHeaderResult::V5(v5_packet)) => V5::parse(v5_packet)
+                .map(|r: V5ParsedResult| r.into())
+                .map_err(|e| format!("Could not parse V5 packet: {e}").into()),
+            Ok(NetflowHeaderResult::V7(v7_packet)) => V7::parse(v7_packet)
+                .map(|r: V7ParsedResult| r.into())
+                .map_err(|e| format!("Could not parse V7 packet: {e}").into()),
+            Ok(NetflowHeaderResult::V9(v9_packet)) => V9::parse(v9_packet, &mut self.v9_parser)
+                .map(|r: V9ParsedResult| r.into())
+                .map_err(|e| format!("Could not parse V9 packet: {e}").into()),
+            Ok(NetflowHeaderResult::IPFix(ipfix_packet)) => {
+                IPFix::parse(ipfix_packet, &mut self.ipfix_parser)
+                    .map(|r: IPFixParsedResult| r.into())
+                    .map_err(|e| format!("Could not parse v10 packet: {e}").into())
+            }
             _ => Err("Not Supported".to_string().into()),
         }
-    }
-
-    fn parse_v5(v5_packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        V5::parse(v5_packet)
-            .map_err(|e| format!("Could not parse V5 packet: {e}").into())
-            .map(|(remaining, v5_parsed)| ParsedNetflow::new(remaining, v5_parsed.into()))
-    }
-
-    fn parse_v7(v7_packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        V7::parse(v7_packet)
-            .map_err(|e| format!("Could not parse V7 packet: {e}").into())
-            .map(|(remaining, v5_parsed)| ParsedNetflow::new(remaining, v5_parsed.into()))
-    }
-
-    fn parse_v9(
-        &mut self,
-        v9_packet: &[u8],
-    ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        V9::parse(v9_packet, &mut self.v9_parser)
-            .map_err(|e| format!("Could not parse V9 packet: {e}").into())
-            .map(|(remaining, v9_parsed)| ParsedNetflow::new(remaining, v9_parsed.into()))
-    }
-
-    fn parse_ipfix(
-        &mut self,
-        ipfix_packet: &[u8],
-    ) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        IPFix::parse(ipfix_packet, &mut self.ipfix_parser)
-            .map_err(|e| format!("Could not parse v10_packet: {e}").into())
-            .map(|(remaining, ipfix_parsed)| ParsedNetflow::new(remaining, ipfix_parsed.into()))
     }
 
     /// Takes a Netflow packet slice and returns a vector of Parsed Netflows.
