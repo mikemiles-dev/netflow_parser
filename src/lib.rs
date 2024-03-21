@@ -73,15 +73,15 @@
 pub mod protocol;
 mod parser;
 mod static_versions;
-mod tests;
 mod variable_versions;
-
-use serde::Serialize;
+mod tests;
 
 use parser::Parser;
 use static_versions::{v5::V5, v7::V7};
 use variable_versions::ipfix::{IPFix, IPFixParser};
 use variable_versions::v9::{V9Parser, V9};
+
+use serde::Serialize;
 
 #[derive(Default, Debug)]
 pub struct NetflowParser {
