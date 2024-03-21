@@ -1,9 +1,9 @@
 ---
-source: src/lib.rs
+source: src/tests.rs
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
 - Error:
-    error_message: Not Supported
+    error_message: Unsupported Version
     bytes:
       - 12
       - 13

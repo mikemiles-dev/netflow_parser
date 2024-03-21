@@ -1,5 +1,5 @@
 ---
-source: src/lib.rs
+source: src/tests.rs
 expression: parser.parse_bytes(&packet)
 ---
 - IPFix:
@@ -13,7 +13,7 @@ expression: parser.parse_bytes(&packet)
       observation_domain_id: 0
     sets: []
 - Error:
-    error_message: Not Supported
+    error_message: Unsupported Version
     bytes:
       - 1
       - 2
