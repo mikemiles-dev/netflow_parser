@@ -223,10 +223,10 @@ pub struct OptionsTemplate {
     padding: Vec<u8>,
 }
 
-fn parse_options_template_vec<'a>(
-    i: &'a [u8],
+fn parse_options_template_vec(
+    i: &[u8],
     flowset_length: u16,
-) -> IResult<&'a [u8], Vec<OptionsTemplate>> {
+) -> IResult<&[u8], Vec<OptionsTemplate>> {
     let mut fields = vec![];
     let mut remaining = i;
     while let Ok((rem, data)) = OptionsTemplate::parse(remaining, flowset_length) {
