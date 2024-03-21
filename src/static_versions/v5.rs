@@ -4,7 +4,6 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use crate::protocol::ProtocolTypes;
-use crate::{NetflowByteParserStatic, NetflowPacketResult, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 #[cfg(feature = "unix_timestamp")]
@@ -16,23 +15,12 @@ use Nom;
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
-#[derive(Debug, Nom, Clone, Serialize)]
+#[derive(Nom, Debug, Clone, Serialize)]
 pub struct V5 {
     /// V5 Header
     pub header: Header,
     /// V5 Body
     pub body: Body,
-}
-
-impl NetflowByteParserStatic for V5 {
-    #[inline]
-    fn parse_bytes(packet: &[u8]) -> Result<ParsedNetflow, Box<dyn std::error::Error>> {
-        let parsed_packet = V5::parse_be(packet).map_err(|e| format!("{e}"))?;
-        Ok(ParsedNetflow {
-            remaining: parsed_packet.0.to_vec(),
-            netflow_packet: NetflowPacketResult::V5(parsed_packet.1),
-        })
-    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]

@@ -1,3 +1,7 @@
+# 0.2.4
+  * Fixes for V9 parsing.  Now supports processing multiple templates.
+  * General code cleanup/Removal of uneeded code.
+
 # 0.2.3
   * Small performance improvement by not parsing netflow version twice each packet.
   * General Code cleanup for field_types and DataNumbers.
