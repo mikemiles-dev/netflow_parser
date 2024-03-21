@@ -70,11 +70,11 @@
 //!
 //! ```cargo run --example netflow_udp_listener_single_threaded```
 
-pub mod protocol;
 mod parser;
+pub mod protocol;
 mod static_versions;
-mod variable_versions;
 mod tests;
+mod variable_versions;
 
 use parser::Parser;
 use static_versions::{v5::V5, v7::V7};
