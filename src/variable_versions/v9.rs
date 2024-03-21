@@ -49,16 +49,33 @@ fn parse_flowsets<'a>(
     let mut remaining = i;
 
     // Header.count represents total number of records in data + records in templates
-    while count > 0 {
-        let (i, flowset) = FlowSet::parse(remaining, parser)?;
-        remaining = i;
+    while count > 0 && !remaining.is_empty() {
+        let (i, mut flowset) = FlowSet::parse(remaining, parser)?;
 
-        if flowset.template.is_some() || flowset.options_template.is_some() {
-            count = count.saturating_sub(1);
-        } else if let Some(data) = flowset.data.as_ref() {
+        if let Some(data) = &flowset.templates {
+            count = count.saturating_sub(data.len());
+        }
+
+        if let Some(data) = &flowset.options_templates {
+            count = count.saturating_sub(data.len());
+        }
+
+        if let Some(data) = &flowset.data.as_ref() {
             count = count.saturating_sub(data.data_fields.len());
-        } else if flowset.options_data.as_ref().is_some() {
+        }
+
+        if flowset.options_data.as_ref().is_some() {
             count = count.saturating_sub(1);
+        }
+
+        if flowset.is_empty() {
+            flowset.unparsed_data = Some(remaining.to_vec());
+            remaining = &[];
+        } else if flowset.is_unparsed() {
+            flowset.unparsed_data = Some(remaining[..flowset.length as usize].to_vec());
+            remaining = &remaining[flowset.length as usize..];
+        } else {
+            remaining = i;
         }
 
         flowsets.push(flowset)
@@ -104,26 +121,39 @@ pub struct FlowSet {
     /// the template record that describes option fields (described below) has a
     /// FlowSet ID of 1. A data record always has a nonzero FlowSet ID greater than 255.
     pub flow_set_id: u16,
+    /// This field gives the length of the data FlowSet. Length is expressed in TLV format,
+    /// meaning that the value includes the bytes used for the FlowSet ID and the length bytes
+    /// themselves, as well as the combined lengths of any included data records.
+    pub length: u16,
     /// Templates
     #[nom(
         Cond = "flow_set_id == TEMPLATE_ID",
         // Save our templates
-        PostExec = "if let Some(template) = template.clone() { parser.templates.insert(template.template_id, template); }"
+        PostExec = "if let Some(templates) = templates.clone() { 
+            for template in templates {
+                parser.templates.insert(template.template_id, template); 
+            }
+        }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub template: Option<Template>,
+    pub templates: Option<Vec<Template>>,
     // Options template
     #[nom(
         Cond = "flow_set_id == OPTIONS_TEMPLATE_ID",
+        Parse = "{ |i| parse_options_template_vec(i, length) }",
         // Save our options templates
-        PostExec = "if let Some(options_template) = options_template.clone() { parser.options_templates.insert(options_template.template_id, options_template); }"
+        PostExec = "if let Some(options_templates) = options_templates.clone() { 
+            for template in options_templates {
+                parser.options_templates.insert(template.template_id, template); 
+            } 
+        }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub options_template: Option<OptionsTemplate>,
+    pub options_templates: Option<Vec<OptionsTemplate>>,
     // Options Data
     #[nom(
         Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.options_templates.get(&flow_set_id).is_some()",
-        Parse = "{ |i| OptionsData::parse(i, parser, flow_set_id) }"
+        Parse = "{ |i| OptionsData::parse(i, parser, flow_set_id, length) }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options_data: Option<OptionsData>,
@@ -134,18 +164,27 @@ pub struct FlowSet {
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Data>,
+    // Unparsed data
+    #[nom(Ignore)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unparsed_data: Option<Vec<u8>>,
+}
+
+impl FlowSet {
+    fn is_unparsed(&self) -> bool {
+        self.templates.is_none()
+            && self.options_templates.is_none()
+            && self.data.is_none()
+            && self.options_data.is_none()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.length == 0
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 pub struct Template {
-    /// Length refers to the total length of this FlowSet. Because an individual
-    /// template FlowSet may contain multiple template IDs (as illustrated above),
-    /// the length value should be used to determine the position of the next FlowSet
-    /// record, which could be either a template or a data FlowSet.
-    /// Length is expressed in Type/Length/Value (TLV) format, meaning that the value
-    /// includes the bytes used for the FlowSet ID and the length bytes themselves, as
-    /// well as the combined lengths of all template records included in this FlowSet.
-    pub length: u16,
     /// As a router generates different template FlowSets to match the type of NetFlow
     /// data it will be exporting, each template is given a unique ID. This uniqueness
     /// is local to the router that generated the template ID.
@@ -162,10 +201,8 @@ pub struct Template {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(flowset_length: u16))]
 pub struct OptionsTemplate {
-    /// This field gives the total length of this FlowSet. Because an individual template FlowSet might contain multiple template IDs, the length value must be used to determine the position of the next FlowSet record, which might be either a template or a data FlowSet.
-    /// Length is expressed in TLV format, meaning that the value includes the bytes used for the FlowSet ID and the length bytes themselves, and the combined lengths of all template records included in this FlowSet.
-    pub length: u16,
     /// As a router generates different template FlowSets to match the type of NetFlow data it is exporting, each template is given a unique ID. This uniqueness is local to the router that generated the template ID. The Template ID is greater than 255. Template IDs inferior to 255 are reserved.
     pub template_id: u16,
     /// This field gives the length in bytes of any scope fields that are contained in this options template.
@@ -181,10 +218,23 @@ pub struct OptionsTemplate {
     /// Padding
     #[nom(
         Map = "|i: &[u8]| i.to_vec()",
-        Take = "(length.saturating_sub(options_scope_length).saturating_sub(options_length).saturating_sub(10)) as usize"
+        Take = "(flowset_length.saturating_sub(options_scope_length).saturating_sub(options_length).saturating_sub(10)) as usize"
     )]
     #[serde(skip_serializing)]
     padding: Vec<u8>,
+}
+
+fn parse_options_template_vec<'a>(
+    i: &'a [u8],
+    flowset_length: u16,
+) -> IResult<&'a [u8], Vec<OptionsTemplate>> {
+    let mut fields = vec![];
+    let mut remaining = i;
+    while let Ok((rem, data)) = OptionsTemplate::parse(remaining, flowset_length) {
+        fields.push(data);
+        remaining = rem;
+    }
+    Ok((remaining, fields))
 }
 
 /// Options Scope Fields
@@ -214,10 +264,8 @@ pub struct TemplateField {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
+#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16, flowset_length: u16))]
 pub struct OptionsData {
-    // Length
-    pub length: u16,
     // Scope Data
     #[nom(
         Parse = "{ |i| parse_scope_data_fields(i, flow_set_id, &parser.options_templates) }"
@@ -230,7 +278,7 @@ pub struct OptionsData {
     pub options_fields: Vec<OptionDataField>,
     #[nom(
         Map = "|i: &[u8]| i.to_vec()",
-        Take = "get_total_options_length(flow_set_id, length, parser)"
+        Take = "get_total_options_length(flow_set_id, flowset_length, parser)"
     )]
     #[serde(skip_serializing)]
     padding: Vec<u8>,
@@ -319,10 +367,6 @@ pub struct ScopeDataField {
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
 pub struct Data {
-    /// This field gives the length of the data FlowSet.  Length is expressed in TLV format,
-    /// meaning that the value includes the bytes used for the FlowSet ID and the length bytes
-    /// themselves, as well as the combined lengths of any included data records.
-    pub length: u16,
     // Data Fields
     #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flow_set_id)) }")]
     pub data_fields: Vec<BTreeMap<V9Field, FieldValue>>,

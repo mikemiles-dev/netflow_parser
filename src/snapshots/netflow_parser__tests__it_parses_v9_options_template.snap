@@ -12,25 +12,25 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       source_id: 1
     flowsets:
       - flow_set_id: 1
-        options_template:
-          length: 22
-          template_id: 275
-          options_scope_length: 4
-          options_length: 8
-          scope_fields:
-            - field_type_number: 2
-              field_type: Interface
-              field_length: 2
-          option_fields:
-            - field_type_number: 34
-              field_type: SamplingInterval
-              field_length: 2
-            - field_type_number: 36
-              field_type: FlowActiveTimeout
-              field_length: 1
+        length: 22
+        options_templates:
+          - template_id: 275
+            options_scope_length: 4
+            options_length: 8
+            scope_fields:
+              - field_type_number: 2
+                field_type: Interface
+                field_length: 2
+            option_fields:
+              - field_type_number: 34
+                field_type: SamplingInterval
+                field_length: 2
+              - field_type_number: 36
+                field_type: FlowActiveTimeout
+                field_length: 1
       - flow_set_id: 275
+        length: 9
         options_data:
-          length: 9
           scope_fields:
             - interface:
                 - 0

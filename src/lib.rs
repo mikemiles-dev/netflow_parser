@@ -344,7 +344,6 @@ mod tests {
             },
         ];
         let template = V9Template {
-            length: 16,
             field_count: 2,
             template_id: 258,
             fields,
@@ -425,7 +424,6 @@ mod tests {
             0, 9, 0, 26, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 2, 0, 10, 0, 8, 0, 0, 1, 1,
         ];
         let template = V9Template {
-            length: 10,
             field_count: 2,
             template_id: 258,
             fields: vec![],

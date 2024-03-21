@@ -12,8 +12,8 @@ expression: parser.parse_bytes(&packet)
       source_id: 1
     flowsets:
       - flow_set_id: 258
+        length: 12
         data:
-          length: 12
           data_fields:
             - InBytes:
                 DataNumber: 151126788
