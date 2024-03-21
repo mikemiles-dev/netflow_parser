@@ -2,6 +2,7 @@
 source: src/lib.rs
 expression: parser.parse_bytes(&packet)
 ---
+<<<<<<< HEAD
 - Error:
     error_message: "Could not parse V9 packet: Parsing requires 2 bytes/chars"
     bytes:
@@ -31,4 +32,24 @@ expression: parser.parse_bytes(&packet)
       - 0
       - 1
       - 1
+=======
+- V9:
+    header:
+      version: 9
+      count: 26
+      sys_up_time: 1
+      unix_secs: 1
+      sequence_number: 0
+      source_id: 16908298
+    flowsets:
+      - flow_set_id: 8
+        length: 0
+        unparsed_data:
+          - 0
+          - 8
+          - 0
+          - 0
+          - 1
+          - 1
+>>>>>>> main
 
