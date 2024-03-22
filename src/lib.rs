@@ -83,12 +83,6 @@ use variable_versions::v9::{V9Parser, V9};
 
 use serde::Serialize;
 
-#[derive(Default, Debug)]
-pub struct NetflowParser {
-    pub v9_parser: V9Parser,
-    pub ipfix_parser: IPFixParser,
-}
-
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
 pub enum NetflowPacketResult {
@@ -128,20 +122,10 @@ pub struct NetflowPacketError {
     pub bytes: Vec<u8>,
 }
 
-#[derive(Debug, Clone)]
-struct ParsedNetflow {
-    remaining: Vec<u8>,
-    /// Parsed Netflow Packet
-    netflow_packet: NetflowPacketResult,
-}
-
-impl ParsedNetflow {
-    fn new(remaining: &[u8], netflow_packet: NetflowPacketResult) -> Self {
-        Self {
-            remaining: remaining.to_vec(),
-            netflow_packet,
-        }
-    }
+#[derive(Default, Debug)]
+pub struct NetflowParser {
+    pub v9_parser: V9Parser,
+    pub ipfix_parser: IPFixParser,
 }
 
 impl NetflowParser {
