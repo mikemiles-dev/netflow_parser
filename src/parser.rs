@@ -4,7 +4,7 @@ use nom_derive::{Nom, Parse};
 use crate::static_versions::{v5::V5, v7::V7};
 use crate::variable_versions::ipfix::IPFix;
 use crate::variable_versions::v9::V9;
-use crate::{NetflowPacketResult, NetflowParser, ParsedNetflow};
+use crate::{NetflowPacketResult, NetflowParser};
 
 /// Struct is used simply to match how to handle the result of the packet
 #[derive(Nom)]
@@ -121,6 +121,22 @@ impl<'a> From<V9ParsedResult<'a>> for ParsedNetflow {
 impl<'a> From<IPFixParsedResult<'a>> for ParsedNetflow {
     fn from((remaining, ipfix_parsed): IPFixParsedResult) -> ParsedNetflow {
         Self::new(remaining, ipfix_parsed.into())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedNetflow {
+    pub remaining: Vec<u8>,
+    /// Parsed Netflow Packet
+    pub netflow_packet: NetflowPacketResult,
+}
+
+impl ParsedNetflow {
+    fn new(remaining: &[u8], netflow_packet: NetflowPacketResult) -> Self {
+        Self {
+            remaining: remaining.to_vec(),
+            netflow_packet,
+        }
     }
 }
 
