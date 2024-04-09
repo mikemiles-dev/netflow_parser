@@ -9,7 +9,6 @@
 use super::common::*;
 use crate::variable_versions::ipfix_lookup::*;
 
-use nom::bytes::complete::take;
 use nom::combinator::complete;
 use nom::error::{Error as NomError, ErrorKind};
 use nom::multi::{count, many0};
@@ -47,26 +46,47 @@ pub struct IPFix {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
 pub struct Header {
-    /// Version of Flow Record format that is exported in this message. The value of this field is 0x000a for the current version, incrementing by one the version that is used in the NetFlow services export version 9
+    /// Version of Flow Record format that is exported in this message. The value of this
+    /// field is 0x000a for the current version, incrementing by one the version that is
+    /// used in the NetFlow services export version 9
     #[nom(Value = "10")]
     pub version: u16,
-    /// Total length of the IPFIX Message, which is measured in octets, including Message Header and Sets.
+    /// Total length of the IPFIX Message, which is measured in octets, including Message
+    /// Header and Sets.
     pub length: u16,
-    /// Time, in seconds, since 0000 Coordinated Universal Time Jan 1, 1970, at which the IPFIX Message Header leaves the Exporter.
+    /// Time, in seconds, since 0000 Coordinated Universal Time Jan 1, 1970, at which the
+    /// IPFIX Message Header leaves the Exporter.
     #[nom(Map = "|i| Duration::from_secs(i as u64)", Parse = "be_u32")]
     pub export_time: Duration,
-    /// Incremental sequence counter-modulo 2^32 of all IPFIX Data Records sent on this PR-SCTP stream from the current Observation Domain by the Exporting Process. Check the specific meaning of this field in the subsections of Section 10 when UDP or TCP is selected as the transport protocol. This value must be used by the Collecting Process to identify whether any IPFIX Data Records are missed. Template and Options Template Records do not increase the Sequence Number.
+    /// Incremental sequence counter-modulo 2^32 of all IPFIX Data Records sent on this PR-SCTP
+    /// stream from the current Observation Domain by the Exporting Process. Check the specific
+    /// meaning of this field in the subsections of Section 10 when UDP or TCP is selected as the
+    /// transport protocol. This value must be used by the Collecting Process to identify whether
+    /// any IPFIX Data Records are missed. Template and Options Template Records do not increase
+    /// the Sequence Number.
     pub sequence_number: u32,
-    /// A 32-bit identifier of the Observation Domain that is locally unique to the Exporting Process. The Exporting Process uses the Observation Domain ID to uniquely identify to the Collector.  Process the Observation Domain that metered the Flows. It is recommended that this identifier is unique per IPFIX Device. Collecting Processes must use the Transport Session.  Observation Domain ID field to separate different export streams that originate from the same Exporting Process. The Observation Domain ID must be 0 when no specific Observation Domain ID is relevant for the entire IPFIX Message. For example, when the Exporting Process Statistics are exported, or in a hierarchy of Collectors when aggregated Data Records are exported.
+    /// A 32-bit identifier of the Observation Domain that is locally unique to the Exporting Process.
+    /// The Exporting Process uses the Observation Domain ID to uniquely identify to the Collector.
+    /// Process the Observation Domain that metered the Flows. It is recommended that this identifier
+    /// is unique per IPFIX Device. Collecting Processes must use the Transport Session.  Observation
+    /// Domain ID field to separate different export streams that originate from the same Exporting Process.
+    /// The Observation Domain ID must be 0 when no specific Observation Domain ID is relevant for the
+    /// entire IPFIX Message. For example, when the Exporting Process Statistics are exported, or in a hierarchy
+    /// of Collectors when aggregated Data Records are exported.
     pub observation_domain_id: u32,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut IPFixParser))]
 pub struct Set {
-    /// Set ID value identifies the Set. A value of 2 is reserved for the Template Set. A value of 3 is reserved for the Option Template Set. All other values 4-255 are reserved for future use. Values more than 255 are used for Data Sets. The Set ID values of 0 and 1 are not used for historical reasons
+    /// Set ID value identifies the Set. A value of 2 is reserved for the Template Set.
+    /// A value of 3 is reserved for the Option Template Set. All other values 4-255 are
+    /// reserved for future use. Values more than 255 are used for Data Sets. The Set ID
+    /// values of 0 and 1 are not used for historical reasons
     pub id: u16,
-    /// Total length of the Set, in octets, including the Set Header, all records, and the optional padding. Because an individual Set MAY contain multiple records, the Length value must be used to determine the position of the next Set.
+    /// Total length of the Set, in octets, including the Set Header, all records, and the
+    /// optional padding. Because an individual Set MAY contain multiple records, the Length
+    /// value must be used to determine the position of the next Set.
     pub length: u16,
     #[nom(
         Cond = "id == TEMPLATE_ID",
@@ -77,9 +97,12 @@ pub struct Set {
     pub template: Option<Template>,
     #[nom(
         Cond = "id == OPTIONS_TEMPLATE_ID",
-        Parse = "{ |i| parse_options_template(i, length) }",
+        PreExec = "let set_length = length.checked_sub(4).unwrap_or(length);",
+        Parse = "{ |i| OptionsTemplate::parse(i, set_length) }",
         // Save our templates
-        PostExec = "if let Some(options_template) = options_template.clone() { parser.options_templates.insert(options_template.template_id, options_template); }"
+        PostExec = "if let Some(options_template) = options_template.clone() {
+                      parser.options_templates.insert(options_template.template_id, options_template);
+                    }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options_template: Option<OptionsTemplate>,
@@ -116,6 +139,7 @@ pub struct OptionsData {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(set_length: u16))]
 pub struct OptionsTemplate {
     pub template_id: u16,
     pub field_count: u16,
@@ -123,10 +147,11 @@ pub struct OptionsTemplate {
     #[nom(
         PreExec = "let combined_count = scope_field_count as usize + 
                        field_count.checked_sub(scope_field_count).unwrap_or(field_count) as usize;",
-        Parse = "count(|i| TemplateField::parse(i, true), combined_count)"
+        Parse = "count(|i| TemplateField::parse(i, true), combined_count)",
+        PostExec = "let options_remaining = set_length.checked_sub(field_count * 4).unwrap_or(set_length) > 0;"
     )]
     pub fields: Vec<TemplateField>,
-    #[nom(Cond = "!i.is_empty()")]
+    #[nom(Cond = "options_remaining && !i.is_empty()")]
     #[serde(skip_serializing)]
     padding: Option<u16>,
 }
@@ -151,27 +176,12 @@ pub struct TemplateField {
         PostExec = "let field_type_number = if options_template {
                       field_type_number.overflowing_sub(32768).0
                     } else { field_type_number };",
-        PostExec = "let field_type = if options_template {
-                      set_entperprise_field(field_type, enterprise_number)
+        PostExec = "let field_type = if options_template && enterprise_number.is_some() {
+                        IPFixField::Enterprise
                     } else { field_type };"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enterprise_number: Option<u32>,
-}
-
-fn set_entperprise_field(field_type: IPFixField, enterprise_number: Option<u32>) -> IPFixField {
-    if enterprise_number.is_some() {
-        IPFixField::Enterprise
-    } else {
-        field_type
-    }
-}
-
-/// Parses options template
-fn parse_options_template(i: &[u8], length: u16) -> IResult<&[u8], OptionsTemplate> {
-    let (remaining, taken) = take(length.checked_sub(4).unwrap_or(length))(i)?;
-    let (_, option_template) = OptionsTemplate::parse(taken)?;
-    Ok((remaining, option_template))
 }
 
 // Common trait for both templates.  Mainly for fetching fields.
