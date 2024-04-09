@@ -1,5 +1,6 @@
 # 0.2.5
   * More code-reorg.  Added tests.rs just for tests.  Added parsing.rs for majority of parsing.
+  * Removed uneeded ipfix Option Template Code.
 
 # 0.2.4
   * Fixes for V9 parsing.  Now supports processing multiple templates.
