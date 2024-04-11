@@ -70,6 +70,15 @@ impl DataNumber {
                 let ip_addr = Ipv6Addr::from(taken);
                 (i, FieldValue::Ip6Addr(ip_addr))
             }
+            FieldDataType::MacAddr => {
+                let (i, taken) = take(6 as usize)(remaining)?;
+                let taken: &[u8; 6] = taken
+                    .try_into()
+                    .map_err(|_| NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))?;
+
+                let mac_addr = mac_address::MacAddress::from(*taken).to_string();
+                (i, FieldValue::MacAddr(mac_addr))
+            }
             FieldDataType::DurationSeconds => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
                 (
@@ -149,6 +158,7 @@ pub enum FieldValue {
     Duration(Duration),
     Ip4Addr(Ipv4Addr),
     Ip6Addr(Ipv6Addr),
+    MacAddr(String),
     Vec(Vec<u8>),
     ProtocolType(ProtocolTypes),
     Unknown,
@@ -167,6 +177,7 @@ pub enum FieldDataType {
     DurationNanos,
     Ip4Addr,
     Ip6Addr,
+    MacAddr,
     Vec,
     ProtocolType,
     Unknown,
