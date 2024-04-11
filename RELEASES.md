@@ -1,7 +1,7 @@
 # 0.2.5
   * Now Parsing V9 Mac Addresses correctly.
-  * More code reorginization.  (Moved tests to tests.rs and added parsing.rs for majority of parsing).
-  * Removed uneeded ipfix Option Template Code.
+  * More code reorganization. (Moved tests to tests.rs and added parsing.rs for majority of parsing).
+  * Removed unneeded IPFIX Option Template Code.
 
 # 0.2.4
   * Fixes for V9 parsing.  Now supports processing multiple templates.
