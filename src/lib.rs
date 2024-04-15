@@ -72,9 +72,9 @@
 
 mod parser;
 pub mod protocol;
-mod static_versions;
+pub mod static_versions;
 mod tests;
-mod variable_versions;
+pub mod variable_versions;
 
 use parser::Parser;
 use static_versions::{v5::V5, v7::V7};

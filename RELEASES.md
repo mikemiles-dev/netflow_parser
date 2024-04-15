@@ -1,3 +1,6 @@
+# 0.2.6
+  * Re-added static and variable versions as public.
+
 # 0.2.5
   * Now Parsing V9 Mac Addresses correctly.
   * More code reorganization. (Moved tests to tests.rs and added parsing.rs for majority of parsing).

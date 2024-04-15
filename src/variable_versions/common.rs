@@ -71,7 +71,7 @@ impl DataNumber {
                 (i, FieldValue::Ip6Addr(ip_addr))
             }
             FieldDataType::MacAddr => {
-                let (i, taken) = take(6 as usize)(remaining)?;
+                let (i, taken) = take(6_usize)(remaining)?;
                 let taken: &[u8; 6] = taken
                     .try_into()
                     .map_err(|_| NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))?;
