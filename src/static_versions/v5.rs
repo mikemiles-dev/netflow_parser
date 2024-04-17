@@ -61,13 +61,6 @@ pub struct Header {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(count: u16))]
-pub struct Body {
-    #[nom(Count = "count")]
-    set: Vec<FlowSet>,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct FlowSet {
     /// Source IP address
     #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
