@@ -20,6 +20,7 @@ pub struct V5 {
     /// V5 Header
     pub header: Header,
     /// V5 Body
+    #[nom(Parse = "{ |i| Body::parse(i, header.count) }")]
     pub body: Body,
 }
 
@@ -60,7 +61,14 @@ pub struct Header {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(count: u16))]
 pub struct Body {
+    #[nom(Count = "count")]
+    set: Vec<FlowSet>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
+pub struct FlowSet {
     /// Source IP address
     #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub src_addr: Ipv4Addr,
