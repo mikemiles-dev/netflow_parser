@@ -12,7 +12,6 @@ fn create_thread() -> Sender<Vec<u8>> {
     let mut parser = NetflowParser::default();
     thread::spawn(move || loop {
         if let Ok(data) = rx.recv() {
-            println!("PRE {:?}", data.clone());
             let result = parser.parse_bytes(data.as_slice());
             println!("{:?}", result);
         }
