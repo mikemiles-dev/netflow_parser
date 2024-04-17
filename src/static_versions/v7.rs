@@ -20,6 +20,7 @@ pub struct V7 {
     /// V7 Header
     pub header: Header,
     /// V7 Body
+    #[nom(Parse = "{ |i| Body::parse(i, header.count) }")]
     pub body: Body,
 }
 
@@ -55,8 +56,15 @@ pub struct Header {
     pub reserved: u32,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Nom, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(count: u16))]
 pub struct Body {
+    #[nom(Count = "count")]
+    set: Vec<FlowSet>,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Nom, Serialize)]
+pub struct FlowSet {
     /// Source IP address; in case of destination-only flows, set to zero.
     #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub src_addr: Ipv4Addr,

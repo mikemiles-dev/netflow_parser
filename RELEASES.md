@@ -1,3 +1,6 @@
+# 0.2.7
+  * Added support for multiple flowsets for V5, V7.
+
 # 0.2.6
   * Re-added static and variable versions as public.
 
