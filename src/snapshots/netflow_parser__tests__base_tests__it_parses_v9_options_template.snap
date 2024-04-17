@@ -43,4 +43,3 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             - field_type: FlowActiveTimeout
               field_value:
                 - 1
-

@@ -8,4 +8,3 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       - 12
       - 13
       - 14
-

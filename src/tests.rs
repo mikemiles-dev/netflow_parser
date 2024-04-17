@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod base_tests {
 
     use crate::variable_versions::ipfix::{
         Template as IPFixTemplate, TemplateField as IPFixTemplateField,
