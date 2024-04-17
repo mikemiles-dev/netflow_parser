@@ -19,9 +19,9 @@ use std::time::Duration;
 pub struct V5 {
     /// V5 Header
     pub header: Header,
-    /// V5 Body
-    #[nom(Parse = "{ |i| Body::parse(i, header.count) }")]
-    pub body: Body,
+    /// V5 Sets
+    #[nom(Count = "header.count")]
+    pub sets: Vec<FlowSet>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
@@ -58,13 +58,6 @@ pub struct Header {
     pub engine_id: u8,
     /// First two bits hold the sampling mode; remaining 14 bits hold value of sampling interval
     pub sampling_interval: u16,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(count: u16))]
-pub struct Body {
-    #[nom(Count = "count")]
-    set: Vec<FlowSet>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]

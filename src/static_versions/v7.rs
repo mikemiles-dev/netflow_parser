@@ -19,9 +19,9 @@ use std::time::Duration;
 pub struct V7 {
     /// V7 Header
     pub header: Header,
-    /// V7 Body
-    #[nom(Parse = "{ |i| Body::parse(i, header.count) }")]
-    pub body: Body,
+    /// V7 Sets
+    #[nom(Count = "header.count")]
+    pub sets: Vec<FlowSet>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Nom, Serialize)]
@@ -54,13 +54,6 @@ pub struct Header {
     pub flow_sequence: u32,
     /// Unused (zero) bytes
     pub reserved: u32,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(count: u16))]
-pub struct Body {
-    #[nom(Count = "count")]
-    set: Vec<FlowSet>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Nom, Serialize)]

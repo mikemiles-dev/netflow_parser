@@ -20,4 +20,3 @@ expression: parser.parse_bytes(&packet)
                 DataNumber: 8
               SourceIpv4address:
                 Ip4Addr: 0.0.1.1
-

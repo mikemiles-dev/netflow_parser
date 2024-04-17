@@ -5,7 +5,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
 - IPFix:
     header:
       version: 10
-      length: 44
+      length: 64
       export_time:
         secs: 0
         nanos: 0
@@ -29,4 +29,19 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             - field_type_number: 32810
               field_type: ExportedFlowRecordTotalCount
               field_length: 2
-
+      - id: 260
+        length: 20
+        options_data:
+          data_fields:
+            - ExportedMessageTotalCount:
+                DataNumber: 276
+              ExportedFlowRecordTotalCount:
+                DataNumber: 5140
+              Enterprise:
+                DataNumber: 1
+            - ExportedMessageTotalCount:
+                DataNumber: 5140
+              ExportedFlowRecordTotalCount:
+                DataNumber: 7710
+              Enterprise:
+                DataNumber: 2

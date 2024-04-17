@@ -43,4 +43,3 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 Ip4Addr: 0.2.0.2
               DestinationIpv4address:
                 Ip4Addr: 0.1.2.3
-

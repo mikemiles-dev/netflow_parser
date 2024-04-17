@@ -1,3 +1,6 @@
+# 0.2.8
+  * Removed body for V5, V7.  Only has Sets now.
+
 # 0.2.7
   * Added support for multiple flowsets for V5, V7.
 
