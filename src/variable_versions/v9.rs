@@ -8,8 +8,8 @@ use super::common::*;
 use crate::variable_versions::v9_lookup::*;
 
 use nom::error::{Error as NomError, ErrorKind};
-use nom::Err as NomErr;
 use nom::IResult;
+use nom::{Err as NomErr, InputTake};
 use nom_derive::*;
 use serde::Serialize;
 use Nom;
@@ -159,7 +159,7 @@ pub struct FlowSet {
     // Data
     #[nom(
         Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.templates.get(&flow_set_id).is_some()",
-        Parse = "{ |i| Data::parse(i, parser, flow_set_id) }"
+        Parse = "{ |i| Data::parse(i, parser, flow_set_id, length) }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Data>,
@@ -364,10 +364,10 @@ pub struct ScopeDataField {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
+#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16, length: u16))]
 pub struct Data {
     // Data Fields
-    #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flow_set_id)) }")]
+    #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flow_set_id), length) }")]
     pub data_fields: Vec<BTreeMap<V9Field, FieldValue>>,
 }
 
@@ -383,6 +383,7 @@ pub struct OptionDataField {
 fn parse_fields<'a>(
     i: &'a [u8],
     template: Option<&Template>,
+    length: u16,
 ) -> IResult<&'a [u8], Vec<BTreeMap<V9Field, FieldValue>>> {
     let template = match template {
         Some(t) => t,
@@ -391,6 +392,10 @@ fn parse_fields<'a>(
             return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
         }
     };
+
+    let flow_length: u16 = template.fields.iter().map(|f| f.field_length).sum();
+    let expected_padding_length = (length - 4) % flow_length;
+
     let mut fields = vec![];
     // If no fields there are no fields to parse
     if template.fields.is_empty() {
@@ -399,6 +404,10 @@ fn parse_fields<'a>(
     };
     let mut remaining = i;
     while !remaining.is_empty() {
+        if remaining.len() == expected_padding_length as usize {
+            (remaining, _) = remaining.take_split(expected_padding_length as usize);
+            break;
+        }
         let mut data_field = BTreeMap::new();
         for template_field in template.fields.iter() {
             let field_type: FieldDataType = template_field.field_type.into();
