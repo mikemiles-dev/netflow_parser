@@ -238,9 +238,11 @@ fn parse_fields<'a, T: CommonTemplate>(
 
     let mut fields = vec![];
     let mut remaining = i;
+    let mut last_remaining = 0;
 
     // While we have bytes remaining
-    while !remaining.is_empty() {
+    while !remaining.is_empty() && last_remaining != remaining.len() {
+        last_remaining = remaining.len();
         let mut data_field = BTreeMap::new();
         for template_field in template_fields.iter() {
             let (i, field_value) = parse_field(remaining, template_field)?;

@@ -1,5 +1,8 @@
 # 0.3.0
-  * Reworked V9 Parsing.  We enforce the length provided by the flow now.  Padding is now ignored.
+  * Reworked V9 Parsing.  Flowset length is now used.  Padding is now ignored.
+  * DataNumber parsing now checks if the field_length is 0.
+  * Added guard to prevent infinite loop in ipfix parsing.
+  * Add greedy_parsing feature.
 
 # 0.2.9
   * Fixed parsing issue with V9 flow and padding.
