@@ -201,15 +201,14 @@ mod base_tests {
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }
 
-    // #[test]
-    // fn it_errors_when_0_length_field_ipfix() {
-    //     let packet = [
-    //         0, 10, 0, 64, 1, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 0, 20, 1, 0, 0, 1, 0, 65, 0,
-    //         0, 0, 12, 0, 4, 0, 2, 0, 4, 1, 0, 0, 28, 1, 2, 3, 4, 1, 2, 3, 3, 1, 2, 3, 2, 0, 2,
-    //         0, 2, 0, 1, 2, 3, 4, 5, 6, 7,
-    //     ];
-    //     assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
-    // }
+    #[test]
+    fn it_errors_when_0_length_field_ipfix() {
+        let packet = [
+            0, 10, 0, 64, 1, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 0, 20, 1, 0, 0, 1, 0, 65, 0,
+            0, 0, 12, 0, 4, 0, 2, 0, 4, 1, 0, 0, 0,
+        ];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
 
     #[test]
     fn it_doesnt_panic_with_invalid_options_ipfix_template() {
