@@ -9,6 +9,7 @@
 use super::common::*;
 use crate::variable_versions::ipfix_lookup::*;
 
+use nom::bytes::complete::take;
 use nom::combinator::complete;
 use nom::error::{Error as NomError, ErrorKind};
 use nom::multi::{count, many0};
@@ -79,6 +80,26 @@ pub struct Header {
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut IPFixParser))]
 pub struct Set {
+    pub header: SetHeader,
+    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.length, header.id) }")]
+    pub body: SetBody,
+}
+
+// Take only length provided by set header
+fn parse_set_body<'a>(
+    i: &'a [u8],
+    parser: &mut IPFixParser,
+    length: u16,
+    id: u16,
+) -> IResult<&'a [u8], SetBody> {
+    let length = length.checked_sub(4).unwrap_or(length);
+    let (remaining, taken) = take(length)(i)?;
+    let (_, set_body) = SetBody::parse(taken, parser, id, length)?;
+    Ok((remaining, set_body))
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+pub struct SetHeader {
     /// Set ID value identifies the Set. A value of 2 is reserved for the Template Set.
     /// A value of 3 is reserved for the Option Template Set. All other values 4-255 are
     /// reserved for future use. Values more than 255 are used for Data Sets. The Set ID
@@ -88,6 +109,11 @@ pub struct Set {
     /// optional padding. Because an individual Set MAY contain multiple records, the Length
     /// value must be used to determine the position of the next Set.
     pub length: u16,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(parser: &mut IPFixParser, id: u16, length: u16))]
+pub struct SetBody {
     #[nom(
         Cond = "id == TEMPLATE_ID",
         // Save our templates
@@ -242,8 +268,11 @@ fn parse_fields<'a, T: CommonTemplate>(
     // While we have bytes remaining
     while !remaining.is_empty() {
         let mut data_field = BTreeMap::new();
-        for template_field in template_fields.iter() {
+        for template_field in template_fields.iter().filter(|f| f.field_length > 0) {
             let (i, field_value) = parse_field(remaining, template_field)?;
+            if i.len() == remaining.len() {
+                return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
+            }
             remaining = i;
             data_field.insert(template_field.field_type, field_value);
         }

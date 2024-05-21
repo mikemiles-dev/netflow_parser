@@ -12,11 +12,14 @@ expression: parser.parse_bytes(&packet)
       sequence_number: 1
       observation_domain_id: 0
     sets:
-      - id: 258
-        length: 10
-        data:
-          data_fields:
-            - PacketDeltaCount:
-                DataNumber: 8
-              SourceIpv4address:
-                Ip4Addr: 0.0.1.1
+      - header:
+          id: 258
+          length: 10
+        body:
+          data:
+            data_fields:
+              - PacketDeltaCount:
+                  DataNumber: 8
+                SourceIpv4address:
+                  Ip4Addr: 0.0.1.1
+

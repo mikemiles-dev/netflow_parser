@@ -44,9 +44,6 @@ impl DataNumber {
         field_type: FieldDataType,
         field_length: u16,
     ) -> IResult<&[u8], FieldValue> {
-        if field_length == 0 {
-            return Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)));
-        }
         let (remaining, field_value) = match field_type {
             FieldDataType::UnsignedDataNumber => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;

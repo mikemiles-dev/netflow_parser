@@ -5,6 +5,8 @@
   * Added check in variable DataNumber parsing if the field_length is 0. 
   * Add `greedy_parsing` feature for ipfix.
   * Added `parse_unknown_fields` feature flag to attempt to parse unknown fields not supported by the library.
+  * Skipping the attempted parsing of IPFIX fields with a field_length of 0.
+  * Added `parse_unknown_fields` feature flag. When try you can attempt to parse fields not yet supported by the library.
 
 # 0.2.9
   * Fixed parsing issue with V9 flow and padding.
