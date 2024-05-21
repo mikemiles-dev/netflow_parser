@@ -1,0 +1,32 @@
+---
+source: src/tests.rs
+expression: "NetflowParser::default().parse_bytes(&packet)"
+---
+- IPFix:
+    header:
+      version: 10
+      length: 64
+      export_time:
+        secs: 16909060
+        nanos: 0
+      sequence_number: 0
+      observation_domain_id: 16909060
+    sets:
+      - header:
+          id: 2
+          length: 20
+        body:
+          template:
+            template_id: 256
+            field_count: 1
+            fields:
+              - field_type_number: 65
+                field_type: AssignedforNetFlowv9compatibility
+                field_length: 0
+      - header:
+          id: 256
+          length: 0
+        body:
+          data:
+            data_fields: []
+

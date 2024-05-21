@@ -202,7 +202,7 @@ mod base_tests {
     }
 
     #[test]
-    fn it_errors_when_0_length_field_ipfix() {
+    fn it_doesnt_parse_0_length_fields_ipfix() {
         let packet = [
             0, 10, 0, 64, 1, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 0, 20, 1, 0, 0, 1, 0, 65, 0,
             0, 0, 12, 0, 4, 0, 2, 0, 4, 1, 0, 0, 0,
