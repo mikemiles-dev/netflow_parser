@@ -18,6 +18,7 @@ serde = { version = "1.0.166", features = ["derive"] }
 [features]
 default = []
 unix_timestamp = []
+parse_unknown_fields = []
 
 [dev-dependencies]
 insta = { version = "1.30.0", features = ["yaml"] }

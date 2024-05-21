@@ -131,8 +131,12 @@ impl DataNumber {
                 (i, FieldValue::Vec(taken.to_vec()))
             }
             FieldDataType::Unknown => {
-                let (i, taken) = take(field_length)(remaining)?;
-                (i, FieldValue::Vec(taken.to_vec()))
+                if cfg!(parse_unknown_fields) {
+                    let (i, taken) = take(field_length)(remaining)?;
+                    (i, FieldValue::Vec(taken.to_vec()))
+                } else {
+                    return Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)));
+                }
             }
         };
         Ok((remaining, field_value))
