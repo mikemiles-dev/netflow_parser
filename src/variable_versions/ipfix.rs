@@ -10,7 +10,7 @@ use super::common::*;
 use crate::variable_versions::ipfix_lookup::*;
 
 use nom::bytes::complete::take;
-use nom::combinator::complete;
+use nom::combinator::cut;
 use nom::error::{Error as NomError, ErrorKind};
 use nom::multi::{count, many0};
 use nom::number::complete::be_u32;
@@ -41,8 +41,21 @@ pub struct IPFix {
     /// IPFix Header
     pub header: Header,
     /// Sets
-    #[nom(Parse = "many0(complete(|i| Set::parse(i, parser)))")]
+    #[nom(Parse = "{ |i| parse_sets(i, parser, header.length) }")]
     pub sets: Vec<Set>,
+}
+
+// Take only length provided by set header
+fn parse_sets<'a>(
+    i: &'a [u8],
+    parser: &mut IPFixParser,
+    length: u16,
+) -> IResult<&'a [u8], Vec<Set>> {
+    let length = length.checked_sub(16).unwrap_or(length);
+    let (_, taken) = take(length)(i)?;
+    let parsed = { |taken| Set::parse(taken, parser) }; 
+    println!("I: {:?} ZZZ {:?}", i, taken);
+    many0(cut(parsed))(taken)
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
@@ -94,6 +107,7 @@ fn parse_set_body<'a>(
 ) -> IResult<&'a [u8], SetBody> {
     let length = length.checked_sub(4).unwrap_or(length);
     let (remaining, taken) = take(length)(i)?;
+    println!("tkan: {:?}", taken);
     let (_, set_body) = SetBody::parse(taken, parser, id, length)?;
     Ok((remaining, set_body))
 }
@@ -265,22 +279,15 @@ fn parse_fields<'a, T: CommonTemplate>(
     let mut fields = vec![];
     let mut remaining = i;
 
-    let template_fields = template_fields
-        .iter()
-        .filter(|f| f.field_length > 0)
-        .collect::<Vec<&TemplateField>>();
-
-    if template_fields.is_empty() {
-        return Ok((&[], fields));
-    }
-
-    // While we have bytes remaining
     while !remaining.is_empty() {
         let mut data_field = BTreeMap::new();
         for template_field in template_fields.iter() {
+            if template_field.field_length == 0 {
+                return Err(NomErr::Error(NomError::new(&[], ErrorKind::Fail)));
+            }
             let (i, field_value) = parse_field(remaining, template_field)?;
             if i.len() == remaining.len() {
-                return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
+                return Err(NomErr::Error(NomError::new(&[], ErrorKind::Fail)));
             }
             remaining = i;
             data_field.insert(template_field.field_type, field_value);
