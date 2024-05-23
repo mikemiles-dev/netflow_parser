@@ -10,9 +10,8 @@ use super::common::*;
 use crate::variable_versions::ipfix_lookup::*;
 
 use nom::bytes::complete::take;
-use nom::combinator::cut;
 use nom::error::{Error as NomError, ErrorKind};
-use nom::multi::{count, many0};
+use nom::multi::count;
 use nom::number::complete::be_u32;
 use nom::Err as NomErr;
 use nom::IResult;

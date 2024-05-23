@@ -2,31 +2,55 @@
 source: src/tests.rs
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
-- IPFix:
-    header:
-      version: 10
-      length: 64
-      export_time:
-        secs: 16909060
-        nanos: 0
-      sequence_number: 0
-      observation_domain_id: 16909060
-    sets:
-      - header:
-          id: 2
-          length: 20
-        body:
-          template:
-            template_id: 256
-            field_count: 1
-            fields:
-              - field_type_number: 65
-                field_type: AssignedforNetFlowv9compatibility
-                field_length: 0
-      - header:
-          id: 256
-          length: 0
-        body:
-          data:
-            data_fields: []
+- Error:
+    error_message: "Could not parse v10 packet: Parsing Error: Error { input: [], code: Fail }"
+    bytes:
+      - 0
+      - 10
+      - 0
+      - 48
+      - 1
+      - 2
+      - 3
+      - 4
+      - 0
+      - 0
+      - 0
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 0
+      - 2
+      - 0
+      - 20
+      - 1
+      - 0
+      - 0
+      - 3
+      - 0
+      - 8
+      - 0
+      - 4
+      - 0
+      - 12
+      - 0
+      - 4
+      - 0
+      - 65
+      - 0
+      - 0
+      - 1
+      - 0
+      - 0
+      - 12
+      - 1
+      - 2
+      - 3
+      - 4
+      - 1
+      - 2
+      - 3
+      - 4
 

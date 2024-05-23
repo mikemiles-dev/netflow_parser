@@ -205,7 +205,7 @@ mod base_tests {
     fn it_doesnt_parse_0_length_fields_ipfix() {
         let packet = [
             0, 10, 0, 48, 1, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 0, 20, 1, 0, 0, 3, 0, 8, 0,
-            4, 0, 12, 0, 4, 0, 65, 0, 0, 1, 0, 0, 12, 1, 2, 3, 4, 1, 2, 3, 4,  
+            4, 0, 12, 0, 4, 0, 65, 0, 0, 1, 0, 0, 12, 1, 2, 3, 4, 1, 2, 3, 4,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }

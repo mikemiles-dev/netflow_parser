@@ -60,10 +60,10 @@
 //! To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attribute on the Parsed Record.  In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
 //!
 //! ## Features
-//! 
+//!
 //! * unix_timestamp - Current count since 0000 UTC 1970 as Duration.
-//! * parse_unknown_fields - By default fields not listed in the netflow_parser library will not be parsed and an error is thrown for the packet.  When set to true the field will be parsed as a vector of bytes. 
-//! 
+//! * parse_unknown_fields - By default fields not listed in the netflow_parser library will not be parsed and an error is thrown for the packet.  When set to true the field will be parsed as a vector of bytes.
+//!
 //! ## Examples
 //! Some examples has been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
 //!
