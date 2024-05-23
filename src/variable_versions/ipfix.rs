@@ -288,22 +288,32 @@ fn parse_fields<'a, T: CommonTemplate>(
     let mut fields = vec![];
     let mut remaining = i;
 
+    let mut error = false;
+
     // Iter through template fields and push them to a vec.  If we encouter any zero length fields we return an error.
     while !remaining.is_empty() {
         let mut data_field = BTreeMap::new();
         for template_field in template_fields.iter() {
+            // If field length is 0 we error
             if template_field.field_length == 0 {
-                return Err(NomErr::Error(NomError::new(&[], ErrorKind::Fail)));
+                error = true;
+                break;
             }
             let (i, field_value) = parse_field(remaining, template_field)?;
-            // If we don't move forward for some reason we return an error to prevent infinite loop.
+            // If we don't move forward for some reason we error
             if i.len() == remaining.len() {
-                return Err(NomErr::Error(NomError::new(&[], ErrorKind::Fail)));
+                error = true;
+                break;
             }
             remaining = i;
             data_field.insert(template_field.field_type, field_value);
         }
         fields.push(data_field);
     }
-    Ok((&[], fields))
+
+    if error && !cfg!(greedy_parsing) {
+        Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))
+    } else {
+        Ok((&[], fields))
+    }
 }

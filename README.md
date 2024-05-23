@@ -65,6 +65,7 @@ To access templates flowset of a processed V9/IPFix flowset you can find the `fl
 
 * unix_timestamp - Current count since 0000 UTC 1970 as Duration.
 * parse_unknown_fields - By default fields not listed in the netflow_parser library will not be parsed and an error is thrown for the packet.  When set to true the field will be parsed as a vector of bytes.
+* greedy_parsing - If we encounter an error while parsing we will attempt in some cases to return what we have parsed.  Currently only supported with IPFIX.
 
 ## Examples
 
