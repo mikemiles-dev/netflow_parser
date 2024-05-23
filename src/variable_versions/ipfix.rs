@@ -53,9 +53,18 @@ fn parse_sets<'a>(
 ) -> IResult<&'a [u8], Vec<Set>> {
     let length = length.checked_sub(16).unwrap_or(length);
     let (_, taken) = take(length)(i)?;
-    let parsed = { |taken| Set::parse(taken, parser) }; 
-    println!("I: {:?} ZZZ {:?}", i, taken);
-    many0(cut(parsed))(taken)
+
+    let mut sets = vec![];
+
+    let mut remaining = taken;
+
+    while !remaining.is_empty() {
+        let (i, set) = Set::parse(remaining, parser)?;
+        sets.push(set);
+        remaining = i;
+    }
+
+    Ok((remaining, sets))
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
