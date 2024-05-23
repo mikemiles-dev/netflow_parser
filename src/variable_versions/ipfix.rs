@@ -44,7 +44,7 @@ pub struct IPFix {
     pub sets: Vec<Set>,
 }
 
-// Take only length provided by set header
+// Custom parse set function to take only length provided by header.
 fn parse_sets<'a>(
     i: &'a [u8],
     parser: &mut IPFixParser,
@@ -106,13 +106,14 @@ pub struct Set {
     pub body: SetBody,
 }
 
-// Take only length provided by set header
+// Custom parse set body function to take only length provided by set header.
 fn parse_set_body<'a>(
     i: &'a [u8],
     parser: &mut IPFixParser,
     length: u16,
     id: u16,
 ) -> IResult<&'a [u8], SetBody> {
+    // length - 4 to account for the set header
     let length = length.checked_sub(4).unwrap_or(length);
     let (remaining, taken) = take(length)(i)?;
     println!("tkan: {:?}", taken);
@@ -287,6 +288,7 @@ fn parse_fields<'a, T: CommonTemplate>(
     let mut fields = vec![];
     let mut remaining = i;
 
+    // Iter through template fields and push them to a vec.  If we encouter any zero length fields we return an error.
     while !remaining.is_empty() {
         let mut data_field = BTreeMap::new();
         for template_field in template_fields.iter() {
@@ -294,6 +296,7 @@ fn parse_fields<'a, T: CommonTemplate>(
                 return Err(NomErr::Error(NomError::new(&[], ErrorKind::Fail)));
             }
             let (i, field_value) = parse_field(remaining, template_field)?;
+            // If we don't move forward for some reason we return an error to prevent infinite loop.
             if i.len() == remaining.len() {
                 return Err(NomErr::Error(NomError::new(&[], ErrorKind::Fail)));
             }
