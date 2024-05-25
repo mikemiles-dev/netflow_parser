@@ -11,12 +11,14 @@ expression: parser.parse_bytes(&packet)
       sequence_number: 0
       source_id: 16908298
     flowsets:
-      - flow_set_id: 8
-        length: 0
-        unparsed_data:
-          - 0
-          - 8
-          - 0
-          - 0
-          - 1
-          - 1
+      - header:
+          flow_set_id: 8
+          length: 0
+        body:
+          unparsed_data:
+            - 0
+            - 8
+            - 0
+            - 0
+            - 1
+            - 1

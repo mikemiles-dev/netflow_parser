@@ -7,6 +7,7 @@
 use super::common::*;
 use crate::variable_versions::v9_lookup::*;
 
+use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
 use nom::IResult;
 use nom::{Err as NomErr, InputTake};
@@ -51,31 +52,37 @@ fn parse_flowsets<'a>(
     while count > 0 && !remaining.is_empty() {
         let (i, mut flowset) = FlowSet::parse(remaining, parser)?;
 
-        if let Some(data) = &flowset.templates {
+        if let Some(data) = &flowset.body.templates {
             count = count.saturating_sub(data.len());
         }
 
-        if let Some(data) = &flowset.options_templates {
+        if let Some(data) = &flowset.body.options_templates {
             count = count.saturating_sub(data.len());
         }
 
-        if let Some(data) = &flowset.data.as_ref() {
+        if let Some(data) = &flowset.body.data.as_ref() {
             count = count.saturating_sub(data.data_fields.len());
         }
 
-        if flowset.options_data.as_ref().is_some() {
+        if flowset.body.options_data.as_ref().is_some() {
             count = count.saturating_sub(1);
         }
 
         if flowset.is_empty() {
-            flowset.unparsed_data = Some(remaining.to_vec());
+            flowset.body.unparsed_data = Some(remaining.to_vec());
             remaining = &[];
         } else if flowset.is_unparsed() {
-            flowset.unparsed_data = Some(remaining[..flowset.length as usize].to_vec());
-            remaining = &remaining[flowset.length as usize..];
+            flowset.body.unparsed_data =
+                Some(remaining[..flowset.header.length as usize].to_vec());
+            remaining = &remaining[flowset.header.length as usize..];
         } else {
             remaining = i;
         }
+
+        println!(
+            "CCCC: {:?} {:?}",
+            flowset.header.flow_set_id, flowset.header.length
+        );
 
         flowsets.push(flowset)
     }
@@ -114,6 +121,29 @@ pub struct Header {
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut V9Parser))]
 pub struct FlowSet {
+    pub header: FlowSetHeader,
+    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.flow_set_id, header.length) }")]
+    pub body: FlowSetBody,
+}
+
+// Custom parse set body function to take only length provided by set header.
+fn parse_set_body<'a>(
+    i: &'a [u8],
+    parser: &mut V9Parser,
+    id: u16,
+    length: u16,
+) -> IResult<&'a [u8], FlowSetBody> {
+    // length - 4 to account for the set header
+    let length = length.checked_sub(4).unwrap_or(length);
+    let (remaining, taken) = take(length)(i)?;
+    println!("TAKEN {:?}", taken);
+    let (_, set_body) = FlowSetBody::parse(taken, parser, id, length)?;
+    dbg!("HERE {:?}", remaining.len(), set_body.clone());
+    Ok((remaining, set_body))
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+pub struct FlowSetHeader {
     /// The FlowSet ID is used to distinguish template records from data records.
     /// A template record always has a FlowSet ID in the range of 0-255. Currently,
     /// the template record that describes flow fields has a FlowSet ID of zero and
@@ -124,6 +154,11 @@ pub struct FlowSet {
     /// meaning that the value includes the bytes used for the FlowSet ID and the length bytes
     /// themselves, as well as the combined lengths of any included data records.
     pub length: u16,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16, length: u16))]
+pub struct FlowSetBody {
     /// Templates
     #[nom(
         Cond = "flow_set_id == TEMPLATE_ID",
@@ -171,14 +206,14 @@ pub struct FlowSet {
 
 impl FlowSet {
     fn is_unparsed(&self) -> bool {
-        self.templates.is_none()
-            && self.options_templates.is_none()
-            && self.data.is_none()
-            && self.options_data.is_none()
+        self.body.templates.is_none()
+            && self.body.options_templates.is_none()
+            && self.body.data.is_none()
+            && self.body.options_data.is_none()
     }
 
     fn is_empty(&self) -> bool {
-        self.length == 0
+        self.header.length == 0
     }
 }
 
@@ -311,7 +346,7 @@ fn get_total_options_length(flow_set_id: u16, length: u16, parser: &mut V9Parser
         )
         .unwrap_or(length)
         .into();
-    if length % 2 == 0 {
+    if length % 2 == 0 || total_length == 0 {
         total_length
     } else {
         total_length.checked_add(1).unwrap_or(total_length)
