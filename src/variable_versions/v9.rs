@@ -36,37 +36,17 @@ pub struct V9 {
     /// V9 Header
     pub header: Header,
     /// Flowsets
-    #[nom(Parse = "{ |i| parse_flowsets(i, parser, header.count as usize) }")]
+    #[nom(Parse = "{ |i| parse_flowsets(i, parser) }")]
     pub flowsets: Vec<FlowSet>,
 }
 
-fn parse_flowsets<'a>(
-    i: &'a [u8],
-    parser: &mut V9Parser,
-    mut count: usize,
-) -> IResult<&'a [u8], Vec<FlowSet>> {
+fn parse_flowsets<'a>(i: &'a [u8], parser: &mut V9Parser) -> IResult<&'a [u8], Vec<FlowSet>> {
     let mut flowsets = vec![];
     let mut remaining = i;
 
     // Header.count represents total number of records in data + records in templates
-    while count > 0 && !remaining.is_empty() {
+    while !remaining.is_empty() {
         let (i, mut flowset) = FlowSet::parse(remaining, parser)?;
-
-        if let Some(data) = &flowset.body.templates {
-            count = count.saturating_sub(data.len());
-        }
-
-        if let Some(data) = &flowset.body.options_templates {
-            count = count.saturating_sub(data.len());
-        }
-
-        if let Some(data) = &flowset.body.data.as_ref() {
-            count = count.saturating_sub(data.data_fields.len());
-        }
-
-        if flowset.body.options_data.as_ref().is_some() {
-            count = count.saturating_sub(1);
-        }
 
         if flowset.is_empty() {
             flowset.body.unparsed_data = Some(remaining.to_vec());
@@ -78,11 +58,6 @@ fn parse_flowsets<'a>(
         } else {
             remaining = i;
         }
-
-        println!(
-            "CCCC: {:?} {:?}",
-            flowset.header.flow_set_id, flowset.header.length
-        );
 
         flowsets.push(flowset)
     }
@@ -136,9 +111,7 @@ fn parse_set_body<'a>(
     // length - 4 to account for the set header
     let length = length.checked_sub(4).unwrap_or(length);
     let (remaining, taken) = take(length)(i)?;
-    println!("TAKEN {:?}", taken);
     let (_, set_body) = FlowSetBody::parse(taken, parser, id, length)?;
-    dbg!("HERE {:?}", remaining.len(), set_body.clone());
     Ok((remaining, set_body))
 }
 
@@ -174,7 +147,7 @@ pub struct FlowSetBody {
     // Options template
     #[nom(
         Cond = "flow_set_id == OPTIONS_TEMPLATE_ID",
-        Parse = "{ |i| parse_options_template_vec(i, length) }",
+        Parse = "parse_options_template_vec",
         // Save our options templates
         PostExec = "if let Some(options_templates) = options_templates.clone() { 
             for template in options_templates {
@@ -187,7 +160,7 @@ pub struct FlowSetBody {
     // Options Data
     #[nom(
         Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.options_templates.get(&flow_set_id).is_some()",
-        Parse = "{ |i| OptionsData::parse(i, parser, flow_set_id, length) }"
+        Parse = "{ |i| OptionsData::parse(i, parser, flow_set_id) }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options_data: Option<OptionsData>,
@@ -235,7 +208,6 @@ pub struct Template {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(flowset_length: u16))]
 pub struct OptionsTemplate {
     /// As a router generates different template FlowSets to match the type of NetFlow data it is exporting, each template is given a unique ID. This uniqueness is local to the router that generated the template ID. The Template ID is greater than 255. Template IDs inferior to 255 are reserved.
     pub template_id: u16,
@@ -249,22 +221,19 @@ pub struct OptionsTemplate {
     /// Options Fields
     #[nom(Count = "(options_length / 4) as usize")]
     pub option_fields: Vec<TemplateField>,
-    /// Padding
-    #[nom(
-        Map = "|i: &[u8]| i.to_vec()",
-        Take = "(flowset_length.saturating_sub(options_scope_length).saturating_sub(options_length).saturating_sub(10)) as usize"
-    )]
-    #[serde(skip_serializing)]
-    padding: Vec<u8>,
+    // Padding
+    // #[nom(
+    //     Map = "|i: &[u8]| i.to_vec()",
+    //     Take = "(flowset_length.saturating_sub(options_scope_length).saturating_sub(options_length).saturating_sub(10)) as usize"
+    // )]
+    // #[serde(skip_serializing)]
+    // padding: Vec<u8>,
 }
 
-fn parse_options_template_vec(
-    i: &[u8],
-    flowset_length: u16,
-) -> IResult<&[u8], Vec<OptionsTemplate>> {
+fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> {
     let mut fields = vec![];
     let mut remaining = i;
-    while let Ok((rem, data)) = OptionsTemplate::parse(remaining, flowset_length) {
+    while let Ok((rem, data)) = OptionsTemplate::parse(remaining) {
         fields.push(data);
         remaining = rem;
     }
@@ -298,7 +267,7 @@ pub struct TemplateField {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16, flowset_length: u16))]
+#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
 pub struct OptionsData {
     // Scope Data
     #[nom(
@@ -310,47 +279,6 @@ pub struct OptionsData {
         Parse = "{ |i| parse_options_data_fields(i, flow_set_id, parser.options_templates.clone()) }"
     )]
     pub options_fields: Vec<OptionDataField>,
-    #[nom(
-        Map = "|i: &[u8]| i.to_vec()",
-        Take = "get_total_options_length(flow_set_id, flowset_length, parser)"
-    )]
-    #[serde(skip_serializing)]
-    padding: Vec<u8>,
-}
-
-fn get_total_options_length(flow_set_id: u16, length: u16, parser: &mut V9Parser) -> usize {
-    let options_length = match parser.options_templates.get(&flow_set_id) {
-        Some(o) => o
-            .option_fields
-            .iter()
-            .map(|o| o.field_length)
-            .collect::<Vec<u16>>()
-            .iter()
-            .sum(),
-        None => 0,
-    };
-    let scope_length = match parser.options_templates.get(&flow_set_id) {
-        Some(s) => s
-            .scope_fields
-            .iter()
-            .map(|o| o.field_length)
-            .collect::<Vec<u16>>()
-            .iter()
-            .sum(),
-        None => 0,
-    };
-    let total_length: usize = length
-        .checked_sub(
-            4u16.checked_sub(options_length.checked_add(scope_length).unwrap_or(length))
-                .unwrap_or(length),
-        )
-        .unwrap_or(length)
-        .into();
-    if length % 2 == 0 || total_length == 0 {
-        total_length
-    } else {
-        total_length.checked_add(1).unwrap_or(total_length)
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -429,6 +357,7 @@ fn parse_fields<'a>(
     };
 
     let flow_length: u16 = template.fields.iter().map(|f| f.field_length).sum();
+
     let expected_padding_length = (length - 4) % flow_length;
 
     let mut fields = vec![];
@@ -438,8 +367,13 @@ fn parse_fields<'a>(
         return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
     };
     let mut remaining = i;
+
     while !remaining.is_empty() {
-        if remaining.len() == expected_padding_length as usize {
+        if remaining.iter().all(|&item| item == 0) {
+            let padding = remaining.len();
+            (remaining, _) = remaining.take_split(padding);
+            break;
+        } else if remaining.len() == expected_padding_length as usize {
             (remaining, _) = remaining.take_split(expected_padding_length as usize);
             break;
         }
