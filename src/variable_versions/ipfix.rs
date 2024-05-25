@@ -116,7 +116,6 @@ fn parse_set_body<'a>(
     // length - 4 to account for the set header
     let length = length.checked_sub(4).unwrap_or(length);
     let (remaining, taken) = take(length)(i)?;
-    println!("tkan: {:?}", taken);
     let (_, set_body) = SetBody::parse(taken, parser, id, length)?;
     Ok((remaining, set_body))
 }
