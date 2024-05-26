@@ -92,7 +92,7 @@ mod base_tests {
     fn it_parses_v9() {
         let packet = [
             0, 9, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,
-            2, 0, 1, 0, 4, 0, 8, 0, 4, 1, 2, 0, 12, 9, 2, 3, 4, 9, 9, 9, 8, 
+            2, 0, 1, 0, 4, 0, 8, 0, 4, 1, 2, 0, 12, 9, 2, 3, 4, 9, 9, 9, 8,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }
