@@ -111,7 +111,7 @@ fn parse_set_body<'a>(
     // length - 4 to account for the set header
     let length = length.checked_sub(4).unwrap_or(length);
     let (remaining, taken) = take(length)(i)?;
-    let (_, set_body) = FlowSetBody::parse(taken, parser, id, length)?;
+    let (_, set_body) = FlowSetBody::parse(taken, parser, id)?;
     Ok((remaining, set_body))
 }
 
@@ -130,7 +130,7 @@ pub struct FlowSetHeader {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16, length: u16))]
+#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
 pub struct FlowSetBody {
     /// Templates
     #[nom(
@@ -167,7 +167,7 @@ pub struct FlowSetBody {
     // Data
     #[nom(
         Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.templates.get(&flow_set_id).is_some()",
-        Parse = "{ |i| Data::parse(i, parser, flow_set_id, length) }"
+        Parse = "{ |i| Data::parse(i, parser, flow_set_id) }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Data>,
@@ -221,13 +221,6 @@ pub struct OptionsTemplate {
     /// Options Fields
     #[nom(Count = "(options_length / 4) as usize")]
     pub option_fields: Vec<TemplateField>,
-    // Padding
-    // #[nom(
-    //     Map = "|i: &[u8]| i.to_vec()",
-    //     Take = "(flowset_length.saturating_sub(options_scope_length).saturating_sub(options_length).saturating_sub(10)) as usize"
-    // )]
-    // #[serde(skip_serializing)]
-    // padding: Vec<u8>,
 }
 
 fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> {
@@ -327,10 +320,10 @@ pub struct ScopeDataField {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16, length: u16))]
+#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
 pub struct Data {
     // Data Fields
-    #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flow_set_id), length) }")]
+    #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flow_set_id)) }")]
     pub data_fields: Vec<BTreeMap<V9Field, FieldValue>>,
 }
 
@@ -346,7 +339,6 @@ pub struct OptionDataField {
 fn parse_fields<'a>(
     i: &'a [u8],
     template: Option<&Template>,
-    length: u16,
 ) -> IResult<&'a [u8], Vec<BTreeMap<V9Field, FieldValue>>> {
     let template = match template {
         Some(t) => t,
@@ -355,10 +347,6 @@ fn parse_fields<'a>(
             return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
         }
     };
-
-    let flow_length: u16 = template.fields.iter().map(|f| f.field_length).sum();
-
-    let expected_padding_length = (length - 4) % flow_length;
 
     let mut fields = vec![];
     // If no fields there are no fields to parse
@@ -369,14 +357,6 @@ fn parse_fields<'a>(
     let mut remaining = i;
 
     while !remaining.is_empty() {
-        if remaining.iter().all(|&item| item == 0) {
-            let padding = remaining.len();
-            (remaining, _) = remaining.take_split(padding);
-            break;
-        } else if remaining.len() == expected_padding_length as usize {
-            (remaining, _) = remaining.take_split(expected_padding_length as usize);
-            break;
-        }
         let mut data_field = BTreeMap::new();
         for template_field in template.fields.iter() {
             let field_type: FieldDataType = template_field.field_type.into();
@@ -387,6 +367,11 @@ fn parse_fields<'a>(
             )?;
             remaining = i;
             data_field.insert(template_field.field_type, field_value);
+        }
+        // Check if the remaining flow is padding and remove it
+        if remaining.iter().all(|&item| item == 0) {
+            let padding = remaining.len();
+            (remaining, _) = remaining.take_split(padding);
         }
         fields.push(data_field);
     }
