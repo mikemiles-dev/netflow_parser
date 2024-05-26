@@ -36,16 +36,22 @@ pub struct V9 {
     /// V9 Header
     pub header: Header,
     /// Flowsets
-    #[nom(Parse = "{ |i| parse_flowsets(i, parser) }")]
+    #[nom(Parse = "{ |i| parse_flowsets(i, parser, header.count) }")]
     pub flowsets: Vec<FlowSet>,
 }
 
-fn parse_flowsets<'a>(i: &'a [u8], parser: &mut V9Parser) -> IResult<&'a [u8], Vec<FlowSet>> {
+fn parse_flowsets<'a>(
+    i: &'a [u8],
+    parser: &mut V9Parser,
+    count: u16,
+) -> IResult<&'a [u8], Vec<FlowSet>> {
     let mut flowsets = vec![];
     let mut remaining = i;
 
+    let mut count_index = 0;
+
     // Header.count represents total number of records in data + records in templates
-    while !remaining.is_empty() {
+    while !remaining.is_empty() && count_index < count {
         let (i, mut flowset) = FlowSet::parse(remaining, parser)?;
 
         if flowset.is_empty() {
@@ -59,7 +65,9 @@ fn parse_flowsets<'a>(i: &'a [u8], parser: &mut V9Parser) -> IResult<&'a [u8], V
             remaining = i;
         }
 
-        flowsets.push(flowset)
+        flowsets.push(flowset);
+
+        count_index += 1;
     }
 
     Ok((remaining, flowsets))
@@ -368,11 +376,13 @@ fn parse_fields<'a>(
             remaining = i;
             data_field.insert(template_field.field_type, field_value);
         }
-        // Check if the remaining flow is padding and remove it
-        if remaining.iter().all(|&item| item == 0) {
+        // Check if the remaining after processing templates
+        // and remaining is padding then remove it
+        if !remaining.is_empty() && remaining.iter().all(|&item| item == 0) {
             let padding = remaining.len();
             (remaining, _) = remaining.take_split(padding);
         }
+        // Add fields
         fields.push(data_field);
     }
     Ok((remaining, fields))
