@@ -1,3 +1,6 @@
+# 0.3.0
+  * Reworked V9 Parsing.  We enforce the length provided by the flow now.  Padding is now ignored.
+
 # 0.2.9
   * Fixed parsing issue with V9 flow and padding.
 

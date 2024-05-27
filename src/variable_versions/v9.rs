@@ -9,8 +9,8 @@ use crate::variable_versions::v9_lookup::*;
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
+use nom::Err as NomErr;
 use nom::IResult;
-use nom::{Err as NomErr, InputTake};
 use nom_derive::*;
 use serde::Serialize;
 use Nom;
@@ -38,39 +38,6 @@ pub struct V9 {
     /// Flowsets
     #[nom(Parse = "{ |i| parse_flowsets(i, parser, header.count) }")]
     pub flowsets: Vec<FlowSet>,
-}
-
-fn parse_flowsets<'a>(
-    i: &'a [u8],
-    parser: &mut V9Parser,
-    count: u16,
-) -> IResult<&'a [u8], Vec<FlowSet>> {
-    let mut flowsets = vec![];
-    let mut remaining = i;
-
-    let mut count_index = 0;
-
-    // Header.count represents total number of records in data + records in templates
-    while !remaining.is_empty() && count_index < count {
-        let (i, mut flowset) = FlowSet::parse(remaining, parser)?;
-
-        if flowset.is_empty() {
-            flowset.body.unparsed_data = Some(remaining.to_vec());
-            remaining = &[];
-        } else if flowset.is_unparsed() {
-            flowset.body.unparsed_data =
-                Some(remaining[..flowset.header.length as usize].to_vec());
-            remaining = &remaining[flowset.header.length as usize..];
-        } else {
-            remaining = i;
-        }
-
-        flowsets.push(flowset);
-
-        count_index += 1;
-    }
-
-    Ok((remaining, flowsets))
 }
 
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Nom)]
@@ -107,20 +74,6 @@ pub struct FlowSet {
     pub header: FlowSetHeader,
     #[nom(Parse = "{ |i| parse_set_body(i, parser, header.flow_set_id, header.length) }")]
     pub body: FlowSetBody,
-}
-
-// Custom parse set body function to take only length provided by set header.
-fn parse_set_body<'a>(
-    i: &'a [u8],
-    parser: &mut V9Parser,
-    id: u16,
-    length: u16,
-) -> IResult<&'a [u8], FlowSetBody> {
-    // length - 4 to account for the set header
-    let length = length.checked_sub(4).unwrap_or(length);
-    let (remaining, taken) = take(length)(i)?;
-    let (_, set_body) = FlowSetBody::parse(taken, parser, id)?;
-    Ok((remaining, set_body))
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -185,19 +138,6 @@ pub struct FlowSetBody {
     pub unparsed_data: Option<Vec<u8>>,
 }
 
-impl FlowSet {
-    fn is_unparsed(&self) -> bool {
-        self.body.templates.is_none()
-            && self.body.options_templates.is_none()
-            && self.body.data.is_none()
-            && self.body.options_data.is_none()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.header.length == 0
-    }
-}
-
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 pub struct Template {
     /// As a router generates different template FlowSets to match the type of NetFlow
@@ -229,16 +169,6 @@ pub struct OptionsTemplate {
     /// Options Fields
     #[nom(Count = "(options_length / 4) as usize")]
     pub option_fields: Vec<TemplateField>,
-}
-
-fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> {
-    let mut fields = vec![];
-    let mut remaining = i;
-    while let Ok((rem, data)) = OptionsTemplate::parse(remaining) {
-        fields.push(data);
-        remaining = rem;
-    }
-    Ok((remaining, fields))
 }
 
 /// Options Scope Fields
@@ -335,6 +265,53 @@ pub struct Data {
     pub data_fields: Vec<BTreeMap<V9Field, FieldValue>>,
 }
 
+// Custom parse set body function to take only length provided by set header.
+fn parse_set_body<'a>(
+    i: &'a [u8],
+    parser: &mut V9Parser,
+    id: u16,
+    length: u16,
+) -> IResult<&'a [u8], FlowSetBody> {
+    // length - 4 to account for the set header
+    let length = length.checked_sub(4).unwrap_or(length);
+    let (remaining, taken) = take(length)(i)?;
+    let (_, set_body) = FlowSetBody::parse(taken, parser, id)?;
+    Ok((remaining, set_body))
+}
+
+fn parse_flowsets<'a>(
+    i: &'a [u8],
+    parser: &mut V9Parser,
+    count: u16,
+) -> IResult<&'a [u8], Vec<FlowSet>> {
+    let mut flowsets = vec![];
+    let mut remaining = i;
+
+    let mut count_index = 0;
+
+    // Header.count represents total number of records in data + records in templates
+    while !remaining.is_empty() && count_index < count {
+        let (i, mut flowset) = FlowSet::parse(remaining, parser)?;
+
+        if flowset.is_empty() {
+            flowset.body.unparsed_data = Some(remaining.to_vec());
+            remaining = &[];
+        } else if flowset.is_unparsed() {
+            flowset.body.unparsed_data =
+                Some(remaining[..flowset.header.length as usize].to_vec());
+            remaining = &remaining[flowset.header.length as usize..];
+        } else {
+            remaining = i;
+        }
+
+        flowsets.push(flowset);
+
+        count_index += 1;
+    }
+
+    Ok((remaining, flowsets))
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(field: &TemplateField))]
 pub struct OptionDataField {
@@ -342,6 +319,35 @@ pub struct OptionDataField {
     pub field_type: V9Field,
     #[nom(Map = "|i: &[u8]| i.to_vec()", Take = "field.field_length")]
     pub field_value: Vec<u8>,
+}
+
+impl Template {
+    fn get_total_size(&self) -> u16 {
+        self.fields.iter().fold(0, |acc, i| acc + i.field_length)
+    }
+}
+
+impl FlowSet {
+    fn is_unparsed(&self) -> bool {
+        self.body.templates.is_none()
+            && self.body.options_templates.is_none()
+            && self.body.data.is_none()
+            && self.body.options_data.is_none()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.header.length == 0
+    }
+}
+
+fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> {
+    let mut fields = vec![];
+    let mut remaining = i;
+    while let Ok((rem, data)) = OptionsTemplate::parse(remaining) {
+        fields.push(data);
+        remaining = rem;
+    }
+    Ok((remaining, fields))
 }
 
 fn parse_fields<'a>(
@@ -364,7 +370,9 @@ fn parse_fields<'a>(
     };
     let mut remaining = i;
 
-    while !remaining.is_empty() {
+    let count = i.len() as u16 / template.get_total_size();
+
+    for _ in 0..count {
         let mut data_field = BTreeMap::new();
         for template_field in template.fields.iter() {
             let field_type: FieldDataType = template_field.field_type.into();
@@ -376,13 +384,6 @@ fn parse_fields<'a>(
             remaining = i;
             data_field.insert(template_field.field_type, field_value);
         }
-        // Check if the remaining after processing templates
-        // and remaining is padding then remove it
-        if !remaining.is_empty() && remaining.iter().all(|&item| item == 0) {
-            let padding = remaining.len();
-            (remaining, _) = remaining.take_split(padding);
-        }
-        // Add fields
         fields.push(data_field);
     }
     Ok((remaining, fields))
