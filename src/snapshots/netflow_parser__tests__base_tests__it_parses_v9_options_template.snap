@@ -11,35 +11,39 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       sequence_number: 1
       source_id: 1
     flowsets:
-      - flow_set_id: 1
-        length: 22
-        options_templates:
-          - template_id: 275
-            options_scope_length: 4
-            options_length: 8
+      - header:
+          flow_set_id: 1
+          length: 22
+        body:
+          options_templates:
+            - template_id: 275
+              options_scope_length: 4
+              options_length: 8
+              scope_fields:
+                - field_type_number: 2
+                  field_type: Interface
+                  field_length: 2
+              option_fields:
+                - field_type_number: 34
+                  field_type: SamplingInterval
+                  field_length: 2
+                - field_type_number: 36
+                  field_type: FlowActiveTimeout
+                  field_length: 1
+      - header:
+          flow_set_id: 275
+          length: 9
+        body:
+          options_data:
             scope_fields:
-              - field_type_number: 2
-                field_type: Interface
-                field_length: 2
-            option_fields:
-              - field_type_number: 34
-                field_type: SamplingInterval
-                field_length: 2
-              - field_type_number: 36
-                field_type: FlowActiveTimeout
-                field_length: 1
-      - flow_set_id: 275
-        length: 9
-        options_data:
-          scope_fields:
-            - interface:
-                - 0
-                - 2
-          options_fields:
-            - field_type: SamplingInterval
-              field_value:
-                - 0
-                - 100
-            - field_type: FlowActiveTimeout
-              field_value:
-                - 1
+              - interface:
+                  - 0
+                  - 2
+            options_fields:
+              - field_type: SamplingInterval
+                field_value:
+                  - 0
+                  - 100
+              - field_type: FlowActiveTimeout
+                field_value:
+                  - 1

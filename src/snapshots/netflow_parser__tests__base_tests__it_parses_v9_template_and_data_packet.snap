@@ -1,0 +1,631 @@
+---
+source: src/tests.rs
+expression: "NetflowParser::default().parse_bytes(&packet)"
+---
+- V9:
+    header:
+      version: 9
+      count: 9
+      sys_up_time: 52377
+      unix_secs: 1715939544
+      sequence_number: 1
+      source_id: 0
+    flowsets:
+      - header:
+          flow_set_id: 0
+          length: 72
+        body:
+          templates:
+            - template_id: 1024
+              field_count: 16
+              fields:
+                - field_type_number: 8
+                  field_type: Ipv4SrcAddr
+                  field_length: 4
+                - field_type_number: 12
+                  field_type: Ipv4DstAddr
+                  field_length: 4
+                - field_type_number: 22
+                  field_type: FirstSwitched
+                  field_length: 4
+                - field_type_number: 21
+                  field_type: LastSwitched
+                  field_length: 4
+                - field_type_number: 1
+                  field_type: InBytes
+                  field_length: 4
+                - field_type_number: 2
+                  field_type: InPkts
+                  field_length: 4
+                - field_type_number: 10
+                  field_type: InputSnmp
+                  field_length: 4
+                - field_type_number: 14
+                  field_type: OutputSnmp
+                  field_length: 4
+                - field_type_number: 61
+                  field_type: Direction
+                  field_length: 1
+                - field_type_number: 136
+                  field_type: Unknown
+                  field_length: 1
+                - field_type_number: 7
+                  field_type: L4SrcPort
+                  field_length: 2
+                - field_type_number: 11
+                  field_type: L4DstPort
+                  field_length: 2
+                - field_type_number: 4
+                  field_type: Protocol
+                  field_length: 1
+                - field_type_number: 6
+                  field_type: TcpFlags
+                  field_length: 1
+                - field_type_number: 60
+                  field_type: IpProtocolVersion
+                  field_length: 1
+                - field_type_number: 5
+                  field_type: SrcTos
+                  field_length: 1
+      - header:
+          flow_set_id: 0
+          length: 64
+        body:
+          templates:
+            - template_id: 1025
+              field_count: 14
+              fields:
+                - field_type_number: 8
+                  field_type: Ipv4SrcAddr
+                  field_length: 4
+                - field_type_number: 12
+                  field_type: Ipv4DstAddr
+                  field_length: 4
+                - field_type_number: 22
+                  field_type: FirstSwitched
+                  field_length: 4
+                - field_type_number: 21
+                  field_type: LastSwitched
+                  field_length: 4
+                - field_type_number: 1
+                  field_type: InBytes
+                  field_length: 4
+                - field_type_number: 2
+                  field_type: InPkts
+                  field_length: 4
+                - field_type_number: 10
+                  field_type: InputSnmp
+                  field_length: 4
+                - field_type_number: 14
+                  field_type: OutputSnmp
+                  field_length: 4
+                - field_type_number: 61
+                  field_type: Direction
+                  field_length: 1
+                - field_type_number: 136
+                  field_type: Unknown
+                  field_length: 1
+                - field_type_number: 32
+                  field_type: IcmpType
+                  field_length: 2
+                - field_type_number: 4
+                  field_type: Protocol
+                  field_length: 1
+                - field_type_number: 60
+                  field_type: IpProtocolVersion
+                  field_length: 1
+                - field_type_number: 5
+                  field_type: SrcTos
+                  field_length: 1
+      - header:
+          flow_set_id: 0
+          length: 72
+        body:
+          templates:
+            - template_id: 2048
+              field_count: 16
+              fields:
+                - field_type_number: 27
+                  field_type: Ipv6SrcAddr
+                  field_length: 16
+                - field_type_number: 28
+                  field_type: Ipv6DstAddr
+                  field_length: 16
+                - field_type_number: 22
+                  field_type: FirstSwitched
+                  field_length: 4
+                - field_type_number: 21
+                  field_type: LastSwitched
+                  field_length: 4
+                - field_type_number: 1
+                  field_type: InBytes
+                  field_length: 4
+                - field_type_number: 2
+                  field_type: InPkts
+                  field_length: 4
+                - field_type_number: 10
+                  field_type: InputSnmp
+                  field_length: 4
+                - field_type_number: 14
+                  field_type: OutputSnmp
+                  field_length: 4
+                - field_type_number: 61
+                  field_type: Direction
+                  field_length: 1
+                - field_type_number: 136
+                  field_type: Unknown
+                  field_length: 1
+                - field_type_number: 7
+                  field_type: L4SrcPort
+                  field_length: 2
+                - field_type_number: 11
+                  field_type: L4DstPort
+                  field_length: 2
+                - field_type_number: 4
+                  field_type: Protocol
+                  field_length: 1
+                - field_type_number: 6
+                  field_type: TcpFlags
+                  field_length: 1
+                - field_type_number: 60
+                  field_type: IpProtocolVersion
+                  field_length: 1
+                - field_type_number: 5
+                  field_type: SrcTos
+                  field_length: 1
+      - header:
+          flow_set_id: 0
+          length: 64
+        body:
+          templates:
+            - template_id: 2049
+              field_count: 14
+              fields:
+                - field_type_number: 27
+                  field_type: Ipv6SrcAddr
+                  field_length: 16
+                - field_type_number: 28
+                  field_type: Ipv6DstAddr
+                  field_length: 16
+                - field_type_number: 22
+                  field_type: FirstSwitched
+                  field_length: 4
+                - field_type_number: 21
+                  field_type: LastSwitched
+                  field_length: 4
+                - field_type_number: 1
+                  field_type: InBytes
+                  field_length: 4
+                - field_type_number: 2
+                  field_type: InPkts
+                  field_length: 4
+                - field_type_number: 10
+                  field_type: InputSnmp
+                  field_length: 4
+                - field_type_number: 14
+                  field_type: OutputSnmp
+                  field_length: 4
+                - field_type_number: 61
+                  field_type: Direction
+                  field_length: 1
+                - field_type_number: 136
+                  field_type: Unknown
+                  field_length: 1
+                - field_type_number: 139
+                  field_type: Unknown
+                  field_length: 2
+                - field_type_number: 4
+                  field_type: Protocol
+                  field_length: 1
+                - field_type_number: 60
+                  field_type: IpProtocolVersion
+                  field_length: 1
+                - field_type_number: 5
+                  field_type: SrcTos
+                  field_length: 1
+      - header:
+          flow_set_id: 1
+          length: 26
+        body:
+          options_templates:
+            - template_id: 256
+              options_scope_length: 4
+              options_length: 12
+              scope_fields:
+                - field_type_number: 2
+                  field_type: Interface
+                  field_length: 4
+              option_fields:
+                - field_type_number: 34
+                  field_type: SamplingInterval
+                  field_length: 4
+                - field_type_number: 35
+                  field_type: SamplingAlgorithm
+                  field_length: 1
+                - field_type_number: 82
+                  field_type: IfName
+                  field_length: 16
+      - header:
+          flow_set_id: 256
+          length: 29
+        body:
+          options_data:
+            scope_fields:
+              - interface:
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+            options_fields:
+              - field_type: SamplingInterval
+                field_value:
+                  - 0
+                  - 0
+                  - 0
+                  - 1
+              - field_type: SamplingAlgorithm
+                field_value:
+                  - 1
+              - field_type: IfName
+                field_value:
+                  - 97
+                  - 110
+                  - 121
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+                  - 0
+      - header:
+          flow_set_id: 2048
+          length: 205
+        body:
+          data:
+            data_fields:
+              - InBytes:
+                  DataNumber: 1215
+                InPkts:
+                  DataNumber: 9
+                Protocol:
+                  ProtocolType: Tcp
+                SrcTos:
+                  DataNumber: 0
+                TcpFlags:
+                  DataNumber: 25
+                L4SrcPort:
+                  DataNumber: 58068
+                InputSnmp:
+                  DataNumber: 0
+                L4DstPort:
+                  DataNumber: 443
+                OutputSnmp:
+                  DataNumber: 0
+                LastSwitched:
+                  Duration:
+                    secs: 42
+                    nanos: 8000000
+                FirstSwitched:
+                  Duration:
+                    secs: 5
+                    nanos: 637000000
+                Ipv6SrcAddr:
+                  Ip6Addr: "2003:d1:ef3b:2200:fe34:97ff:feb7:686e"
+                Ipv6DstAddr:
+                  Ip6Addr: "2606:4700:3032::6815:5338"
+                IpProtocolVersion:
+                  DataNumber: 6
+                Direction:
+                  DataNumber: 0
+                Unknown:
+                  Vec:
+                    - 3
+              - InBytes:
+                  DataNumber: 180
+                InPkts:
+                  DataNumber: 3
+                Protocol:
+                  ProtocolType: Tcp
+                SrcTos:
+                  DataNumber: 0
+                TcpFlags:
+                  DataNumber: 4
+                L4SrcPort:
+                  DataNumber: 443
+                InputSnmp:
+                  DataNumber: 0
+                L4DstPort:
+                  DataNumber: 58068
+                OutputSnmp:
+                  DataNumber: 0
+                LastSwitched:
+                  Duration:
+                    secs: 42
+                    nanos: 8000000
+                FirstSwitched:
+                  Duration:
+                    secs: 5
+                    nanos: 637000000
+                Ipv6SrcAddr:
+                  Ip6Addr: "2606:4700:3032::6815:5338"
+                Ipv6DstAddr:
+                  Ip6Addr: "2003:d1:ef3b:2200:fe34:97ff:feb7:686e"
+                IpProtocolVersion:
+                  DataNumber: 6
+                Direction:
+                  DataNumber: 1
+                Unknown:
+                  Vec:
+                    - 3
+              - InBytes:
+                  DataNumber: 60
+                InPkts:
+                  DataNumber: 1
+                Protocol:
+                  ProtocolType: Tcp
+                SrcTos:
+                  DataNumber: 0
+                TcpFlags:
+                  DataNumber: 20
+                L4SrcPort:
+                  DataNumber: 8081
+                InputSnmp:
+                  DataNumber: 0
+                L4DstPort:
+                  DataNumber: 43754
+                OutputSnmp:
+                  DataNumber: 0
+                LastSwitched:
+                  Duration:
+                    secs: 20
+                    nanos: 268000000
+                FirstSwitched:
+                  Duration:
+                    secs: 20
+                    nanos: 268000000
+                Ipv6SrcAddr:
+                  Ip6Addr: "::1"
+                Ipv6DstAddr:
+                  Ip6Addr: "::1"
+                IpProtocolVersion:
+                  DataNumber: 6
+                Direction:
+                  DataNumber: 0
+                Unknown:
+                  Vec:
+                    - 3
+      - header:
+          flow_set_id: 1024
+          length: 256
+        body:
+          data:
+            data_fields:
+              - InBytes:
+                  DataNumber: 2930
+                InPkts:
+                  DataNumber: 24
+                Protocol:
+                  ProtocolType: Tcp
+                SrcTos:
+                  DataNumber: 0
+                TcpFlags:
+                  DataNumber: 26
+                L4SrcPort:
+                  DataNumber: 5222
+                Ipv4SrcAddr:
+                  Ip4Addr: 157.240.251.61
+                InputSnmp:
+                  DataNumber: 0
+                L4DstPort:
+                  DataNumber: 44112
+                Ipv4DstAddr:
+                  Ip4Addr: 192.168.1.215
+                OutputSnmp:
+                  DataNumber: 0
+                LastSwitched:
+                  Duration:
+                    secs: 30
+                    nanos: 421000000
+                FirstSwitched:
+                  Duration:
+                    secs: 25
+                    nanos: 352000000
+                IpProtocolVersion:
+                  DataNumber: 4
+                Direction:
+                  DataNumber: 0
+                Unknown:
+                  Vec:
+                    - 3
+              - InBytes:
+                  DataNumber: 3639
+                InPkts:
+                  DataNumber: 33
+                Protocol:
+                  ProtocolType: Tcp
+                SrcTos:
+                  DataNumber: 0
+                TcpFlags:
+                  DataNumber: 30
+                L4SrcPort:
+                  DataNumber: 44112
+                Ipv4SrcAddr:
+                  Ip4Addr: 192.168.1.215
+                InputSnmp:
+                  DataNumber: 0
+                L4DstPort:
+                  DataNumber: 5222
+                Ipv4DstAddr:
+                  Ip4Addr: 157.240.251.61
+                OutputSnmp:
+                  DataNumber: 0
+                LastSwitched:
+                  Duration:
+                    secs: 30
+                    nanos: 421000000
+                FirstSwitched:
+                  Duration:
+                    secs: 25
+                    nanos: 352000000
+                IpProtocolVersion:
+                  DataNumber: 4
+                Direction:
+                  DataNumber: 1
+                Unknown:
+                  Vec:
+                    - 3
+              - InBytes:
+                  DataNumber: 1213
+                InPkts:
+                  DataNumber: 11
+                Protocol:
+                  ProtocolType: Tcp
+                SrcTos:
+                  DataNumber: 0
+                TcpFlags:
+                  DataNumber: 30
+                L4SrcPort:
+                  DataNumber: 44112
+                Ipv4SrcAddr:
+                  Ip4Addr: 93.209.14.73
+                InputSnmp:
+                  DataNumber: 0
+                L4DstPort:
+                  DataNumber: 5222
+                Ipv4DstAddr:
+                  Ip4Addr: 157.240.251.61
+                OutputSnmp:
+                  DataNumber: 0
+                LastSwitched:
+                  Duration:
+                    secs: 30
+                    nanos: 422000000
+                FirstSwitched:
+                  Duration:
+                    secs: 25
+                    nanos: 352000000
+                IpProtocolVersion:
+                  DataNumber: 4
+                Direction:
+                  DataNumber: 0
+                Unknown:
+                  Vec:
+                    - 3
+              - InBytes:
+                  DataNumber: 1465
+                InPkts:
+                  DataNumber: 12
+                Protocol:
+                  ProtocolType: Tcp
+                SrcTos:
+                  DataNumber: 0
+                TcpFlags:
+                  DataNumber: 26
+                L4SrcPort:
+                  DataNumber: 5222
+                Ipv4SrcAddr:
+                  Ip4Addr: 157.240.251.61
+                InputSnmp:
+                  DataNumber: 0
+                L4DstPort:
+                  DataNumber: 44112
+                Ipv4DstAddr:
+                  Ip4Addr: 93.209.14.73
+                OutputSnmp:
+                  DataNumber: 0
+                LastSwitched:
+                  Duration:
+                    secs: 30
+                    nanos: 422000000
+                FirstSwitched:
+                  Duration:
+                    secs: 25
+                    nanos: 352000000
+                IpProtocolVersion:
+                  DataNumber: 4
+                Direction:
+                  DataNumber: 1
+                Unknown:
+                  Vec:
+                    - 3
+              - InBytes:
+                  DataNumber: 635
+                InPkts:
+                  DataNumber: 9
+                Protocol:
+                  ProtocolType: Tcp
+                SrcTos:
+                  DataNumber: 0
+                TcpFlags:
+                  DataNumber: 25
+                L4SrcPort:
+                  DataNumber: 41796
+                Ipv4SrcAddr:
+                  Ip4Addr: 192.168.1.37
+                InputSnmp:
+                  DataNumber: 0
+                L4DstPort:
+                  DataNumber: 443
+                Ipv4DstAddr:
+                  Ip4Addr: 198.252.206.25
+                OutputSnmp:
+                  DataNumber: 0
+                LastSwitched:
+                  Duration:
+                    secs: 43
+                    nanos: 469000000
+                FirstSwitched:
+                  Duration:
+                    secs: 43
+                    nanos: 288000000
+                IpProtocolVersion:
+                  DataNumber: 4
+                Direction:
+                  DataNumber: 0
+                Unknown:
+                  Vec:
+                    - 3
+              - InBytes:
+                  DataNumber: 264
+                InPkts:
+                  DataNumber: 6
+                Protocol:
+                  ProtocolType: Tcp
+                SrcTos:
+                  DataNumber: 0
+                TcpFlags:
+                  DataNumber: 21
+                L4SrcPort:
+                  DataNumber: 443
+                Ipv4SrcAddr:
+                  Ip4Addr: 198.252.206.25
+                InputSnmp:
+                  DataNumber: 0
+                L4DstPort:
+                  DataNumber: 41796
+                Ipv4DstAddr:
+                  Ip4Addr: 192.168.1.37
+                OutputSnmp:
+                  DataNumber: 0
+                LastSwitched:
+                  Duration:
+                    secs: 43
+                    nanos: 469000000
+                FirstSwitched:
+                  Duration:
+                    secs: 43
+                    nanos: 288000000
+                IpProtocolVersion:
+                  DataNumber: 4
+                Direction:
+                  DataNumber: 1
+                Unknown:
+                  Vec:
+                    - 3

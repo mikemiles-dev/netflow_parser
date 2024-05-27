@@ -257,7 +257,7 @@ impl From<u16> for V9Field {
             25 => V9Field::MinPktLngth,
             26 => V9Field::MaxPktLngth,
             27 => V9Field::Ipv6SrcAddr,
-            28 => V9Field::Ipv4DstAddr,
+            28 => V9Field::Ipv6DstAddr,
             29 => V9Field::Ipv6SrcMask,
             30 => V9Field::Ipv6DstMask,
             31 => V9Field::Ipv6FlowLabel,
