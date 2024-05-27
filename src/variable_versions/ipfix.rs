@@ -44,28 +44,6 @@ pub struct IPFix {
     pub sets: Vec<Set>,
 }
 
-// Custom parse set function to take only length provided by header.
-fn parse_sets<'a>(
-    i: &'a [u8],
-    parser: &mut IPFixParser,
-    length: u16,
-) -> IResult<&'a [u8], Vec<Set>> {
-    let length = length.checked_sub(16).unwrap_or(length);
-    let (_, taken) = take(length)(i)?;
-
-    let mut sets = vec![];
-
-    let mut remaining = taken;
-
-    while !remaining.is_empty() {
-        let (i, set) = Set::parse(remaining, parser)?;
-        sets.push(set);
-        remaining = i;
-    }
-
-    Ok((remaining, sets))
-}
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
 pub struct Header {
     /// Version of Flow Record format that is exported in this message. The value of this
@@ -104,20 +82,6 @@ pub struct Set {
     pub header: SetHeader,
     #[nom(Parse = "{ |i| parse_set_body(i, parser, header.length, header.id) }")]
     pub body: SetBody,
-}
-
-// Custom parse set body function to take only length provided by set header.
-fn parse_set_body<'a>(
-    i: &'a [u8],
-    parser: &mut IPFixParser,
-    length: u16,
-    id: u16,
-) -> IResult<&'a [u8], SetBody> {
-    // length - 4 to account for the set header
-    let length = length.checked_sub(4).unwrap_or(length);
-    let (remaining, taken) = take(length)(i)?;
-    let (_, set_body) = SetBody::parse(taken, parser, id, length)?;
-    Ok((remaining, set_body))
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -249,6 +213,42 @@ impl CommonTemplate for OptionsTemplate {
     }
 }
 
+// Custom parse set function to take only length provided by header.
+fn parse_sets<'a>(
+    i: &'a [u8],
+    parser: &mut IPFixParser,
+    length: u16,
+) -> IResult<&'a [u8], Vec<Set>> {
+    let length = length.checked_sub(16).unwrap_or(length);
+    let (_, taken) = take(length)(i)?;
+
+    let mut sets = vec![];
+
+    let mut remaining = taken;
+
+    while !remaining.is_empty() {
+        let (i, set) = Set::parse(remaining, parser)?;
+        sets.push(set);
+        remaining = i;
+    }
+
+    Ok((remaining, sets))
+}
+
+// Custom parse set body function to take only length provided by set header.
+fn parse_set_body<'a>(
+    i: &'a [u8],
+    parser: &mut IPFixParser,
+    length: u16,
+    id: u16,
+) -> IResult<&'a [u8], SetBody> {
+    // length - 4 to account for the set header
+    let length = length.checked_sub(4).unwrap_or(length);
+    let (remaining, taken) = take(length)(i)?;
+    let (_, set_body) = SetBody::parse(taken, parser, id, length)?;
+    Ok((remaining, set_body))
+}
+
 /// Takes a byte stream and a cached template.
 /// Fields get matched to static types.
 /// Returns BTree of IPFix Types & Fields or IResult Error.
@@ -287,17 +287,19 @@ fn parse_fields<'a, T: CommonTemplate>(
     let mut fields = vec![];
     let mut remaining = i;
 
+    let count: usize = i.len()
+        / template_fields
+            .iter()
+            .map(|m| m.field_length as usize)
+            .sum::<usize>();
+
     let mut error = false;
 
     // Iter through template fields and push them to a vec.  If we encouter any zero length fields we return an error.
-    while !remaining.is_empty() {
+    for _ in 0..count {
         let mut data_field = BTreeMap::new();
         for template_field in template_fields.iter() {
             // If field length is 0 we error
-            if template_field.field_length == 0 {
-                error = true;
-                break;
-            }
             let (i, field_value) = parse_field(remaining, template_field)?;
             // If we don't move forward for some reason we error
             if i.len() == remaining.len() {
@@ -310,7 +312,7 @@ fn parse_fields<'a, T: CommonTemplate>(
         fields.push(data_field);
     }
 
-    if error && !cfg!(greedy_parsing) {
+    if error {
         Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))
     } else {
         Ok((&[], fields))

@@ -1,8 +1,6 @@
 # 0.3.0
-  * Reworked V9 Parsing.  Flowset length is now used.
-  * Added guard to prevent infinite loop in ipfix parsing.
-  * Skipping the attempted parsing of IPFIX fields with a field_length of 0.
-  * Added `greedy_parsing` feature for ipfix.  When there is a field error we return what we parsed.
+  * Reworked IPFIX + V9 Parsing.  Flowset length is now used.
+  * Flow data field Counts are now correctly calculated.
   * Added `parse_unknown_fields` feature flag to attempt to parse unknown fields not supported by the library.
   * `parse_unknown_fields` is enabled by default.
 
