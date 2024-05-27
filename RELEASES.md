@@ -1,12 +1,9 @@
 # 0.3.0
   * Reworked V9 Parsing.  Flowset length is now used.  Padding is now ignored.
-  * DataNumber parsing now checks if the field_length is 0.
   * Added guard to prevent infinite loop in ipfix parsing.
-  * Added check in variable DataNumber parsing if the field_length is 0. 
-  * Add `greedy_parsing` feature for ipfix.
-  * Added `parse_unknown_fields` feature flag to attempt to parse unknown fields not supported by the library.
   * Skipping the attempted parsing of IPFIX fields with a field_length of 0.
-  * Added `parse_unknown_fields` feature flag. When try you can attempt to parse fields not yet supported by the library.
+  * Added `greedy_parsing` feature for ipfix.  When there is a field error we return what we parsed.
+  * Added `parse_unknown_fields` feature flag to attempt to parse unknown fields not supported by the library.
 
 # 0.2.9
   * Fixed parsing issue with V9 flow and padding.
