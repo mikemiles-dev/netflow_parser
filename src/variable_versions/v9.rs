@@ -265,6 +265,34 @@ pub struct Data {
     pub data_fields: Vec<BTreeMap<V9Field, FieldValue>>,
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(field: &TemplateField))]
+pub struct OptionDataField {
+    #[nom(Value(field.field_type))]
+    pub field_type: V9Field,
+    #[nom(Map = "|i: &[u8]| i.to_vec()", Take = "field.field_length")]
+    pub field_value: Vec<u8>,
+}
+
+impl Template {
+    fn get_total_size(&self) -> u16 {
+        self.fields.iter().fold(0, |acc, i| acc + i.field_length)
+    }
+}
+
+impl FlowSet {
+    fn is_unparsed(&self) -> bool {
+        self.body.templates.is_none()
+            && self.body.options_templates.is_none()
+            && self.body.data.is_none()
+            && self.body.options_data.is_none()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.header.length == 0
+    }
+}
+
 // Custom parse set body function to take only length provided by set header.
 fn parse_set_body<'a>(
     i: &'a [u8],
@@ -310,34 +338,6 @@ fn parse_flowsets<'a>(
     }
 
     Ok((remaining, flowsets))
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(field: &TemplateField))]
-pub struct OptionDataField {
-    #[nom(Value(field.field_type))]
-    pub field_type: V9Field,
-    #[nom(Map = "|i: &[u8]| i.to_vec()", Take = "field.field_length")]
-    pub field_value: Vec<u8>,
-}
-
-impl Template {
-    fn get_total_size(&self) -> u16 {
-        self.fields.iter().fold(0, |acc, i| acc + i.field_length)
-    }
-}
-
-impl FlowSet {
-    fn is_unparsed(&self) -> bool {
-        self.body.templates.is_none()
-            && self.body.options_templates.is_none()
-            && self.body.data.is_none()
-            && self.body.options_data.is_none()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.header.length == 0
-    }
 }
 
 fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> {
