@@ -1,3 +1,6 @@
+# 0.3.2
+ * Readme changes
+
 # 0.3.1
   * Added 0 length check when parsing template lengths.
 
