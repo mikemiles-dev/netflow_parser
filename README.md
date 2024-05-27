@@ -34,7 +34,7 @@ println!("{}", json!(NetflowParser::default().parse_bytes(&v5_packet)).to_string
 ## Output:
 
 ```json
-[{"V5":{"body":{"d_octets":66051,"d_pkts":101124105,"dst_addr":"4.5.6.7","dst_as":515,"dst_mask":5,"dst_port":1029,"first":67438087,"input":515,"last":134807553,"next_hop":"8.9.0.1","output":1029,"pad1":6,"pad2":1543,"protocol":"EGP","src_addr":"0.1.2.3","src_as":1,"src_mask":4,"src_port":515,"tcp_flags":7,"tos":9},"header":{"count":512,"engine_id":7,"engine_type":6,"flow_sequence":33752069,"sampling_interval":2057,"sys_up_time":50332672,"unix_nsecs":134807553,"unix_secs":83887623,"unix_time":{"nanos_since_epoch":134807553,"secs_since_epoch":83887623},"version":5}}}]
+[{"V5":{"header":{"count":1,"engine_id":7,"engine_type":6,"flow_sequence":33752069,"sampling_interval":2057,"sys_up_time":{"nanos":672000000,"secs":50332},"unix_nsecs":134807553,"unix_secs":83887623,"version":5},"sets":[{"d_octets":66051,"d_pkts":101124105,"dst_addr":"4.5.6.7","dst_as":515,"dst_mask":5,"dst_port":1029,"first":{"nanos":87000000,"secs":67438},"input":515,"last":{"nanos":553000000,"secs":134807},"next_hop":"8.9.0.1","output":1029,"pad1":6,"pad2":1543,"protocol_number":8,"protocol_type":"Egp","src_addr":"0.1.2.3","src_as":1,"src_mask":4,"src_port":515,"tcp_flags":7,"tos":9}]}}]
 ```
 
 ## Filtering for a specific version
@@ -63,8 +63,8 @@ To access templates flowset of a processed V9/IPFix flowset you can find the `fl
 
 ## Features
 
-* unix_timestamp - Current count since 0000 UTC 1970 as Duration.
-* parse_unknown_fields - By default fields not listed in the netflow_parser library will not be parsed and an error is thrown for the packet.  When set to true the field will be parsed as a vector of bytes.
+* unix_timestamp - When enabled a field `unix_time` is provided that uses the flow unix time as a count since 0000 UTC 1970 as Duration.
+* parse_unknown_fields - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
 
 ## Examples
 
