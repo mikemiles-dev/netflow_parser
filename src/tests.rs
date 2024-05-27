@@ -114,6 +114,7 @@ mod base_tests {
     }
 
     #[test]
+    #[cfg(feature = "parse_unknown_fields")]
     fn it_parses_multiple_packets() {
         let v9_packet = [
             0, 9, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,
@@ -197,6 +198,15 @@ mod base_tests {
             0, 10, 0, 64, 1, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 0, 20, 1, 0, 0, 3, 0, 8, 0,
             4, 0, 12, 0, 4, 0, 2, 0, 4, 1, 0, 0, 28, 1, 2, 3, 4, 1, 2, 3, 3, 1, 2, 3, 2, 0, 2,
             0, 2, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_doesnt_parse_0_length_fields_ipfix() {
+        let packet = [
+            0, 10, 0, 48, 1, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 0, 20, 1, 0, 0, 3, 0, 8, 0,
+            4, 0, 12, 0, 4, 0, 65, 0, 0, 1, 0, 0, 12, 1, 2, 3, 4, 1, 2, 3, 4,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }

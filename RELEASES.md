@@ -1,5 +1,8 @@
 # 0.3.0
-  * Reworked V9 Parsing.  We enforce the length provided by the flow now.  Padding is now ignored.
+  * Reworked IPFIX + V9 Parsing.  Flowset length is now used.
+  * Flow data field Counts are now correctly calculated.
+  * Added `parse_unknown_fields` feature flag to attempt to parse unknown fields not supported by the library.
+  * `parse_unknown_fields` is enabled by default.
 
 # 0.2.9
   * Fixed parsing issue with V9 flow and padding.

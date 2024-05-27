@@ -12,20 +12,23 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       sequence_number: 1
       observation_domain_id: 2
     sets:
-      - id: 3
-        length: 28
-        options_template:
-          template_id: 260
-          field_count: 3
-          scope_field_count: 1
-          fields:
-            - field_type_number: 123
-              field_type: Enterprise
-              field_length: 4
-              enterprise_number: 2
-            - field_type_number: 32809
-              field_type: ExportedMessageTotalCount
-              field_length: 2
-            - field_type_number: 32810
-              field_type: ExportedFlowRecordTotalCount
-              field_length: 2
+      - header:
+          id: 3
+          length: 28
+        body:
+          options_template:
+            template_id: 260
+            field_count: 3
+            scope_field_count: 1
+            fields:
+              - field_type_number: 123
+                field_type: Enterprise
+                field_length: 4
+                enterprise_number: 2
+              - field_type_number: 32809
+                field_type: ExportedMessageTotalCount
+                field_length: 2
+              - field_type_number: 32810
+                field_type: ExportedFlowRecordTotalCount
+                field_length: 2
+

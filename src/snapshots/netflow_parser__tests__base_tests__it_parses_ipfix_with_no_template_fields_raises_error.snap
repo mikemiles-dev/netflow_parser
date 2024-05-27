@@ -2,19 +2,25 @@
 source: src/tests.rs
 expression: parser.parse_bytes(&packet)
 ---
-- IPFix:
-    header:
-      version: 10
-      length: 26
-      export_time:
-        secs: 1
-        nanos: 0
-      sequence_number: 1
-      observation_domain_id: 0
-    sets: []
 - Error:
-    error_message: Unsupported Version
+    error_message: "Could not parse v10 packet: Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: Fail }"
     bytes:
+      - 0
+      - 10
+      - 0
+      - 26
+      - 0
+      - 0
+      - 0
+      - 1
+      - 0
+      - 0
+      - 0
+      - 1
+      - 0
+      - 0
+      - 0
+      - 0
       - 1
       - 2
       - 0
@@ -25,3 +31,4 @@ expression: parser.parse_bytes(&packet)
       - 0
       - 1
       - 1
+

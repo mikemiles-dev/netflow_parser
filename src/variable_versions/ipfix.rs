@@ -9,9 +9,9 @@
 use super::common::*;
 use crate::variable_versions::ipfix_lookup::*;
 
-use nom::combinator::complete;
+use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
-use nom::multi::{count, many0};
+use nom::multi::count;
 use nom::number::complete::be_u32;
 use nom::Err as NomErr;
 use nom::IResult;
@@ -40,7 +40,7 @@ pub struct IPFix {
     /// IPFix Header
     pub header: Header,
     /// Sets
-    #[nom(Parse = "many0(complete(|i| Set::parse(i, parser)))")]
+    #[nom(Parse = "{ |i| parse_sets(i, parser, header.length) }")]
     pub sets: Vec<Set>,
 }
 
@@ -79,6 +79,13 @@ pub struct Header {
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut IPFixParser))]
 pub struct Set {
+    pub header: SetHeader,
+    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.length, header.id) }")]
+    pub body: SetBody,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+pub struct SetHeader {
     /// Set ID value identifies the Set. A value of 2 is reserved for the Template Set.
     /// A value of 3 is reserved for the Option Template Set. All other values 4-255 are
     /// reserved for future use. Values more than 255 are used for Data Sets. The Set ID
@@ -88,6 +95,11 @@ pub struct Set {
     /// optional padding. Because an individual Set MAY contain multiple records, the Length
     /// value must be used to determine the position of the next Set.
     pub length: u16,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(parser: &mut IPFixParser, id: u16, length: u16))]
+pub struct SetBody {
     #[nom(
         Cond = "id == TEMPLATE_ID",
         // Save our templates
@@ -201,6 +213,42 @@ impl CommonTemplate for OptionsTemplate {
     }
 }
 
+// Custom parse set function to take only length provided by header.
+fn parse_sets<'a>(
+    i: &'a [u8],
+    parser: &mut IPFixParser,
+    length: u16,
+) -> IResult<&'a [u8], Vec<Set>> {
+    let length = length.checked_sub(16).unwrap_or(length);
+    let (_, taken) = take(length)(i)?;
+
+    let mut sets = vec![];
+
+    let mut remaining = taken;
+
+    while !remaining.is_empty() {
+        let (i, set) = Set::parse(remaining, parser)?;
+        sets.push(set);
+        remaining = i;
+    }
+
+    Ok((remaining, sets))
+}
+
+// Custom parse set body function to take only length provided by set header.
+fn parse_set_body<'a>(
+    i: &'a [u8],
+    parser: &mut IPFixParser,
+    length: u16,
+    id: u16,
+) -> IResult<&'a [u8], SetBody> {
+    // length - 4 to account for the set header
+    let length = length.checked_sub(4).unwrap_or(length);
+    let (remaining, taken) = take(length)(i)?;
+    let (_, set_body) = SetBody::parse(taken, parser, id, length)?;
+    Ok((remaining, set_body))
+}
+
 /// Takes a byte stream and a cached template.
 /// Fields get matched to static types.
 /// Returns BTree of IPFix Types & Fields or IResult Error.
@@ -239,15 +287,34 @@ fn parse_fields<'a, T: CommonTemplate>(
     let mut fields = vec![];
     let mut remaining = i;
 
-    // While we have bytes remaining
-    while !remaining.is_empty() {
+    let count: usize = i.len()
+        / template_fields
+            .iter()
+            .map(|m| m.field_length as usize)
+            .sum::<usize>();
+
+    let mut error = false;
+
+    // Iter through template fields and push them to a vec.  If we encouter any zero length fields we return an error.
+    for _ in 0..count {
         let mut data_field = BTreeMap::new();
         for template_field in template_fields.iter() {
+            // If field length is 0 we error
             let (i, field_value) = parse_field(remaining, template_field)?;
+            // If we don't move forward for some reason we error
+            if i.len() == remaining.len() {
+                error = true;
+                break;
+            }
             remaining = i;
             data_field.insert(template_field.field_type, field_value);
         }
         fields.push(data_field);
     }
-    Ok((&[], fields))
+
+    if error {
+        Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))
+    } else {
+        Ok((&[], fields))
+    }
 }

@@ -24,6 +24,21 @@ pub enum DataNumber {
     I32(i32),
 }
 
+#[cfg(feature = "parse_unknown_fields")]
+fn parse_unknown_fields(remaining: &[u8], field_length: u16) -> IResult<&[u8], FieldValue> {
+    let (i, taken) = take(field_length)(remaining)?;
+    Ok((i, FieldValue::Vec(taken.to_vec())))
+}
+
+#[cfg(not(feature = "parse_unknown_fields"))]
+fn parse_unknown_fields(
+    remaining: &[u8],
+    field_type: FieldDataType,
+    field_length: u16,
+) -> IResult<&[u8], FieldValue> {
+    Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))
+}
+
 /// Convert into usize, mainly for serialization purposes
 impl DataNumber {
     /// Parse bytes into DataNumber Type
@@ -127,10 +142,7 @@ impl DataNumber {
                 let (i, taken) = take(field_length)(remaining)?;
                 (i, FieldValue::Vec(taken.to_vec()))
             }
-            FieldDataType::Unknown => {
-                let (i, taken) = take(field_length)(remaining)?;
-                (i, FieldValue::Vec(taken.to_vec()))
-            }
+            FieldDataType::Unknown => parse_unknown_fields(remaining, field_length)?,
         };
         Ok((remaining, field_value))
     }
