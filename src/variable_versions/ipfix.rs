@@ -287,11 +287,15 @@ fn parse_fields<'a, T: CommonTemplate>(
     let mut fields = vec![];
     let mut remaining = i;
 
-    let count: usize = i.len()
-        / template_fields
-            .iter()
-            .map(|m| m.field_length as usize)
-            .sum::<usize>();
+    let total_size = template_fields
+        .iter()
+        .map(|m| m.field_length as usize)
+        .sum::<usize>();
+
+    if total_size == 0 {
+        return Ok((&[], fields));
+    }
+    let count: usize = i.len() / total_size;
 
     let mut error = false;
 

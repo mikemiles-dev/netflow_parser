@@ -370,6 +370,10 @@ fn parse_fields<'a>(
     };
     let mut remaining = i;
 
+    if template.get_total_size() == 0 {
+        return Ok((&[], fields));
+    }
+
     let count = i.len() as u16 / template.get_total_size();
 
     for _ in 0..count {

@@ -1,3 +1,6 @@
+# 0.3.1
+  * Added 0 length check when parsing template lengths.
+
 # 0.3.0
   * Reworked IPFIX + V9 Parsing.  Flowset length is now used.
   * Flow data field Counts are now correctly calculated.
