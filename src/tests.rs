@@ -114,6 +114,7 @@ mod base_tests {
     }
 
     #[test]
+    #[cfg(feature = "parse_unknown_fields")]
     fn it_parses_multiple_packets() {
         let v9_packet = [
             0, 9, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,

@@ -16,7 +16,7 @@ mac_address = "1.1.5"
 serde = { version = "1.0.166", features = ["derive"] }
 
 [features]
-default = []
+default = ["parse_unknown_fields"]
 unix_timestamp = []
 parse_unknown_fields = []
 greedy_parsing = []
