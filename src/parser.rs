@@ -1,4 +1,3 @@
-use nom::number::complete::be_u16;
 use nom_derive::{Nom, Parse};
 
 use crate::static_versions::{v5::V5, v7::V7};
@@ -10,8 +9,7 @@ use crate::{NetflowPacketResult, NetflowParser};
 #[derive(Nom)]
 pub struct NetflowHeader {
     /// Netflow Version
-    #[nom(Map = "NetflowVersion::from", Parse = "be_u16")]
-    pub version: NetflowVersion,
+    pub version: u16,
 }
 
 pub enum NetflowHeaderResult<'a> {
@@ -26,72 +24,12 @@ impl NetflowHeader {
         packet: &[u8],
     ) -> Result<NetflowHeaderResult, Box<dyn std::error::Error>> {
         match NetflowHeader::parse_be(packet) {
-            Ok((i, header)) if header.version.is_v5() => Ok(NetflowHeaderResult::V5(i)),
-            Ok((i, header)) if header.version.is_v7() => Ok(NetflowHeaderResult::V7(i)),
-            Ok((i, header)) if header.version.is_v9() => Ok(NetflowHeaderResult::V9(i)),
-            Ok((i, header)) if header.version.is_ipfix() => Ok(NetflowHeaderResult::IPFix(i)),
+            Ok((i, header)) if header.version == 5 => Ok(NetflowHeaderResult::V5(i)),
+            Ok((i, header)) if header.version == 7 => Ok(NetflowHeaderResult::V7(i)),
+            Ok((i, header)) if header.version == 9 => Ok(NetflowHeaderResult::V9(i)),
+            Ok((i, header)) if header.version == 10 => Ok(NetflowHeaderResult::IPFix(i)),
             _ => Err(("Unsupported Version").into()),
         }
-    }
-}
-
-#[derive(PartialEq)]
-pub enum NetflowVersion {
-    V5,
-    V7,
-    V9,
-    IPFix,
-    Unsupported,
-}
-
-impl NetflowVersion {
-    pub fn is_v5(&self) -> bool {
-        *self == NetflowVersion::V5
-    }
-    pub fn is_v7(&self) -> bool {
-        *self == NetflowVersion::V7
-    }
-    pub fn is_v9(&self) -> bool {
-        *self == NetflowVersion::V9
-    }
-    pub fn is_ipfix(&self) -> bool {
-        *self == NetflowVersion::IPFix
-    }
-}
-
-impl From<u16> for NetflowVersion {
-    fn from(version: u16) -> Self {
-        match version {
-            5 => NetflowVersion::V5,
-            7 => NetflowVersion::V7,
-            9 => NetflowVersion::V9,
-            10 => NetflowVersion::IPFix,
-            _ => NetflowVersion::Unsupported,
-        }
-    }
-}
-
-impl From<V5> for NetflowPacketResult {
-    fn from(v5: V5) -> Self {
-        Self::V5(v5)
-    }
-}
-
-impl From<V7> for NetflowPacketResult {
-    fn from(v7: V7) -> Self {
-        Self::V7(v7)
-    }
-}
-
-impl From<V9> for NetflowPacketResult {
-    fn from(v9: V9) -> Self {
-        Self::V9(v9)
-    }
-}
-
-impl From<IPFix> for NetflowPacketResult {
-    fn from(ipfix: IPFix) -> Self {
-        Self::IPFix(ipfix)
     }
 }
 
@@ -102,25 +40,25 @@ pub type IPFixParsedResult<'a> = (&'a [u8], IPFix);
 
 impl<'a> From<V5ParsedResult<'a>> for ParsedNetflow {
     fn from((remaining, v5_parsed): V5ParsedResult) -> ParsedNetflow {
-        Self::new(remaining, v5_parsed.into())
+        Self::new(remaining, NetflowPacketResult::V5(v5_parsed))
     }
 }
 
 impl<'a> From<V7ParsedResult<'a>> for ParsedNetflow {
     fn from((remaining, v7_parsed): V7ParsedResult) -> ParsedNetflow {
-        Self::new(remaining, v7_parsed.into())
+        Self::new(remaining, NetflowPacketResult::V7(v7_parsed))
     }
 }
 
 impl<'a> From<V9ParsedResult<'a>> for ParsedNetflow {
     fn from((remaining, v9_parsed): V9ParsedResult) -> ParsedNetflow {
-        Self::new(remaining, v9_parsed.into())
+        Self::new(remaining, NetflowPacketResult::V9(v9_parsed))
     }
 }
 
 impl<'a> From<IPFixParsedResult<'a>> for ParsedNetflow {
     fn from((remaining, ipfix_parsed): IPFixParsedResult) -> ParsedNetflow {
-        Self::new(remaining, ipfix_parsed.into())
+        Self::new(remaining, NetflowPacketResult::IPFix(ipfix_parsed))
     }
 }
 
