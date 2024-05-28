@@ -154,7 +154,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
         nanos: 0
       sequence_number: 0
       observation_domain_id: 16909060
-    sets:
+    flowsets:
       - header:
           id: 2
           length: 20

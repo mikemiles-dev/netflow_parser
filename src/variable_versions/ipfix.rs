@@ -41,7 +41,7 @@ pub struct IPFix {
     pub header: Header,
     /// Sets
     #[nom(Parse = "{ |i| parse_sets(i, parser, header.length) }")]
-    pub sets: Vec<Set>,
+    pub flowsets: Vec<FlowSet>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
@@ -78,14 +78,14 @@ pub struct Header {
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut IPFixParser))]
-pub struct Set {
-    pub header: SetHeader,
+pub struct FlowSet {
+    pub header: FlowSetHeader,
     #[nom(Parse = "{ |i| parse_set_body(i, parser, header.length, header.id) }")]
-    pub body: SetBody,
+    pub body: FlowSetBody,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-pub struct SetHeader {
+pub struct FlowSetHeader {
     /// Set ID value identifies the Set. A value of 2 is reserved for the Template Set.
     /// A value of 3 is reserved for the Option Template Set. All other values 4-255 are
     /// reserved for future use. Values more than 255 are used for Data Sets. The Set ID
@@ -99,7 +99,7 @@ pub struct SetHeader {
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut IPFixParser, id: u16, length: u16))]
-pub struct SetBody {
+pub struct FlowSetBody {
     #[nom(
         Cond = "id == TEMPLATE_ID",
         // Save our templates
@@ -218,7 +218,7 @@ fn parse_sets<'a>(
     i: &'a [u8],
     parser: &mut IPFixParser,
     length: u16,
-) -> IResult<&'a [u8], Vec<Set>> {
+) -> IResult<&'a [u8], Vec<FlowSet>> {
     let length = length.checked_sub(16).unwrap_or(length);
     let (_, taken) = take(length)(i)?;
 
@@ -227,7 +227,7 @@ fn parse_sets<'a>(
     let mut remaining = taken;
 
     while !remaining.is_empty() {
-        let (i, set) = Set::parse(remaining, parser)?;
+        let (i, set) = FlowSet::parse(remaining, parser)?;
         sets.push(set);
         remaining = i;
     }
@@ -241,11 +241,11 @@ fn parse_set_body<'a>(
     parser: &mut IPFixParser,
     length: u16,
     id: u16,
-) -> IResult<&'a [u8], SetBody> {
+) -> IResult<&'a [u8], FlowSetBody> {
     // length - 4 to account for the set header
     let length = length.checked_sub(4).unwrap_or(length);
     let (remaining, taken) = take(length)(i)?;
-    let (_, set_body) = SetBody::parse(taken, parser, id, length)?;
+    let (_, set_body) = FlowSetBody::parse(taken, parser, id, length)?;
     Ok((remaining, set_body))
 }
 
