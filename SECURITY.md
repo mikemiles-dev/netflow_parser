@@ -4,25 +4,12 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.3.3   | :white_check_mark: |
+| 0.3.2   | :white_check_mark: |
 | 0.3.1   | :white_check_mark: |
 | 0.3.0   | :white_check_mark: |
 | 0.2.9   | :white_check_mark: |
 | 0.2.8   | :white_check_mark: |
 | 0.2.7   | :white_check_mark: |
 | 0.2.6   | :white_check_mark: |
-| 0.2.5   | :white_check_mark: |
-| 0.2.4   | :white_check_mark: |
-| 0.2.3   | :white_check_mark: |
-| 0.2.2   | :white_check_mark: |
-| 0.2.1   | :white_check_mark: |
-| 0.2.0   | :white_check_mark: |
-| 0.1.9   | :white_check_mark: |
-| 0.1.8   | :white_check_mark: |
-| 0.1.7   | :white_check_mark: |
-| 0.1.6   | :white_check_mark: |
-| 0.1.5   | :white_check_mark: |
-| 0.1.4   | :white_check_mark: |
-| 0.1.3   | :white_check_mark: |
-| 0.1.2   | :white_check_mark: |
-| 0.1.1   | :white_check_mark: |
-| 0.1.0   | :white_check_mark: |
+| <0.2.6  |   Not Supported    | 

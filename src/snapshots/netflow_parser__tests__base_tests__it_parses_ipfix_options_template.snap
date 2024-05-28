@@ -11,7 +11,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         nanos: 0
       sequence_number: 1
       observation_domain_id: 2
-    sets:
+    flowsets:
       - header:
           id: 3
           length: 28
@@ -31,4 +31,3 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               - field_type_number: 32810
                 field_type: ExportedFlowRecordTotalCount
                 field_length: 2
-

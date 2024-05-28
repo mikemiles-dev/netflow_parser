@@ -11,7 +11,7 @@ expression: parser.parse_bytes(&packet)
         nanos: 0
       sequence_number: 1
       observation_domain_id: 0
-    sets:
+    flowsets:
       - header:
           id: 258
           length: 10
@@ -22,4 +22,3 @@ expression: parser.parse_bytes(&packet)
                   DataNumber: 8
                 SourceIpv4address:
                   Ip4Addr: 0.0.1.1
-

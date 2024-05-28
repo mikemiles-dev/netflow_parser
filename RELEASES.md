@@ -1,3 +1,6 @@
+# 0.3.3
+ * Renamed Sets to FlowSets for IPFIX for consistency.
+
 # 0.3.2
  * Readme changes
 
