@@ -3,8 +3,9 @@ source: src/tests.rs
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
 - Error:
-    error_message: "Could not parse v10 packet: Parsing Error: Error { input: [], code: Fail }"
-    bytes:
+    error:
+      IPFix: "Parsing Error: Error { input: [], code: Fail }"
+    remaining:
       - 0
       - 10
       - 0

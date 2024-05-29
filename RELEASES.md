@@ -1,5 +1,6 @@
 # 0.3.3
  * Renamed Sets to FlowSets for IPFIX for consistency.
+ * Concrete error type for parsing
 
 # 0.3.2
  * Readme changes

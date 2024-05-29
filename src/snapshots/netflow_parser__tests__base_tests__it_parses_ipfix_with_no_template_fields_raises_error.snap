@@ -3,8 +3,9 @@ source: src/tests.rs
 expression: parser.parse_bytes(&packet)
 ---
 - Error:
-    error_message: "Could not parse v10 packet: Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: Fail }"
-    bytes:
+    error:
+      IPFix: "Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: Fail }"
+    remaining:
       - 0
       - 10
       - 0

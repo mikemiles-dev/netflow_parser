@@ -81,7 +81,7 @@ pub mod static_versions;
 mod tests;
 pub mod variable_versions;
 
-use parser::Parser;
+use parser::NetflowParseError;
 use static_versions::{v5::V5, v7::V7};
 use variable_versions::ipfix::{IPFix, IPFixParser};
 use variable_versions::v9::{V9Parser, V9};
@@ -123,8 +123,8 @@ impl NetflowPacketResult {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct NetflowPacketError {
-    pub error_message: String,
-    pub bytes: Vec<u8>,
+    pub error: NetflowParseError,
+    pub remaining: Vec<u8>,
 }
 
 #[derive(Default, Debug)]
@@ -160,14 +160,14 @@ impl NetflowParser {
         }
         self.parse(packet)
             .map(|parsed_netflow| {
-                let mut parsed = vec![parsed_netflow.netflow_packet];
+                let mut parsed = vec![parsed_netflow.result];
                 parsed.append(&mut self.parse_bytes(parsed_netflow.remaining.as_slice()));
                 parsed
             })
             .unwrap_or_else(|e| {
                 vec![NetflowPacketResult::Error(NetflowPacketError {
-                    error_message: e.to_string(),
-                    bytes: packet.to_vec(),
+                    error: e,
+                    remaining: packet.to_vec(),
                 })]
             })
     }
