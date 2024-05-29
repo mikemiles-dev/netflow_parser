@@ -7,7 +7,7 @@ mod base_tests {
     use crate::variable_versions::v9::{
         Template as V9Template, TemplateField as V9TemplateField,
     };
-    use crate::NetflowParser;
+    use crate::{NetflowPacketResult, NetflowParser};
 
     use hex;
     use insta::assert_yaml_snapshot;
@@ -47,6 +47,24 @@ mod base_tests {
             2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    #[cfg(not(feature = "unix_timestamp"))]
+    fn it_parses_v5_and_re_exports() {
+        let packet = [
+            0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+        if let NetflowPacketResult::V5(v5) = NetflowParser::default()
+            .parse_bytes(&packet)
+            .first()
+            .unwrap()
+        {
+            assert_yaml_snapshot!(v5.to_be_bytes());
+            assert_eq!(v5.to_be_bytes(), packet);
+        }
     }
 
     #[test]
