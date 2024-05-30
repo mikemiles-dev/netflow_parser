@@ -112,6 +112,7 @@ pub struct FlowSet {
 }
 
 impl V5 {
+    /// Convert the V5 struct to a Vec<u8> of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let header_version = self.header.version.to_be_bytes();
         let header_count = self.header.count.to_be_bytes();

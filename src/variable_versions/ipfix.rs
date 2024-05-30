@@ -339,6 +339,7 @@ fn parse_fields<'a, T: CommonTemplate>(
 }
 
 impl IPFix {
+    /// Convert the IPFix to a Vec<u8> of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let mut result = vec![];
 
