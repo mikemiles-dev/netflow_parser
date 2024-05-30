@@ -81,7 +81,7 @@ To access templates flowset of a processed V9/IPFix flowset you can find the `fl
 
 ## Features
 
-* `parse_unknown_fields`` - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
+* `parse_unknown_fields` - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
 
 ## Examples
 
