@@ -21,7 +21,7 @@ pub struct V5 {
     pub header: Header,
     /// V5 Sets
     #[nom(Count = "header.count")]
-    pub sets: Vec<FlowSet>,
+    pub flowsets: Vec<FlowSet>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
@@ -143,7 +143,7 @@ impl V5 {
 
         let mut flows = vec![];
 
-        for set in &self.sets {
+        for set in &self.flowsets {
             let src_addr = set.src_addr.octets();
             let dst_addr = set.dst_addr.octets();
             let next_hop = set.next_hop.octets();

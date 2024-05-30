@@ -48,7 +48,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
       engine_type: 6
       engine_id: 7
       sampling_interval: 2057
-    sets:
+    flowsets:
       - src_addr: 0.1.2.3
         dst_addr: 4.5.6.7
         next_hop: 8.9.0.1
@@ -85,7 +85,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
       unix_nsecs: 134807553
       flow_sequence: 33752069
       reserved: 101124105
-    sets:
+    flowsets:
       - src_addr: 0.1.2.3
         dst_addr: 4.5.6.7
         next_hop: 8.9.0.1
