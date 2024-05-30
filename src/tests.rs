@@ -39,7 +39,6 @@ mod base_tests {
     }
 
     #[test]
-    #[cfg(not(feature = "unix_timestamp"))]
     fn it_parses_v5() {
         let packet = [
             0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
@@ -50,7 +49,6 @@ mod base_tests {
     }
 
     #[test]
-    #[cfg(not(feature = "unix_timestamp"))]
     fn it_parses_v5_and_re_exports() {
         let packet = [
             0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
@@ -68,24 +66,12 @@ mod base_tests {
     }
 
     #[test]
-    #[cfg(feature = "unix_timestamp")]
-    fn it_parses_v5_timestamp() {
-        let packet = [
-            0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
-        ];
-        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
-    }
-
-    #[test]
     fn it_creates_error() {
         let packet = [12, 13, 14];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }
 
     #[test]
-    #[cfg(not(feature = "unix_timestamp"))]
     fn it_parses_v7() {
         let packet = [
             0, 7, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
@@ -96,7 +82,6 @@ mod base_tests {
     }
 
     #[test]
-    #[cfg(not(feature = "unix_timestamp"))]
     fn it_parses_v7_and_re_exports() {
         let packet = [
             0, 7, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
@@ -114,17 +99,6 @@ mod base_tests {
     }
 
     #[test]
-    #[cfg(feature = "unix_timestamp")]
-    fn it_parses_v7_timestamp() {
-        let packet = [
-            0, 7, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        ];
-        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
-    }
-
-    #[test]
     fn it_parses_v9() {
         let packet = [
             0, 9, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,
@@ -134,7 +108,6 @@ mod base_tests {
     }
 
     #[test]
-    #[cfg(not(feature = "unix_timestamp"))]
     fn it_parses_v9_and_re_exports() {
         let packet = [
             0, 9, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,
@@ -256,7 +229,6 @@ mod base_tests {
     }
 
     #[test]
-    #[cfg(not(feature = "unix_timestamp"))]
     fn it_parses_ipfix_and_re_exports() {
         let packet = [
             0, 10, 0, 64, 1, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 0, 20, 1, 0, 0, 3, 0, 8, 0,

@@ -6,8 +6,6 @@
 use crate::protocol::ProtocolTypes;
 
 use nom::number::complete::be_u32;
-#[cfg(feature = "unix_timestamp")]
-use nom::number::complete::be_u64;
 use nom_derive::*;
 use serde::Serialize;
 use Nom;
@@ -34,20 +32,9 @@ pub struct Header {
     /// Current time in milliseconds since the export device booted
     #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
     pub sys_up_time: Duration,
-
-    /// Current count since 0000 UTC 1970
-    #[cfg(feature = "unix_timestamp")]
-    #[nom(
-        Map = "|i| Duration::new((i >> 32) as u32 as u64, (i as u32))",
-        Parse = "be_u64"
-    )]
-    pub unix_time: Duration,
-
     /// Current count of seconds since 0000 UTC 1970
-    #[cfg(not(feature = "unix_timestamp"))]
     pub unix_secs: u32,
     /// Residual nanoseconds since 0000 UTC 1970
-    #[cfg(not(feature = "unix_timestamp"))]
     pub unix_nsecs: u32,
 
     /// Sequence counter of total flows seen
@@ -117,13 +104,8 @@ impl V5 {
         let header_version = self.header.version.to_be_bytes();
         let header_count = self.header.count.to_be_bytes();
         let header_sys_up_time = (self.header.sys_up_time.as_millis() as u32).to_be_bytes();
-        #[cfg(feature = "unix_timestamp")]
-        let header_unix_timestamp = self.header.unix_time.as_millis().to_be_bytes();
-        #[cfg(not(feature = "unix_timestamp"))]
         let mut header_unix_timestamp = self.header.unix_secs.to_be_bytes().to_vec();
-        #[cfg(not(feature = "unix_timestamp"))]
         let header_unix_nsecs = self.header.unix_nsecs.to_be_bytes().to_vec();
-        #[cfg(not(feature = "unix_timestamp"))]
         header_unix_timestamp.extend_from_slice(&header_unix_nsecs);
         let header_flow_seq = self.header.flow_sequence.to_be_bytes();
         let header_engine_type = self.header.engine_type.to_be_bytes();

@@ -17,7 +17,6 @@ serde = { version = "1.0.166", features = ["derive"] }
 
 [features]
 default = ["parse_unknown_fields"]
-unix_timestamp = []
 parse_unknown_fields = []
 
 [dev-dependencies]

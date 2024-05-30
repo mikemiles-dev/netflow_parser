@@ -63,8 +63,7 @@ To access templates flowset of a processed V9/IPFix flowset you can find the `fl
 
 ## Features
 
-* unix_timestamp - When enabled a field `unix_time` is provided that uses the flow unix time as a count since 0000 UTC 1970 as Duration.
-* parse_unknown_fields - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
+* `parse_unknown_fields`` - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
 
 ## Examples
 

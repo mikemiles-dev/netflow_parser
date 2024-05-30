@@ -3,6 +3,7 @@
  * Concrete error type for parsing
  * V5, V7, V9, IPFix now supports exporting back into bytes with `to_be_bytes`.
  * V9,IPFix field maps are now keyed by order.
+ * Removed unix timestamp feature.  May re-implement in the future.
 
 # 0.3.2
  * Readme changes
