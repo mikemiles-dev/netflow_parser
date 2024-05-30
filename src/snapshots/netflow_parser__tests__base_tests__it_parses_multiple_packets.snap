@@ -31,10 +31,12 @@ expression: "NetflowParser::default().parse_bytes(&all)"
         body:
           data:
             data_fields:
-              - InBytes:
-                  DataNumber: 151126788
-                Ipv4SrcAddr:
-                  Ip4Addr: 9.9.9.8
+              - 0:
+                  - InBytes
+                  - DataNumber: 151126788
+                1:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 9.9.9.8
 - V5:
     header:
       version: 5
@@ -141,10 +143,12 @@ expression: "NetflowParser::default().parse_bytes(&all)"
         body:
           data:
             data_fields:
-              - InBytes:
-                  DataNumber: 151126788
-                Ipv4SrcAddr:
-                  Ip4Addr: 9.9.9.8
+              - 0:
+                  - InBytes
+                  - DataNumber: 151126788
+                1:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 9.9.9.8
 - IPFix:
     header:
       version: 10

@@ -23,6 +23,7 @@ const OPTIONS_TEMPLATE_ID: u16 = 1;
 const FLOW_SET_MIN_RANGE: u16 = 255;
 
 type TemplateId = u16;
+type V9FieldPair = (V9Field, FieldValue);
 
 #[derive(Default, Debug)]
 pub struct V9Parser {
@@ -262,7 +263,7 @@ pub struct ScopeDataField {
 pub struct Data {
     // Data Fields
     #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flow_set_id)) }")]
-    pub data_fields: Vec<BTreeMap<V9Field, FieldValue>>,
+    pub data_fields: Vec<BTreeMap<usize, V9FieldPair>>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -353,7 +354,7 @@ fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> 
 fn parse_fields<'a>(
     i: &'a [u8],
     template: Option<&Template>,
-) -> IResult<&'a [u8], Vec<BTreeMap<V9Field, FieldValue>>> {
+) -> IResult<&'a [u8], Vec<BTreeMap<usize, V9FieldPair>>> {
     let template = match template {
         Some(t) => t,
         None => {
@@ -378,7 +379,7 @@ fn parse_fields<'a>(
 
     for _ in 0..count {
         let mut data_field = BTreeMap::new();
-        for template_field in template.fields.iter() {
+        for (c, template_field) in template.fields.iter().enumerate() {
             let field_type: FieldDataType = template_field.field_type.into();
             let (i, field_value) = DataNumber::from_field_type(
                 remaining,
@@ -386,7 +387,7 @@ fn parse_fields<'a>(
                 template_field.field_length,
             )?;
             remaining = i;
-            data_field.insert(template_field.field_type, field_value);
+            data_field.insert(c, (template_field.field_type, field_value));
         }
         fields.push(data_field);
     }
@@ -429,4 +430,92 @@ fn parse_scope_data_fields<'a>(
         fields.push(v9_data_field)
     }
     Ok((remaining, fields))
+}
+
+impl V9 {
+    /// Convert the V9 struct to a Vec<u8> of bytes in big-endian order for exporting
+    pub fn to_be_bytes(&self) -> Vec<u8> {
+        let mut result = vec![];
+
+        result.extend_from_slice(&self.header.version.to_be_bytes());
+        result.extend_from_slice(&self.header.count.to_be_bytes());
+        result.extend_from_slice(&self.header.sys_up_time.to_be_bytes());
+        result.extend_from_slice(&self.header.unix_secs.to_be_bytes());
+        result.extend_from_slice(&self.header.sequence_number.to_be_bytes());
+        result.extend_from_slice(&self.header.source_id.to_be_bytes());
+
+        for set in self.flowsets.iter() {
+            result.extend_from_slice(&set.header.flow_set_id.to_be_bytes());
+            result.extend_from_slice(&set.header.length.to_be_bytes());
+
+            if let Some(templates) = &set.body.templates {
+                for template in templates.iter() {
+                    result.extend_from_slice(&template.template_id.to_be_bytes());
+                    result.extend_from_slice(&template.field_count.to_be_bytes());
+                    for field in template.fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                    }
+                }
+            }
+
+            if let Some(options_templates) = &set.body.options_templates {
+                for template in options_templates.iter() {
+                    result.extend_from_slice(&template.template_id.to_be_bytes());
+                    result.extend_from_slice(&template.options_scope_length.to_be_bytes());
+                    result.extend_from_slice(&template.options_length.to_be_bytes());
+                    for field in template.scope_fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                    }
+                    for field in template.option_fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                    }
+                }
+            }
+
+            if let Some(data) = &set.body.data {
+                for data_field in data.data_fields.iter() {
+                    for (_field_type, (_, field_value)) in data_field.iter() {
+                        result.extend_from_slice(&field_value.to_be_bytes());
+                    }
+                }
+            }
+
+            if let Some(options_data) = &set.body.options_data {
+                for scope_field in options_data.scope_fields.iter() {
+                    match scope_field {
+                        ScopeDataField {
+                            system: Some(system),
+                            ..
+                        } => result.extend_from_slice(system.as_slice()),
+                        ScopeDataField {
+                            interface: Some(interface),
+                            ..
+                        } => result.extend_from_slice(interface.as_slice()),
+                        ScopeDataField {
+                            line_card: Some(line_card),
+                            ..
+                        } => result.extend_from_slice(line_card.as_slice()),
+                        ScopeDataField {
+                            net_flow_cache: Some(net_flow_cache),
+                            ..
+                        } => result.extend_from_slice(net_flow_cache.as_slice()),
+                        ScopeDataField {
+                            template: Some(template),
+                            ..
+                        } => result.extend_from_slice(template.as_slice()),
+                        _ => {}
+                    }
+                }
+
+                for option_field in options_data.options_fields.iter() {
+                    result.extend_from_slice(&option_field.field_value);
+                }
+            }
+        }
+
+        result
+    }
 }

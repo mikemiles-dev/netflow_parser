@@ -290,342 +290,486 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         body:
           data:
             data_fields:
-              - InBytes:
-                  DataNumber: 1215
-                InPkts:
-                  DataNumber: 9
-                Protocol:
-                  ProtocolType: Tcp
-                SrcTos:
-                  DataNumber: 0
-                TcpFlags:
-                  DataNumber: 25
-                L4SrcPort:
-                  DataNumber: 58068
-                InputSnmp:
-                  DataNumber: 0
-                L4DstPort:
-                  DataNumber: 443
-                OutputSnmp:
-                  DataNumber: 0
-                LastSwitched:
-                  Duration:
-                    secs: 42
-                    nanos: 8000000
-                FirstSwitched:
-                  Duration:
-                    secs: 5
-                    nanos: 637000000
-                Ipv6SrcAddr:
-                  Ip6Addr: "2003:d1:ef3b:2200:fe34:97ff:feb7:686e"
-                Ipv6DstAddr:
-                  Ip6Addr: "2606:4700:3032::6815:5338"
-                IpProtocolVersion:
-                  DataNumber: 6
-                Direction:
-                  DataNumber: 0
-                Unknown:
-                  Vec:
-                    - 3
-              - InBytes:
-                  DataNumber: 180
-                InPkts:
-                  DataNumber: 3
-                Protocol:
-                  ProtocolType: Tcp
-                SrcTos:
-                  DataNumber: 0
-                TcpFlags:
-                  DataNumber: 4
-                L4SrcPort:
-                  DataNumber: 443
-                InputSnmp:
-                  DataNumber: 0
-                L4DstPort:
-                  DataNumber: 58068
-                OutputSnmp:
-                  DataNumber: 0
-                LastSwitched:
-                  Duration:
-                    secs: 42
-                    nanos: 8000000
-                FirstSwitched:
-                  Duration:
-                    secs: 5
-                    nanos: 637000000
-                Ipv6SrcAddr:
-                  Ip6Addr: "2606:4700:3032::6815:5338"
-                Ipv6DstAddr:
-                  Ip6Addr: "2003:d1:ef3b:2200:fe34:97ff:feb7:686e"
-                IpProtocolVersion:
-                  DataNumber: 6
-                Direction:
-                  DataNumber: 1
-                Unknown:
-                  Vec:
-                    - 3
-              - InBytes:
-                  DataNumber: 60
-                InPkts:
-                  DataNumber: 1
-                Protocol:
-                  ProtocolType: Tcp
-                SrcTos:
-                  DataNumber: 0
-                TcpFlags:
-                  DataNumber: 20
-                L4SrcPort:
-                  DataNumber: 8081
-                InputSnmp:
-                  DataNumber: 0
-                L4DstPort:
-                  DataNumber: 43754
-                OutputSnmp:
-                  DataNumber: 0
-                LastSwitched:
-                  Duration:
-                    secs: 20
-                    nanos: 268000000
-                FirstSwitched:
-                  Duration:
-                    secs: 20
-                    nanos: 268000000
-                Ipv6SrcAddr:
-                  Ip6Addr: "::1"
-                Ipv6DstAddr:
-                  Ip6Addr: "::1"
-                IpProtocolVersion:
-                  DataNumber: 6
-                Direction:
-                  DataNumber: 0
-                Unknown:
-                  Vec:
-                    - 3
+              - 0:
+                  - Ipv6SrcAddr
+                  - Ip6Addr: "2003:d1:ef3b:2200:fe34:97ff:feb7:686e"
+                1:
+                  - Ipv6DstAddr
+                  - Ip6Addr: "2606:4700:3032::6815:5338"
+                2:
+                  - FirstSwitched
+                  - Duration:
+                      secs: 5
+                      nanos: 637000000
+                3:
+                  - LastSwitched
+                  - Duration:
+                      secs: 42
+                      nanos: 8000000
+                4:
+                  - InBytes
+                  - DataNumber: 1215
+                5:
+                  - InPkts
+                  - DataNumber: 9
+                6:
+                  - InputSnmp
+                  - DataNumber: 0
+                7:
+                  - OutputSnmp
+                  - DataNumber: 0
+                8:
+                  - Direction
+                  - DataNumber: 0
+                9:
+                  - Unknown
+                  - Vec:
+                      - 3
+                10:
+                  - L4SrcPort
+                  - DataNumber: 58068
+                11:
+                  - L4DstPort
+                  - DataNumber: 443
+                12:
+                  - Protocol
+                  - ProtocolType: Tcp
+                13:
+                  - TcpFlags
+                  - DataNumber: 25
+                14:
+                  - IpProtocolVersion
+                  - DataNumber: 6
+                15:
+                  - SrcTos
+                  - DataNumber: 0
+              - 0:
+                  - Ipv6SrcAddr
+                  - Ip6Addr: "2606:4700:3032::6815:5338"
+                1:
+                  - Ipv6DstAddr
+                  - Ip6Addr: "2003:d1:ef3b:2200:fe34:97ff:feb7:686e"
+                2:
+                  - FirstSwitched
+                  - Duration:
+                      secs: 5
+                      nanos: 637000000
+                3:
+                  - LastSwitched
+                  - Duration:
+                      secs: 42
+                      nanos: 8000000
+                4:
+                  - InBytes
+                  - DataNumber: 180
+                5:
+                  - InPkts
+                  - DataNumber: 3
+                6:
+                  - InputSnmp
+                  - DataNumber: 0
+                7:
+                  - OutputSnmp
+                  - DataNumber: 0
+                8:
+                  - Direction
+                  - DataNumber: 1
+                9:
+                  - Unknown
+                  - Vec:
+                      - 3
+                10:
+                  - L4SrcPort
+                  - DataNumber: 443
+                11:
+                  - L4DstPort
+                  - DataNumber: 58068
+                12:
+                  - Protocol
+                  - ProtocolType: Tcp
+                13:
+                  - TcpFlags
+                  - DataNumber: 4
+                14:
+                  - IpProtocolVersion
+                  - DataNumber: 6
+                15:
+                  - SrcTos
+                  - DataNumber: 0
+              - 0:
+                  - Ipv6SrcAddr
+                  - Ip6Addr: "::1"
+                1:
+                  - Ipv6DstAddr
+                  - Ip6Addr: "::1"
+                2:
+                  - FirstSwitched
+                  - Duration:
+                      secs: 20
+                      nanos: 268000000
+                3:
+                  - LastSwitched
+                  - Duration:
+                      secs: 20
+                      nanos: 268000000
+                4:
+                  - InBytes
+                  - DataNumber: 60
+                5:
+                  - InPkts
+                  - DataNumber: 1
+                6:
+                  - InputSnmp
+                  - DataNumber: 0
+                7:
+                  - OutputSnmp
+                  - DataNumber: 0
+                8:
+                  - Direction
+                  - DataNumber: 0
+                9:
+                  - Unknown
+                  - Vec:
+                      - 3
+                10:
+                  - L4SrcPort
+                  - DataNumber: 8081
+                11:
+                  - L4DstPort
+                  - DataNumber: 43754
+                12:
+                  - Protocol
+                  - ProtocolType: Tcp
+                13:
+                  - TcpFlags
+                  - DataNumber: 20
+                14:
+                  - IpProtocolVersion
+                  - DataNumber: 6
+                15:
+                  - SrcTos
+                  - DataNumber: 0
       - header:
           flow_set_id: 1024
           length: 256
         body:
           data:
             data_fields:
-              - InBytes:
-                  DataNumber: 2930
-                InPkts:
-                  DataNumber: 24
-                Protocol:
-                  ProtocolType: Tcp
-                SrcTos:
-                  DataNumber: 0
-                TcpFlags:
-                  DataNumber: 26
-                L4SrcPort:
-                  DataNumber: 5222
-                Ipv4SrcAddr:
-                  Ip4Addr: 157.240.251.61
-                InputSnmp:
-                  DataNumber: 0
-                L4DstPort:
-                  DataNumber: 44112
-                Ipv4DstAddr:
-                  Ip4Addr: 192.168.1.215
-                OutputSnmp:
-                  DataNumber: 0
-                LastSwitched:
-                  Duration:
-                    secs: 30
-                    nanos: 421000000
-                FirstSwitched:
-                  Duration:
-                    secs: 25
-                    nanos: 352000000
-                IpProtocolVersion:
-                  DataNumber: 4
-                Direction:
-                  DataNumber: 0
-                Unknown:
-                  Vec:
-                    - 3
-              - InBytes:
-                  DataNumber: 3639
-                InPkts:
-                  DataNumber: 33
-                Protocol:
-                  ProtocolType: Tcp
-                SrcTos:
-                  DataNumber: 0
-                TcpFlags:
-                  DataNumber: 30
-                L4SrcPort:
-                  DataNumber: 44112
-                Ipv4SrcAddr:
-                  Ip4Addr: 192.168.1.215
-                InputSnmp:
-                  DataNumber: 0
-                L4DstPort:
-                  DataNumber: 5222
-                Ipv4DstAddr:
-                  Ip4Addr: 157.240.251.61
-                OutputSnmp:
-                  DataNumber: 0
-                LastSwitched:
-                  Duration:
-                    secs: 30
-                    nanos: 421000000
-                FirstSwitched:
-                  Duration:
-                    secs: 25
-                    nanos: 352000000
-                IpProtocolVersion:
-                  DataNumber: 4
-                Direction:
-                  DataNumber: 1
-                Unknown:
-                  Vec:
-                    - 3
-              - InBytes:
-                  DataNumber: 1213
-                InPkts:
-                  DataNumber: 11
-                Protocol:
-                  ProtocolType: Tcp
-                SrcTos:
-                  DataNumber: 0
-                TcpFlags:
-                  DataNumber: 30
-                L4SrcPort:
-                  DataNumber: 44112
-                Ipv4SrcAddr:
-                  Ip4Addr: 93.209.14.73
-                InputSnmp:
-                  DataNumber: 0
-                L4DstPort:
-                  DataNumber: 5222
-                Ipv4DstAddr:
-                  Ip4Addr: 157.240.251.61
-                OutputSnmp:
-                  DataNumber: 0
-                LastSwitched:
-                  Duration:
-                    secs: 30
-                    nanos: 422000000
-                FirstSwitched:
-                  Duration:
-                    secs: 25
-                    nanos: 352000000
-                IpProtocolVersion:
-                  DataNumber: 4
-                Direction:
-                  DataNumber: 0
-                Unknown:
-                  Vec:
-                    - 3
-              - InBytes:
-                  DataNumber: 1465
-                InPkts:
-                  DataNumber: 12
-                Protocol:
-                  ProtocolType: Tcp
-                SrcTos:
-                  DataNumber: 0
-                TcpFlags:
-                  DataNumber: 26
-                L4SrcPort:
-                  DataNumber: 5222
-                Ipv4SrcAddr:
-                  Ip4Addr: 157.240.251.61
-                InputSnmp:
-                  DataNumber: 0
-                L4DstPort:
-                  DataNumber: 44112
-                Ipv4DstAddr:
-                  Ip4Addr: 93.209.14.73
-                OutputSnmp:
-                  DataNumber: 0
-                LastSwitched:
-                  Duration:
-                    secs: 30
-                    nanos: 422000000
-                FirstSwitched:
-                  Duration:
-                    secs: 25
-                    nanos: 352000000
-                IpProtocolVersion:
-                  DataNumber: 4
-                Direction:
-                  DataNumber: 1
-                Unknown:
-                  Vec:
-                    - 3
-              - InBytes:
-                  DataNumber: 635
-                InPkts:
-                  DataNumber: 9
-                Protocol:
-                  ProtocolType: Tcp
-                SrcTos:
-                  DataNumber: 0
-                TcpFlags:
-                  DataNumber: 25
-                L4SrcPort:
-                  DataNumber: 41796
-                Ipv4SrcAddr:
-                  Ip4Addr: 192.168.1.37
-                InputSnmp:
-                  DataNumber: 0
-                L4DstPort:
-                  DataNumber: 443
-                Ipv4DstAddr:
-                  Ip4Addr: 198.252.206.25
-                OutputSnmp:
-                  DataNumber: 0
-                LastSwitched:
-                  Duration:
-                    secs: 43
-                    nanos: 469000000
-                FirstSwitched:
-                  Duration:
-                    secs: 43
-                    nanos: 288000000
-                IpProtocolVersion:
-                  DataNumber: 4
-                Direction:
-                  DataNumber: 0
-                Unknown:
-                  Vec:
-                    - 3
-              - InBytes:
-                  DataNumber: 264
-                InPkts:
-                  DataNumber: 6
-                Protocol:
-                  ProtocolType: Tcp
-                SrcTos:
-                  DataNumber: 0
-                TcpFlags:
-                  DataNumber: 21
-                L4SrcPort:
-                  DataNumber: 443
-                Ipv4SrcAddr:
-                  Ip4Addr: 198.252.206.25
-                InputSnmp:
-                  DataNumber: 0
-                L4DstPort:
-                  DataNumber: 41796
-                Ipv4DstAddr:
-                  Ip4Addr: 192.168.1.37
-                OutputSnmp:
-                  DataNumber: 0
-                LastSwitched:
-                  Duration:
-                    secs: 43
-                    nanos: 469000000
-                FirstSwitched:
-                  Duration:
-                    secs: 43
-                    nanos: 288000000
-                IpProtocolVersion:
-                  DataNumber: 4
-                Direction:
-                  DataNumber: 1
-                Unknown:
-                  Vec:
-                    - 3
+              - 0:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 157.240.251.61
+                1:
+                  - Ipv4DstAddr
+                  - Ip4Addr: 192.168.1.215
+                2:
+                  - FirstSwitched
+                  - Duration:
+                      secs: 25
+                      nanos: 352000000
+                3:
+                  - LastSwitched
+                  - Duration:
+                      secs: 30
+                      nanos: 421000000
+                4:
+                  - InBytes
+                  - DataNumber: 2930
+                5:
+                  - InPkts
+                  - DataNumber: 24
+                6:
+                  - InputSnmp
+                  - DataNumber: 0
+                7:
+                  - OutputSnmp
+                  - DataNumber: 0
+                8:
+                  - Direction
+                  - DataNumber: 0
+                9:
+                  - Unknown
+                  - Vec:
+                      - 3
+                10:
+                  - L4SrcPort
+                  - DataNumber: 5222
+                11:
+                  - L4DstPort
+                  - DataNumber: 44112
+                12:
+                  - Protocol
+                  - ProtocolType: Tcp
+                13:
+                  - TcpFlags
+                  - DataNumber: 26
+                14:
+                  - IpProtocolVersion
+                  - DataNumber: 4
+                15:
+                  - SrcTos
+                  - DataNumber: 0
+              - 0:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 192.168.1.215
+                1:
+                  - Ipv4DstAddr
+                  - Ip4Addr: 157.240.251.61
+                2:
+                  - FirstSwitched
+                  - Duration:
+                      secs: 25
+                      nanos: 352000000
+                3:
+                  - LastSwitched
+                  - Duration:
+                      secs: 30
+                      nanos: 421000000
+                4:
+                  - InBytes
+                  - DataNumber: 3639
+                5:
+                  - InPkts
+                  - DataNumber: 33
+                6:
+                  - InputSnmp
+                  - DataNumber: 0
+                7:
+                  - OutputSnmp
+                  - DataNumber: 0
+                8:
+                  - Direction
+                  - DataNumber: 1
+                9:
+                  - Unknown
+                  - Vec:
+                      - 3
+                10:
+                  - L4SrcPort
+                  - DataNumber: 44112
+                11:
+                  - L4DstPort
+                  - DataNumber: 5222
+                12:
+                  - Protocol
+                  - ProtocolType: Tcp
+                13:
+                  - TcpFlags
+                  - DataNumber: 30
+                14:
+                  - IpProtocolVersion
+                  - DataNumber: 4
+                15:
+                  - SrcTos
+                  - DataNumber: 0
+              - 0:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 93.209.14.73
+                1:
+                  - Ipv4DstAddr
+                  - Ip4Addr: 157.240.251.61
+                2:
+                  - FirstSwitched
+                  - Duration:
+                      secs: 25
+                      nanos: 352000000
+                3:
+                  - LastSwitched
+                  - Duration:
+                      secs: 30
+                      nanos: 422000000
+                4:
+                  - InBytes
+                  - DataNumber: 1213
+                5:
+                  - InPkts
+                  - DataNumber: 11
+                6:
+                  - InputSnmp
+                  - DataNumber: 0
+                7:
+                  - OutputSnmp
+                  - DataNumber: 0
+                8:
+                  - Direction
+                  - DataNumber: 0
+                9:
+                  - Unknown
+                  - Vec:
+                      - 3
+                10:
+                  - L4SrcPort
+                  - DataNumber: 44112
+                11:
+                  - L4DstPort
+                  - DataNumber: 5222
+                12:
+                  - Protocol
+                  - ProtocolType: Tcp
+                13:
+                  - TcpFlags
+                  - DataNumber: 30
+                14:
+                  - IpProtocolVersion
+                  - DataNumber: 4
+                15:
+                  - SrcTos
+                  - DataNumber: 0
+              - 0:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 157.240.251.61
+                1:
+                  - Ipv4DstAddr
+                  - Ip4Addr: 93.209.14.73
+                2:
+                  - FirstSwitched
+                  - Duration:
+                      secs: 25
+                      nanos: 352000000
+                3:
+                  - LastSwitched
+                  - Duration:
+                      secs: 30
+                      nanos: 422000000
+                4:
+                  - InBytes
+                  - DataNumber: 1465
+                5:
+                  - InPkts
+                  - DataNumber: 12
+                6:
+                  - InputSnmp
+                  - DataNumber: 0
+                7:
+                  - OutputSnmp
+                  - DataNumber: 0
+                8:
+                  - Direction
+                  - DataNumber: 1
+                9:
+                  - Unknown
+                  - Vec:
+                      - 3
+                10:
+                  - L4SrcPort
+                  - DataNumber: 5222
+                11:
+                  - L4DstPort
+                  - DataNumber: 44112
+                12:
+                  - Protocol
+                  - ProtocolType: Tcp
+                13:
+                  - TcpFlags
+                  - DataNumber: 26
+                14:
+                  - IpProtocolVersion
+                  - DataNumber: 4
+                15:
+                  - SrcTos
+                  - DataNumber: 0
+              - 0:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 192.168.1.37
+                1:
+                  - Ipv4DstAddr
+                  - Ip4Addr: 198.252.206.25
+                2:
+                  - FirstSwitched
+                  - Duration:
+                      secs: 43
+                      nanos: 288000000
+                3:
+                  - LastSwitched
+                  - Duration:
+                      secs: 43
+                      nanos: 469000000
+                4:
+                  - InBytes
+                  - DataNumber: 635
+                5:
+                  - InPkts
+                  - DataNumber: 9
+                6:
+                  - InputSnmp
+                  - DataNumber: 0
+                7:
+                  - OutputSnmp
+                  - DataNumber: 0
+                8:
+                  - Direction
+                  - DataNumber: 0
+                9:
+                  - Unknown
+                  - Vec:
+                      - 3
+                10:
+                  - L4SrcPort
+                  - DataNumber: 41796
+                11:
+                  - L4DstPort
+                  - DataNumber: 443
+                12:
+                  - Protocol
+                  - ProtocolType: Tcp
+                13:
+                  - TcpFlags
+                  - DataNumber: 25
+                14:
+                  - IpProtocolVersion
+                  - DataNumber: 4
+                15:
+                  - SrcTos
+                  - DataNumber: 0
+              - 0:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 198.252.206.25
+                1:
+                  - Ipv4DstAddr
+                  - Ip4Addr: 192.168.1.37
+                2:
+                  - FirstSwitched
+                  - Duration:
+                      secs: 43
+                      nanos: 288000000
+                3:
+                  - LastSwitched
+                  - Duration:
+                      secs: 43
+                      nanos: 469000000
+                4:
+                  - InBytes
+                  - DataNumber: 264
+                5:
+                  - InPkts
+                  - DataNumber: 6
+                6:
+                  - InputSnmp
+                  - DataNumber: 0
+                7:
+                  - OutputSnmp
+                  - DataNumber: 0
+                8:
+                  - Direction
+                  - DataNumber: 1
+                9:
+                  - Unknown
+                  - Vec:
+                      - 3
+                10:
+                  - L4SrcPort
+                  - DataNumber: 443
+                11:
+                  - L4DstPort
+                  - DataNumber: 41796
+                12:
+                  - Protocol
+                  - ProtocolType: Tcp
+                13:
+                  - TcpFlags
+                  - DataNumber: 21
+                14:
+                  - IpProtocolVersion
+                  - DataNumber: 4
+                15:
+                  - SrcTos
+                  - DataNumber: 0
