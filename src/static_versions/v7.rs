@@ -109,3 +109,82 @@ pub struct FlowSet {
     #[nom(Map = "Ipv4Addr::from", Parse = "be_u32")]
     pub router_src: Ipv4Addr,
 }
+
+impl V7 {
+    pub fn to_be_bytes(&self) -> Vec<u8> {
+        let header_version = self.header.version.to_be_bytes();
+        let header_count = self.header.count.to_be_bytes();
+        let header_sys_up_time = (self.header.sys_up_time.as_millis() as u32).to_be_bytes();
+        #[cfg(feature = "unix_timestamp")]
+        let header_unix_timestamp = self.header.unix_time.as_millis().to_be_bytes();
+        #[cfg(not(feature = "unix_timestamp"))]
+        let mut header_unix_timestamp = self.header.unix_secs.to_be_bytes().to_vec();
+        #[cfg(not(feature = "unix_timestamp"))]
+        let header_unix_nsecs = self.header.unix_nsecs.to_be_bytes().to_vec();
+        #[cfg(not(feature = "unix_timestamp"))]
+        header_unix_timestamp.extend_from_slice(&header_unix_nsecs);
+        let header_flow_seq = self.header.flow_sequence.to_be_bytes();
+        let reserved = self.header.reserved.to_be_bytes();
+
+        let mut result = vec![];
+
+        result.extend_from_slice(&header_version);
+        result.extend_from_slice(&header_count);
+        result.extend_from_slice(&header_sys_up_time);
+        result.extend_from_slice(&header_unix_timestamp);
+        result.extend_from_slice(&header_flow_seq);
+        result.extend_from_slice(&reserved);
+
+        let mut flows = vec![];
+
+        for set in &self.sets {
+            let src_addr = set.src_addr.octets();
+            let dst_addr = set.dst_addr.octets();
+            let next_hop = set.next_hop.octets();
+            let input = set.input.to_be_bytes();
+            let output = set.output.to_be_bytes();
+            let d_pkts = set.d_pkts.to_be_bytes();
+            let d_octets = set.d_octets.to_be_bytes();
+            let first = (set.first.as_millis() as u32).to_be_bytes();
+            let last = (set.last.as_millis() as u32).to_be_bytes();
+            let src_port = set.src_port.to_be_bytes();
+            let dst_ports = set.dst_port.to_be_bytes();
+            let flag_field_valid = set.flags_fields_valid.to_be_bytes();
+            let tcp_flags = set.tcp_flags.to_be_bytes();
+            let proto = set.protocol_number.to_be_bytes();
+            let tos = set.tos.to_be_bytes();
+            let src_as = set.src_as.to_be_bytes();
+            let dst_as = set.dst_as.to_be_bytes();
+            let src_mask = set.src_mask.to_be_bytes();
+            let dst_mask = set.dst_mask.to_be_bytes();
+            let flag_field_invalid = set.flags_fields_invalid.to_be_bytes();
+            let router_src = set.router_src.octets();
+
+            flows.extend_from_slice(&src_addr);
+            flows.extend_from_slice(&dst_addr);
+            flows.extend_from_slice(&next_hop);
+            flows.extend_from_slice(&input);
+            flows.extend_from_slice(&output);
+            flows.extend_from_slice(&d_pkts);
+            flows.extend_from_slice(&d_octets);
+            flows.extend_from_slice(&first);
+            flows.extend_from_slice(&last);
+            flows.extend_from_slice(&src_port);
+            flows.extend_from_slice(&dst_ports);
+            flows.extend_from_slice(&flag_field_valid);
+            flows.extend_from_slice(&tcp_flags);
+            flows.extend_from_slice(&proto);
+            flows.extend_from_slice(&tos);
+            flows.extend_from_slice(&src_as);
+            flows.extend_from_slice(&dst_as);
+            flows.extend_from_slice(&src_mask);
+            flows.extend_from_slice(&dst_mask);
+            flows.extend_from_slice(&flag_field_invalid);
+            flows.extend_from_slice(&router_src);
+        }
+
+        result.extend_from_slice(&flows);
+
+        result
+    }
+}

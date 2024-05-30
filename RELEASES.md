@@ -1,6 +1,7 @@
 # 0.3.3
  * Renamed Sets to FlowSets for IPFIX for consistency.
  * Concrete error type for parsing
+ * V5, V7, V9, IPFix now supports exporting back into bytes with `to_be_bytes`.
 
 # 0.3.2
  * Readme changes

@@ -96,6 +96,24 @@ mod base_tests {
     }
 
     #[test]
+    #[cfg(not(feature = "unix_timestamp"))]
+    fn it_parses_v7_and_re_exports() {
+        let packet = [
+            0, 7, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+        ];
+        if let NetflowPacketResult::V7(v7) = NetflowParser::default()
+            .parse_bytes(&packet)
+            .first()
+            .unwrap()
+        {
+            assert_yaml_snapshot!(v7.to_be_bytes());
+            assert_eq!(v7.to_be_bytes(), packet);
+        }
+    }
+
+    #[test]
     #[cfg(feature = "unix_timestamp")]
     fn it_parses_v7_timestamp() {
         let packet = [
