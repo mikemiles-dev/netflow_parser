@@ -54,6 +54,17 @@ impl DataNumber {
         }
     }
 
+    fn to_be_bytes(&self) -> Vec<u8> {
+        match self {
+            DataNumber::U8(n) => n.to_be_bytes().to_vec(),
+            DataNumber::U16(n) => n.to_be_bytes().to_vec(),
+            DataNumber::U32(n) => n.to_be_bytes().to_vec(),
+            DataNumber::U64(n) => n.to_be_bytes().to_vec(),
+            DataNumber::U128(n) => n.to_be_bytes().to_vec(),
+            DataNumber::I32(n) => n.to_be_bytes().to_vec(),
+        }
+    }
+
     pub fn from_field_type(
         remaining: &[u8],
         field_type: FieldDataType,
@@ -147,6 +158,7 @@ impl DataNumber {
         Ok((remaining, field_value))
     }
 }
+
 /// Convert into usize, mainly for serialization purposes
 impl From<DataNumber> for usize {
     fn from(val: DataNumber) -> Self {
@@ -174,6 +186,19 @@ pub enum FieldValue {
     Vec(Vec<u8>),
     ProtocolType(ProtocolTypes),
     Unknown,
+}
+
+impl FieldValue {
+    pub fn to_be_bytes(&self) -> Vec<u8> {
+        match self {
+            FieldValue::String(s) => s.as_bytes().to_vec(),
+            FieldValue::DataNumber(d) => d.to_be_bytes().to_vec(),
+            FieldValue::Float64(f) => f.to_be_bytes().to_vec(),
+            FieldValue::Duration(d) => (d.as_secs() as u32).to_be_bytes().to_vec(),
+            FieldValue::Ip4Addr(ip) => ip.octets().to_vec(),
+            _ => vec![],
+        }
+    }
 }
 
 /// Helps the parser indefiy the data type to parse the field as

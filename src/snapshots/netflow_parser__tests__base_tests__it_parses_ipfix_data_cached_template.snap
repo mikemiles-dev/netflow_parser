@@ -18,7 +18,9 @@ expression: parser.parse_bytes(&packet)
         body:
           data:
             data_fields:
-              - PacketDeltaCount:
-                  DataNumber: 8
-                SourceIpv4address:
-                  Ip4Addr: 0.0.1.1
+              - 0:
+                  - PacketDeltaCount
+                  - DataNumber: 8
+                1:
+                  - SourceIpv4address
+                  - Ip4Addr: 0.0.1.1

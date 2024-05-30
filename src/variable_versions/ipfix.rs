@@ -27,6 +27,7 @@ const OPTIONS_TEMPLATE_ID: u16 = 3;
 const SET_MIN_RANGE: u16 = 255;
 
 type TemplateId = u16;
+type IPFixFieldPair = (IPFixField, FieldValue);
 
 #[derive(Default, Debug)]
 pub struct IPFixParser {
@@ -138,7 +139,7 @@ pub struct FlowSetBody {
 #[nom(ExtraArgs(parser: &mut IPFixParser, set_id: u16))]
 pub struct Data {
     #[nom(Parse = "{ |i| parse_fields::<Template>(i, parser.templates.get(&set_id)) }")]
-    pub data_fields: Vec<BTreeMap<IPFixField, FieldValue>>,
+    pub data_fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -147,7 +148,7 @@ pub struct OptionsData {
     #[nom(
         Parse = "{ |i| parse_fields::<OptionsTemplate>(i, parser.options_templates.get(&set_id)) }"
     )]
-    pub data_fields: Vec<BTreeMap<IPFixField, FieldValue>>,
+    pub data_fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -172,8 +173,22 @@ pub struct OptionsTemplate {
 pub struct Template {
     pub template_id: u16,
     pub field_count: u16,
-    #[nom(Parse = "count(|i| TemplateField::parse(i, false), field_count as usize)")]
+    #[nom(Parse = "{ |i| parse_template_fields(i, field_count) } ")]
     pub fields: Vec<TemplateField>,
+}
+
+fn parse_template_fields(i: &[u8], count: u16) -> IResult<&[u8], Vec<TemplateField>> {
+    let mut result = vec![];
+
+    let mut remaining = i;
+
+    for _ in 0..count {
+        let (i, field) = TemplateField::parse(remaining, false)?;
+        result.push(field);
+        remaining = i;
+    }
+
+    Ok((remaining, result))
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -255,7 +270,7 @@ fn parse_set_body<'a>(
 fn parse_fields<'a, T: CommonTemplate>(
     i: &'a [u8],
     template: Option<&T>,
-) -> IResult<&'a [u8], Vec<BTreeMap<IPFixField, FieldValue>>> {
+) -> IResult<&'a [u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
     fn parse_field<'a>(
         i: &'a [u8],
         template_field: &TemplateField,
@@ -302,7 +317,7 @@ fn parse_fields<'a, T: CommonTemplate>(
     // Iter through template fields and push them to a vec.  If we encouter any zero length fields we return an error.
     for _ in 0..count {
         let mut data_field = BTreeMap::new();
-        for template_field in template_fields.iter() {
+        for (c, template_field) in template_fields.iter().enumerate() {
             // If field length is 0 we error
             let (i, field_value) = parse_field(remaining, template_field)?;
             // If we don't move forward for some reason we error
@@ -311,7 +326,7 @@ fn parse_fields<'a, T: CommonTemplate>(
                 break;
             }
             remaining = i;
-            data_field.insert(template_field.field_type, field_value);
+            data_field.insert(c, (template_field.field_type, field_value));
         }
         fields.push(data_field);
     }
@@ -320,5 +335,75 @@ fn parse_fields<'a, T: CommonTemplate>(
         Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))
     } else {
         Ok((&[], fields))
+    }
+}
+
+impl IPFix {
+    pub fn to_be_bytes(&self) -> Vec<u8> {
+        let mut result = vec![];
+
+        result.extend_from_slice(&self.header.version.to_be_bytes());
+        result.extend_from_slice(&self.header.length.to_be_bytes());
+        result.extend_from_slice(&(self.header.export_time.as_secs() as u32).to_be_bytes());
+        result.extend_from_slice(&self.header.sequence_number.to_be_bytes());
+        result.extend_from_slice(&self.header.observation_domain_id.to_be_bytes());
+
+        for flow in &self.flowsets {
+            result.extend_from_slice(&flow.header.id.to_be_bytes());
+            result.extend_from_slice(&flow.header.length.to_be_bytes());
+
+            let mut result_flowset = vec![];
+
+            if let Some(template) = &flow.body.template {
+                result_flowset.extend_from_slice(&template.template_id.to_be_bytes());
+                result_flowset.extend_from_slice(&template.field_count.to_be_bytes());
+
+                for field in template.fields.iter() {
+                    result_flowset.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result_flowset.extend_from_slice(&field.field_length.to_be_bytes());
+                    if let Some(enterprise) = field.enterprise_number {
+                        result_flowset.extend_from_slice(&enterprise.to_be_bytes());
+                    }
+                }
+            }
+
+            if let Some(options_template) = &flow.body.options_template {
+                result_flowset.extend_from_slice(&options_template.template_id.to_be_bytes());
+                result_flowset.extend_from_slice(&options_template.field_count.to_be_bytes());
+                result_flowset
+                    .extend_from_slice(&options_template.scope_field_count.to_be_bytes());
+
+                for field in options_template.fields.iter() {
+                    result_flowset.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result_flowset.extend_from_slice(&field.field_length.to_be_bytes());
+                    if let Some(enterprise) = field.enterprise_number {
+                        result_flowset.extend_from_slice(&enterprise.to_be_bytes());
+                    }
+                }
+                if let Some(padding) = &options_template.padding {
+                    result_flowset.extend_from_slice(&padding.to_be_bytes());
+                }
+            }
+
+            if let Some(data) = &flow.body.data {
+                for item in data.data_fields.iter() {
+                    for (_, (_, v)) in item.iter() {
+                        result_flowset.extend_from_slice(&v.to_be_bytes());
+                    }
+                }
+            }
+
+            if let Some(data) = &flow.body.options_data {
+                for item in data.data_fields.iter() {
+                    for (_, (_, v)) in item.iter() {
+                        result_flowset.extend_from_slice(&v.to_be_bytes());
+                    }
+                }
+            }
+
+            result.append(&mut result_flowset);
+        }
+
+        result
     }
 }

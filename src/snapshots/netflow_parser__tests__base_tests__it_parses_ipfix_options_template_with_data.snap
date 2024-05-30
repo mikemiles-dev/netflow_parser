@@ -37,15 +37,21 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         body:
           options_data:
             data_fields:
-              - ExportedMessageTotalCount:
-                  DataNumber: 276
-                ExportedFlowRecordTotalCount:
-                  DataNumber: 5140
-                Enterprise:
-                  DataNumber: 1
-              - ExportedMessageTotalCount:
-                  DataNumber: 5140
-                ExportedFlowRecordTotalCount:
-                  DataNumber: 7710
-                Enterprise:
-                  DataNumber: 2
+              - 0:
+                  - Enterprise
+                  - DataNumber: 1
+                1:
+                  - ExportedMessageTotalCount
+                  - DataNumber: 276
+                2:
+                  - ExportedFlowRecordTotalCount
+                  - DataNumber: 5140
+              - 0:
+                  - Enterprise
+                  - DataNumber: 2
+                1:
+                  - ExportedMessageTotalCount
+                  - DataNumber: 5140
+                2:
+                  - ExportedFlowRecordTotalCount
+                  - DataNumber: 7710
