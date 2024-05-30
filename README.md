@@ -48,7 +48,7 @@ let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 let v5_parsed: Vec<NetflowPacketResult> = parsed.iter().filter(|p| p.is_v5()).map(|p| p.clone()).collect();
 ```
 
-## Re-Export flows
+## Re-Exporting flows
 
 Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.
 ```rust
