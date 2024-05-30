@@ -13,7 +13,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       observation_domain_id: 16909060
     flowsets:
       - header:
-          id: 2
+          header_id: 2
           length: 20
         body:
           template:
@@ -30,7 +30,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 field_type: PacketDeltaCount
                 field_length: 4
       - header:
-          id: 256
+          header_id: 256
           length: 28
         body:
           data:

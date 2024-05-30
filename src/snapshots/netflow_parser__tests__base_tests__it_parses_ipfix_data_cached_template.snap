@@ -13,7 +13,7 @@ expression: parser.parse_bytes(&packet)
       observation_domain_id: 0
     flowsets:
       - header:
-          id: 258
+          header_id: 258
           length: 10
         body:
           data:

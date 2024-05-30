@@ -81,7 +81,7 @@ pub struct Header {
 #[nom(ExtraArgs(parser: &mut IPFixParser))]
 pub struct FlowSet {
     pub header: FlowSetHeader,
-    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.length, header.id) }")]
+    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.length, header.header_id) }")]
     pub body: FlowSetBody,
 }
 
@@ -91,7 +91,7 @@ pub struct FlowSetHeader {
     /// A value of 3 is reserved for the Option Template Set. All other values 4-255 are
     /// reserved for future use. Values more than 255 are used for Data Sets. The Set ID
     /// values of 0 and 1 are not used for historical reasons
-    pub id: u16,
+    pub header_id: u16,
     /// Total length of the Set, in octets, including the Set Header, all records, and the
     /// optional padding. Because an individual Set MAY contain multiple records, the Length
     /// value must be used to determine the position of the next Set.
@@ -350,7 +350,7 @@ impl IPFix {
         result.extend_from_slice(&self.header.observation_domain_id.to_be_bytes());
 
         for flow in &self.flowsets {
-            result.extend_from_slice(&flow.header.id.to_be_bytes());
+            result.extend_from_slice(&flow.header.header_id.to_be_bytes());
             result.extend_from_slice(&flow.header.length.to_be_bytes());
 
             let mut result_flowset = vec![];

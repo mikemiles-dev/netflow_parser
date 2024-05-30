@@ -13,7 +13,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       observation_domain_id: 2
     flowsets:
       - header:
-          id: 3
+          header_id: 3
           length: 28
         body:
           options_template:
@@ -32,7 +32,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 field_type: ExportedFlowRecordTotalCount
                 field_length: 2
       - header:
-          id: 260
+          header_id: 260
           length: 20
         body:
           options_data:
