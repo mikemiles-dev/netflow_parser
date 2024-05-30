@@ -51,6 +51,8 @@
 //! ## Re-Exporting flows
 //! Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.
 //! ```rust
+//! use netflow_parser::{NetflowParser, NetflowPacketResult};
+//!
 //! let packet = [
 //!     0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
 //!     4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
