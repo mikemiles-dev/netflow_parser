@@ -13,7 +13,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       observation_domain_id: 2
     flowsets:
       - header:
-          id: 3
+          header_id: 3
           length: 28
         body:
           options_template:

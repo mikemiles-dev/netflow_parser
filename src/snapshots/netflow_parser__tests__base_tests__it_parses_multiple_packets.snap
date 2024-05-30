@@ -31,10 +31,12 @@ expression: "NetflowParser::default().parse_bytes(&all)"
         body:
           data:
             data_fields:
-              - InBytes:
-                  DataNumber: 151126788
-                Ipv4SrcAddr:
-                  Ip4Addr: 9.9.9.8
+              - 0:
+                  - InBytes
+                  - DataNumber: 151126788
+                1:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 9.9.9.8
 - V5:
     header:
       version: 5
@@ -48,7 +50,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
       engine_type: 6
       engine_id: 7
       sampling_interval: 2057
-    sets:
+    flowsets:
       - src_addr: 0.1.2.3
         dst_addr: 4.5.6.7
         next_hop: 8.9.0.1
@@ -85,7 +87,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
       unix_nsecs: 134807553
       flow_sequence: 33752069
       reserved: 101124105
-    sets:
+    flowsets:
       - src_addr: 0.1.2.3
         dst_addr: 4.5.6.7
         next_hop: 8.9.0.1
@@ -141,10 +143,12 @@ expression: "NetflowParser::default().parse_bytes(&all)"
         body:
           data:
             data_fields:
-              - InBytes:
-                  DataNumber: 151126788
-                Ipv4SrcAddr:
-                  Ip4Addr: 9.9.9.8
+              - 0:
+                  - InBytes
+                  - DataNumber: 151126788
+                1:
+                  - Ipv4SrcAddr
+                  - Ip4Addr: 9.9.9.8
 - IPFix:
     header:
       version: 10
@@ -156,7 +160,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
       observation_domain_id: 16909060
     flowsets:
       - header:
-          id: 2
+          header_id: 2
           length: 20
         body:
           template:
@@ -173,20 +177,26 @@ expression: "NetflowParser::default().parse_bytes(&all)"
                 field_type: PacketDeltaCount
                 field_length: 4
       - header:
-          id: 256
+          header_id: 256
           length: 28
         body:
           data:
             data_fields:
-              - PacketDeltaCount:
-                  DataNumber: 16909058
-                SourceIpv4address:
-                  Ip4Addr: 1.2.3.4
-                DestinationIpv4address:
-                  Ip4Addr: 1.2.3.3
-              - PacketDeltaCount:
-                  DataNumber: 67438087
-                SourceIpv4address:
-                  Ip4Addr: 0.2.0.2
-                DestinationIpv4address:
-                  Ip4Addr: 0.1.2.3
+              - 0:
+                  - SourceIpv4address
+                  - Ip4Addr: 1.2.3.4
+                1:
+                  - DestinationIpv4address
+                  - Ip4Addr: 1.2.3.3
+                2:
+                  - PacketDeltaCount
+                  - DataNumber: 16909058
+              - 0:
+                  - SourceIpv4address
+                  - Ip4Addr: 0.2.0.2
+                1:
+                  - DestinationIpv4address
+                  - Ip4Addr: 0.1.2.3
+                2:
+                  - PacketDeltaCount
+                  - DataNumber: 67438087

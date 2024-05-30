@@ -48,6 +48,24 @@ let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 let v5_parsed: Vec<NetflowPacketResult> = parsed.iter().filter(|p| p.is_v5()).map(|p| p.clone()).collect();
 ```
 
+## Re-Exporting flows
+
+Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.
+```rust
+let packet = [
+    0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+    4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+    2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+];
+if let NetflowPacketResult::V5(v5) = NetflowParser::default()
+    .parse_bytes(&packet)
+    .first()
+    .unwrap()
+{
+    assert_eq!(v5.to_be_bytes(), packet);
+}
+```
+
 ## V9/IPFix notes:
 
 Parse the data ('&[u8]' as any other versions.  The parser (NetflowParser) holds onto already parsed templates, so you can just send a header/data flowset combo and it will use the cached templates.)   To see cached templates simply use the parser for the correct version (v9_parser for v9, ipfix_parser for IPFix.)
@@ -63,8 +81,7 @@ To access templates flowset of a processed V9/IPFix flowset you can find the `fl
 
 ## Features
 
-* unix_timestamp - When enabled a field `unix_time` is provided that uses the flow unix time as a count since 0000 UTC 1970 as Duration.
-* parse_unknown_fields - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
+* `parse_unknown_fields` - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
 
 ## Examples
 

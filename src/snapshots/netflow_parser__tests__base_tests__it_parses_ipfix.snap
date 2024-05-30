@@ -13,7 +13,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       observation_domain_id: 16909060
     flowsets:
       - header:
-          id: 2
+          header_id: 2
           length: 20
         body:
           template:
@@ -30,20 +30,26 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 field_type: PacketDeltaCount
                 field_length: 4
       - header:
-          id: 256
+          header_id: 256
           length: 28
         body:
           data:
             data_fields:
-              - PacketDeltaCount:
-                  DataNumber: 16909058
-                SourceIpv4address:
-                  Ip4Addr: 1.2.3.4
-                DestinationIpv4address:
-                  Ip4Addr: 1.2.3.3
-              - PacketDeltaCount:
-                  DataNumber: 67438087
-                SourceIpv4address:
-                  Ip4Addr: 0.2.0.2
-                DestinationIpv4address:
-                  Ip4Addr: 0.1.2.3
+              - 0:
+                  - SourceIpv4address
+                  - Ip4Addr: 1.2.3.4
+                1:
+                  - DestinationIpv4address
+                  - Ip4Addr: 1.2.3.3
+                2:
+                  - PacketDeltaCount
+                  - DataNumber: 16909058
+              - 0:
+                  - SourceIpv4address
+                  - Ip4Addr: 0.2.0.2
+                1:
+                  - DestinationIpv4address
+                  - Ip4Addr: 0.1.2.3
+                2:
+                  - PacketDeltaCount
+                  - DataNumber: 67438087
