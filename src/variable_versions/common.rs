@@ -1,9 +1,9 @@
 use crate::protocol::ProtocolTypes;
 
+use byteorder::{BigEndian, WriteBytesExt};
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
-use nom::number::complete::{be_i24, be_u24};
-use nom::number::complete::{be_u128, be_u32};
+use nom::number::complete::{be_i24, be_u128, be_u24, be_u32};
 use nom::Err as NomErr;
 use nom::IResult;
 use nom_derive::*;
@@ -19,6 +19,8 @@ use std::time::Duration;
 pub enum DataNumber {
     U8(u8),
     U16(u16),
+    U24(u32),
+    I24(i32),
     U32(u32),
     U64(u64),
     U128(u128),
@@ -47,8 +49,8 @@ impl DataNumber {
         match field_length {
             1 if !signed => Ok(u8::parse(i)?).map(|(i, j)| (i, Self::U8(j))),
             2 if !signed => Ok(u16::parse(i)?).map(|(i, j)| (i, Self::U16(j))),
-            3 if !signed => Ok(be_u24(i).map(|(i, j)| (i, Self::U32(j)))?),
-            3 if signed => Ok(be_i24(i).map(|(i, j)| (i, Self::I32(j)))?),
+            3 if !signed => Ok(be_u24(i).map(|(i, j)| (i, Self::U24(j)))?),
+            3 if signed => Ok(be_i24(i).map(|(i, j)| (i, Self::I24(j)))?),
             4 if signed => Ok(i32::parse(i)?).map(|(i, j)| (i, Self::I32(j))),
             4 if !signed => Ok(u32::parse(i)?).map(|(i, j)| (i, Self::U32(j))),
             8 if !signed => Ok(u64::parse(i)?).map(|(i, j)| (i, Self::U64(j))),
@@ -61,6 +63,16 @@ impl DataNumber {
         match self {
             DataNumber::U8(n) => n.to_be_bytes().to_vec(),
             DataNumber::U16(n) => n.to_be_bytes().to_vec(),
+            DataNumber::U24(n) => {
+                let mut wtr = Vec::new();
+                wtr.write_u24::<BigEndian>(*n).unwrap();
+                wtr
+            }
+            DataNumber::I24(n) => {
+                let mut wtr = Vec::new();
+                wtr.write_i24::<BigEndian>(*n).unwrap();
+                wtr
+            }
             DataNumber::U32(n) => n.to_be_bytes().to_vec(),
             DataNumber::U64(n) => n.to_be_bytes().to_vec(),
             DataNumber::U128(n) => n.to_be_bytes().to_vec(),
@@ -167,6 +179,8 @@ impl From<DataNumber> for usize {
     fn from(val: DataNumber) -> Self {
         match val {
             DataNumber::U8(i) => i as usize,
+            DataNumber::I24(i) => i as usize,
+            DataNumber::U24(i) => i as usize,
             DataNumber::U32(i) => i as usize,
             DataNumber::I32(i) => i as usize,
             DataNumber::U16(i) => i as usize,
@@ -221,4 +235,15 @@ pub enum FieldDataType {
     Vec,
     ProtocolType,
     Unknown,
+}
+
+#[cfg(test)]
+mod common_tests {
+    #[test]
+    fn it_tests_3_byte_data_number_exports() {
+        use super::DataNumber;
+        let data = DataNumber::parse(&[1, 246, 118], 3, false).unwrap().1;
+        println!("{:?}", data);
+        assert_eq!(data.to_be_bytes(), vec![1, 246, 118]);
+    }
 }

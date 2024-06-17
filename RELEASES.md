@@ -1,3 +1,6 @@
+# 0.3.5
+ * 3 Byte Data Numbers now correctly converts back to be_bytes.
+
 # 0.3.4
  * Added 3 byte DataNumber support.
 
