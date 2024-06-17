@@ -380,6 +380,7 @@ fn parse_fields<'a>(
     for _ in 0..count {
         let mut data_field = BTreeMap::new();
         for (c, template_field) in template.fields.iter().enumerate() {
+            println!("{:?}", template_field);
             let field_type: FieldDataType = template_field.field_type.into();
             let (i, field_value) = DataNumber::from_field_type(
                 remaining,
