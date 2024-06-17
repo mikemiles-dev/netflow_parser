@@ -1,3 +1,6 @@
+# 0.3.4
+ * Added 3 byte DataNumber support.
+
 # 0.3.3
  * Renamed Sets to FlowSets for IPFIX for consistency.
  * Concrete error type for parsing

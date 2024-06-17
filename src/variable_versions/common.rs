@@ -2,6 +2,7 @@ use crate::protocol::ProtocolTypes;
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
+use nom::number::complete::{be_i24, be_u24};
 use nom::number::complete::{be_u128, be_u32};
 use nom::Err as NomErr;
 use nom::IResult;
@@ -46,6 +47,8 @@ impl DataNumber {
         match field_length {
             1 if !signed => Ok(u8::parse(i)?).map(|(i, j)| (i, Self::U8(j))),
             2 if !signed => Ok(u16::parse(i)?).map(|(i, j)| (i, Self::U16(j))),
+            3 if !signed => Ok(be_u24(i).map(|(i, j)| (i, Self::U32(j)))?),
+            3 if signed => Ok(be_i24(i).map(|(i, j)| (i, Self::I32(j)))?),
             4 if signed => Ok(i32::parse(i)?).map(|(i, j)| (i, Self::I32(j))),
             4 if !signed => Ok(u32::parse(i)?).map(|(i, j)| (i, Self::U32(j))),
             8 if !signed => Ok(u64::parse(i)?).map(|(i, j)| (i, Self::U64(j))),
