@@ -1,7 +1,7 @@
 [package]
 name = "netflow_parser"
 description = "Parser for Netflow Cisco V5, V7, V9, IPFIX"
-version = "0.3.4"
+version = "0.3.5"
 edition = "2021"
 author = "michael.mileusnich@gmail.com"
 license = "MIT OR Apache-2.0"
@@ -10,6 +10,7 @@ readme = "README.md"
 repository = "https://github.com/mikemiles-dev/netflow_parser/"
 
 [dependencies]
+byteorder = "1.5.0"
 nom = "7.1.3"
 nom-derive = "0.10.1"
 mac_address = "1.1.5"
