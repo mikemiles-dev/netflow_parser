@@ -125,6 +125,10 @@ pub enum V9Field {
     Layer2packetSectionOffset = 102,
     Layer2packetSectionSize = 103,
     Layer2packetSectionData = 104,
+    PostNATSourceIPv4Address = 225,
+    PostNATDestinationIPv4Address = 226,
+    PostNAPTSourceTransportPort = 227,
+    PostNAPTDestinationTransportPort = 228,
     Vendor,
     Unknown,
 }
@@ -222,6 +226,10 @@ impl From<V9Field> for FieldDataType {
             96 => FieldDataType::String,
             98 => FieldDataType::UnsignedDataNumber,
             99 => FieldDataType::UnsignedDataNumber,
+            225 => FieldDataType::Ip4Addr,
+            226 => FieldDataType::Ip4Addr,
+            227 => FieldDataType::UnsignedDataNumber,
+            228 => FieldDataType::UnsignedDataNumber,
             _ => FieldDataType::Unknown,
         }
     }
@@ -332,6 +340,10 @@ impl From<u16> for V9Field {
             102 => V9Field::Layer2packetSectionOffset,
             103 => V9Field::Layer2packetSectionSize,
             104 => V9Field::Layer2packetSectionData,
+            225 => V9Field::PostNATSourceIPv4Address,
+            226 => V9Field::PostNATDestinationIPv4Address,
+            227 => V9Field::PostNAPTSourceTransportPort,
+            228 => V9Field::PostNAPTDestinationTransportPort,
             _ => V9Field::Unknown,
         }
     }
