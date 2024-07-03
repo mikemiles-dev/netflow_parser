@@ -22,5 +22,7 @@ parse_unknown_fields = []
 
 [dev-dependencies]
 insta = { version = "1.30.0", features = ["yaml"] }
+tokio = { version = "1.38.0", features = ["full"] }
+tokio-macros = { version = "0.2.0-alpha.6" }
 hex = "0.4.3"
 serde_json = "1.0.100"
