@@ -121,14 +121,14 @@ pub struct FlowSetBody {
     pub options_template: Option<OptionsTemplate>,
     // Data
     #[nom(
-        Cond = "id > SET_MIN_RANGE && parser.templates.get(&id).is_some()",
+        Cond = "id > SET_MIN_RANGE && parser.templates.contains_key(&id)",
         Parse = "{ |i| Data::parse(i, parser, id) }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Data>,
     // OptionsData
     #[nom(
-        Cond = "id > SET_MIN_RANGE && parser.options_templates.get(&id).is_some()",
+        Cond = "id > SET_MIN_RANGE && parser.options_templates.contains_key(&id)",
         Parse = "{ |i| OptionsData::parse(i, parser, id) }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]

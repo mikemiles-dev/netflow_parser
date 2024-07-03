@@ -1,5 +1,6 @@
 # 0.3.6
  * Added V9 Post NAT fields 225-228.
+ * Added Tokio Async Example
 
 # 0.3.5
  * 3 Byte Data Numbers now correctly converts back to be_bytes.
