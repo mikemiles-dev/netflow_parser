@@ -11,12 +11,12 @@
 //! ## V5:
 //!
 //! ```rust
-//! use netflow_parser::{NetflowParser, NetflowPacketResult};
+//! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let v5_packet = [0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
 //! match NetflowParser::default().parse_bytes(&v5_packet).first() {
-//!     Some(NetflowPacketResult::V5(v5)) => assert_eq!(v5.header.version, 5),
-//!     Some(NetflowPacketResult::Error(e)) => println!("{:?}", e),
+//!     Some(NetflowPacket::V5(v5)) => assert_eq!(v5.header.version, 5),
+//!     Some(NetflowPacket::Error(e)) => println!("{:?}", e),
 //!     _ => (),
 //! }
 //! ```
@@ -40,25 +40,25 @@
 //! ## Filtering for a specific version
 //!
 //! ```rust
-//! use netflow_parser::{NetflowParser, NetflowPacketResult};
+//! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let v5_packet = [0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
 //! let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 //!
-//! let v5_parsed: Vec<NetflowPacketResult> = parsed.iter().filter(|p| p.is_v5()).map(|p| p.clone()).collect();
+//! let v5_parsed: Vec<NetflowPacket> = parsed.iter().filter(|p| p.is_v5()).map(|p| p.clone()).collect();
 //! ```
 //!
 //! ## Re-Exporting flows
 //! Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.
 //! ```rust
-//! use netflow_parser::{NetflowParser, NetflowPacketResult};
+//! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let packet = [
 //!     0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
 //!     4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
 //!     2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
 //! ];
-//! if let NetflowPacketResult::V5(v5) = NetflowParser::default()
+//! if let NetflowPacket::V5(v5) = NetflowParser::default()
 //!     .parse_bytes(&packet)
 //!     .first()
 //!     .unwrap()
@@ -112,7 +112,7 @@ use serde::Serialize;
 
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
-pub enum NetflowPacketResult {
+pub enum NetflowPacket {
     /// Version 5
     V5(V5),
     /// Version 7
@@ -125,7 +125,13 @@ pub enum NetflowPacketResult {
     Error(NetflowPacketError),
 }
 
-impl NetflowPacketResult {
+#[derive(Debug, Clone, Serialize)]
+pub struct NetflowPacketError {
+    pub error: NetflowParseError,
+    pub remaining: Vec<u8>,
+}
+
+impl NetflowPacket {
     pub fn is_v5(&self) -> bool {
         matches!(self, Self::V5(_v))
     }
@@ -141,12 +147,6 @@ impl NetflowPacketResult {
     pub fn is_error(&self) -> bool {
         matches!(self, Self::Error(_v))
     }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct NetflowPacketError {
-    pub error: NetflowParseError,
-    pub remaining: Vec<u8>,
 }
 
 #[derive(Default, Debug)]
@@ -176,18 +176,22 @@ impl NetflowParser {
     /// ```
     ///
     #[inline]
-    pub fn parse_bytes(&mut self, packet: &[u8]) -> Vec<NetflowPacketResult> {
+    pub fn parse_bytes(&mut self, packet: &[u8]) -> Vec<NetflowPacket> {
         if packet.is_empty() {
             return vec![];
         }
         self.parse(packet)
             .map(|parsed_netflow| {
-                let mut parsed = vec![parsed_netflow.result];
-                parsed.append(&mut self.parse_bytes(parsed_netflow.remaining.as_slice()));
-                parsed
+                let parsed_result = vec![parsed_netflow.result];
+                if !parsed_netflow.remaining.is_empty() {
+                    let parsed_remaining = self.parse_bytes(&parsed_netflow.remaining);
+                    [parsed_result, parsed_remaining].concat()
+                } else {
+                    parsed_result
+                }
             })
             .unwrap_or_else(|e| {
-                vec![NetflowPacketResult::Error(NetflowPacketError {
+                vec![NetflowPacket::Error(NetflowPacketError {
                     error: e,
                     remaining: packet.to_vec(),
                 })]
