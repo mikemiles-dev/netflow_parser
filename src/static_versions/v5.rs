@@ -3,9 +3,8 @@
 //! References:
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
-use crate::parser::{NetflowParseError, ParsedNetflow};
 use crate::protocol::ProtocolTypes;
-use crate::NetflowPacket;
+use crate::{NetflowPacket, NetflowParseError, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 use nom_derive::*;

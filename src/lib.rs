@@ -97,17 +97,21 @@
 //!
 //! ```cargo run --example netflow_udp_listener_tokio```
 
-mod parser;
 pub mod protocol;
 pub mod static_versions;
 mod tests;
 pub mod variable_versions;
 
-use parser::NetflowParseError;
 use static_versions::{v5::V5, v7::V7};
 use variable_versions::ipfix::{IPFix, IPFixParser};
 use variable_versions::v9::{V9Parser, V9};
 
+use crate::static_versions::v5;
+use crate::static_versions::v7;
+use crate::variable_versions::ipfix;
+use crate::variable_versions::v9;
+
+use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
 /// Enum of supported Netflow Versions
@@ -149,10 +153,42 @@ impl NetflowPacket {
     }
 }
 
+#[derive(Nom)]
+/// Generic Netflow Header for shared versions
+pub struct GenericNetflowHeader {
+    pub version: u16,
+}
+
 #[derive(Default, Debug)]
 pub struct NetflowParser {
     pub v9_parser: V9Parser,
     pub ipfix_parser: IPFixParser,
+}
+
+#[derive(Debug, Clone)]
+pub struct ParsedNetflow {
+    pub remaining: Vec<u8>,
+    /// Parsed Netflow Packet
+    pub result: NetflowPacket,
+}
+
+impl ParsedNetflow {
+    pub fn new(remaining: &[u8], result: NetflowPacket) -> Self {
+        Self {
+            remaining: remaining.to_vec(),
+            result,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum NetflowParseError {
+    V5(String),
+    V7(String),
+    V9(String),
+    IPFix(String),
+    Incomplete(String),
+    UnknownVersion(Vec<u8>),
 }
 
 impl NetflowParser {
@@ -180,7 +216,7 @@ impl NetflowParser {
         if packet.is_empty() {
             return vec![];
         }
-        self.parse(packet)
+        self.parse_as_netflow(packet)
             .map(|parsed_netflow| {
                 let parsed_result = vec![parsed_netflow.result];
                 if !parsed_netflow.remaining.is_empty() {
@@ -196,5 +232,22 @@ impl NetflowParser {
                     remaining: packet.to_vec(),
                 })]
             })
+    }
+
+    fn parse_as_netflow<'a>(
+        &'a mut self,
+        packet: &'a [u8],
+    ) -> Result<ParsedNetflow, NetflowParseError> {
+        let (packet, version) = GenericNetflowHeader::parse(packet)
+            .map(|(remaining, header)| (remaining, header.version))
+            .map_err(|e| NetflowParseError::Incomplete(e.to_string()))?;
+
+        match version {
+            5 => v5::parse_as_netflow(packet),
+            7 => v7::parse_as_netflow(packet),
+            9 => v9::parse_as_netflow(packet, &mut self.v9_parser),
+            10 => ipfix::parse_as_netflow(packet, &mut self.ipfix_parser),
+            _ => Err(NetflowParseError::UnknownVersion(packet.to_vec())),
+        }
     }
 }

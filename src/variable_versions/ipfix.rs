@@ -7,9 +7,8 @@
 //! - <https://www.iana.org/assignments/ipfix/ipfix.xhtml>
 
 use super::common::*;
-use crate::parser::{NetflowParseError, ParsedNetflow};
 use crate::variable_versions::ipfix_lookup::*;
-use crate::NetflowPacket;
+use crate::{NetflowPacket, NetflowParseError, ParsedNetflow};
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
@@ -37,7 +36,7 @@ pub fn parse_as_netflow(
 ) -> Result<ParsedNetflow, NetflowParseError> {
     IPFix::parse(packet, parser)
         .map(|(remaining, ipfix)| ParsedNetflow::new(remaining, NetflowPacket::IPFix(ipfix)))
-        .map_err(|e| NetflowParseError::V5(e.to_string()))
+        .map_err(|e| NetflowParseError::IPFix(e.to_string()))
 }
 
 #[derive(Default, Debug)]

@@ -3,9 +3,8 @@
 //! References:
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
-use crate::parser::{NetflowParseError, ParsedNetflow};
 use crate::protocol::ProtocolTypes;
-use crate::NetflowPacket;
+use crate::{NetflowPacket, NetflowParseError, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 use nom_derive::*;
@@ -18,7 +17,7 @@ use std::time::Duration;
 pub fn parse_as_netflow(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
     V7::parse(packet)
         .map(|(remaining, v7)| ParsedNetflow::new(remaining, NetflowPacket::V7(v7)))
-        .map_err(|e| NetflowParseError::V5(e.to_string()))
+        .map_err(|e| NetflowParseError::V7(e.to_string()))
 }
 
 #[derive(Debug, Nom, Clone, Serialize)]
