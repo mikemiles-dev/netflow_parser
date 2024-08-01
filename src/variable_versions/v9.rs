@@ -5,7 +5,9 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use super::common::*;
+use crate::parser::{NetflowParseError, ParsedNetflow};
 use crate::variable_versions::v9_lookup::*;
+use crate::NetflowPacket;
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
@@ -24,6 +26,15 @@ const FLOW_SET_MIN_RANGE: u16 = 255;
 
 type TemplateId = u16;
 type V9FieldPair = (V9Field, FieldValue);
+
+pub fn parse_as_netflow(
+    packet: &[u8],
+    parser: &mut V9Parser,
+) -> Result<ParsedNetflow, NetflowParseError> {
+    V9::parse(packet, parser)
+        .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
+        .map_err(|e| NetflowParseError::V5(e.to_string()))
+}
 
 #[derive(Default, Debug)]
 pub struct V9Parser {

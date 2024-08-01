@@ -3,7 +3,9 @@
 //! References:
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
+use crate::parser::{NetflowParseError, ParsedNetflow};
 use crate::protocol::ProtocolTypes;
+use crate::NetflowPacket;
 
 use nom::number::complete::be_u32;
 use nom_derive::*;
@@ -12,6 +14,12 @@ use Nom;
 
 use std::net::Ipv4Addr;
 use std::time::Duration;
+
+pub fn parse_as_netflow(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
+    V5::parse(packet)
+        .map(|(remaining, v5)| ParsedNetflow::new(remaining, NetflowPacket::V5(v5)))
+        .map_err(|e| NetflowParseError::V5(e.to_string()))
+}
 
 #[derive(Nom, Debug, Clone, Serialize)]
 pub struct V5 {

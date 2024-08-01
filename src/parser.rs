@@ -1,8 +1,9 @@
 use nom_derive::{Nom, Parse};
 
-use crate::static_versions::{v5::V5, v7::V7};
-use crate::variable_versions::ipfix::IPFix;
-use crate::variable_versions::v9::V9;
+use crate::static_versions::v5;
+use crate::static_versions::v7;
+use crate::variable_versions::ipfix;
+use crate::variable_versions::v9;
 use crate::{NetflowPacket, NetflowParser};
 
 use serde::Serialize;
@@ -21,7 +22,7 @@ pub struct ParsedNetflow {
 }
 
 impl ParsedNetflow {
-    fn new(remaining: &[u8], result: NetflowPacket) -> Self {
+    pub fn new(remaining: &[u8], result: NetflowPacket) -> Self {
         Self {
             remaining: remaining.to_vec(),
             result,
@@ -50,20 +51,10 @@ impl NetflowParser {
             .map_err(|e| NetflowParseError::Incomplete(e.to_string()))?;
 
         match version {
-            5 => V5::parse(packet)
-                .map(|(remaining, v5)| ParsedNetflow::new(remaining, NetflowPacket::V5(v5)))
-                .map_err(|e| NetflowParseError::V5(e.to_string())),
-            7 => V7::parse(packet)
-                .map(|(remaining, v7)| ParsedNetflow::new(remaining, NetflowPacket::V7(v7)))
-                .map_err(|e| NetflowParseError::V7(e.to_string())),
-            9 => V9::parse(packet, &mut self.v9_parser)
-                .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
-                .map_err(|e| NetflowParseError::V9(e.to_string())),
-            10 => IPFix::parse(packet, &mut self.ipfix_parser)
-                .map(|(remaining, ipfix)| {
-                    ParsedNetflow::new(remaining, NetflowPacket::IPFix(ipfix))
-                })
-                .map_err(|e| NetflowParseError::IPFix(e.to_string())),
+            5 => v5::parse_as_netflow(packet),
+            7 => v7::parse_as_netflow(packet),
+            9 => v9::parse_as_netflow(packet, &mut self.v9_parser),
+            10 => ipfix::parse_as_netflow(packet, &mut self.ipfix_parser),
             _ => Err(NetflowParseError::UnknownVersion(packet.to_vec())),
         }
     }
