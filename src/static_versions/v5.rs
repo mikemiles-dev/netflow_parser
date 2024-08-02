@@ -14,7 +14,7 @@ use Nom;
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
-pub fn parse_netflow_v5(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
+pub(crate) fn parse_netflow_v5(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
     V5::parse(packet)
         .map(|(remaining, v5)| ParsedNetflow::new(remaining, NetflowPacket::V5(v5)))
         .map_err(|e| NetflowParseError::V5(e.to_string()))
@@ -106,7 +106,7 @@ pub struct FlowSet {
 }
 
 impl V5 {
-    /// Convert the V5 struct to a Vec<u8> of bytes in big-endian order for exporting
+    /// Convert the V5 struct to a `Vec<u8>` of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let header_version = self.header.version.to_be_bytes();
         let header_count = self.header.count.to_be_bytes();

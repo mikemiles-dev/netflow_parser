@@ -30,7 +30,7 @@ const SET_MIN_RANGE: u16 = 255;
 type TemplateId = u16;
 type IPFixFieldPair = (IPFixField, FieldValue);
 
-pub fn parse_netflow_ipfix(
+pub(crate) fn parse_netflow_ipfix(
     packet: &[u8],
     parser: &mut IPFixParser,
 ) -> Result<ParsedNetflow, NetflowParseError> {
@@ -349,7 +349,7 @@ fn parse_fields<'a, T: CommonTemplate>(
 }
 
 impl IPFix {
-    /// Convert the IPFix to a Vec<u8> of bytes in big-endian order for exporting
+    /// Convert the IPFix to a `Vec<u8>` of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let mut result = vec![];
 

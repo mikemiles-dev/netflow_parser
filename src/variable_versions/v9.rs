@@ -26,7 +26,7 @@ const FLOW_SET_MIN_RANGE: u16 = 255;
 type TemplateId = u16;
 type V9FieldPair = (V9Field, FieldValue);
 
-pub fn parse_netflow_v9(
+pub(crate) fn parse_netflow_v9(
     packet: &[u8],
     parser: &mut V9Parser,
 ) -> Result<ParsedNetflow, NetflowParseError> {
@@ -443,7 +443,7 @@ fn parse_scope_data_fields<'a>(
 }
 
 impl V9 {
-    /// Convert the V9 struct to a Vec<u8> of bytes in big-endian order for exporting
+    /// Convert the V9 struct to a `Vec<u8>` of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let mut result = vec![];
 

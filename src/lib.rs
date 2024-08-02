@@ -149,8 +149,8 @@ impl NetflowPacket {
 
 #[derive(Nom)]
 /// Generic Netflow Header for shared versions
-pub struct GenericNetflowHeader {
-    pub version: u16,
+struct GenericNetflowHeader {
+    version: u16,
 }
 
 #[derive(Default, Debug)]
@@ -160,14 +160,14 @@ pub struct NetflowParser {
 }
 
 #[derive(Debug, Clone)]
-pub struct ParsedNetflow {
-    pub remaining: Vec<u8>,
+pub(crate) struct ParsedNetflow {
+    pub(crate) remaining: Vec<u8>,
     /// Parsed Netflow Packet
-    pub result: NetflowPacket,
+    pub(crate) result: NetflowPacket,
 }
 
 impl ParsedNetflow {
-    pub fn new(remaining: &[u8], result: NetflowPacket) -> Self {
+    fn new(remaining: &[u8], result: NetflowPacket) -> Self {
         Self {
             remaining: remaining.to_vec(),
             result,
