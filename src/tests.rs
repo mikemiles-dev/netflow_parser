@@ -7,7 +7,7 @@ mod base_tests {
     use crate::variable_versions::v9::{
         Template as V9Template, TemplateField as V9TemplateField,
     };
-    use crate::{NetflowPacketResult, NetflowParser};
+    use crate::{NetflowPacket, NetflowParser};
 
     use hex;
     use insta::assert_yaml_snapshot;
@@ -49,13 +49,19 @@ mod base_tests {
     }
 
     #[test]
+    fn it_parses_v5_incomplete() {
+        let packet = [0, 5, 0, 0, 1, 1, 1, 1];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
     fn it_parses_v5_and_re_exports() {
         let packet = [
             0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
             4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
             2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
-        if let NetflowPacketResult::V5(v5) = NetflowParser::default()
+        if let NetflowPacket::V5(v5) = NetflowParser::default()
             .parse_bytes(&packet)
             .first()
             .unwrap()
@@ -88,7 +94,7 @@ mod base_tests {
             4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
             2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
         ];
-        if let NetflowPacketResult::V7(v7) = NetflowParser::default()
+        if let NetflowPacket::V7(v7) = NetflowParser::default()
             .parse_bytes(&packet)
             .first()
             .unwrap()
@@ -122,7 +128,7 @@ mod base_tests {
             0, 9, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,
             2, 0, 1, 0, 4, 0, 8, 0, 4, 1, 2, 0, 12, 9, 2, 3, 4, 9, 9, 9, 8,
         ];
-        if let NetflowPacketResult::V9(v9) = NetflowParser::default()
+        if let NetflowPacket::V9(v9) = NetflowParser::default()
             .parse_bytes(&packet)
             .first()
             .unwrap()
@@ -244,7 +250,7 @@ mod base_tests {
             4, 0, 12, 0, 4, 0, 2, 0, 4, 1, 0, 0, 28, 1, 2, 3, 4, 1, 2, 3, 3, 1, 2, 3, 2, 0, 2,
             0, 2, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
-        if let NetflowPacketResult::IPFix(ipfix) = NetflowParser::default()
+        if let NetflowPacket::IPFix(ipfix) = NetflowParser::default()
             .parse_bytes(&packet)
             .first()
             .unwrap()

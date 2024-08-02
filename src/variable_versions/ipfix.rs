@@ -8,6 +8,7 @@
 
 use super::common::*;
 use crate::variable_versions::ipfix_lookup::*;
+use crate::{NetflowPacket, NetflowParseError, ParsedNetflow};
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
@@ -28,6 +29,15 @@ const SET_MIN_RANGE: u16 = 255;
 
 type TemplateId = u16;
 type IPFixFieldPair = (IPFixField, FieldValue);
+
+pub(crate) fn parse_netflow_ipfix(
+    packet: &[u8],
+    parser: &mut IPFixParser,
+) -> Result<ParsedNetflow, NetflowParseError> {
+    IPFix::parse(packet, parser)
+        .map(|(remaining, ipfix)| ParsedNetflow::new(remaining, NetflowPacket::IPFix(ipfix)))
+        .map_err(|e| NetflowParseError::IPFix(e.to_string()))
+}
 
 #[derive(Default, Debug)]
 pub struct IPFixParser {
@@ -339,7 +349,7 @@ fn parse_fields<'a, T: CommonTemplate>(
 }
 
 impl IPFix {
-    /// Convert the IPFix to a Vec<u8> of bytes in big-endian order for exporting
+    /// Convert the IPFix to a `Vec<u8>` of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let mut result = vec![];
 

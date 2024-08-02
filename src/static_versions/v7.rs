@@ -4,6 +4,7 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use crate::protocol::ProtocolTypes;
+use crate::{NetflowPacket, NetflowParseError, ParsedNetflow};
 
 use nom::number::complete::be_u32;
 use nom_derive::*;
@@ -12,6 +13,12 @@ use Nom;
 
 use std::net::Ipv4Addr;
 use std::time::Duration;
+
+pub(crate) fn parse_netflow_v7(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
+    V7::parse(packet)
+        .map(|(remaining, v7)| ParsedNetflow::new(remaining, NetflowPacket::V7(v7)))
+        .map_err(|e| NetflowParseError::V7(e.to_string()))
+}
 
 #[derive(Debug, Nom, Clone, Serialize)]
 pub struct V7 {
@@ -98,7 +105,7 @@ pub struct FlowSet {
 }
 
 impl V7 {
-    /// Convert the V7 struct to a Vec<u8> of bytes in big-endian order for exporting
+    /// Convert the V7 struct to a `Vec<u8>` of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let header_version = self.header.version.to_be_bytes();
         let header_count = self.header.count.to_be_bytes();

@@ -1,3 +1,8 @@
+# 0.4.0
+ * NetflowPacketResult now simply NetflowPacket.
+ * General parser cleanup and removal of uneeded code.
+ * Small performance optimization in lib parse_bytes.
+
 # 0.3.6
  * Added V9 Post NAT fields 225-228.
  * Added Tokio Async Example
