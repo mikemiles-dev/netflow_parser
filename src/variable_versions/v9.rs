@@ -26,7 +26,7 @@ const FLOW_SET_MIN_RANGE: u16 = 255;
 type TemplateId = u16;
 type V9FieldPair = (V9Field, FieldValue);
 
-pub fn parse_as_netflow(
+pub fn parse_netflow_v9(
     packet: &[u8],
     parser: &mut V9Parser,
 ) -> Result<ParsedNetflow, NetflowParseError> {

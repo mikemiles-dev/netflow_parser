@@ -129,12 +129,6 @@ pub enum NetflowPacket {
     Error(NetflowPacketError),
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct NetflowPacketError {
-    pub error: NetflowParseError,
-    pub remaining: Vec<u8>,
-}
-
 impl NetflowPacket {
     pub fn is_v5(&self) -> bool {
         matches!(self, Self::V5(_v))
@@ -182,6 +176,12 @@ impl ParsedNetflow {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct NetflowPacketError {
+    pub error: NetflowParseError,
+    pub remaining: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub enum NetflowParseError {
     V5(String),
     V7(String),
@@ -216,7 +216,7 @@ impl NetflowParser {
         if packet.is_empty() {
             return vec![];
         }
-        self.parse_as_netflow(packet)
+        self.parse_packet_by_version(packet)
             .map(|parsed_netflow| {
                 let parsed_result = vec![parsed_netflow.result];
                 if !parsed_netflow.remaining.is_empty() {
@@ -234,7 +234,10 @@ impl NetflowParser {
             })
     }
 
-    fn parse_as_netflow<'a>(
+    /// Checks the first u16 of the packet to determine the version.  Parses the packet based on the version.
+    /// If the version is unknown it returns an error.  If the packet is incomplete it returns an error.
+    /// If the packet is parsed successfully it returns the parsed Netflow packet and the remaining bytes.
+    fn parse_packet_by_version<'a>(
         &'a mut self,
         packet: &'a [u8],
     ) -> Result<ParsedNetflow, NetflowParseError> {
@@ -243,10 +246,10 @@ impl NetflowParser {
             .map_err(|e| NetflowParseError::Incomplete(e.to_string()))?;
 
         match version {
-            5 => v5::parse_as_netflow(packet),
-            7 => v7::parse_as_netflow(packet),
-            9 => v9::parse_as_netflow(packet, &mut self.v9_parser),
-            10 => ipfix::parse_as_netflow(packet, &mut self.ipfix_parser),
+            5 => v5::parse_netflow_v5(packet),
+            7 => v7::parse_netflow_v7(packet),
+            9 => v9::parse_netflow_v9(packet, &mut self.v9_parser),
+            10 => ipfix::parse_netflow_ipfix(packet, &mut self.ipfix_parser),
             _ => Err(NetflowParseError::UnknownVersion(packet.to_vec())),
         }
     }

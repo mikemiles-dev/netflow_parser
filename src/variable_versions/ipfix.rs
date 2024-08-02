@@ -30,7 +30,7 @@ const SET_MIN_RANGE: u16 = 255;
 type TemplateId = u16;
 type IPFixFieldPair = (IPFixField, FieldValue);
 
-pub fn parse_as_netflow(
+pub fn parse_netflow_ipfix(
     packet: &[u8],
     parser: &mut IPFixParser,
 ) -> Result<ParsedNetflow, NetflowParseError> {

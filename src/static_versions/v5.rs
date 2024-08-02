@@ -14,7 +14,7 @@ use Nom;
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
-pub fn parse_as_netflow(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
+pub fn parse_netflow_v5(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
     V5::parse(packet)
         .map(|(remaining, v5)| ParsedNetflow::new(remaining, NetflowPacket::V5(v5)))
         .map_err(|e| NetflowParseError::V5(e.to_string()))
