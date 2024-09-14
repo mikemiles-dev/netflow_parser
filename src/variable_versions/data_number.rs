@@ -238,7 +238,7 @@ pub enum FieldDataType {
 }
 
 #[cfg(test)]
-mod common_tests {
+mod data_number_tests {
     #[test]
     fn it_tests_3_byte_data_number_exports() {
         use super::DataNumber;

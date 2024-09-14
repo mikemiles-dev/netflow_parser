@@ -4,7 +4,7 @@
 //! - <https://www.ietf.org/rfc/rfc3954.txt>
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
-use super::common::*;
+use super::data_number::*;
 use crate::variable_versions::v9_lookup::*;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow};
 
@@ -21,10 +21,10 @@ use std::collections::HashMap;
 
 const TEMPLATE_ID: u16 = 0;
 const OPTIONS_TEMPLATE_ID: u16 = 1;
-const FLOW_SET_MIN_RANGE: u16 = 255;
+const FLOWSET_MIN_RANGE: u16 = 255;
 
 type TemplateId = u16;
-type V9FieldPair = (V9Field, FieldValue);
+pub type V9FieldPair = (V9Field, FieldValue);
 
 pub(crate) fn parse_netflow_v9(
     packet: &[u8],
@@ -83,7 +83,7 @@ pub struct Header {
 #[nom(ExtraArgs(parser: &mut V9Parser))]
 pub struct FlowSet {
     pub header: FlowSetHeader,
-    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.flow_set_id, header.length) }")]
+    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.flowset_id, header.length) }")]
     pub body: FlowSetBody,
 }
 
@@ -94,7 +94,7 @@ pub struct FlowSetHeader {
     /// the template record that describes flow fields has a FlowSet ID of zero and
     /// the template record that describes option fields (described below) has a
     /// FlowSet ID of 1. A data record always has a nonzero FlowSet ID greater than 255.
-    pub flow_set_id: u16,
+    pub flowset_id: u16,
     /// This field gives the length of the data FlowSet. Length is expressed in TLV format,
     /// meaning that the value includes the bytes used for the FlowSet ID and the length bytes
     /// themselves, as well as the combined lengths of any included data records.
@@ -102,11 +102,11 @@ pub struct FlowSetHeader {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
+#[nom(ExtraArgs(parser: &mut V9Parser, flowset_id: u16))]
 pub struct FlowSetBody {
     /// Templates
     #[nom(
-        Cond = "flow_set_id == TEMPLATE_ID",
+        Cond = "flowset_id == TEMPLATE_ID",
         // Save our templates
         PostExec = "if let Some(templates) = templates.clone() { 
             for template in templates {
@@ -118,7 +118,7 @@ pub struct FlowSetBody {
     pub templates: Option<Vec<Template>>,
     // Options template
     #[nom(
-        Cond = "flow_set_id == OPTIONS_TEMPLATE_ID",
+        Cond = "flowset_id == OPTIONS_TEMPLATE_ID",
         Parse = "parse_options_template_vec",
         // Save our options templates
         PostExec = "if let Some(options_templates) = options_templates.clone() { 
@@ -131,15 +131,15 @@ pub struct FlowSetBody {
     pub options_templates: Option<Vec<OptionsTemplate>>,
     // Options Data
     #[nom(
-        Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.options_templates.contains_key(&flow_set_id)",
-        Parse = "{ |i| OptionsData::parse(i, parser, flow_set_id) }"
+        Cond = "flowset_id > FLOWSET_MIN_RANGE && parser.options_templates.contains_key(&flowset_id)",
+        Parse = "{ |i| OptionsData::parse(i, parser, flowset_id) }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options_data: Option<OptionsData>,
     // Data
     #[nom(
-        Cond = "flow_set_id > FLOW_SET_MIN_RANGE && parser.templates.contains_key(&flow_set_id)",
-        Parse = "{ |i| Data::parse(i, parser, flow_set_id) }"
+        Cond = "flowset_id > FLOWSET_MIN_RANGE && parser.templates.contains_key(&flowset_id)",
+        Parse = "{ |i| Data::parse(i, parser, flowset_id) }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Data>,
@@ -209,16 +209,14 @@ pub struct TemplateField {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
+#[nom(ExtraArgs(parser: &mut V9Parser, flowset_id: u16))]
 pub struct OptionsData {
     // Scope Data
-    #[nom(
-        Parse = "{ |i| parse_scope_data_fields(i, flow_set_id, &parser.options_templates) }"
-    )]
+    #[nom(Parse = "{ |i| parse_scope_data_fields(i, flowset_id, &parser.options_templates) }")]
     pub scope_fields: Vec<ScopeDataField>,
     // Options Data Fields
     #[nom(
-        Parse = "{ |i| parse_options_data_fields(i, flow_set_id, parser.options_templates.clone()) }"
+        Parse = "{ |i| parse_options_data_fields(i, flowset_id, parser.options_templates.clone()) }"
     )]
     pub options_fields: Vec<OptionDataField>,
 }
@@ -269,10 +267,10 @@ pub struct ScopeDataField {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flow_set_id: u16))]
+#[nom(ExtraArgs(parser: &mut V9Parser, flowset_id: u16))]
 pub struct Data {
     // Data Fields
-    #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flow_set_id)) }")]
+    #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flowset_id)) }")]
     pub data_fields: Vec<BTreeMap<usize, V9FieldPair>>,
 }
 
@@ -406,10 +404,10 @@ fn parse_fields<'a>(
 
 fn parse_options_data_fields(
     i: &[u8],
-    flow_set_id: u16,
+    flowset_id: u16,
     templates: HashMap<u16, OptionsTemplate>,
 ) -> IResult<&[u8], Vec<OptionDataField>> {
-    let template = templates.get(&flow_set_id).ok_or_else(|| {
+    let template = templates.get(&flowset_id).ok_or_else(|| {
         // dbg!("Could not fetch any v9 options templates!");
         NomErr::Error(NomError::new(i, ErrorKind::Fail))
     })?;
@@ -425,10 +423,10 @@ fn parse_options_data_fields(
 
 fn parse_scope_data_fields<'a>(
     i: &'a [u8],
-    flow_set_id: u16,
+    flowset_id: u16,
     templates: &HashMap<u16, OptionsTemplate>,
 ) -> IResult<&'a [u8], Vec<ScopeDataField>> {
-    let template = templates.get(&flow_set_id).ok_or_else(|| {
+    let template = templates.get(&flowset_id).ok_or_else(|| {
         // dbg!("Could not fetch any v9 options templates!");
         NomErr::Error(NomError::new(i, ErrorKind::Fail))
     })?;
@@ -455,7 +453,7 @@ impl V9 {
         result.extend_from_slice(&self.header.source_id.to_be_bytes());
 
         for set in self.flowsets.iter() {
-            result.extend_from_slice(&set.header.flow_set_id.to_be_bytes());
+            result.extend_from_slice(&set.header.flowset_id.to_be_bytes());
             result.extend_from_slice(&set.header.length.to_be_bytes());
 
             if let Some(templates) = &set.body.templates {

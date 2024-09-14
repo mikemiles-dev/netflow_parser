@@ -12,7 +12,6 @@ use serde::Serialize;
 use Nom;
 
 use std::net::Ipv4Addr;
-use std::time::Duration;
 
 pub(crate) fn parse_netflow_v5(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
     V5::parse(packet)
@@ -37,13 +36,11 @@ pub struct Header {
     /// Number of flows exported in this packet (1-30)
     pub count: u16,
     /// Current time in milliseconds since the export device booted
-    #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
-    pub sys_up_time: Duration,
+    pub sys_up_time: u32,
     /// Current count of seconds since 0000 UTC 1970
     pub unix_secs: u32,
     /// Residual nanoseconds since 0000 UTC 1970
     pub unix_nsecs: u32,
-
     /// Sequence counter of total flows seen
     pub flow_sequence: u32,
     /// Type of flow-switching engine
@@ -74,11 +71,9 @@ pub struct FlowSet {
     /// Total number of Layer 3 bytes in the packets of the flow
     pub d_octets: u32,
     /// SysUptime at start of flow
-    #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
-    pub first: Duration,
-    #[nom(Map = "|i| Duration::from_millis(i.into())", Parse = "be_u32")]
+    pub first: u32,
     /// SysUptime at the time the last packet of the flow was received
-    pub last: Duration,
+    pub last: u32,
     /// TCP/UDP source port number or equivalent
     pub src_port: u16,
     /// TCP/UDP destination port number or equivalent
@@ -110,7 +105,7 @@ impl V5 {
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let header_version = self.header.version.to_be_bytes();
         let header_count = self.header.count.to_be_bytes();
-        let header_sys_up_time = (self.header.sys_up_time.as_millis() as u32).to_be_bytes();
+        let header_sys_up_time = (self.header.sys_up_time).to_be_bytes();
         let mut header_unix_timestamp = self.header.unix_secs.to_be_bytes().to_vec();
         let header_unix_nsecs = self.header.unix_nsecs.to_be_bytes().to_vec();
         header_unix_timestamp.extend_from_slice(&header_unix_nsecs);
@@ -140,8 +135,8 @@ impl V5 {
             let output = set.output.to_be_bytes();
             let d_pkts = set.d_pkts.to_be_bytes();
             let d_octets = set.d_octets.to_be_bytes();
-            let first = (set.first.as_millis() as u32).to_be_bytes();
-            let last = (set.last.as_millis() as u32).to_be_bytes();
+            let first = (set.first).to_be_bytes();
+            let last = (set.last).to_be_bytes();
             let src_port = set.src_port.to_be_bytes();
             let dst_ports = set.dst_port.to_be_bytes();
             let pad1 = set.pad1.to_be_bytes();

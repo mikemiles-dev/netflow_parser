@@ -6,9 +6,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
     header:
       version: 10
       length: 64
-      export_time:
-        secs: 0
-        nanos: 0
+      export_time: 0
       sequence_number: 1
       observation_domain_id: 2
     flowsets:
@@ -16,7 +14,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           header_id: 3
           length: 28
         body:
-          options_template:
+          options_templates:
             template_id: 260
             field_count: 3
             scope_field_count: 1

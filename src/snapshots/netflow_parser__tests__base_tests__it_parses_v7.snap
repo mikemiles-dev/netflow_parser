@@ -6,9 +6,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
     header:
       version: 7
       count: 1
-      sys_up_time:
-        secs: 50332
-        nanos: 672000000
+      sys_up_time: 50332672
       unix_secs: 83887623
       unix_nsecs: 134807553
       flow_sequence: 33752069
@@ -21,12 +19,8 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         output: 1029
         d_pkts: 101124105
         d_octets: 66051
-        first:
-          secs: 67438
-          nanos: 87000000
-        last:
-          secs: 134807
-          nanos: 553000000
+        first: 67438087
+        last: 134807553
         src_port: 515
         dst_port: 1029
         flags_fields_valid: 6
