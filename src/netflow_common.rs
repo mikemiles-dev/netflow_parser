@@ -184,7 +184,7 @@ impl From<&V9> for NetflowCommon {
 
 impl From<&IPFix> for NetflowCommon {
     fn from(value: &IPFix) -> Self {
-        // Convert V9 to NetflowCommon
+        // Convert IPFix to NetflowCommon
 
         let mut flowsets = vec![];
 
