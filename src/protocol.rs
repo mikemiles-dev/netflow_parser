@@ -304,3 +304,17 @@ impl From<u8> for ProtocolTypes {
         }
     }
 }
+
+#[cfg(test)]
+mod protocol_lookup_tests {
+
+    use super::ProtocolTypes;
+
+    use insta::assert_yaml_snapshot;
+
+    #[test]
+    fn it_tests_protocol_types() {
+        let protocols = (0..=144).map(ProtocolTypes::from).collect::<Vec<_>>();
+        assert_yaml_snapshot!(protocols);
+    }
+}
