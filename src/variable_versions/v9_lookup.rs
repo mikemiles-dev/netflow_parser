@@ -366,3 +366,33 @@ impl From<u16> for V9Field {
         }
     }
 }
+
+#[cfg(test)]
+mod v9_lookup_tests {
+
+    use crate::variable_versions::data_number::FieldDataType;
+
+    use super::V9Field;
+
+    use insta::assert_yaml_snapshot;
+
+    #[test]
+    fn it_verified_field_lookup() {
+        let mut fields = vec![];
+        for i in 1..=282 {
+            let field: V9Field = i.into();
+            fields.push(field);
+        }
+        assert_yaml_snapshot!(fields);
+    }
+
+    #[test]
+    fn it_verified_field_data_type() {
+        let mut fields: Vec<FieldDataType> = vec![];
+        for i in 1..=282 {
+            let field: V9Field = i.into();
+            fields.push(field.into());
+        }
+        assert_yaml_snapshot!(fields);
+    }
+}
