@@ -1454,3 +1454,35 @@ impl From<u16> for IPFixField {
         }
     }
 }
+
+#[cfg(test)]
+mod ipfix_lookup_tests {
+
+    use crate::variable_versions::data_number::FieldDataType;
+
+    use super::IPFixField;
+
+    use insta::assert_yaml_snapshot;
+
+    #[test]
+    fn test_ipfix_field_lookup() {
+        let mut lookup = vec![];
+
+        for i in 0..=502 {
+            lookup.push(IPFixField::from(i));
+        }
+
+        assert_yaml_snapshot!(lookup);
+    }
+
+    #[test]
+    fn test_field_data_type_lookup() {
+        let mut lookup: Vec<FieldDataType> = vec![];
+
+        for i in 0..=502 {
+            lookup.push(IPFixField::from(i).into());
+        }
+
+        assert_yaml_snapshot!(lookup);
+    }
+}
