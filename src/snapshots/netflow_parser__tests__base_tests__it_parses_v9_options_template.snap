@@ -12,7 +12,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       source_id: 1
     flowsets:
       - header:
-          flow_set_id: 1
+          flowset_id: 1
           length: 22
         body:
           options_templates:
@@ -31,7 +31,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                   field_type: FlowActiveTimeout
                   field_length: 1
       - header:
-          flow_set_id: 275
+          flowset_id: 275
           length: 9
         body:
           options_data:

@@ -48,6 +48,42 @@ let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 ```
 
+## Netflow Common
+
+For convenience we have included a `NetflowCommon` structure.  This will allow you to use common
+Netflow fields without unpacking specific versions (fields like `src_port`, `dst_port`, etc.).  If the
+packet flow does not have the matching field it will simply be left as `None`.
+
+### Netflow Common fields:
+```
+src_addr: Option<IpAddr>,
+dst_addr: Option<IpAddr>,
+src_port: Option<u16>,
+dst_port: Option<u16>,
+protocol_number: Option<u8>,
+protocol_type: Option<ProtocolTypes>,
+first_seen: Option<u32>,
+last_seen: Option<u32>,
+```
+
+```rust
+use netflow_parser::{NetflowParser, NetflowPacket};
+
+let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+    4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+    2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7];
+let netflow_common = NetflowParser::default()
+                     .parse_bytes(&v5_packet)
+                     .first()
+                     .unwrap()
+                     .as_netflow_common()
+                     .unwrap();
+
+for common_flow in netflow_common.flowsets.iter() {
+    println!("Src Addr: {} Dst Addr: {}", common_flow.src_addr.unwrap(), common_flow.dst_addr.unwrap());
+}
+```
+
 ## Re-Exporting flows
 
 Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.

@@ -6,14 +6,13 @@
 //! - <https://www.ibm.com/docs/en/npi/1.3.1?topic=overview-ipfix-message-format>
 //! - <https://www.iana.org/assignments/ipfix/ipfix.xhtml>
 
-use super::common::*;
+use super::data_number::*;
 use crate::variable_versions::ipfix_lookup::*;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow};
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
 use nom::multi::count;
-use nom::number::complete::be_u32;
 use nom::Err as NomErr;
 use nom::IResult;
 use nom_derive::*;
@@ -21,7 +20,6 @@ use serde::Serialize;
 use Nom;
 
 use std::collections::BTreeMap;
-use std::time::Duration;
 
 const TEMPLATE_ID: u16 = 2;
 const OPTIONS_TEMPLATE_ID: u16 = 3;
@@ -67,8 +65,7 @@ pub struct Header {
     pub length: u16,
     /// Time, in seconds, since 0000 Coordinated Universal Time Jan 1, 1970, at which the
     /// IPFIX Message Header leaves the Exporter.
-    #[nom(Map = "|i| Duration::from_secs(i as u64)", Parse = "be_u32")]
-    pub export_time: Duration,
+    pub export_time: u32,
     /// Incremental sequence counter-modulo 2^32 of all IPFIX Data Records sent on this PR-SCTP
     /// stream from the current Observation Domain by the Exporting Process. Check the specific
     /// meaning of this field in the subsections of Section 10 when UDP or TCP is selected as the
@@ -114,21 +111,21 @@ pub struct FlowSetBody {
     #[nom(
         Cond = "id == TEMPLATE_ID",
         // Save our templates
-        PostExec = "if let Some(template) = template.clone() { parser.templates.insert(template.template_id, template); }"
+        PostExec = "if let Some(templates) = templates.clone() { parser.templates.insert(templates.template_id, templates); }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub template: Option<Template>,
+    pub templates: Option<Template>,
     #[nom(
         Cond = "id == OPTIONS_TEMPLATE_ID",
         PreExec = "let set_length = length.checked_sub(4).unwrap_or(length);",
         Parse = "{ |i| OptionsTemplate::parse(i, set_length) }",
         // Save our templates
-        PostExec = "if let Some(options_template) = options_template.clone() {
-                      parser.options_templates.insert(options_template.template_id, options_template);
+        PostExec = "if let Some(options_templates) = options_templates.clone() {
+                      parser.options_templates.insert(options_templates.template_id, options_templates);
                     }"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub options_template: Option<OptionsTemplate>,
+    pub options_templates: Option<OptionsTemplate>,
     // Data
     #[nom(
         Cond = "id > SET_MIN_RANGE && parser.templates.contains_key(&id)",
@@ -355,7 +352,7 @@ impl IPFix {
 
         result.extend_from_slice(&self.header.version.to_be_bytes());
         result.extend_from_slice(&self.header.length.to_be_bytes());
-        result.extend_from_slice(&(self.header.export_time.as_secs() as u32).to_be_bytes());
+        result.extend_from_slice(&(self.header.export_time).to_be_bytes());
         result.extend_from_slice(&self.header.sequence_number.to_be_bytes());
         result.extend_from_slice(&self.header.observation_domain_id.to_be_bytes());
 
@@ -365,7 +362,7 @@ impl IPFix {
 
             let mut result_flowset = vec![];
 
-            if let Some(template) = &flow.body.template {
+            if let Some(template) = &flow.body.templates {
                 result_flowset.extend_from_slice(&template.template_id.to_be_bytes());
                 result_flowset.extend_from_slice(&template.field_count.to_be_bytes());
 
@@ -378,7 +375,7 @@ impl IPFix {
                 }
             }
 
-            if let Some(options_template) = &flow.body.options_template {
+            if let Some(options_template) = &flow.body.options_templates {
                 result_flowset.extend_from_slice(&options_template.template_id.to_be_bytes());
                 result_flowset.extend_from_slice(&options_template.field_count.to_be_bytes());
                 result_flowset

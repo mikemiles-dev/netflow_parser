@@ -12,7 +12,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
       source_id: 1
     flowsets:
       - header:
-          flow_set_id: 0
+          flowset_id: 0
           length: 16
         body:
           templates:
@@ -26,7 +26,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                   field_type: Ipv4SrcAddr
                   field_length: 4
       - header:
-          flow_set_id: 258
+          flowset_id: 258
           length: 12
         body:
           data:

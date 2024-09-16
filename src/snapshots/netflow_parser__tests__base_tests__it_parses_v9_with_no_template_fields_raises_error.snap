@@ -12,7 +12,7 @@ expression: parser.parse_bytes(&packet)
       source_id: 16908298
     flowsets:
       - header:
-          flow_set_id: 8
+          flowset_id: 8
           length: 0
         body:
           unparsed_data:

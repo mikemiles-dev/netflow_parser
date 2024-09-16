@@ -1,6 +1,6 @@
 //! See <https://www.iana.org/assignments/ipfix/ipfix.xhtml> for more details on fields
 
-use super::common::*;
+use super::data_number::*;
 
 use nom_derive::*;
 use serde::Serialize;
