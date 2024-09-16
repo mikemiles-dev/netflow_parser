@@ -1,3 +1,6 @@
+# 0.4.2
+ * Increased coverage.
+
 # 0.4.1
  * Added NetflowCommon structure.  This acts as a helper for common Netflow Fields (like src_ip, src_port, etc).
  * V5, V7 SysUpTime, First, Last times now u32 from Duration.
