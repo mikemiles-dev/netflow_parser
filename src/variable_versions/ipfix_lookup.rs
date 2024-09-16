@@ -1465,7 +1465,7 @@ mod ipfix_lookup_tests {
     use insta::assert_yaml_snapshot;
 
     #[test]
-    fn test_ipfix_field_lookup() {
+    fn it_tests_field_lookup() {
         let mut lookup = vec![];
 
         for i in 0..=502 {
@@ -1476,7 +1476,7 @@ mod ipfix_lookup_tests {
     }
 
     #[test]
-    fn test_field_data_type_lookup() {
+    fn it_tests_field_data_type_lookup() {
         let mut lookup: Vec<FieldDataType> = vec![];
 
         for i in 0..=502 {

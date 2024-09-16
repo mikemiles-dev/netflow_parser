@@ -377,7 +377,7 @@ mod v9_lookup_tests {
     use insta::assert_yaml_snapshot;
 
     #[test]
-    fn it_verified_field_lookup() {
+    fn it_tests_field_lookup() {
         let mut fields = vec![];
         for i in 1..=282 {
             let field: V9Field = i.into();
@@ -387,7 +387,7 @@ mod v9_lookup_tests {
     }
 
     #[test]
-    fn it_verified_field_data_type() {
+    fn it_tests_field_data_type_lookup() {
         let mut fields: Vec<FieldDataType> = vec![];
         for i in 1..=282 {
             let field: V9Field = i.into();
