@@ -1,3 +1,7 @@
+# 0.4.3
+ * Fixed bug in NetflowCommon where ProtocolType was never set.
+ * Minior Readme Changes.
+
 # 0.4.2
  * Increased coverage.
  * Reworked Readme.

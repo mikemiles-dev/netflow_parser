@@ -168,7 +168,15 @@ impl From<&V9> for NetflowCommon {
                                 FieldValue::DataNumber(DataNumber::U32(seen)) => Some(*seen),
                                 _ => None,
                             }),
-                        protocol_type: None,
+                        protocol_type: values
+                            .iter()
+                            .find(|(k, _)| *k == V9Field::Protocol)
+                            .and_then(|(_, v)| match v {
+                                FieldValue::DataNumber(DataNumber::U8(proto)) => {
+                                    Some(ProtocolTypes::from(*proto))
+                                }
+                                _ => None,
+                            }),
                     });
                 }
             }
@@ -249,7 +257,15 @@ impl From<&IPFix> for NetflowCommon {
                                 FieldValue::DataNumber(DataNumber::U32(seen)) => Some(*seen),
                                 _ => None,
                             }),
-                        protocol_type: None,
+                        protocol_type: values
+                            .iter()
+                            .find(|(k, _)| *k == IPFixField::ProtocolIdentifier)
+                            .and_then(|(_, v)| match v {
+                                FieldValue::DataNumber(DataNumber::U8(proto)) => {
+                                    Some(ProtocolTypes::from(*proto))
+                                }
+                                _ => None,
+                            }),
                     });
                 }
             }
@@ -485,6 +501,10 @@ mod common_tests {
         assert_eq!(flowset.src_port.unwrap(), 1234);
         assert_eq!(flowset.dst_port.unwrap(), 80);
         assert_eq!(flowset.protocol_number.unwrap(), 6);
+        assert_eq!(
+            flowset.protocol_type.unwrap(),
+            crate::protocol::ProtocolTypes::Tcp
+        );
         assert_eq!(flowset.first_seen.unwrap(), 100);
         assert_eq!(flowset.last_seen.unwrap(), 200);
     }
@@ -582,6 +602,10 @@ mod common_tests {
         assert_eq!(flowset.src_port.unwrap(), 1234);
         assert_eq!(flowset.dst_port.unwrap(), 80);
         assert_eq!(flowset.protocol_number.unwrap(), 6);
+        assert_eq!(
+            flowset.protocol_type.unwrap(),
+            crate::protocol::ProtocolTypes::Tcp
+        );
         assert_eq!(flowset.first_seen.unwrap(), 100);
         assert_eq!(flowset.last_seen.unwrap(), 200);
     }
