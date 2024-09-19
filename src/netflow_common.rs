@@ -118,9 +118,11 @@ impl From<&V9> for NetflowCommon {
                     flowsets.push(NetflowCommonFlowSet {
                         src_addr: value_map
                             .get(&V9Field::Ipv4SrcAddr)
+                            .or_else(|| value_map.get(&V9Field::Ipv6SrcAddr))
                             .and_then(|v| v.try_into().ok()),
                         dst_addr: value_map
                             .get(&V9Field::Ipv4DstAddr)
+                            .or_else(|| value_map.get(&V9Field::Ipv6DstAddr))
                             .and_then(|v| v.try_into().ok()),
                         src_port: value_map
                             .get(&V9Field::L4SrcPort)
