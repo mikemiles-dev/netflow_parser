@@ -1,8 +1,9 @@
+use std::collections::BTreeMap;
 use std::net::IpAddr;
 
 use crate::protocol::ProtocolTypes;
 use crate::static_versions::{v5::V5, v7::V7};
-use crate::variable_versions::data_number::{DataNumber, FieldValue};
+use crate::variable_versions::data_number::FieldValue;
 use crate::variable_versions::ipfix_lookup::IPFixField;
 use crate::variable_versions::v9_lookup::V9Field;
 use crate::variable_versions::{ipfix::IPFix, v9::V9};
@@ -112,71 +113,35 @@ impl From<&V9> for NetflowCommon {
         for flowset in &value.flowsets {
             if let Some(data) = &flowset.body.data {
                 for data_field in &data.data_fields {
-                    let values: Vec<(V9Field, FieldValue)> =
+                    let value_map: BTreeMap<V9Field, FieldValue> =
                         data_field.values().cloned().collect();
                     flowsets.push(NetflowCommonFlowSet {
-                        src_addr: values
-                            .iter()
-                            .find(|(k, _)| {
-                                *k == V9Field::Ipv4SrcAddr || *k == V9Field::Ipv6SrcAddr
-                            })
-                            .and_then(|(_, v)| match v {
-                                FieldValue::Ip4Addr(ip) => Some((*ip).into()),
-                                _ => None,
-                            }),
-                        dst_addr: values
-                            .iter()
-                            .find(|(k, _)| {
-                                *k == V9Field::Ipv4DstAddr || *k == V9Field::Ipv6DstAddr
-                            })
-                            .and_then(|(_, v)| match v {
-                                FieldValue::Ip4Addr(ip) => Some((*ip).into()),
-                                _ => None,
-                            }),
-                        src_port: values
-                            .iter()
-                            .find(|(k, _)| *k == V9Field::L4SrcPort)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U16(port)) => Some(*port),
-                                _ => None,
-                            }),
-                        dst_port: values
-                            .iter()
-                            .find(|(k, _)| *k == V9Field::L4DstPort)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U16(port)) => Some(*port),
-                                _ => None,
-                            }),
-                        protocol_number: values
-                            .iter()
-                            .find(|(k, _)| *k == V9Field::Protocol)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U8(proto)) => Some(*proto),
-                                _ => None,
-                            }),
-                        first_seen: values
-                            .iter()
-                            .find(|(k, _)| *k == V9Field::FirstSwitched)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U32(seen)) => Some(*seen),
-                                _ => None,
-                            }),
-                        last_seen: values
-                            .iter()
-                            .find(|(k, _)| *k == V9Field::LastSwitched)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U32(seen)) => Some(*seen),
-                                _ => None,
-                            }),
-                        protocol_type: values
-                            .iter()
-                            .find(|(k, _)| *k == V9Field::Protocol)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U8(proto)) => {
-                                    Some(ProtocolTypes::from(*proto))
-                                }
-                                _ => None,
-                            }),
+                        src_addr: value_map
+                            .get(&V9Field::Ipv4SrcAddr)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_addr: value_map
+                            .get(&V9Field::Ipv4DstAddr)
+                            .and_then(|v| v.try_into().ok()),
+                        src_port: value_map
+                            .get(&V9Field::L4SrcPort)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_port: value_map
+                            .get(&V9Field::L4DstPort)
+                            .and_then(|v| v.try_into().ok()),
+                        protocol_number: value_map
+                            .get(&V9Field::Protocol)
+                            .and_then(|v| v.try_into().ok()),
+                        protocol_type: value_map.get(&V9Field::Protocol).and_then(|v| {
+                            v.try_into()
+                                .ok()
+                                .map(|proto: u8| ProtocolTypes::from(proto))
+                        }),
+                        first_seen: value_map
+                            .get(&V9Field::FirstSwitched)
+                            .and_then(|v| v.try_into().ok()),
+                        last_seen: value_map
+                            .get(&V9Field::LastSwitched)
+                            .and_then(|v| v.try_into().ok()),
                     });
                 }
             }
@@ -199,73 +164,39 @@ impl From<&IPFix> for NetflowCommon {
         for flowset in &value.flowsets {
             if let Some(data) = &flowset.body.data {
                 for data_field in &data.data_fields {
-                    let values: Vec<(IPFixField, FieldValue)> =
+                    let value_map: BTreeMap<IPFixField, FieldValue> =
                         data_field.values().cloned().collect();
                     flowsets.push(NetflowCommonFlowSet {
-                        src_addr: values
-                            .iter()
-                            .find(|(k, _)| {
-                                *k == IPFixField::SourceIpv4address
-                                    || *k == IPFixField::SourceIpv6address
-                            })
-                            .and_then(|(_, v)| match v {
-                                FieldValue::Ip4Addr(ip) => Some((*ip).into()),
-                                _ => None,
-                            }),
-                        dst_addr: values
-                            .iter()
-                            .find(|(k, _)| {
-                                *k == IPFixField::DestinationIpv4address
-                                    || *k == IPFixField::DestinationIpv6address
-                            })
-                            .and_then(|(_, v)| match v {
-                                FieldValue::Ip4Addr(ip) => Some((*ip).into()),
-                                _ => None,
-                            }),
-                        src_port: values
-                            .iter()
-                            .find(|(k, _)| *k == IPFixField::SourceTransportPort)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U16(port)) => Some(*port),
-                                _ => None,
-                            }),
-                        dst_port: values
-                            .iter()
-                            .find(|(k, _)| *k == IPFixField::DestinationTransportPort)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U16(port)) => Some(*port),
-                                _ => None,
-                            }),
-                        protocol_number: values
-                            .iter()
-                            .find(|(k, _)| *k == IPFixField::ProtocolIdentifier)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U8(proto)) => Some(*proto),
-                                _ => None,
-                            }),
-                        first_seen: values
-                            .iter()
-                            .find(|(k, _)| *k == IPFixField::FlowStartSysUpTime)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U32(seen)) => Some(*seen),
-                                _ => None,
-                            }),
-                        last_seen: values
-                            .iter()
-                            .find(|(k, _)| *k == IPFixField::FlowEndSysUpTime)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U32(seen)) => Some(*seen),
-                                _ => None,
-                            }),
-                        protocol_type: values
-                            .iter()
-                            .find(|(k, _)| *k == IPFixField::ProtocolIdentifier)
-                            .and_then(|(_, v)| match v {
-                                FieldValue::DataNumber(DataNumber::U8(proto)) => {
-                                    Some(ProtocolTypes::from(*proto))
-                                }
-                                _ => None,
-                            }),
+                        src_addr: value_map
+                            .get(&IPFixField::SourceIpv4address)
+                            .or_else(|| value_map.get(&IPFixField::SourceIpv6address))
+                            .and_then(|v| v.try_into().ok()),
+                        dst_addr: value_map
+                            .get(&IPFixField::DestinationIpv4address)
+                            .or_else(|| value_map.get(&IPFixField::DestinationIpv6address))
+                            .and_then(|v| v.try_into().ok()),
+                        src_port: value_map
+                            .get(&IPFixField::SourceTransportPort)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_port: value_map
+                            .get(&IPFixField::DestinationTransportPort)
+                            .and_then(|v| v.try_into().ok()),
+                        protocol_number: value_map
+                            .get(&IPFixField::ProtocolIdentifier)
+                            .and_then(|v| v.try_into().ok()),
+                        protocol_type: value_map.get(&IPFixField::ProtocolIdentifier).and_then(
+                            |v| {
+                                v.try_into()
+                                    .ok()
+                                    .map(|proto: u8| ProtocolTypes::from(proto))
+                            },
+                        ),
+                        first_seen: value_map
+                            .get(&IPFixField::FlowStartSysUpTime)
+                            .and_then(|v| v.try_into().ok()),
+                        last_seen: value_map
+                            .get(&IPFixField::FlowEndSysUpTime)
+                            .and_then(|v| v.try_into().ok()),
                     });
                 }
             }

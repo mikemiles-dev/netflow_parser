@@ -10,7 +10,7 @@ use nom_derive::*;
 use serde::Serialize;
 
 use std::convert::Into;
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
 /// Holds our datatypes and values post parsing
@@ -25,6 +25,77 @@ pub enum DataNumber {
     U64(u64),
     U128(u128),
     I32(i32),
+}
+
+#[derive(Debug)]
+pub enum DataNumberError {
+    InvalidDataType,
+}
+
+impl TryFrom<&DataNumber> for u8 {
+    type Error = DataNumberError;
+
+    fn try_from(val: &DataNumber) -> Result<Self, Self::Error> {
+        match val {
+            DataNumber::U8(i) => Ok(*i),
+            _ => Err(DataNumberError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&DataNumber> for u16 {
+    type Error = DataNumberError;
+
+    fn try_from(val: &DataNumber) -> Result<Self, Self::Error> {
+        match val {
+            DataNumber::U16(i) => Ok(*i),
+            _ => Err(DataNumberError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&DataNumber> for u32 {
+    type Error = DataNumberError;
+
+    fn try_from(val: &DataNumber) -> Result<Self, Self::Error> {
+        match val {
+            DataNumber::U32(i) => Ok(*i),
+            _ => Err(DataNumberError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&DataNumber> for i32 {
+    type Error = DataNumberError;
+
+    fn try_from(val: &DataNumber) -> Result<Self, Self::Error> {
+        match val {
+            DataNumber::I32(i) => Ok(*i),
+            _ => Err(DataNumberError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&DataNumber> for u64 {
+    type Error = DataNumberError;
+
+    fn try_from(val: &DataNumber) -> Result<Self, Self::Error> {
+        match val {
+            DataNumber::U64(i) => Ok(*i),
+            _ => Err(DataNumberError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&DataNumber> for u128 {
+    type Error = DataNumberError;
+
+    fn try_from(val: &DataNumber) -> Result<Self, Self::Error> {
+        match val {
+            DataNumber::U128(i) => Ok(*i),
+            _ => Err(DataNumberError::InvalidDataType),
+        }
+    }
 }
 
 #[cfg(feature = "parse_unknown_fields")]
@@ -203,6 +274,107 @@ pub enum FieldValue {
     Vec(Vec<u8>),
     ProtocolType(ProtocolTypes),
     Unknown,
+}
+
+#[derive(Debug)]
+pub enum FieldValueError {
+    InvalidDataType,
+}
+
+impl TryFrom<&FieldValue> for IpAddr {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::Ip4Addr(ip) => Ok(IpAddr::V4(*ip)),
+            FieldValue::Ip6Addr(ip) => Ok(IpAddr::V6(*ip)),
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&FieldValue> for u8 {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::DataNumber(d) => {
+                let d: u8 = d.try_into().map_err(|_| FieldValueError::InvalidDataType)?;
+                Ok(d)
+            }
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&FieldValue> for u16 {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::DataNumber(d) => {
+                let d: u16 = d.try_into().map_err(|_| FieldValueError::InvalidDataType)?;
+                Ok(d)
+            }
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&FieldValue> for u32 {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::DataNumber(d) => {
+                let d: u32 = d.try_into().map_err(|_| FieldValueError::InvalidDataType)?;
+                Ok(d)
+            }
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&FieldValue> for i32 {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::DataNumber(d) => {
+                let d: i32 = d.try_into().map_err(|_| FieldValueError::InvalidDataType)?;
+                Ok(d)
+            }
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&FieldValue> for u64 {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::DataNumber(d) => {
+                let d: u64 = d.try_into().map_err(|_| FieldValueError::InvalidDataType)?;
+                Ok(d)
+            }
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&FieldValue> for u128 {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::DataNumber(d) => {
+                let d: u128 = d.try_into().map_err(|_| FieldValueError::InvalidDataType)?;
+                Ok(d)
+            }
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
 }
 
 impl FieldValue {
