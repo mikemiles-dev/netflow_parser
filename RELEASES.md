@@ -1,3 +1,6 @@
+# 0.4.5
+ * Fixed bug with NetflowCommon V9 where Src and Dst IP where Ipv6 wasn't being checked.
+
 # 0.4.4
 * Fix Readme example packets.
 * Optimized IPFix, V9 NetflowCommon lookup.
