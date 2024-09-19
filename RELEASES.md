@@ -1,6 +1,7 @@
 # 0.4.4
 * Fix Readme example packets.
 * Optimized IPFix, V9 NetflowCommon lookup.
+* DataNumbers can now be downcast into actual data types: (u8, u16, i32, u32, u64, u128).
 
 # 0.4.3
  * Fixed bug in NetflowCommon where ProtocolType was never set.
