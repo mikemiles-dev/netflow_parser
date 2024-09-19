@@ -1,3 +1,7 @@
+# 0.4.4
+* Fix Readme example packets.
+* Optimized IPFix, V9 NetflowCommon lookup.
+
 # 0.4.3
  * Fixed bug in NetflowCommon where ProtocolType was never set.
  * Minor Readme Changes.
