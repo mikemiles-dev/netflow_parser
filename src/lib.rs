@@ -51,7 +51,7 @@
 //! ## Netflow Common
 //!
 //! For convenience we have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
-//! This will allow you to use common fields without unpacking values from specific versions
+//! This will allow you to use common fields without unpacking values from specific versions.
 //! If the packet flow does not have the matching field it will simply be left as `None`.
 //!
 //! ### NetflowCommon and NetflowCommonFlowSet Struct:
