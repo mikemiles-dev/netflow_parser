@@ -50,9 +50,9 @@ let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).col
 
 ## Netflow Common
 
-For convenience we have included a `NetflowCommon` structure.  This will allow you to use common
-Netflow fields without unpacking specific versions (fields like `src_port`, `dst_port`, etc.).  If the
-packet flow does not have the matching field it will simply be left as `None`.
+For convenience we have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
+This will allow you to use common fields without unpacking values from specific versions
+If the packet flow does not have the matching field it will simply be left as `None`.
 
 ### NetflowCommon and NetflowCommonFlowSet Struct:
 ```rust
