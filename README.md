@@ -54,17 +54,32 @@ For convenience we have included a `NetflowCommon` structure.  This will allow y
 Netflow fields without unpacking specific versions (fields like `src_port`, `dst_port`, etc.).  If the
 packet flow does not have the matching field it will simply be left as `None`.
 
-### Netflow Common fields:
+### NetflowCommon and NetflowCommonFlowSet Struct:
+```rust
+use std::net::IpAddr;
+use netflow_parser::protocol::ProtocolTypes;
+
+#[derive(Debug, Default)]
+pub struct NetflowCommon {
+    pub version: u16,
+    pub timestamp: u32,
+    pub flowsets: Vec<NetflowCommonFlowSet>,
+}
+
+#[derive(Debug, Default)]
+struct NetflowCommonFlowSet {
+    src_addr: Option<IpAddr>,
+    dst_addr: Option<IpAddr>,
+    src_port: Option<u16>,
+    dst_port: Option<u16>,
+    protocol_number: Option<u8>,
+    protocol_type: Option<ProtocolTypes>,
+    first_seen: Option<u32>,
+    last_seen: Option<u32>,
+}
 ```
-src_addr: Option<IpAddr>,
-dst_addr: Option<IpAddr>,
-src_port: Option<u16>,
-dst_port: Option<u16>,
-protocol_number: Option<u8>,
-protocol_type: Option<ProtocolTypes>,
-first_seen: Option<u32>,
-last_seen: Option<u32>,
-```
+
+### Converting NetflowPacket to NetflowCommon
 
 ```rust
 use netflow_parser::{NetflowParser, NetflowPacket};
@@ -82,6 +97,20 @@ let netflow_common = NetflowParser::default()
 for common_flow in netflow_common.flowsets.iter() {
     println!("Src Addr: {} Dst Addr: {}", common_flow.src_addr.unwrap(), common_flow.dst_addr.unwrap());
 }
+```
+
+### Alternative if you just want to gather all flowsets from all packets into a flattened vector of NetflowCommonFlowSet:
+
+```rust
+use netflow_parser::{NetflowParser, NetflowPacket};
+
+let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+    4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+    2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7];
+let netflow_common_flowsets = NetflowParser::default()
+                    .parse_bytes_as_netflow_common_flowsets(&v5_packet);
+
+println!("Flowsets: {:?}", netflow_common_flowsets);
 ```
 
 ## Re-Exporting flows

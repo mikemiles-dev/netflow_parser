@@ -14,7 +14,7 @@ pub enum NetflowCommonError {
     UnknownVersion(NetflowPacket),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 /// Common structure for Netflow
 pub struct NetflowCommon {
     pub version: u16,
@@ -36,7 +36,7 @@ impl TryFrom<&NetflowPacket> for NetflowCommon {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 /// Common flow set structure for Netflow
 pub struct NetflowCommonFlowSet {
     /// Source IP address
