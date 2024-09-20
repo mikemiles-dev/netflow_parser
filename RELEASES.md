@@ -1,3 +1,7 @@
+# 0.4.6
+* Added `NetflowParser` function `parse_bytes_as_netflow_common_flowsets`.  Will allow the caller
+  to gather all flowsets from all `NetflowPacket` into a single `Vec` of `NetflowCommonFlowSet`.
+
 # 0.4.5
  * Fixed bug with NetflowCommon V9 where Src and Dst IP where Ipv6 wasn't being checked.
 
