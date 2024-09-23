@@ -157,7 +157,7 @@ impl From<&V9> for NetflowCommon {
                             .and_then(|v| v.try_into().ok()),
                         dst_mac: value_map
                             .get(&V9Field::InDstMac)
-                            .and_then(|v| v.try_into().ok())
+                            .and_then(|v| v.try_into().ok()),
                     });
                 }
             }
@@ -218,7 +218,7 @@ impl From<&IPFix> for NetflowCommon {
                             .and_then(|v| v.try_into().ok()),
                         dst_mac: value_map
                             .get(&IPFixField::DestinationMacaddress)
-                            .and_then(|v| v.try_into().ok())
+                            .and_then(|v| v.try_into().ok()),
                     });
                 }
             }
@@ -445,7 +445,7 @@ mod common_tests {
                                     V9Field::InDstMac,
                                     FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
                                 ),
-                            )
+                            ),
                         ])],
                     }),
                 },
@@ -562,7 +562,7 @@ mod common_tests {
                                     IPFixField::DestinationMacaddress,
                                     FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
                                 ),
-                            )
+                            ),
                         ])],
                     }),
                 },
