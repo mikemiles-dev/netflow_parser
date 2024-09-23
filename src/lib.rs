@@ -76,6 +76,8 @@
 //!     protocol_type: Option<ProtocolTypes>,
 //!     first_seen: Option<u32>,
 //!     last_seen: Option<u32>,
+//!     src_mac: Option<String>,
+//!     dst_mac: Option<String>,
 //! }
 //! ```
 //!

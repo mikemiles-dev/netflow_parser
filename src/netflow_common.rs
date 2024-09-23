@@ -55,6 +55,10 @@ pub struct NetflowCommonFlowSet {
     pub first_seen: Option<u32>,
     /// Duration of the flow last
     pub last_seen: Option<u32>,
+    /// Source MAC address
+    pub src_mac: Option<String>,
+    /// Destination MAC address
+    pub dst_mac: Option<String>,
 }
 
 impl From<&V5> for NetflowCommon {
@@ -75,6 +79,8 @@ impl From<&V5> for NetflowCommon {
                     protocol_type: Some(set.protocol_type),
                     first_seen: Some(set.first),
                     last_seen: Some(set.last),
+                    src_mac: None,
+                    dst_mac: None,
                 })
                 .collect(),
         }
@@ -99,6 +105,8 @@ impl From<&V7> for NetflowCommon {
                     protocol_type: Some(set.protocol_type),
                     first_seen: Some(set.first),
                     last_seen: Some(set.last),
+                    src_mac: None,
+                    dst_mac: None,
                 })
                 .collect(),
         }
@@ -143,6 +151,12 @@ impl From<&V9> for NetflowCommon {
                             .and_then(|v| v.try_into().ok()),
                         last_seen: value_map
                             .get(&V9Field::LastSwitched)
+                            .and_then(|v| v.try_into().ok()),
+                        src_mac: value_map
+                            .get(&V9Field::InSrcMac)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_mac: value_map
+                            .get(&V9Field::InDstMac)
                             .and_then(|v| v.try_into().ok()),
                     });
                 }
@@ -198,6 +212,12 @@ impl From<&IPFix> for NetflowCommon {
                             .and_then(|v| v.try_into().ok()),
                         last_seen: value_map
                             .get(&IPFixField::FlowEndSysUpTime)
+                            .and_then(|v| v.try_into().ok()),
+                        src_mac: value_map
+                            .get(&IPFixField::SourceMacaddress)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_mac: value_map
+                            .get(&IPFixField::DestinationMacaddress)
                             .and_then(|v| v.try_into().ok()),
                     });
                 }
@@ -412,6 +432,20 @@ mod common_tests {
                                     FieldValue::DataNumber(DataNumber::U32(200)),
                                 ),
                             ),
+                            (
+                                7,
+                                (
+                                    V9Field::InSrcMac,
+                                    FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
+                                ),
+                            ),
+                            (
+                                8,
+                                (
+                                    V9Field::InDstMac,
+                                    FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
+                                ),
+                            ),
                         ])],
                     }),
                 },
@@ -440,6 +474,8 @@ mod common_tests {
         );
         assert_eq!(flowset.first_seen.unwrap(), 100);
         assert_eq!(flowset.last_seen.unwrap(), 200);
+        assert_eq!(flowset.src_mac.as_ref().unwrap(), "00:00:00:00:00:01");
+        assert_eq!(flowset.dst_mac.as_ref().unwrap(), "00:00:00:00:00:02");
     }
 
     #[test]
@@ -513,6 +549,20 @@ mod common_tests {
                                     FieldValue::DataNumber(DataNumber::U32(200)),
                                 ),
                             ),
+                            (
+                                7,
+                                (
+                                    IPFixField::SourceMacaddress,
+                                    FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
+                                ),
+                            ),
+                            (
+                                8,
+                                (
+                                    IPFixField::DestinationMacaddress,
+                                    FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
+                                ),
+                            ),
                         ])],
                     }),
                 },
@@ -541,5 +591,7 @@ mod common_tests {
         );
         assert_eq!(flowset.first_seen.unwrap(), 100);
         assert_eq!(flowset.last_seen.unwrap(), 200);
+        assert_eq!(flowset.src_mac.as_ref().unwrap(), "00:00:00:00:00:01");
+        assert_eq!(flowset.dst_mac.as_ref().unwrap(), "00:00:00:00:00:02");
     }
 }

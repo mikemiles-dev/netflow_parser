@@ -1,3 +1,6 @@
+# 0.4.7
+* Added `src_mac` and `dst_mac` to NetflowCommonFlowSet to help identify devices on V9, IPFix.
+
 # 0.4.6
 * Added `NetflowParser` function `parse_bytes_as_netflow_common_flowsets`.  Will allow the caller
   to gather all flowsets from all `NetflowPacket` into a single `Vec` of `NetflowCommonFlowSet`.

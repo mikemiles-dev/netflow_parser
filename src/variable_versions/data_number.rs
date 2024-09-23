@@ -281,6 +281,18 @@ pub enum FieldValueError {
     InvalidDataType,
 }
 
+impl TryFrom<&FieldValue> for String {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::String(s) => Ok(s.clone()),
+            FieldValue::MacAddr(s) => Ok(s.to_string()),
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
+}
+
 impl TryFrom<&FieldValue> for IpAddr {
     type Error = FieldValueError;
 
