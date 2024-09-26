@@ -325,9 +325,7 @@ fn parse_fields<'a, T: CommonTemplate>(
     for _ in 0..count {
         let mut data_field = BTreeMap::new();
         for (c, template_field) in template_fields.iter().enumerate() {
-            // If field length is 0 we error
             let (i, field_value) = parse_field(remaining, template_field)?;
-            // If we don't move forward for some reason we error
             if i.len() == remaining.len() {
                 error = true;
                 break;
