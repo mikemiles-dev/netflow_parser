@@ -58,8 +58,8 @@ expression: lookup
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
-- String
-- String
+- MacAddr
+- MacAddr
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
@@ -82,8 +82,8 @@ expression: lookup
 - String
 - String
 - String
-- String
-- String
+- MacAddr
+- MacAddr
 - String
 - String
 - String
@@ -367,9 +367,9 @@ expression: lookup
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
-- String
+- MacAddr
 - Ip4Addr
-- String
+- MacAddr
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
@@ -417,7 +417,7 @@ expression: lookup
 - Unknown
 - Unknown
 - Unknown
-- String
+- MacAddr
 - Unknown
 - UnsignedDataNumber
 - UnsignedDataNumber
