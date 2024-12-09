@@ -153,8 +153,8 @@ expression: fields
 - Unknown
 - Unknown
 - Unknown
-- Unknown
-- Unknown
+- FlowStartMilliseconds
+- FlowEndMilliseconds
 - Unknown
 - Unknown
 - Unknown
