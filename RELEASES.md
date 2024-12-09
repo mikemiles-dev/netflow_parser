@@ -1,6 +1,8 @@
+# 0.4.9
+* Added FlowStartMilliseconds, FlowEndMilliseconds 
+
 # 0.4.8
 * Now Parsing IPFix Mac Addresses correctly.
-
 
 # 0.4.7
 * Added `src_mac` and `dst_mac` to NetflowCommonFlowSet to help identify devices on V9, IPFix.
