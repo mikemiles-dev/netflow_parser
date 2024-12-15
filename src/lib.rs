@@ -3,7 +3,7 @@
 //! ## Description
 //!
 //! A Netflow Parser library for Cisco V5, V7, V9, IPFIX written in Rust.
-//! Supports chaining of multple versions in the same stream.  ({v5 packet}, {v7packet}, {v5packet}, {v9packet}, etc.)
+//! Supports chaining of multiple versions in the same stream.  ({v5 packet}, {v7 packet}, {v5 packet}, {v9 packet}, etc.)
 //!
 //! ## References
 //! See: <https://en.wikipedia.org/wiki/NetFlow>
@@ -50,7 +50,7 @@
 //!
 //! ## Netflow Common
 //!
-//! For convenience we have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
+//! We have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
 //! This will allow you to use common fields without unpacking values from specific versions.
 //! If the packet flow does not have the matching field it will simply be left as `None`.
 //!
@@ -136,7 +136,7 @@
 //!
 //! ## V9/IPFix notes:
 //!
-//! Parse the data (`&[u8]` as any other versions.  The parser (NetflowParser) holds onto already parsed templates, so you can just send a header/data flowset combo and it will use the cached templates.)   To see cached templates simply use the parser for the correct version (v9_parser for v9, ipfix_parser for IPFix.)
+//! Parse the data (`&[u8]` as any other versions.  The parser (NetflowParser) holds onto already parsed templates, so you can just send a header/data flowset combo, and it will use the cached templates.)   To see cached templates simply use the parser for the correct version (v9_parser for v9, ipfix_parser for IPFix.)
 //! ```rust
 //! use netflow_parser::NetflowParser;
 //! let parser = NetflowParser::default();
@@ -150,7 +150,7 @@
 //! * `parse_unknown_fields` - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
 //!
 //! ## Included Examples
-//! Some examples has been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
+//! Examples have been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multithreaded examples in the examples directory.
 //!
 //! To run:
 //!
@@ -265,8 +265,8 @@ pub enum NetflowParseError {
 }
 
 impl NetflowParser {
-    /// Takes a Netflow packet slice and returns a vector of Parsed Netflows.
-    /// If we reach some parse error we return what items be have.
+    /// Takes a Netflow packet slice and returns a vector of Parsed Netflow.
+    /// If we reach some parse error we return what items we have.
     ///
     /// # Examples
     ///

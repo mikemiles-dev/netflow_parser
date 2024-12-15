@@ -3,7 +3,7 @@
 ## Description
 
 A Netflow Parser library for Cisco V5, V7, V9, IPFIX written in Rust.
-Supports chaining of multple versions in the same stream.  ({v5 packet}, {v7packet}, {v5packet}, {v9packet}, etc.)
+Supports chaining of multiple versions in the same stream.  ({v5 packet}, {v7 packet}, {v5 packet}, {v9 packet}, etc.)
 
 ## References
 See: <https://en.wikipedia.org/wiki/NetFlow>
@@ -50,7 +50,7 @@ let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).col
 
 ## Netflow Common
 
-For convenience we have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
+We have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
 This will allow you to use common fields without unpacking values from specific versions.
 If the packet flow does not have the matching field it will simply be left as `None`.
 
@@ -152,7 +152,7 @@ To access templates flowset of a processed V9/IPFix flowset you can find the `fl
 
 ## Included Examples
 
-Some examples has been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
+Examples have been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
 
 To run:
 
