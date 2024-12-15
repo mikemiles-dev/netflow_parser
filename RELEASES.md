@@ -1,3 +1,6 @@
+# 0.5.0
+* Typos in documentation fixed.
+
 # 0.4.9
 * Added FlowStartMilliseconds, FlowEndMilliseconds 
 
@@ -34,7 +37,7 @@
 
 # 0.4.0
  * NetflowPacketResult now simply NetflowPacket.
- * General parser cleanup and removal of uneeded code.
+ * General parser cleanup and removal of unneeded code.
  * Small performance optimization in lib parse_bytes.
 
 # 0.3.6
@@ -85,7 +88,7 @@
 
 # 0.2.4
   * Fixes for V9 parsing.  Now supports processing multiple templates.
-  * General code cleanup/Removal of uneeded code.
+  * General code cleanup/Removal of unneeded code.
 
 # 0.2.3
   * Small performance improvement by not parsing netflow version twice each packet.
