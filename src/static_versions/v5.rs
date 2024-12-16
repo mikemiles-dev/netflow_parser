@@ -105,7 +105,7 @@ impl V5 {
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let header_version = self.header.version.to_be_bytes();
         let header_count = self.header.count.to_be_bytes();
-        let header_sys_up_time = (self.header.sys_up_time).to_be_bytes();
+        let header_sys_up_time = self.header.sys_up_time.to_be_bytes();
         let mut header_unix_timestamp = self.header.unix_secs.to_be_bytes().to_vec();
         let header_unix_nsecs = self.header.unix_nsecs.to_be_bytes().to_vec();
         header_unix_timestamp.extend_from_slice(&header_unix_nsecs);
@@ -135,8 +135,8 @@ impl V5 {
             let output = set.output.to_be_bytes();
             let d_pkts = set.d_pkts.to_be_bytes();
             let d_octets = set.d_octets.to_be_bytes();
-            let first = (set.first).to_be_bytes();
-            let last = (set.last).to_be_bytes();
+            let first = set.first.to_be_bytes();
+            let last = set.last.to_be_bytes();
             let src_port = set.src_port.to_be_bytes();
             let dst_ports = set.dst_port.to_be_bytes();
             let pad1 = set.pad1.to_be_bytes();

@@ -298,12 +298,21 @@ mod common_tests {
         assert_eq!(common.timestamp, 100);
         assert_eq!(common.flowsets.len(), 1);
         let flowset = &common.flowsets[0];
-        assert_eq!(flowset.src_addr.unwrap(), IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
-        assert_eq!(flowset.dst_addr.unwrap(), IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2)));
+        assert_eq!(
+            flowset.src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))
+        );
+        assert_eq!(
+            flowset.dst_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2))
+        );
         assert_eq!(flowset.src_port.unwrap(), 1234);
         assert_eq!(flowset.dst_port.unwrap(), 80);
         assert_eq!(flowset.protocol_number.unwrap(), 6);
-        assert_eq!(flowset.protocol_type.unwrap(), crate::protocol::ProtocolTypes::Tcp);
+        assert_eq!(
+            flowset.protocol_type.unwrap(),
+            crate::protocol::ProtocolTypes::Tcp
+        );
         assert_eq!(flowset.first_seen.unwrap(), 100);
         assert_eq!(flowset.last_seen.unwrap(), 200);
     }
@@ -352,12 +361,21 @@ mod common_tests {
         assert_eq!(common.timestamp, 100);
         assert_eq!(common.flowsets.len(), 1);
         let flowset = &common.flowsets[0];
-        assert_eq!(flowset.src_addr.unwrap(), IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
-        assert_eq!(flowset.dst_addr.unwrap(), IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2)));
+        assert_eq!(
+            flowset.src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))
+        );
+        assert_eq!(
+            flowset.dst_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2))
+        );
         assert_eq!(flowset.src_port.unwrap(), 1234);
         assert_eq!(flowset.dst_port.unwrap(), 80);
         assert_eq!(flowset.protocol_number.unwrap(), 6);
-        assert_eq!(flowset.protocol_type.unwrap(), crate::protocol::ProtocolTypes::Tcp);
+        assert_eq!(
+            flowset.protocol_type.unwrap(),
+            crate::protocol::ProtocolTypes::Tcp
+        );
         assert_eq!(flowset.first_seen.unwrap(), 100);
         assert_eq!(flowset.last_seen.unwrap(), 200);
     }
