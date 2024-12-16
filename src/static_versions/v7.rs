@@ -131,8 +131,8 @@ impl V7 {
             let output = set.output.to_be_bytes();
             let d_pkts = set.d_pkts.to_be_bytes();
             let d_octets = set.d_octets.to_be_bytes();
-            let first = (set.first).to_be_bytes();
-            let last = (set.last).to_be_bytes();
+            let first = set.first.to_be_bytes();
+            let last = set.last.to_be_bytes();
             let src_port = set.src_port.to_be_bytes();
             let dst_ports = set.dst_port.to_be_bytes();
             let flag_field_valid = set.flags_fields_valid.to_be_bytes();

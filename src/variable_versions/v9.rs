@@ -170,7 +170,7 @@ pub struct Template {
 pub struct OptionsTemplate {
     /// As a router generates different template FlowSets to match the type of NetFlow data it is exporting, each template is given a unique ID. This uniqueness is local to the router that generated the template ID. The Template ID is greater than 255. Template IDs inferior to 255 are reserved.
     pub template_id: u16,
-    /// This field gives the length in bytes of any scope fields that are contained in this options template.
+    /// This field gives the length in bytes of any scope fields that are contained in this options' template.
     pub options_scope_length: u16,
     /// This field gives the length (in bytes) of any Options field definitions that are contained in this options template
     pub options_length: u16,
@@ -201,7 +201,7 @@ pub struct TemplateField {
     /// that defines the known field types and their lengths.
     /// The currently defined field types are detailed in Table 6.
     pub field_type_number: u16,
-    /// Human readable type
+    /// Human-readable type
     #[nom(Value(V9Field::from(field_type_number)))]
     pub field_type: V9Field,
     /// This number gives the length of the above-defined field, in bytes.

@@ -261,7 +261,7 @@ impl From<DataNumber> for usize {
     }
 }
 
-/// Holds the post parsed field with its relvant datatype
+/// Holds the post parsed field with its relevant datatype
 #[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
 pub enum FieldValue {
     String(String),
@@ -402,7 +402,7 @@ impl FieldValue {
     }
 }
 
-/// Helps the parser indefiy the data type to parse the field as
+/// Helps the parser indent the data type to parse the field as
 #[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub enum FieldDataType {
     String,

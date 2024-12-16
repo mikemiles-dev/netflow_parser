@@ -294,22 +294,31 @@ mod common_tests {
 
         let common: NetflowCommon = NetflowCommon::try_from(&v5).unwrap();
 
-        assert!(common.version == 5);
-        assert!(common.timestamp == 100);
-        assert!(common.flowsets.len() == 1);
+        assert_eq!(common.version, 5);
+        assert_eq!(common.timestamp, 100);
+        assert_eq!(common.flowsets.len(), 1);
         let flowset = &common.flowsets[0];
-        assert!(flowset.src_addr.unwrap() == IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
-        assert!(flowset.dst_addr.unwrap() == IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2)));
-        assert!(flowset.src_port.unwrap() == 1234);
-        assert!(flowset.dst_port.unwrap() == 80);
-        assert!(flowset.protocol_number.unwrap() == 6);
-        assert!(flowset.protocol_type.unwrap() == crate::protocol::ProtocolTypes::Tcp);
-        assert!(flowset.first_seen.unwrap() == 100);
-        assert!(flowset.last_seen.unwrap() == 200);
+        assert_eq!(
+            flowset.src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))
+        );
+        assert_eq!(
+            flowset.dst_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2))
+        );
+        assert_eq!(flowset.src_port.unwrap(), 1234);
+        assert_eq!(flowset.dst_port.unwrap(), 80);
+        assert_eq!(flowset.protocol_number.unwrap(), 6);
+        assert_eq!(
+            flowset.protocol_type.unwrap(),
+            crate::protocol::ProtocolTypes::Tcp
+        );
+        assert_eq!(flowset.first_seen.unwrap(), 100);
+        assert_eq!(flowset.last_seen.unwrap(), 200);
     }
 
     #[test]
-    fn it_convets_v7_to_common() {
+    fn it_converts_v7_to_common() {
         let v7 = V7 {
             header: V7Header {
                 version: 7,
@@ -348,18 +357,27 @@ mod common_tests {
 
         let common: NetflowCommon = NetflowCommon::try_from(&v7).unwrap();
 
-        assert!(common.version == 7);
-        assert!(common.timestamp == 100);
-        assert!(common.flowsets.len() == 1);
+        assert_eq!(common.version, 7);
+        assert_eq!(common.timestamp, 100);
+        assert_eq!(common.flowsets.len(), 1);
         let flowset = &common.flowsets[0];
-        assert!(flowset.src_addr.unwrap() == IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
-        assert!(flowset.dst_addr.unwrap() == IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2)));
-        assert!(flowset.src_port.unwrap() == 1234);
-        assert!(flowset.dst_port.unwrap() == 80);
-        assert!(flowset.protocol_number.unwrap() == 6);
-        assert!(flowset.protocol_type.unwrap() == crate::protocol::ProtocolTypes::Tcp);
-        assert!(flowset.first_seen.unwrap() == 100);
-        assert!(flowset.last_seen.unwrap() == 200);
+        assert_eq!(
+            flowset.src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))
+        );
+        assert_eq!(
+            flowset.dst_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 2))
+        );
+        assert_eq!(flowset.src_port.unwrap(), 1234);
+        assert_eq!(flowset.dst_port.unwrap(), 80);
+        assert_eq!(flowset.protocol_number.unwrap(), 6);
+        assert_eq!(
+            flowset.protocol_type.unwrap(),
+            crate::protocol::ProtocolTypes::Tcp
+        );
+        assert_eq!(flowset.first_seen.unwrap(), 100);
+        assert_eq!(flowset.last_seen.unwrap(), 200);
     }
 
     #[test]

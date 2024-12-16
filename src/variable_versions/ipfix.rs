@@ -350,7 +350,7 @@ impl IPFix {
 
         result.extend_from_slice(&self.header.version.to_be_bytes());
         result.extend_from_slice(&self.header.length.to_be_bytes());
-        result.extend_from_slice(&(self.header.export_time).to_be_bytes());
+        result.extend_from_slice(&self.header.export_time.to_be_bytes());
         result.extend_from_slice(&self.header.sequence_number.to_be_bytes());
         result.extend_from_slice(&self.header.observation_domain_id.to_be_bytes());
 
