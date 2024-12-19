@@ -285,7 +285,9 @@ pub struct OptionDataField {
 
 impl Template {
     fn get_total_size(&self) -> u16 {
-        self.fields.iter().fold(0, |acc, i| acc + i.field_length)
+        self.fields
+            .iter()
+            .fold(0, |acc, i| acc.saturating_add(i.field_length))
     }
 }
 
