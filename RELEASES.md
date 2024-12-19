@@ -1,5 +1,7 @@
 # 0.5.0
 * Typos in documentation fixed.
+* Added cargo-fuzz for fuzzing.
+  * Uncovered area in V9 that could cause panic.
 
 # 0.4.9
 * Added FlowStartMilliseconds, FlowEndMilliseconds 
