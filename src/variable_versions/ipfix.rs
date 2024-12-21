@@ -278,36 +278,11 @@ fn parse_fields<'a, T: CommonTemplate>(
     i: &'a [u8],
     template: Option<&T>,
 ) -> IResult<&'a [u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
-    fn parse_field<'a>(
-        i: &'a [u8],
-        template_field: &TemplateField,
-    ) -> IResult<&'a [u8], FieldValue> {
-        // Enterprise Number
-        if template_field.enterprise_number.is_some() {
-            let (remaining, data_number) = DataNumber::parse(i, 4, false)?;
-            Ok((remaining, FieldValue::DataNumber(data_number)))
-        // Type matching
-        } else {
-            Ok(DataNumber::from_field_type(
-                i,
-                template_field.field_type.into(),
-                template_field.field_length,
-            ))?
-        }
-    }
-
     // If no fields there are no fields to parse, return an error.
     let template_fields = template
-        .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?
+        .filter(|t| !t.get_fields().is_empty())
+        .ok_or_else(|| NomErr::Error(NomError::new(i, ErrorKind::Fail)))?
         .get_fields();
-
-    if template_fields.is_empty() {
-        // dbg!("Template without fields!");
-        return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
-    };
-
-    let mut fields = vec![];
-    let mut remaining = i;
 
     let total_size = template_fields
         .iter()
@@ -315,20 +290,20 @@ fn parse_fields<'a, T: CommonTemplate>(
         .sum::<usize>();
 
     if total_size == 0 {
-        return Ok((&[], fields));
+        return Ok((&[], vec![]));
     }
-    let count: usize = i.len() / total_size;
 
-    let mut error = false;
+    let record_count: usize = i.len() / total_size;
+    let mut fields = vec![];
+    let mut remaining = i;
 
     // Iter through template fields and push them to a vec.  If we encouter any zero length fields we return an error.
-    for _ in 0..count {
+    for _ in 0..record_count {
         let mut data_field = BTreeMap::new();
         for (c, template_field) in template_fields.iter().enumerate() {
             let (i, field_value) = parse_field(remaining, template_field)?;
             if i.len() == remaining.len() {
-                error = true;
-                break;
+                return Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)));
             }
             remaining = i;
             data_field.insert(c, (template_field.field_type, field_value));
@@ -336,11 +311,31 @@ fn parse_fields<'a, T: CommonTemplate>(
         fields.push(data_field);
     }
 
-    if error {
-        Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))
+    Ok((&[], fields))
+}
+
+fn parse_field<'a>(
+    i: &'a [u8],
+    template_field: &TemplateField,
+) -> IResult<&'a [u8], FieldValue> {
+    let has_enterprise_number = template_field.enterprise_number.is_some();
+
+    if has_enterprise_number {
+        // Simplified parsing when `enterprise_number` is present
+        parse_enterprise_field(i)
     } else {
-        Ok((&[], fields))
+        // Parse field based on its type and length
+        DataNumber::from_field_type(
+            i,
+            template_field.field_type.into(),
+            template_field.field_length,
+        )
     }
+}
+
+fn parse_enterprise_field(i: &[u8]) -> IResult<&[u8], FieldValue> {
+    let (remaining, data_number) = DataNumber::parse(i, 4, false)?;
+    Ok((remaining, FieldValue::DataNumber(data_number)))
 }
 
 impl IPFix {

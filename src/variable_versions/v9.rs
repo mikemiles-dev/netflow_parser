@@ -362,46 +362,51 @@ fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> 
 }
 
 fn parse_fields<'a>(
-    i: &'a [u8],
+    input: &'a [u8],
     template: Option<&Template>,
 ) -> IResult<&'a [u8], Vec<BTreeMap<usize, V9FieldPair>>> {
-    let template = match template {
-        Some(t) => t,
-        None => {
-            // dbg!("Could not fetch any v9 templates!");
-            return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
-        }
-    };
+    let template = template
+        .filter(|t| !t.fields.is_empty() && t.get_total_size() > 0)
+        .ok_or_else(|| NomErr::Error(NomError::new(input, ErrorKind::Fail)))?;
 
     let mut fields = vec![];
-    // If no fields there are no fields to parse
-    if template.fields.is_empty() {
-        // dbg!("Template without fields!");
-        return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
-    };
-    let mut remaining = i;
+    let mut remaining = input;
+    let record_count = input.len() as u16 / template.get_total_size();
 
-    if template.get_total_size() == 0 {
-        return Ok((&[], fields));
-    }
-
-    let count = i.len() as u16 / template.get_total_size();
-
-    for _ in 0..count {
-        let mut data_field = BTreeMap::new();
-        for (c, template_field) in template.fields.iter().enumerate() {
-            let field_type: FieldDataType = template_field.field_type.into();
-            let (i, field_value) = DataNumber::from_field_type(
-                remaining,
-                field_type,
-                template_field.field_length,
-            )?;
-            remaining = i;
-            data_field.insert(c, (template_field.field_type, field_value));
-        }
+    for _ in 0..record_count {
+        // Fields
+        let (new_remaining, data_field) = parse_data_field(remaining, template)?;
+        remaining = new_remaining;
         fields.push(data_field);
     }
+
     Ok((remaining, fields))
+}
+
+fn parse_data_field<'a>(
+    mut input: &'a [u8],
+    template: &Template,
+) -> IResult<&'a [u8], BTreeMap<usize, V9FieldPair>> {
+    let mut data_field = BTreeMap::new();
+
+    for (field_index, template_field) in template.fields.iter().enumerate() {
+        let (new_input, field_value) = parse_field(input, template_field)?;
+        input = new_input;
+        data_field.insert(field_index, (template_field.field_type, field_value));
+    }
+
+    Ok((input, data_field))
+}
+
+fn parse_field<'a>(
+    input: &'a [u8],
+    template_field: &TemplateField,
+) -> IResult<&'a [u8], FieldValue> {
+    DataNumber::from_field_type(
+        input,
+        template_field.field_type.into(),
+        template_field.field_length,
+    )
 }
 
 fn parse_options_data_fields(
