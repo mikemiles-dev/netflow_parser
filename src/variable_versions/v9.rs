@@ -321,15 +321,14 @@ fn parse_set_body<'a>(
 fn parse_flowsets<'a>(
     i: &'a [u8],
     parser: &mut V9Parser,
-    count: u16,
+    record_count: u16,
 ) -> IResult<&'a [u8], Vec<FlowSet>> {
     let mut flowsets = vec![];
     let mut remaining = i;
-
-    let mut count_index = 0;
+    let mut record_count_index = 0;
 
     // Header.count represents total number of records in data + records in templates
-    while !remaining.is_empty() && count_index < count {
+    while !remaining.is_empty() && record_count_index < record_count {
         let (i, mut flowset) = FlowSet::parse(remaining, parser)?;
 
         if flowset.is_empty() {
@@ -345,7 +344,7 @@ fn parse_flowsets<'a>(
 
         flowsets.push(flowset);
 
-        count_index += 1;
+        record_count_index += 1;
     }
 
     Ok((remaining, flowsets))
