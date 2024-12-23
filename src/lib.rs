@@ -289,22 +289,20 @@ impl NetflowParser {
         if packet.is_empty() {
             return vec![];
         }
-        self.parse_packet_by_version(packet)
-            .map(|parsed_netflow| {
-                let parsed_result = vec![parsed_netflow.result];
+
+        match self.parse_packet_by_version(packet) {
+            Ok(parsed_netflow) => {
+                let mut results = vec![parsed_netflow.result];
                 if !parsed_netflow.remaining.is_empty() {
-                    let parsed_remaining = self.parse_bytes(&parsed_netflow.remaining);
-                    [parsed_result, parsed_remaining].concat()
-                } else {
-                    parsed_result
+                    results.extend(self.parse_bytes(&parsed_netflow.remaining));
                 }
-            })
-            .unwrap_or_else(|e| {
-                vec![NetflowPacket::Error(NetflowPacketError {
-                    error: e,
-                    remaining: packet.to_vec(),
-                })]
-            })
+                results
+            }
+            Err(e) => vec![NetflowPacket::Error(NetflowPacketError {
+                error: e,
+                remaining: packet.to_vec(),
+            })],
+        }
     }
 
     /// Takes a Netflow packet slice and returns a vector of Parsed NetflowCommonFlowSet

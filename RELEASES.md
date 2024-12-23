@@ -1,5 +1,6 @@
 # 0.5.1
-* V9, IPFix Code cleanup.
+* V9, IPFix, Datanumber Code cleanup.
+* Added benchmarking
 
 # 0.5.0
 * Typos in documentation fixed.
