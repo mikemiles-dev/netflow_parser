@@ -42,18 +42,7 @@ macro_rules! impl_try_from {
             }
         )*
 
-        $(
-            impl TryFrom<&FieldValue> for $s {
-                type Error = FieldValueError;
 
-                fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
-                    match value {
-                        FieldValue::$sv(s) => Ok(s.clone()),
-                        _ => Err(FieldValueError::InvalidDataType),
-                    }
-                }
-            }
-        )*
     };
 }
 
