@@ -31,3 +31,23 @@ serde_json = "1.0.100"
 [[bench]]
 name = "netflow_parser_bench"
 harness = false
+
+[[bench]]
+name = "netflow_common_bench"
+harness = false
+
+[[bench]]
+name = "netflow_v5_bench"
+harness = false
+
+[[bench]]
+name = "netflow_v7_bench"
+harness = false
+
+[[bench]]
+name = "netflow_v9_bench"
+harness = false
+
+[[bench]]
+name = "netflow_ipfix_bench"
+harness = false
