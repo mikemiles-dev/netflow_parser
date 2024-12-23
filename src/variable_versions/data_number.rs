@@ -13,8 +13,8 @@ use std::convert::Into;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
-macro_rules! impl_try_from_data_number {
-    ($($t:ty => $v:ident),*) => {
+macro_rules! impl_try_from {
+    ($($t:ty => $v:ident),*; $($s:ty => $sv:ident),*) => {
         $(
             impl TryFrom<&DataNumber> for $t {
                 type Error = DataNumberError;
@@ -26,13 +26,7 @@ macro_rules! impl_try_from_data_number {
                     }
                 }
             }
-        )*
-    };
-}
 
-macro_rules! impl_try_from_field_value {
-    ($($t:ty => $v:ident),*) => {
-        $(
             impl TryFrom<&FieldValue> for $t {
                 type Error = FieldValueError;
 
@@ -42,6 +36,19 @@ macro_rules! impl_try_from_field_value {
                             let d: $t = d.try_into().map_err(|_| FieldValueError::InvalidDataType)?;
                             Ok(d)
                         }
+                        _ => Err(FieldValueError::InvalidDataType),
+                    }
+                }
+            }
+        )*
+
+        $(
+            impl TryFrom<&FieldValue> for $s {
+                type Error = FieldValueError;
+
+                fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+                    match value {
+                        FieldValue::$sv(s) => Ok(s.clone()),
                         _ => Err(FieldValueError::InvalidDataType),
                     }
                 }
@@ -69,22 +76,13 @@ pub enum DataNumberError {
     InvalidDataType,
 }
 
-impl_try_from_data_number!(
+impl_try_from!(
     u8 => U8,
     u16 => U16,
     u32 => U32,
     i32 => I32,
     u64 => U64,
-    u128 => U128
-);
-
-impl_try_from_field_value!(
-    u8 => DataNumber,
-    u16 => DataNumber,
-    u32 => DataNumber,
-    i32 => DataNumber,
-    u64 => DataNumber,
-    u128 => DataNumber
+    u128 => U128;
 );
 
 impl TryFrom<&FieldValue> for String {
@@ -298,7 +296,7 @@ impl FieldValue {
     pub fn to_be_bytes(&self) -> Vec<u8> {
         match self {
             FieldValue::String(s) => s.as_bytes().to_vec(),
-            FieldValue::DataNumber(d) => d.to_be_bytes().to_vec(),
+            FieldValue::DataNumber(d) => d.to_be_bytes(),
             FieldValue::Float64(f) => f.to_be_bytes().to_vec(),
             FieldValue::Duration(d) => (d.as_secs() as u32).to_be_bytes().to_vec(),
             FieldValue::Ip4Addr(ip) => ip.octets().to_vec(),
