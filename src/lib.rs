@@ -256,17 +256,21 @@ pub struct NetflowPacketError {
 
 #[derive(Debug, Clone, Serialize)]
 pub enum NetflowParseError {
-    V5(String),
-    V7(String),
-    V9(String),
-    IPFix(String),
     Incomplete(String),
+    Partial(PartialParse),
     UnknownVersion(Vec<u8>),
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct PartialParse {
+    pub version: u16,
+    pub remaining: Vec<u8>,
+    pub error: String,
+}
+
 impl NetflowParser {
-    /// Takes a Netflow packet slice and returns a vector of Parsed Netflow.
-    /// If we reach some parse error we return what items we have.
+    /// Takes a Netflow packet slice and returns a vector of Parsed Netflows.
+    /// If we reach some parse error we return what items be have.
     ///
     /// # Examples
     ///
@@ -313,7 +317,7 @@ impl NetflowParser {
     ) -> Vec<NetflowCommonFlowSet> {
         let netflow_packets = self.parse_bytes(packet);
         netflow_packets
-            .into_iter()
+            .iter()
             .flat_map(|n| n.as_netflow_common().unwrap_or_default().flowsets)
             .collect()
     }

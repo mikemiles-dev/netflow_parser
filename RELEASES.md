@@ -1,4 +1,5 @@
 # 0.5.1
+* Reworked NetflowParseError.  Added a Partial Type.
 * V9, IPFix, Datanumber Code cleanup.
 * Added benchmarking
 

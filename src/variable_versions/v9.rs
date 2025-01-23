@@ -6,7 +6,7 @@
 
 use super::data_number::*;
 use crate::variable_versions::v9_lookup::*;
-use crate::{NetflowPacket, NetflowParseError, ParsedNetflow};
+use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
@@ -32,7 +32,13 @@ pub(crate) fn parse_netflow_v9(
 ) -> Result<ParsedNetflow, NetflowParseError> {
     V9::parse(packet, parser)
         .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
-        .map_err(|e| NetflowParseError::V9(e.to_string()))
+        .map_err(|e| {
+            NetflowParseError::Partial(PartialParse {
+                version: 9,
+                error: e.to_string(),
+                remaining: packet.to_vec(),
+            })
+        })
 }
 
 #[derive(Default, Debug)]

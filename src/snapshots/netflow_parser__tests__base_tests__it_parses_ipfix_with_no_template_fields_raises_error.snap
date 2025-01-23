@@ -4,7 +4,34 @@ expression: parser.parse_bytes(&packet)
 ---
 - Error:
     error:
-      IPFix: "Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: Fail }"
+      Partial:
+        version: 10
+        remaining:
+          - 0
+          - 26
+          - 0
+          - 0
+          - 0
+          - 1
+          - 0
+          - 0
+          - 0
+          - 1
+          - 0
+          - 0
+          - 0
+          - 0
+          - 1
+          - 2
+          - 0
+          - 10
+          - 0
+          - 8
+          - 0
+          - 0
+          - 1
+          - 1
+        error: "Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: Fail }"
     remaining:
       - 0
       - 10
