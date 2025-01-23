@@ -8,7 +8,7 @@
 
 use super::data_number::*;
 use crate::variable_versions::ipfix_lookup::*;
-use crate::{NetflowPacket, NetflowParseError, ParsedNetflow};
+use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
@@ -34,7 +34,13 @@ pub(crate) fn parse_netflow_ipfix(
 ) -> Result<ParsedNetflow, NetflowParseError> {
     IPFix::parse(packet, parser)
         .map(|(remaining, ipfix)| ParsedNetflow::new(remaining, NetflowPacket::IPFix(ipfix)))
-        .map_err(|e| NetflowParseError::IPFix(e.to_string()))
+        .map_err(|e| {
+            NetflowParseError::Partial(PartialParse {
+                version: 10,
+                error: e.to_string(),
+                remaining: packet.to_vec(),
+            })
+        })
 }
 
 #[derive(Default, Debug)]
