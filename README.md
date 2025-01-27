@@ -48,6 +48,19 @@ let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 ```
 
+## Parsing out uneeded versions
+If you only care about a specific version or versions you can specfic `allowed_version`:
+```rust
+use netflow_parser::{NetflowParser, NetflowPacket};
+
+let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
+let mut parser = NetflowParser::default();
+parser.allowed_versions = [7, 9].into();
+let parsed = NetflowParser::default().parse_bytes(&v5_packet);
+```
+
+This code will return an empty Vec as version 5 is not allowed.
+
 ## Netflow Common
 
 We have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
