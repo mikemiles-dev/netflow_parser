@@ -1,5 +1,6 @@
 # 0.5.1
 * Reworked NetflowParseError.  Added a Partial Type.
+* Added ability to parse only `allowed_versions`.
 * V9, IPFix, Datanumber Code cleanup.
 * Added benchmarking
 

@@ -4,10 +4,14 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
 - Error:
     error:
-      UnknownVersion:
-        - 14
+      Partial:
+        version: 9
+        remaining:
+          - 10
+          - 11
+        error: Parsing requires 4 bytes/chars
     remaining:
-      - 12
-      - 13
-      - 14
-
+      - 0
+      - 9
+      - 10
+      - 11

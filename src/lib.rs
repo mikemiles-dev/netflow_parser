@@ -48,6 +48,19 @@
 //! let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 //! ```
 //!
+//! ## Parsing out uneeded versions
+//! If you only care about a specific version or versions you can specfic `allowed_version`:
+//! ```rust
+//! use netflow_parser::{NetflowParser, NetflowPacket};
+//!
+//! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
+//! let mut parser = NetflowParser::default();
+//! parser.allowed_versions = [7, 9].into();
+//! let parsed = NetflowParser::default().parse_bytes(&v5_packet);
+//! ```
+//!
+// !This code will return an empty Vec as version 5 is not allowed.
+//!
 //! ## Netflow Common
 //!
 //! We have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
@@ -184,6 +197,8 @@ use crate::variable_versions::v9;
 use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
+use std::collections::HashSet;
+
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
 pub enum NetflowPacket {
@@ -226,10 +241,11 @@ struct GenericNetflowHeader {
     version: u16,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct NetflowParser {
     pub v9_parser: V9Parser,
     pub ipfix_parser: IPFixParser,
+    pub allowed_versions: HashSet<u16>,
 }
 
 #[derive(Debug, Clone)]
@@ -258,6 +274,7 @@ pub struct NetflowPacketError {
 pub enum NetflowParseError {
     Incomplete(String),
     Partial(PartialParse),
+    UnallowedVersion(u16),
     UnknownVersion(Vec<u8>),
 }
 
@@ -266,6 +283,16 @@ pub struct PartialParse {
     pub version: u16,
     pub remaining: Vec<u8>,
     pub error: String,
+}
+
+impl Default for NetflowParser {
+    fn default() -> Self {
+        Self {
+            v9_parser: V9Parser::default(),
+            ipfix_parser: IPFixParser::default(),
+            allowed_versions: [5, 7, 9, 10].iter().cloned().collect(),
+        }
+    }
 }
 
 impl NetflowParser {
@@ -302,10 +329,29 @@ impl NetflowParser {
                 }
                 results
             }
-            Err(e) => vec![NetflowPacket::Error(NetflowPacketError {
-                error: e,
-                remaining: packet.to_vec(),
-            })],
+            Err(e) => match e {
+                NetflowParseError::Incomplete(_) => {
+                    vec![NetflowPacket::Error(NetflowPacketError {
+                        error: e,
+                        remaining: packet.to_vec(),
+                    })]
+                }
+                NetflowParseError::Partial(partial) => {
+                    vec![NetflowPacket::Error(NetflowPacketError {
+                        error: NetflowParseError::Partial(partial),
+                        remaining: packet.to_vec(),
+                    })]
+                }
+                NetflowParseError::UnknownVersion(_) => {
+                    vec![NetflowPacket::Error(NetflowPacketError {
+                        error: e,
+                        remaining: packet.to_vec(),
+                    })]
+                }
+                NetflowParseError::UnallowedVersion(_) => {
+                    vec![]
+                }
+            },
         }
     }
 
@@ -332,6 +378,10 @@ impl NetflowParser {
         let (packet, version) = GenericNetflowHeader::parse(packet)
             .map(|(remaining, header)| (remaining, header.version))
             .map_err(|e| NetflowParseError::Incomplete(e.to_string()))?;
+
+        if !self.allowed_versions.contains(&version) {
+            return Err(NetflowParseError::UnallowedVersion(version));
+        }
 
         match version {
             5 => v5::parse_netflow_v5(packet),

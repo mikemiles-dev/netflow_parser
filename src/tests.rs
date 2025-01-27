@@ -11,6 +11,7 @@ mod base_tests {
 
     use hex;
     use insta::assert_yaml_snapshot;
+    use std::collections::HashSet;
 
     #[test]
     fn it_parses_unix_timestamp_correctly() {
@@ -49,6 +50,18 @@ mod base_tests {
     }
 
     #[test]
+    fn it_doesnt_allow_v5() {
+        let packet = [
+            0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+        let mut parser = NetflowParser::default();
+        parser.allowed_versions = HashSet::default();
+        assert_yaml_snapshot!(parser.parse_bytes(&packet));
+    }
+
+    #[test]
     fn it_parses_v5_incomplete() {
         let packet = [0, 5, 0, 0, 1, 1, 1, 1];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
@@ -73,7 +86,7 @@ mod base_tests {
 
     #[test]
     fn it_creates_error() {
-        let packet = [12, 13, 14];
+        let packet = [0, 9, 10, 11];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }
 
@@ -85,6 +98,18 @@ mod base_tests {
             2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_doesnt_allow_v7() {
+        let packet = [
+            0, 7, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+        ];
+        let mut parser = NetflowParser::default();
+        parser.allowed_versions = HashSet::default();
+        assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
 
     #[test]
@@ -111,6 +136,17 @@ mod base_tests {
             2, 0, 1, 0, 4, 0, 8, 0, 4, 1, 2, 0, 12, 9, 2, 3, 4, 9, 9, 9, 8,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_doesnt_allow_v9() {
+        let packet = [
+            0, 9, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,
+            2, 0, 1, 0, 4, 0, 8, 0, 4, 1, 2, 0, 12, 9, 2, 3, 4, 9, 9, 9, 8,
+        ];
+        let mut parser = NetflowParser::default();
+        parser.allowed_versions = HashSet::default();
+        assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
 
     #[test]
@@ -241,6 +277,18 @@ mod base_tests {
             0, 2, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_doesnt_allow_ipfix() {
+        let packet = [
+            0, 10, 0, 64, 1, 2, 3, 4, 0, 0, 0, 0, 1, 2, 3, 4, 0, 2, 0, 20, 1, 0, 0, 3, 0, 8, 0,
+            4, 0, 12, 0, 4, 0, 2, 0, 4, 1, 0, 0, 28, 1, 2, 3, 4, 1, 2, 3, 3, 1, 2, 3, 2, 0, 2,
+            0, 2, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+        let mut parser = NetflowParser::default();
+        parser.allowed_versions = HashSet::default();
+        assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
 
     #[test]
