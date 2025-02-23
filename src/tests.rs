@@ -405,4 +405,35 @@ mod base_tests {
         ];
         assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
     }
+
+    #[test]
+    fn it_parses_ipfix_enterprise_bit_in_non_options_template() {
+        let packet = [
+            0, 10, 0, 42, 99, 138, 252, 49, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 26, 1, 4, 0, 2,
+            128, 103, 255, 255, 24, 77, 128, 103, 255, 255, 0, 0, 24, 77, 129, 64, 0, 4, 0, 0,
+            24, 77,
+        ];
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
+
+    #[test]
+    fn it_parses_ipfix_scappy_example() {
+        let hex_template = r#"000a0074583de05700000ecf00000000000200640133001700080004000c0004000500010004000100070002000b000200200002000a0004001000040011000400120004000e000400010004000200040016000400150004000f000400090001000d000100060001003c00010098000800990008"#;
+        let packet = hex::decode(hex_template).unwrap();
+        let mut parser = NetflowParser::default();
+        let mut result = parser.parse_bytes(&packet);
+        let hex_data = r#"000a0060583de05900000ee400000000013300504601730132004701003d0000000000000000033b0000000200000003cc2a6e65000003560000052000000009b3f906eeb3fbaf3ccc2a6ebd1818000400000158b1b138ff00000158b1b3e14d"#;
+        let packet = hex::decode(hex_data).unwrap();
+        result.append(&mut parser.parse_bytes(&packet));
+        assert_yaml_snapshot!(result);
+    }
+
+    #[test]
+    fn it_parses_ipfix_scappy_example_options_template() {
+        let hex_template = r#"000a0028583de05700000ecf00000000000300180134000300010005000200240002002500020000"#;
+        let packet = hex::decode(hex_template).unwrap();
+        let mut parser = NetflowParser::default();
+        let result = parser.parse_bytes(&packet);
+        assert_yaml_snapshot!(result);
+    }
 }

@@ -150,6 +150,9 @@
 //! ## V9/IPFix notes:
 //!
 //! Parse the data (`&[u8]` as any other versions.  The parser (NetflowParser) holds onto already parsed templates, so you can just send a header/data flowset combo, and it will use the cached templates.)   To see cached templates simply use the parser for the correct version (v9_parser for v9, ipfix_parser for IPFix.)
+//!
+//! **IPFIx Note:**  We only parse sequence number and domain id, it is up to you if you wish to validate it.
+//!
 //! ```rust
 //! use netflow_parser::NetflowParser;
 //! let parser = NetflowParser::default();
@@ -176,6 +179,14 @@
 //! or
 //!
 //! ```cargo run --example netflow_udp_listener_tokio```
+//!
+//! ## Support My Work
+//!
+//! If you find my work helpful, consider supporting me!
+//!
+//! [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/michaelmileusnich)
+//!
+//! [![GitHub Sponsors](https://img.shields.io/badge/sponsor-30363D?style=for-the-badge&logo=GitHub-Sponsors&logoColor=#EA4AAA)](https://github.com/sponsors/mikemiles-dev)
 
 pub mod netflow_common;
 pub mod protocol;

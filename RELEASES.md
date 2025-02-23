@@ -1,3 +1,6 @@
+# 0.5.2
+* Can now parse enterprise fields in non options templates for IPFIX.
+
 # 0.5.1
 * Reworked NetflowParseError.  Added a Partial Type.
 * Added ability to parse only `allowed_versions`.
