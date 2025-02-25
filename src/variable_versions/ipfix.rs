@@ -21,7 +21,6 @@ use Nom;
 
 use std::collections::BTreeMap;
 
-const TEMPLATE_ID: u16 = 2;
 const OPTIONS_TEMPLATE_ID: u16 = 3;
 const SET_MIN_RANGE: u16 = 255;
 
@@ -115,7 +114,7 @@ pub struct FlowSetHeader {
 #[nom(ExtraArgs(parser: &mut IPFixParser, id: u16, length: u16))]
 pub struct FlowSetBody {
     #[nom(
-        Cond = "id == TEMPLATE_ID",
+        Cond = "id < SET_MIN_RANGE && id != OPTIONS_TEMPLATE_ID",
         // Save our templates
         PostExec = "if let Some(templates) = templates.clone() { parser.templates.insert(templates.template_id, templates); }"
     )]
@@ -171,8 +170,8 @@ pub struct OptionsTemplate {
     pub field_count: u16,
     pub scope_field_count: u16,
     #[nom(
-        PreExec = "let combined_count = scope_field_count as usize + 
-                       field_count.checked_sub(scope_field_count).unwrap_or(field_count) as usize;",
+        PreExec = "let combined_count = scope_field_count.saturating_add(
+                       field_count.checked_sub(scope_field_count).unwrap_or(field_count)) as usize;",
         Parse = "count(|i| TemplateField::parse(i, true), combined_count)",
         PostExec = "let options_remaining = set_length.checked_sub(field_count * 4).unwrap_or(set_length) > 0;"
     )]
@@ -212,7 +211,7 @@ pub struct TemplateField {
     pub field_type: IPFixField,
     pub field_length: u16,
     #[nom(
-        Cond = "options_template && field_type_number > 32767",
+        Cond = "field_type_number > 32767",
         PostExec = "let field_type_number = if options_template {
                       field_type_number.overflowing_sub(32768).0
                     } else { field_type_number };",
@@ -328,7 +327,7 @@ fn parse_field<'a>(
 
     if has_enterprise_number {
         // Simplified parsing when `enterprise_number` is present
-        parse_enterprise_field(i)
+        parse_enterprise_field(i, template_field.field_length)
     } else {
         // Parse field based on its type and length
         DataNumber::from_field_type(
@@ -339,8 +338,8 @@ fn parse_field<'a>(
     }
 }
 
-fn parse_enterprise_field(i: &[u8]) -> IResult<&[u8], FieldValue> {
-    let (remaining, data_number) = DataNumber::parse(i, 4, false)?;
+fn parse_enterprise_field(i: &[u8], length: u16) -> IResult<&[u8], FieldValue> {
+    let (remaining, data_number) = DataNumber::parse(i, length, false)?;
     Ok((remaining, FieldValue::DataNumber(data_number)))
 }
 

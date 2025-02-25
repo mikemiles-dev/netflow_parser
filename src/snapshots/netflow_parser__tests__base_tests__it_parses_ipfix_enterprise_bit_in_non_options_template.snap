@@ -1,0 +1,28 @@
+---
+source: src/tests.rs
+expression: "NetflowParser::default().parse_bytes(&packet)"
+---
+- IPFix:
+    header:
+      version: 10
+      length: 42
+      export_time: 1670052913
+      sequence_number: 0
+      observation_domain_id: 0
+    flowsets:
+      - header:
+          header_id: 2
+          length: 26
+        body:
+          templates:
+            template_id: 260
+            field_count: 2
+            fields:
+              - field_type_number: 32871
+                field_type: Unknown
+                field_length: 65535
+                enterprise_number: 407732327
+              - field_type_number: 65535
+                field_type: Unknown
+                field_length: 0
+                enterprise_number: 407732544
