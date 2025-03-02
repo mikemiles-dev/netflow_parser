@@ -10,10 +10,12 @@ use netflow_parser::NetflowParser;
 fn create_thread() -> Sender<Vec<u8>> {
     let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
     let mut parser = NetflowParser::default();
-    thread::spawn(move || loop {
-        if let Ok(data) = rx.recv() {
-            let result = parser.parse_bytes(data.as_slice());
-            println!("{:?}", result);
+    thread::spawn(move || {
+        loop {
+            if let Ok(data) = rx.recv() {
+                let result = parser.parse_bytes(data.as_slice());
+                println!("{:?}", result);
+            }
         }
     });
     tx

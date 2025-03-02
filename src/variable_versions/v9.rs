@@ -8,13 +8,13 @@ use super::data_number::*;
 use crate::variable_versions::v9_lookup::*;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
-use nom::bytes::complete::take;
-use nom::error::{Error as NomError, ErrorKind};
+use Nom;
 use nom::Err as NomErr;
 use nom::IResult;
+use nom::bytes::complete::take;
+use nom::error::{Error as NomError, ErrorKind};
 use nom_derive::*;
 use serde::Serialize;
-use Nom;
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;

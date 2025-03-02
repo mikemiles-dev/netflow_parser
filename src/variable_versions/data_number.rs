@@ -1,11 +1,11 @@
 use crate::protocol::ProtocolTypes;
 
 use byteorder::{BigEndian, WriteBytesExt};
-use nom::bytes::complete::take;
-use nom::error::{Error as NomError, ErrorKind};
-use nom::number::complete::{be_i24, be_u128, be_u24, be_u32};
 use nom::Err as NomErr;
 use nom::IResult;
+use nom::bytes::complete::take;
+use nom::error::{Error as NomError, ErrorKind};
+use nom::number::complete::{be_i24, be_u24, be_u32, be_u128};
 use nom_derive::*;
 use serde::Serialize;
 

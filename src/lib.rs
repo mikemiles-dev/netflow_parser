@@ -198,7 +198,7 @@ use crate::netflow_common::{NetflowCommon, NetflowCommonError, NetflowCommonFlow
 
 use static_versions::{v5::V5, v7::V7};
 use variable_versions::ipfix::{IPFix, IPFixParser};
-use variable_versions::v9::{V9Parser, V9};
+use variable_versions::v9::{V9, V9Parser};
 
 use crate::static_versions::v5;
 use crate::static_versions::v7;
