@@ -1,3 +1,6 @@
+# 0.5.3
+* Fixed bug when calcualting the enteperise field.
+
 # 0.5.2
 * Can now parse enterprise fields in non options templates for IPFIX.
 

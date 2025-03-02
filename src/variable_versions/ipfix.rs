@@ -172,7 +172,7 @@ pub struct OptionsTemplate {
     #[nom(
         PreExec = "let combined_count = scope_field_count.saturating_add(
                        field_count.checked_sub(scope_field_count).unwrap_or(field_count)) as usize;",
-        Parse = "count(|i| TemplateField::parse(i, true), combined_count)",
+        Parse = "count(|i| TemplateField::parse(i), combined_count)",
         PostExec = "let options_remaining = set_length.checked_sub(field_count * 4).unwrap_or(set_length) > 0;"
     )]
     pub fields: Vec<TemplateField>,
@@ -195,7 +195,7 @@ fn parse_template_fields(i: &[u8], count: u16) -> IResult<&[u8], Vec<TemplateFie
     let mut remaining = i;
 
     for _ in 0..count {
-        let (i, field) = TemplateField::parse(remaining, false)?;
+        let (i, field) = TemplateField::parse(remaining)?;
         result.push(field);
         remaining = i;
     }
@@ -204,7 +204,6 @@ fn parse_template_fields(i: &[u8], count: u16) -> IResult<&[u8], Vec<TemplateFie
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(options_template: bool))]
 pub struct TemplateField {
     pub field_type_number: u16,
     #[nom(Value(IPFixField::from(field_type_number)))]
@@ -212,10 +211,10 @@ pub struct TemplateField {
     pub field_length: u16,
     #[nom(
         Cond = "field_type_number > 32767",
-        PostExec = "let field_type_number = if options_template {
+        PostExec = "let field_type_number = if enterprise_number.is_some() {
                       field_type_number.overflowing_sub(32768).0
                     } else { field_type_number };",
-        PostExec = "let field_type = if options_template && enterprise_number.is_some() {
+        PostExec = "let field_type = if enterprise_number.is_some() {
                         IPFixField::Enterprise
                     } else { field_type };"
     )]
@@ -323,11 +322,11 @@ fn parse_field<'a>(
     i: &'a [u8],
     template_field: &TemplateField,
 ) -> IResult<&'a [u8], FieldValue> {
-    let has_enterprise_number = template_field.enterprise_number.is_some();
-
-    if has_enterprise_number {
+    if template_field.enterprise_number.is_some() {
         // Simplified parsing when `enterprise_number` is present
-        parse_enterprise_field(i, template_field.field_length)
+        let (remaining, data_number) =
+            DataNumber::parse(i, template_field.field_length, false)?;
+        Ok((remaining, FieldValue::DataNumber(data_number)))
     } else {
         // Parse field based on its type and length
         DataNumber::from_field_type(
@@ -336,11 +335,6 @@ fn parse_field<'a>(
             template_field.field_length,
         )
     }
-}
-
-fn parse_enterprise_field(i: &[u8], length: u16) -> IResult<&[u8], FieldValue> {
-    let (remaining, data_number) = DataNumber::parse(i, length, false)?;
-    Ok((remaining, FieldValue::DataNumber(data_number)))
 }
 
 impl IPFix {
