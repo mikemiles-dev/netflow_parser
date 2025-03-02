@@ -19,6 +19,6 @@ expression: parser.parse_bytes(&packet)
               - 0:
                   - PacketDeltaCount
                   - DataNumber: 8
-                1:
+              - 1:
                   - SourceIpv4address
                   - Ip4Addr: 0.0.1.1
