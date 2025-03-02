@@ -6,10 +6,10 @@
 use crate::protocol::ProtocolTypes;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
+use Nom;
 use nom::number::complete::be_u32;
 use nom_derive::*;
 use serde::Serialize;
-use Nom;
 
 use std::net::Ipv4Addr;
 

@@ -14,7 +14,7 @@ expression: result
           header_id: 2
           length: 100
         body:
-          templates:
+          template:
             template_id: 307
             field_count: 23
             fields:
@@ -104,72 +104,72 @@ expression: result
               - 0:
                   - SourceIpv4address
                   - Ip4Addr: 70.1.115.1
-                1:
+              - 1:
                   - DestinationIpv4address
                   - Ip4Addr: 50.0.71.1
-                2:
+              - 2:
                   - IpClassOfService
                   - DataNumber: 0
-                3:
+              - 3:
                   - ProtocolIdentifier
                   - DataNumber: 61
-                4:
+              - 4:
                   - SourceTransportPort
                   - DataNumber: 0
-                5:
+              - 5:
                   - DestinationTransportPort
                   - DataNumber: 0
-                6:
+              - 6:
                   - IcmpTypeCodeIpv4
                   - DataNumber: 0
-                7:
+              - 7:
                   - IngressInterface
                   - DataNumber: 827
-                8:
+              - 8:
                   - BgpSourceAsNumber
                   - DataNumber: 2
-                9:
+              - 9:
                   - BgpDestinationAsNumber
                   - DataNumber: 3
-                10:
+              - 10:
                   - BgpNextHopIpv4address
                   - Ip4Addr: 204.42.110.101
-                11:
+              - 11:
                   - EgressInterface
                   - DataNumber: 854
-                12:
+              - 12:
                   - OctetDeltaCount
                   - DataNumber: 1312
-                13:
+              - 13:
                   - PacketDeltaCount
                   - DataNumber: 9
-                14:
+              - 14:
                   - FlowStartSysUpTime
                   - DataNumber: 3019441902
-                15:
+              - 15:
                   - FlowEndSysUpTime
                   - DataNumber: 3019616060
-                16:
+              - 16:
                   - IpNextHopIpv4address
                   - Ip4Addr: 204.42.110.189
-                17:
+              - 17:
                   - SourceIpv4prefixLength
                   - DataNumber: 24
-                18:
+              - 18:
                   - DestinationIpv4prefixLength
                   - DataNumber: 24
-                19:
+              - 19:
                   - TcpControlBits
                   - DataNumber: 0
-                20:
+              - 20:
                   - IpVersion
                   - DataNumber: 4
-                21:
+              - 21:
                   - FlowStartMilliseconds
                   - Duration:
                       secs: 1480449931
                       nanos: 519000000
-                22:
+              - 22:
                   - FlowEndMilliseconds
                   - Duration:
                       secs: 1480450105

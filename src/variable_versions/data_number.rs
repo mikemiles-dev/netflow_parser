@@ -1,11 +1,11 @@
 use crate::protocol::ProtocolTypes;
 
 use byteorder::{BigEndian, WriteBytesExt};
-use nom::bytes::complete::take;
-use nom::error::{Error as NomError, ErrorKind};
-use nom::number::complete::{be_i24, be_u128, be_u24, be_u32};
 use nom::Err as NomErr;
 use nom::IResult;
+use nom::bytes::complete::take;
+use nom::error::{Error as NomError, ErrorKind};
+use nom::number::complete::{be_i24, be_u24, be_u32, be_u128};
 use nom_derive::*;
 use serde::Serialize;
 
@@ -150,7 +150,55 @@ impl DataNumber {
             DataNumber::I32(n) => n.to_be_bytes().to_vec(),
         }
     }
+}
 
+/// Convert into usize, mainly for serialization purposes
+impl From<DataNumber> for usize {
+    fn from(val: DataNumber) -> Self {
+        match val {
+            DataNumber::U8(i) => i as usize,
+            DataNumber::I24(i) => i as usize,
+            DataNumber::U24(i) => i as usize,
+            DataNumber::U32(i) => i as usize,
+            DataNumber::I32(i) => i as usize,
+            DataNumber::U16(i) => i as usize,
+            DataNumber::U64(i) => i as usize,
+            DataNumber::U128(i) => i as usize,
+        }
+    }
+}
+
+/// Holds the post parsed field with its relevant datatype
+#[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
+pub enum FieldValue {
+    String(String),
+    DataNumber(DataNumber),
+    Float64(f64),
+    Duration(Duration),
+    Ip4Addr(Ipv4Addr),
+    Ip6Addr(Ipv6Addr),
+    MacAddr(String),
+    Vec(Vec<u8>),
+    ProtocolType(ProtocolTypes),
+    Unknown,
+}
+
+#[derive(Debug)]
+pub enum FieldValueError {
+    InvalidDataType,
+}
+
+impl FieldValue {
+    pub fn to_be_bytes(&self) -> Vec<u8> {
+        match self {
+            FieldValue::String(s) => s.as_bytes().to_vec(),
+            FieldValue::DataNumber(d) => d.to_be_bytes(),
+            FieldValue::Float64(f) => f.to_be_bytes().to_vec(),
+            FieldValue::Duration(d) => (d.as_secs() as u32).to_be_bytes().to_vec(),
+            FieldValue::Ip4Addr(ip) => ip.octets().to_vec(),
+            _ => vec![],
+        }
+    }
     pub fn from_field_type(
         remaining: &[u8],
         field_type: FieldDataType,
@@ -242,55 +290,6 @@ impl DataNumber {
             FieldDataType::Unknown => parse_unknown_fields(remaining, field_length)?,
         };
         Ok((remaining, field_value))
-    }
-}
-
-/// Convert into usize, mainly for serialization purposes
-impl From<DataNumber> for usize {
-    fn from(val: DataNumber) -> Self {
-        match val {
-            DataNumber::U8(i) => i as usize,
-            DataNumber::I24(i) => i as usize,
-            DataNumber::U24(i) => i as usize,
-            DataNumber::U32(i) => i as usize,
-            DataNumber::I32(i) => i as usize,
-            DataNumber::U16(i) => i as usize,
-            DataNumber::U64(i) => i as usize,
-            DataNumber::U128(i) => i as usize,
-        }
-    }
-}
-
-/// Holds the post parsed field with its relevant datatype
-#[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
-pub enum FieldValue {
-    String(String),
-    DataNumber(DataNumber),
-    Float64(f64),
-    Duration(Duration),
-    Ip4Addr(Ipv4Addr),
-    Ip6Addr(Ipv6Addr),
-    MacAddr(String),
-    Vec(Vec<u8>),
-    ProtocolType(ProtocolTypes),
-    Unknown,
-}
-
-#[derive(Debug)]
-pub enum FieldValueError {
-    InvalidDataType,
-}
-
-impl FieldValue {
-    pub fn to_be_bytes(&self) -> Vec<u8> {
-        match self {
-            FieldValue::String(s) => s.as_bytes().to_vec(),
-            FieldValue::DataNumber(d) => d.to_be_bytes(),
-            FieldValue::Float64(f) => f.to_be_bytes().to_vec(),
-            FieldValue::Duration(d) => (d.as_secs() as u32).to_be_bytes().to_vec(),
-            FieldValue::Ip4Addr(ip) => ip.octets().to_vec(),
-            _ => vec![],
-        }
     }
 }
 

@@ -1,3 +1,9 @@
+# 0.5.3
+* Fixed bug when calcualting the enteperise field.
+* Now properly parses variable length fields.
+* Cleanup ipfix code.
+* Rust 2024 Edition.
+
 # 0.5.2
 * Can now parse enterprise fields in non options templates for IPFIX.
 

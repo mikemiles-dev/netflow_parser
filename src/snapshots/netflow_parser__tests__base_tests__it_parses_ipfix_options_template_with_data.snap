@@ -14,7 +14,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           header_id: 3
           length: 28
         body:
-          options_templates:
+          options_template:
             template_id: 260
             field_count: 3
             scope_field_count: 1
@@ -23,10 +23,10 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 field_type: Enterprise
                 field_length: 4
                 enterprise_number: 2
-              - field_type_number: 32809
+              - field_type_number: 41
                 field_type: ExportedMessageTotalCount
                 field_length: 2
-              - field_type_number: 32810
+              - field_type_number: 42
                 field_type: ExportedFlowRecordTotalCount
                 field_length: 2
       - header:
@@ -37,19 +37,27 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             data_fields:
               - 0:
                   - Enterprise
-                  - DataNumber: 1
-                1:
+                  - Vec:
+                      - 0
+                      - 0
+                      - 0
+                      - 1
+              - 1:
                   - ExportedMessageTotalCount
                   - DataNumber: 276
-                2:
+              - 2:
                   - ExportedFlowRecordTotalCount
                   - DataNumber: 5140
               - 0:
                   - Enterprise
-                  - DataNumber: 2
-                1:
+                  - Vec:
+                      - 0
+                      - 0
+                      - 0
+                      - 2
+              - 1:
                   - ExportedMessageTotalCount
                   - DataNumber: 5140
-                2:
+              - 2:
                   - ExportedFlowRecordTotalCount
                   - DataNumber: 7710
