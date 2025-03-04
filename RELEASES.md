@@ -1,3 +1,7 @@
+# 0.5.4
+* Reworked how padding is calculated for IPFIx.
+* Fixed Vecs not being exported for DataNumber.
+
 # 0.5.3
 * Fixed bug when calcualting the enteperise field.
 * Now properly parses variable length fields.

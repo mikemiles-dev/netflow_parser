@@ -513,6 +513,7 @@ mod common_tests {
                     length: 0,
                 },
                 body: IPFixFlowSetBody {
+                    padding: vec![],
                     template: None,
                     options_template: None,
                     options_data: None,

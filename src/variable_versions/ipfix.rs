@@ -14,6 +14,7 @@ use Nom;
 use nom::Err as NomErr;
 use nom::IResult;
 use nom::bytes::complete::take;
+use nom::combinator::map_res;
 use nom::error::{Error as NomError, ErrorKind};
 use nom::multi::count;
 use nom::number::complete::{be_u8, be_u16};
@@ -47,6 +48,26 @@ pub(crate) fn parse_netflow_ipfix(
 pub struct IPFixParser {
     pub templates: BTreeMap<TemplateId, Template>,
     pub options_templates: BTreeMap<TemplateId, OptionsTemplate>,
+}
+
+// Custom parse set function to take only length provided by header.
+fn parse_sets<'a>(
+    i: &'a [u8],
+    parser: &mut IPFixParser,
+    length: u16,
+) -> IResult<&'a [u8], Vec<FlowSet>> {
+    let length = length.checked_sub(16).unwrap_or(length);
+    let (i, taken) = take(length)(i)?;
+    let mut sets = vec![];
+    let mut remaining = taken;
+
+    while !remaining.is_empty() {
+        let (i, set) = FlowSet::parse(remaining, parser)?;
+        sets.push(set);
+        remaining = i;
+    }
+
+    Ok((i, sets))
 }
 
 #[derive(Nom, Debug, PartialEq, Clone, Serialize)]
@@ -94,7 +115,12 @@ pub struct Header {
 #[nom(ExtraArgs(parser: &mut IPFixParser))]
 pub struct FlowSet {
     pub header: FlowSetHeader,
-    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.length, header.header_id) }")]
+    #[nom(
+        PreExec = "let length = header.length.saturating_sub(4);",
+        Parse = "map_res(take(length),
+                  |i| FlowSetBody::parse(i, parser, header.header_id)
+                      .map(|(_, flow_set)| flow_set))"
+    )]
     pub body: FlowSetBody,
 }
 
@@ -112,7 +138,7 @@ pub struct FlowSetHeader {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut IPFixParser, id: u16, length: u16))]
+#[nom(ExtraArgs(parser: &mut IPFixParser, id: u16))]
 pub struct FlowSetBody {
     #[nom(
         Cond = "id < SET_MIN_RANGE && id != OPTIONS_TEMPLATE_ID",
@@ -126,8 +152,7 @@ pub struct FlowSetBody {
     pub template: Option<Template>,
     #[nom(
         Cond = "id == OPTIONS_TEMPLATE_ID",
-        PreExec = "let set_length = length.checked_sub(4).unwrap_or(length);",
-        Parse = "{ |i| OptionsTemplate::parse(i, set_length) }",
+        Parse = "{ |i| OptionsTemplate::parse(i) }",
         Verify = "usize::from(options_template.field_count) == options_template.fields.len()",
         Verify = "options_template.get_fields().any(|f| f.field_length > 0)",
         // Save our templates
@@ -151,6 +176,8 @@ pub struct FlowSetBody {
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub options_data: Option<OptionsData>,
+    #[serde(skip_serializing)]
+    pub padding: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -176,7 +203,6 @@ pub struct OptionsData {
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(set_length: u16))]
 pub struct OptionsTemplate {
     pub template_id: u16,
     pub field_count: u16,
@@ -184,36 +210,16 @@ pub struct OptionsTemplate {
     #[nom(
         PreExec = "let combined_count = usize::from(scope_field_count.saturating_add(
                        field_count.checked_sub(scope_field_count).unwrap_or(field_count)));",
-        Parse = "count(TemplateField::parse, combined_count)",
-        PostExec = "let options_remaining
-                      = set_length.checked_sub(field_count.saturating_mul(4)).unwrap_or(set_length) > 0;"
+        Parse = "count(TemplateField::parse, combined_count)"
     )]
     pub fields: Vec<TemplateField>,
-    #[nom(Cond = "options_remaining && !i.is_empty()")]
-    #[serde(skip_serializing)]
-    padding: Option<u16>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom, Default)]
 pub struct Template {
     pub template_id: u16,
     pub field_count: u16,
-    #[nom(Parse = "{ |i| parse_template_fields(i, field_count) } ")]
     pub fields: Vec<TemplateField>,
-}
-
-fn parse_template_fields(i: &[u8], count: u16) -> IResult<&[u8], Vec<TemplateField>> {
-    let mut result = vec![];
-
-    let mut remaining = i;
-
-    for _ in 0..count {
-        let (i, field) = TemplateField::parse(remaining)?;
-        result.push(field);
-        remaining = i;
-    }
-
-    Ok((remaining, result))
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -252,40 +258,6 @@ impl CommonTemplate for OptionsTemplate {
     }
 }
 
-// Custom parse set function to take only length provided by header.
-fn parse_sets<'a>(
-    i: &'a [u8],
-    parser: &mut IPFixParser,
-    length: u16,
-) -> IResult<&'a [u8], Vec<FlowSet>> {
-    let length = length.checked_sub(16).unwrap_or(length);
-    let (_, taken) = take(length)(i)?;
-    let mut sets = vec![];
-    let mut remaining = taken;
-
-    while !remaining.is_empty() {
-        let (i, set) = FlowSet::parse(remaining, parser)?;
-        sets.push(set);
-        remaining = i;
-    }
-
-    Ok((remaining, sets))
-}
-
-// Custom parse set body function to take only length provided by set header.
-fn parse_set_body<'a>(
-    i: &'a [u8],
-    parser: &mut IPFixParser,
-    length: u16,
-    id: u16,
-) -> IResult<&'a [u8], FlowSetBody> {
-    // length - 4 to account for the set header
-    let length = length.checked_sub(4).unwrap_or(length);
-    let (remaining, taken) = take(length)(i)?;
-    let (_, set_body) = FlowSetBody::parse(taken, parser, id, length)?;
-    Ok((remaining, set_body))
-}
-
 /// Takes a byte stream and a cached template.
 /// Fields get matched to static types.
 /// Returns BTree of IPFix Types & Fields or IResult Error.
@@ -297,6 +269,8 @@ fn parse_fields<T: CommonTemplate + std::fmt::Debug>(
         return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
     }
 
+    let mut total_taken = 0;
+
     // If no fields there are no fields to parse, return an error.
     let mut fields = vec![];
     let mut remaining = i;
@@ -304,31 +278,29 @@ fn parse_fields<T: CommonTemplate + std::fmt::Debug>(
         // Iter through template fields and push them to a vec.  If we encouter any zero length fields we return an error.
         let mut data_field = BTreeMap::new();
         let (i, field_value) = parse_field(remaining, field)?;
+        let taken = remaining.len().saturating_sub(i.len());
+        total_taken += taken;
         remaining = i;
         data_field.insert(c, (field.field_type, field_value));
         fields.push(data_field);
     }
 
-    if !remaining.is_empty()
-        && i.len()
-            >= template
-                .get_fields()
-                .iter()
-                .map(|m| m.field_length as usize)
-                .sum::<usize>()
-    {
-        let (_, more) = parse_fields(remaining, template)?;
+    let remaining = if !remaining.is_empty() && remaining.len() >= total_taken {
+        let (remaining, more) = parse_fields(remaining, template)?;
         fields.extend(more);
-    }
+        remaining
+    } else {
+        remaining
+    };
 
-    Ok((&[], fields))
+    Ok((remaining, fields))
 }
 
 // If 65335, read 1 byte.
 // If that byte is < 255 that is the length.
 // If that byte is == 255 then read 2 bytes.  That is the length.
 // Otherwise, return the field length.
-fn calculate_variable_field_length<'a>(
+fn calculate_field_length<'a>(
     i: &'a [u8],
     template_field: &TemplateField,
 ) -> IResult<&'a [u8], u16> {
@@ -349,7 +321,7 @@ fn parse_field<'a>(
     i: &'a [u8],
     template_field: &TemplateField,
 ) -> IResult<&'a [u8], FieldValue> {
-    let (i, length) = calculate_variable_field_length(i, template_field)?;
+    let (i, length) = calculate_field_length(i, template_field)?;
     if template_field.enterprise_number.is_some() {
         let (i, data) = take(length)(i)?;
         Ok((i, FieldValue::Vec(data.to_vec())))
@@ -401,9 +373,6 @@ impl IPFix {
                         result_flowset.extend_from_slice(&enterprise.to_be_bytes());
                     }
                 }
-                if let Some(padding) = &options_template.padding {
-                    result_flowset.extend_from_slice(&padding.to_be_bytes());
-                }
             }
 
             if let Some(data) = &flow.body.data {
@@ -412,6 +381,8 @@ impl IPFix {
                         result_flowset.extend_from_slice(&v.to_be_bytes());
                     }
                 }
+
+                result_flowset.extend_from_slice(&flow.body.padding);
             }
 
             if let Some(data) = &flow.body.options_data {

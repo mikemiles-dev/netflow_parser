@@ -31,7 +31,7 @@ expression: parser.parse_bytes(&packet)
           - 0
           - 1
           - 1
-        error: "Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: Fail }"
+        error: "Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: MapRes }"
     remaining:
       - 0
       - 10
