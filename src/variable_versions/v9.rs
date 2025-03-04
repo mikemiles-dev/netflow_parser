@@ -8,13 +8,13 @@ use super::data_number::*;
 use crate::variable_versions::v9_lookup::*;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
-use nom::bytes::complete::take;
-use nom::error::{Error as NomError, ErrorKind};
+use Nom;
 use nom::Err as NomErr;
 use nom::IResult;
+use nom::bytes::complete::take;
+use nom::error::{Error as NomError, ErrorKind};
 use nom_derive::*;
 use serde::Serialize;
-use Nom;
 
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -407,7 +407,7 @@ fn parse_field<'a>(
     input: &'a [u8],
     template_field: &TemplateField,
 ) -> IResult<&'a [u8], FieldValue> {
-    DataNumber::from_field_type(
+    FieldValue::from_field_type(
         input,
         template_field.field_type.into(),
         template_field.field_length,

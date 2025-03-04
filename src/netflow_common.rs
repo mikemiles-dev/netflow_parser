@@ -1,13 +1,13 @@
 use std::collections::BTreeMap;
 use std::net::IpAddr;
 
+use crate::NetflowPacket;
 use crate::protocol::ProtocolTypes;
 use crate::static_versions::{v5::V5, v7::V7};
 use crate::variable_versions::data_number::FieldValue;
 use crate::variable_versions::ipfix_lookup::IPFixField;
 use crate::variable_versions::v9_lookup::V9Field;
 use crate::variable_versions::{ipfix::IPFix, v9::V9};
-use crate::NetflowPacket;
 
 #[derive(Debug)]
 pub enum NetflowCommonError {
@@ -513,8 +513,8 @@ mod common_tests {
                     length: 0,
                 },
                 body: IPFixFlowSetBody {
-                    templates: None,
-                    options_templates: None,
+                    template: None,
+                    options_template: None,
                     options_data: None,
                     data: Some(IPFixData {
                         data_fields: vec![BTreeMap::from([

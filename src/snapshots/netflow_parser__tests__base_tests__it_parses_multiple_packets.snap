@@ -149,7 +149,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
           header_id: 2
           length: 20
         body:
-          templates:
+          template:
             template_id: 256
             field_count: 3
             fields:
@@ -171,18 +171,18 @@ expression: "NetflowParser::default().parse_bytes(&all)"
               - 0:
                   - SourceIpv4address
                   - Ip4Addr: 1.2.3.4
-                1:
+              - 1:
                   - DestinationIpv4address
                   - Ip4Addr: 1.2.3.3
-                2:
+              - 2:
                   - PacketDeltaCount
                   - DataNumber: 16909058
               - 0:
                   - SourceIpv4address
                   - Ip4Addr: 0.2.0.2
-                1:
+              - 1:
                   - DestinationIpv4address
                   - Ip4Addr: 0.1.2.3
-                2:
+              - 2:
                   - PacketDeltaCount
                   - DataNumber: 67438087
