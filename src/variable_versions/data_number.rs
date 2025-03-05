@@ -196,6 +196,7 @@ impl FieldValue {
             FieldValue::Float64(f) => f.to_be_bytes().to_vec(),
             FieldValue::Duration(d) => (d.as_secs() as u32).to_be_bytes().to_vec(),
             FieldValue::Ip4Addr(ip) => ip.octets().to_vec(),
+            FieldValue::Vec(v) => v.clone(),
             _ => vec![],
         }
     }
