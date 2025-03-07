@@ -12,17 +12,20 @@ use nom_derive::*;
 use serde::Serialize;
 
 use std::net::Ipv4Addr;
+pub struct V5Parser;
 
-pub(crate) fn parse_netflow_v5(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
-    V5::parse(packet)
-        .map(|(remaining, v5)| ParsedNetflow::new(remaining, NetflowPacket::V5(v5)))
-        .map_err(|e| {
-            NetflowParseError::Partial(PartialParse {
-                version: 5,
-                error: e.to_string(),
-                remaining: packet.to_vec(),
+impl V5Parser {
+    pub fn parse(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
+        V5::parse(packet)
+            .map(|(remaining, v5)| ParsedNetflow::new(remaining, NetflowPacket::V5(v5)))
+            .map_err(|e| {
+                NetflowParseError::Partial(PartialParse {
+                    version: 5,
+                    error: e.to_string(),
+                    remaining: packet.to_vec(),
+                })
             })
-        })
+    }
 }
 
 #[derive(Nom, Debug, Clone, Serialize)]

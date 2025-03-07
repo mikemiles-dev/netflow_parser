@@ -5,7 +5,7 @@ expression: parser.parse_bytes(&packet)
 - Error:
     error:
       Partial:
-        version: 10
+        version: 9
         remaining:
           - 0
           - 26
@@ -31,10 +31,10 @@ expression: parser.parse_bytes(&packet)
           - 0
           - 1
           - 1
-        error: "Parsing Error: Error { input: [0, 8, 0, 0, 1, 1], code: MapRes }"
+        error: "Parsing Error: Error { input: [1, 1], code: MapRes }"
     remaining:
       - 0
-      - 10
+      - 9
       - 0
       - 26
       - 0
@@ -59,3 +59,4 @@ expression: parser.parse_bytes(&packet)
       - 0
       - 1
       - 1
+

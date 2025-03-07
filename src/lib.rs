@@ -48,7 +48,7 @@
 //! let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 //! ```
 //!
-//! ## Parsing out uneeded versions
+//! ## Parsing out unneeded versions
 //! If you only care about a specific version or versions you can specfic `allowed_version`:
 //! ```rust
 //! use netflow_parser::{NetflowParser, NetflowPacket};
@@ -129,7 +129,9 @@
 //! ```
 //!
 //! ## Re-Exporting flows
-//! Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.
+//! Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.  Please note for V9/IPFix
+//! we only export the original padding we dissected and DO NOT calculate/align the flowset(s) padding ourselves.  If you
+//! do any modifications to an existing V9/IPFix flow or have created your own you must manually adjust the padding yourself.
 //! ```rust
 //! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
@@ -196,14 +198,12 @@ pub mod variable_versions;
 
 use crate::netflow_common::{NetflowCommon, NetflowCommonError, NetflowCommonFlowSet};
 
-use static_versions::{v5::V5, v7::V7};
+use static_versions::{
+    v5::{V5, V5Parser},
+    v7::{V7, V7Parser},
+};
 use variable_versions::ipfix::{IPFix, IPFixParser};
 use variable_versions::v9::{V9, V9Parser};
-
-use crate::static_versions::v5;
-use crate::static_versions::v7;
-use crate::variable_versions::ipfix;
-use crate::variable_versions::v9;
 
 use nom_derive::{Nom, Parse};
 use serde::Serialize;
@@ -260,7 +260,7 @@ pub struct NetflowParser {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ParsedNetflow {
+pub struct ParsedNetflow {
     pub(crate) remaining: Vec<u8>,
     /// Parsed Netflow Packet
     pub(crate) result: NetflowPacket,
@@ -395,10 +395,10 @@ impl NetflowParser {
         }
 
         match version {
-            5 => v5::parse_netflow_v5(packet),
-            7 => v7::parse_netflow_v7(packet),
-            9 => v9::parse_netflow_v9(packet, &mut self.v9_parser),
-            10 => ipfix::parse_netflow_ipfix(packet, &mut self.ipfix_parser),
+            5 => V5Parser::parse(packet),
+            7 => V7Parser::parse(packet),
+            9 => self.v9_parser.parse(packet),
+            10 => self.ipfix_parser.parse(packet),
             _ => Err(NetflowParseError::UnknownVersion(packet.to_vec())),
         }
     }

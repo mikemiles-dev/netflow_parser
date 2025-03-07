@@ -13,16 +13,20 @@ use serde::Serialize;
 
 use std::net::Ipv4Addr;
 
-pub(crate) fn parse_netflow_v7(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
-    V7::parse(packet)
-        .map(|(remaining, v7)| ParsedNetflow::new(remaining, NetflowPacket::V7(v7)))
-        .map_err(|e| {
-            NetflowParseError::Partial(PartialParse {
-                version: 7,
-                error: e.to_string(),
-                remaining: packet.to_vec(),
+pub struct V7Parser;
+
+impl V7Parser {
+    pub fn parse(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
+        V7::parse(packet)
+            .map(|(remaining, v7)| ParsedNetflow::new(remaining, NetflowPacket::V7(v7)))
+            .map_err(|e| {
+                NetflowParseError::Partial(PartialParse {
+                    version: 7,
+                    error: e.to_string(),
+                    remaining: packet.to_vec(),
+                })
             })
-        })
+    }
 }
 
 #[derive(Debug, Nom, Clone, Serialize)]

@@ -14,7 +14,7 @@ expression: result
           header_id: 2
           length: 100
         body:
-          template:
+          Template:
             template_id: 307
             field_count: 23
             fields:
@@ -99,8 +99,8 @@ expression: result
           header_id: 307
           length: 80
         body:
-          data:
-            data_fields:
+          Data:
+            fields:
               - 0:
                   - SourceIpv4address
                   - Ip4Addr: 70.1.115.1
