@@ -1,3 +1,6 @@
+# 0.5.5
+* More IPFIx Cleanup.
+
 # 0.5.4
 * Reworked how padding is calculated for IPFIx.
 * Fixed Vecs not being exported for DataNumber.

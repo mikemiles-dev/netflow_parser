@@ -202,7 +202,6 @@ use variable_versions::v9::{V9, V9Parser};
 
 use crate::static_versions::v5;
 use crate::static_versions::v7;
-use crate::variable_versions::ipfix;
 use crate::variable_versions::v9;
 
 use nom_derive::{Nom, Parse};
@@ -260,7 +259,7 @@ pub struct NetflowParser {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct ParsedNetflow {
+pub struct ParsedNetflow {
     pub(crate) remaining: Vec<u8>,
     /// Parsed Netflow Packet
     pub(crate) result: NetflowPacket,
@@ -398,7 +397,7 @@ impl NetflowParser {
             5 => v5::parse_netflow_v5(packet),
             7 => v7::parse_netflow_v7(packet),
             9 => v9::parse_netflow_v9(packet, &mut self.v9_parser),
-            10 => ipfix::parse_netflow_ipfix(packet, &mut self.ipfix_parser),
+            10 => self.ipfix_parser.parse(packet),
             _ => Err(NetflowParseError::UnknownVersion(packet.to_vec())),
         }
     }

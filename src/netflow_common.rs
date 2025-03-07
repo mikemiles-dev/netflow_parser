@@ -238,14 +238,14 @@ mod common_tests {
     use std::collections::BTreeMap;
     use std::net::{IpAddr, Ipv4Addr};
 
-    use crate::ipfix::{
-        Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody as IPFixFlowSetBody,
-        FlowSetHeader as IPFixFlowSetHeader, Header as IPFixHeader, IPFix,
-    };
     use crate::netflow_common::NetflowCommon;
     use crate::static_versions::v5::{FlowSet as V5FlowSet, Header as V5Header, V5};
     use crate::static_versions::v7::{FlowSet as V7FlowSet, Header as V7Header, V7};
     use crate::variable_versions::data_number::{DataNumber, FieldValue};
+    use crate::variable_versions::ipfix::{
+        Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody as IPFixFlowSetBody,
+        FlowSetHeader as IPFixFlowSetHeader, Header as IPFixHeader, IPFix,
+    };
     use crate::variable_versions::ipfix_lookup::IPFixField;
     use crate::variable_versions::v9::{
         Data as V9Data, FlowSet as V9FlowSet, FlowSetBody as V9FlowSetBody,
