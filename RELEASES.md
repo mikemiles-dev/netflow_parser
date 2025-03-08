@@ -1,5 +1,5 @@
 # 0.5.5
-* More IPFIx Cleanup.
+* More IPFIx/V9 Cleanup.
 
 # 0.5.4
 * Reworked how padding is calculated for IPFIx.

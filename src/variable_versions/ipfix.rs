@@ -11,12 +11,10 @@ use crate::variable_versions::ipfix_lookup::*;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
 use Nom;
-use nom::Err as NomErr;
 use nom::IResult;
 use nom::bytes::complete::take;
 use nom::combinator::complete;
 use nom::combinator::map_res;
-use nom::error::{Error as NomError, ErrorKind};
 use nom::multi::{count, many0};
 use nom::number::complete::{be_u8, be_u16};
 use nom_derive::*;
@@ -175,8 +173,8 @@ pub struct FlowSetBody {
 pub struct Data {
     #[nom(
         PreExec = "let template = parser.templates.get(&set_id).cloned().unwrap_or_default();",
-        Parse = "{ |i| FieldParser::parse::<Template>(i, template) }",
-        Verify = "template.get_fields().any(|f| f.field_length > 0)"
+        ErrorIf = "template.get_fields().is_empty() ",
+        Parse = "{ |i| FieldParser::parse::<Template>(i, template) }"
     )]
     pub data_fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
 }
@@ -186,8 +184,8 @@ pub struct Data {
 pub struct OptionsData {
     #[nom(
         PreExec = "let template = parser.options_templates.get(&set_id).cloned().unwrap_or_default();",
-        Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template) }",
-        Verify = "template.get_fields().any(|f| f.field_length > 0)"
+        ErrorIf = "template.get_fields().is_empty() ",
+        Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template) }"
     )]
     pub data_fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
 }
@@ -258,10 +256,6 @@ impl FieldParser {
         i: &[u8],
         template: T,
     ) -> IResult<&[u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
-        if template.get_fields().is_empty() {
-            return Err(NomErr::Error(NomError::new(i, ErrorKind::Fail)));
-        }
-
         let mut total_taken = 0;
 
         // If no fields there are no fields to parse, return an error.

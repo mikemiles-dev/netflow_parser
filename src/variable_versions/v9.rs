@@ -130,7 +130,6 @@ pub struct FlowSetBody {
     // Options template
     #[nom(
         Cond = "flowset_id == OPTIONS_TEMPLATE_ID",
-        Parse = "parse_options_template_vec",
         // Save our options templates
         PostExec = "if let Some(options_templates) = options_templates.clone() { 
             for template in options_templates {
@@ -217,6 +216,25 @@ pub struct TemplateField {
     pub field_type: V9Field,
     /// This number gives the length of the above-defined field, in bytes.
     pub field_length: u16,
+}
+
+fn parse_options_data_fields(
+    i: &[u8],
+    flowset_id: u16,
+    templates: HashMap<u16, OptionsTemplate>,
+) -> IResult<&[u8], Vec<OptionDataField>> {
+    let template = templates.get(&flowset_id).ok_or_else(|| {
+        // dbg!("Could not fetch any v9 options templates!");
+        NomErr::Error(NomError::new(i, ErrorKind::Fail))
+    })?;
+    let mut fields = vec![];
+    let mut remaining = i;
+    for field in template.option_fields.iter() {
+        let (i, v9_data_field) = OptionDataField::parse(remaining, field)?;
+        remaining = i;
+        fields.push(v9_data_field)
+    }
+    Ok((remaining, fields))
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -347,16 +365,6 @@ fn parse_flowsets<'a>(
     Ok((remaining, flowsets))
 }
 
-fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> {
-    let mut fields = vec![];
-    let mut remaining = i;
-    while let Ok((rem, data)) = OptionsTemplate::parse(remaining) {
-        fields.push(data);
-        remaining = rem;
-    }
-    Ok((remaining, fields))
-}
-
 fn parse_fields<'a>(
     input: &'a [u8],
     template: Option<&Template>,
@@ -403,25 +411,6 @@ fn parse_field<'a>(
         template_field.field_type.into(),
         template_field.field_length,
     )
-}
-
-fn parse_options_data_fields(
-    i: &[u8],
-    flowset_id: u16,
-    templates: HashMap<u16, OptionsTemplate>,
-) -> IResult<&[u8], Vec<OptionDataField>> {
-    let template = templates.get(&flowset_id).ok_or_else(|| {
-        // dbg!("Could not fetch any v9 options templates!");
-        NomErr::Error(NomError::new(i, ErrorKind::Fail))
-    })?;
-    let mut fields = vec![];
-    let mut remaining = i;
-    for field in template.option_fields.iter() {
-        let (i, v9_data_field) = OptionDataField::parse(remaining, field)?;
-        remaining = i;
-        fields.push(v9_data_field)
-    }
-    Ok((remaining, fields))
 }
 
 fn parse_scope_data_fields<'a>(
