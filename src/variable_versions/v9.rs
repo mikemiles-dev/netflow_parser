@@ -12,6 +12,7 @@ use Nom;
 use nom::Err as NomErr;
 use nom::IResult;
 use nom::bytes::complete::take;
+use nom::combinator::map_res;
 use nom::error::{Error as NomError, ErrorKind};
 use nom_derive::*;
 use serde::Serialize;
@@ -26,19 +27,18 @@ const FLOWSET_MIN_RANGE: u16 = 255;
 type TemplateId = u16;
 pub type V9FieldPair = (V9Field, FieldValue);
 
-pub(crate) fn parse_netflow_v9(
-    packet: &[u8],
-    parser: &mut V9Parser,
-) -> Result<ParsedNetflow, NetflowParseError> {
-    V9::parse(packet, parser)
-        .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
-        .map_err(|e| {
-            NetflowParseError::Partial(PartialParse {
-                version: 9,
-                error: e.to_string(),
-                remaining: packet.to_vec(),
+impl V9Parser {
+    pub fn parse(&mut self, packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
+        V9::parse(packet, self)
+            .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
+            .map_err(|e| {
+                NetflowParseError::Partial(PartialParse {
+                    version: 9,
+                    error: e.to_string(),
+                    remaining: packet.to_vec(),
+                })
             })
-        })
+    }
 }
 
 #[derive(Default, Debug)]
@@ -89,7 +89,12 @@ pub struct Header {
 #[nom(ExtraArgs(parser: &mut V9Parser))]
 pub struct FlowSet {
     pub header: FlowSetHeader,
-    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.flowset_id, header.length) }")]
+    #[nom(
+        PreExec = "let length = header.length.saturating_sub(4);",
+        Parse = "map_res(take(length),
+                  |i| FlowSetBody::parse(i, parser, header.flowset_id)
+                      .map(|(_, flow_set)| flow_set))"
+    )]
     pub body: FlowSetBody,
 }
 
@@ -308,20 +313,6 @@ impl FlowSet {
     fn is_empty(&self) -> bool {
         self.header.length == 0
     }
-}
-
-// Custom parse set body function to take only length provided by set header.
-fn parse_set_body<'a>(
-    i: &'a [u8],
-    parser: &mut V9Parser,
-    id: u16,
-    length: u16,
-) -> IResult<&'a [u8], FlowSetBody> {
-    // length - 4 to account for the set header
-    let length = length.checked_sub(4).unwrap_or(length);
-    let (remaining, taken) = take(length)(i)?;
-    let (_, set_body) = FlowSetBody::parse(taken, parser, id)?;
-    Ok((remaining, set_body))
 }
 
 fn parse_flowsets<'a>(

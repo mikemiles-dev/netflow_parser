@@ -202,7 +202,6 @@ use variable_versions::v9::{V9, V9Parser};
 
 use crate::static_versions::v5;
 use crate::static_versions::v7;
-use crate::variable_versions::v9;
 
 use nom_derive::{Nom, Parse};
 use serde::Serialize;
@@ -396,7 +395,7 @@ impl NetflowParser {
         match version {
             5 => v5::parse_netflow_v5(packet),
             7 => v7::parse_netflow_v7(packet),
-            9 => v9::parse_netflow_v9(packet, &mut self.v9_parser),
+            9 => self.v9_parser.parse(packet),
             10 => self.ipfix_parser.parse(packet),
             _ => Err(NetflowParseError::UnknownVersion(packet.to_vec())),
         }
