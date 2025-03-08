@@ -12,6 +12,7 @@ use Nom;
 use nom::Err as NomErr;
 use nom::IResult;
 use nom::bytes::complete::take;
+use nom::combinator::map_res;
 use nom::error::{Error as NomError, ErrorKind};
 use nom_derive::*;
 use serde::Serialize;
@@ -26,19 +27,18 @@ const FLOWSET_MIN_RANGE: u16 = 255;
 type TemplateId = u16;
 pub type V9FieldPair = (V9Field, FieldValue);
 
-pub(crate) fn parse_netflow_v9(
-    packet: &[u8],
-    parser: &mut V9Parser,
-) -> Result<ParsedNetflow, NetflowParseError> {
-    V9::parse(packet, parser)
-        .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
-        .map_err(|e| {
-            NetflowParseError::Partial(PartialParse {
-                version: 9,
-                error: e.to_string(),
-                remaining: packet.to_vec(),
+impl V9Parser {
+    pub fn parse(&mut self, packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
+        V9::parse(packet, self)
+            .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
+            .map_err(|e| {
+                NetflowParseError::Partial(PartialParse {
+                    version: 9,
+                    error: e.to_string(),
+                    remaining: packet.to_vec(),
+                })
             })
-        })
+    }
 }
 
 #[derive(Default, Debug)]
@@ -89,7 +89,12 @@ pub struct Header {
 #[nom(ExtraArgs(parser: &mut V9Parser))]
 pub struct FlowSet {
     pub header: FlowSetHeader,
-    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.flowset_id, header.length) }")]
+    #[nom(
+        PreExec = "let length = header.length.saturating_sub(4);",
+        Parse = "map_res(take(length),
+                  |i| FlowSetBody::parse(i, parser, header.flowset_id)
+                      .map(|(_, flow_set)| flow_set))"
+    )]
     pub body: FlowSetBody,
 }
 
@@ -125,7 +130,6 @@ pub struct FlowSetBody {
     // Options template
     #[nom(
         Cond = "flowset_id == OPTIONS_TEMPLATE_ID",
-        Parse = "parse_options_template_vec",
         // Save our options templates
         PostExec = "if let Some(options_templates) = options_templates.clone() { 
             for template in options_templates {
@@ -212,6 +216,25 @@ pub struct TemplateField {
     pub field_type: V9Field,
     /// This number gives the length of the above-defined field, in bytes.
     pub field_length: u16,
+}
+
+fn parse_options_data_fields(
+    i: &[u8],
+    flowset_id: u16,
+    templates: HashMap<u16, OptionsTemplate>,
+) -> IResult<&[u8], Vec<OptionDataField>> {
+    let template = templates.get(&flowset_id).ok_or_else(|| {
+        // dbg!("Could not fetch any v9 options templates!");
+        NomErr::Error(NomError::new(i, ErrorKind::Fail))
+    })?;
+    let mut fields = vec![];
+    let mut remaining = i;
+    for field in template.option_fields.iter() {
+        let (i, v9_data_field) = OptionDataField::parse(remaining, field)?;
+        remaining = i;
+        fields.push(v9_data_field)
+    }
+    Ok((remaining, fields))
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -310,20 +333,6 @@ impl FlowSet {
     }
 }
 
-// Custom parse set body function to take only length provided by set header.
-fn parse_set_body<'a>(
-    i: &'a [u8],
-    parser: &mut V9Parser,
-    id: u16,
-    length: u16,
-) -> IResult<&'a [u8], FlowSetBody> {
-    // length - 4 to account for the set header
-    let length = length.checked_sub(4).unwrap_or(length);
-    let (remaining, taken) = take(length)(i)?;
-    let (_, set_body) = FlowSetBody::parse(taken, parser, id)?;
-    Ok((remaining, set_body))
-}
-
 fn parse_flowsets<'a>(
     i: &'a [u8],
     parser: &mut V9Parser,
@@ -354,16 +363,6 @@ fn parse_flowsets<'a>(
     }
 
     Ok((remaining, flowsets))
-}
-
-fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> {
-    let mut fields = vec![];
-    let mut remaining = i;
-    while let Ok((rem, data)) = OptionsTemplate::parse(remaining) {
-        fields.push(data);
-        remaining = rem;
-    }
-    Ok((remaining, fields))
 }
 
 fn parse_fields<'a>(
@@ -412,25 +411,6 @@ fn parse_field<'a>(
         template_field.field_type.into(),
         template_field.field_length,
     )
-}
-
-fn parse_options_data_fields(
-    i: &[u8],
-    flowset_id: u16,
-    templates: HashMap<u16, OptionsTemplate>,
-) -> IResult<&[u8], Vec<OptionDataField>> {
-    let template = templates.get(&flowset_id).ok_or_else(|| {
-        // dbg!("Could not fetch any v9 options templates!");
-        NomErr::Error(NomError::new(i, ErrorKind::Fail))
-    })?;
-    let mut fields = vec![];
-    let mut remaining = i;
-    for field in template.option_fields.iter() {
-        let (i, v9_data_field) = OptionDataField::parse(remaining, field)?;
-        remaining = i;
-        fields.push(v9_data_field)
-    }
-    Ok((remaining, fields))
 }
 
 fn parse_scope_data_fields<'a>(

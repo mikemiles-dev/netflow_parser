@@ -48,7 +48,7 @@ let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 ```
 
-## Parsing out uneeded versions
+## Parsing out unneeded versions
 If you only care about a specific version or versions you can specfic `allowed_version`:
 ```rust
 use netflow_parser::{NetflowParser, NetflowPacket};

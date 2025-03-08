@@ -358,7 +358,7 @@ mod base_tests {
     }
 
     #[test]
-    fn it_parses_ipfix_with_no_template_fields_raises_error() {
+    fn it_parses_ipfix_with_no_template_fields() {
         let packet = [
             0, 10, 0, 26, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 2, 0, 10, 0, 8, 0, 0, 1, 1,
         ];
