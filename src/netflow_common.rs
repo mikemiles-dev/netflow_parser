@@ -7,7 +7,10 @@ use crate::static_versions::{v5::V5, v7::V7};
 use crate::variable_versions::data_number::FieldValue;
 use crate::variable_versions::ipfix_lookup::IPFixField;
 use crate::variable_versions::v9_lookup::V9Field;
-use crate::variable_versions::{ipfix::IPFix, v9::V9};
+use crate::variable_versions::{
+    ipfix::{FlowSetBody, IPFix},
+    v9::V9,
+};
 
 #[derive(Debug)]
 pub enum NetflowCommonError {
@@ -120,7 +123,7 @@ impl From<&V9> for NetflowCommon {
 
         for flowset in &value.flowsets {
             if let Some(data) = &flowset.body.data {
-                for data_field in &data.data_fields {
+                for data_field in &data.fields {
                     let value_map: BTreeMap<V9Field, FieldValue> =
                         data_field.values().cloned().collect();
                     flowsets.push(NetflowCommonFlowSet {
@@ -178,8 +181,8 @@ impl From<&IPFix> for NetflowCommon {
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
-            if let Some(data) = &flowset.body.data {
-                for data_field in &data.data_fields {
+            if let FlowSetBody::Data(data) = &flowset.body {
+                for data_field in &data.fields {
                     let value_map: BTreeMap<IPFixField, FieldValue> =
                         data_field.values().cloned().collect();
                     flowsets.push(NetflowCommonFlowSet {
@@ -238,14 +241,14 @@ mod common_tests {
     use std::collections::BTreeMap;
     use std::net::{IpAddr, Ipv4Addr};
 
-    use crate::ipfix::{
-        Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody as IPFixFlowSetBody,
-        FlowSetHeader as IPFixFlowSetHeader, Header as IPFixHeader, IPFix,
-    };
     use crate::netflow_common::NetflowCommon;
     use crate::static_versions::v5::{FlowSet as V5FlowSet, Header as V5Header, V5};
     use crate::static_versions::v7::{FlowSet as V7FlowSet, Header as V7Header, V7};
     use crate::variable_versions::data_number::{DataNumber, FieldValue};
+    use crate::variable_versions::ipfix::{
+        Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody,
+        FlowSetHeader as IPFixFlowSetHeader, Header as IPFixHeader, IPFix,
+    };
     use crate::variable_versions::ipfix_lookup::IPFixField;
     use crate::variable_versions::v9::{
         Data as V9Data, FlowSet as V9FlowSet, FlowSetBody as V9FlowSetBody,
@@ -403,7 +406,7 @@ mod common_tests {
                     options_data: None,
                     unparsed_data: None,
                     data: Some(V9Data {
-                        data_fields: vec![BTreeMap::from([
+                        fields: vec![BTreeMap::from([
                             (
                                 0,
                                 (
@@ -512,79 +515,74 @@ mod common_tests {
                     header_id: 0,
                     length: 0,
                 },
-                body: IPFixFlowSetBody {
+                body: FlowSetBody::Data(IPFixData {
                     padding: vec![],
-                    template: None,
-                    options_template: None,
-                    options_data: None,
-                    data: Some(IPFixData {
-                        data_fields: vec![BTreeMap::from([
+                    fields: vec![BTreeMap::from([
+                        (
+                            0,
                             (
-                                0,
-                                (
-                                    IPFixField::SourceIpv4address,
-                                    FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
-                                ),
+                                IPFixField::SourceIpv4address,
+                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
                             ),
+                        ),
+                        (
+                            1,
                             (
-                                1,
-                                (
-                                    IPFixField::DestinationIpv4address,
-                                    FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
-                                ),
+                                IPFixField::DestinationIpv4address,
+                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
                             ),
+                        ),
+                        (
+                            2,
                             (
-                                2,
-                                (
-                                    IPFixField::SourceTransportPort,
-                                    FieldValue::DataNumber(DataNumber::U16(1234)),
-                                ),
+                                IPFixField::SourceTransportPort,
+                                FieldValue::DataNumber(DataNumber::U16(1234)),
                             ),
+                        ),
+                        (
+                            3,
                             (
-                                3,
-                                (
-                                    IPFixField::DestinationTransportPort,
-                                    FieldValue::DataNumber(DataNumber::U16(80)),
-                                ),
+                                IPFixField::DestinationTransportPort,
+                                FieldValue::DataNumber(DataNumber::U16(80)),
                             ),
+                        ),
+                        (
+                            4,
                             (
-                                4,
-                                (
-                                    IPFixField::ProtocolIdentifier,
-                                    FieldValue::DataNumber(DataNumber::U8(6)),
-                                ),
+                                IPFixField::ProtocolIdentifier,
+                                FieldValue::DataNumber(DataNumber::U8(6)),
                             ),
+                        ),
+                        (
+                            5,
                             (
-                                5,
-                                (
-                                    IPFixField::FlowStartSysUpTime,
-                                    FieldValue::DataNumber(DataNumber::U32(100)),
-                                ),
+                                IPFixField::FlowStartSysUpTime,
+                                FieldValue::DataNumber(DataNumber::U32(100)),
                             ),
+                        ),
+                        (
+                            6,
                             (
-                                6,
-                                (
-                                    IPFixField::FlowEndSysUpTime,
-                                    FieldValue::DataNumber(DataNumber::U32(200)),
-                                ),
+                                IPFixField::FlowEndSysUpTime,
+                                FieldValue::DataNumber(DataNumber::U32(200)),
                             ),
+                        ),
+                        (
+                            7,
                             (
-                                7,
-                                (
-                                    IPFixField::SourceMacaddress,
-                                    FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
-                                ),
+                                IPFixField::SourceMacaddress,
+                                FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
                             ),
+                        ),
+                        (
+                            8,
                             (
-                                8,
-                                (
-                                    IPFixField::DestinationMacaddress,
-                                    FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
-                                ),
+                                IPFixField::DestinationMacaddress,
+                                FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
                             ),
-                        ])],
-                    }),
-                },
+                        ),
+                    ])],
+                }),
             }],
         };
 

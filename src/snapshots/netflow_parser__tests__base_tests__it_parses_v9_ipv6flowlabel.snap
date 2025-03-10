@@ -282,7 +282,7 @@ expression: "NetflowParser::default().parse_bytes(&packets)"
           length: 102
         body:
           data:
-            data_fields:
+            fields:
               - 0:
                   - Ipv4SrcAddr
                   - Ip4Addr: 192.168.18.10
@@ -418,7 +418,7 @@ expression: "NetflowParser::default().parse_bytes(&packets)"
           length: 99
         body:
           data:
-            data_fields:
+            fields:
               - 0:
                   - Ipv6SrcAddr
                   - Ip6Addr: "fd01:8::2a20:235f:1f7b:9379"

@@ -30,7 +30,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
           length: 12
         body:
           data:
-            data_fields:
+            fields:
               - 0:
                   - InBytes
                   - DataNumber: 151126788
@@ -130,7 +130,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
           length: 12
         body:
           data:
-            data_fields:
+            fields:
               - 0:
                   - InBytes
                   - DataNumber: 151126788
@@ -149,7 +149,7 @@ expression: "NetflowParser::default().parse_bytes(&all)"
           header_id: 2
           length: 20
         body:
-          template:
+          Template:
             template_id: 256
             field_count: 3
             fields:
@@ -166,8 +166,8 @@ expression: "NetflowParser::default().parse_bytes(&all)"
           header_id: 256
           length: 28
         body:
-          data:
-            data_fields:
+          Data:
+            fields:
               - 0:
                   - SourceIpv4address
                   - Ip4Addr: 1.2.3.4
@@ -219,4 +219,3 @@ expression: "NetflowParser::default().parse_bytes(&all)"
         src_mask: 4
         dst_mask: 5
         pad2: 1543
-

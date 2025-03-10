@@ -30,7 +30,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           length: 12
         body:
           data:
-            data_fields:
+            fields:
               - 0:
                   - InBytes
                   - DataNumber: 151126788

@@ -14,7 +14,7 @@ expression: result
           header_id: 2
           length: 228
         body:
-          template:
+          Template:
             template_id: 268
             field_count: 34
             fields:
@@ -153,8 +153,8 @@ expression: result
           header_id: 268
           length: 172
         body:
-          data:
-            data_fields:
+          Data:
+            fields:
               - 0:
                   - Enterprise
                   - Vec:

@@ -14,8 +14,8 @@ expression: parser.parse_bytes(&packet)
           header_id: 258
           length: 10
         body:
-          data:
-            data_fields:
+          Data:
+            fields:
               - 0:
                   - PacketDeltaCount
                   - DataNumber: 8

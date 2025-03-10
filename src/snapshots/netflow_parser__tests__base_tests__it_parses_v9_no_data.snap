@@ -30,4 +30,4 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           length: 4
         body:
           data:
-            data_fields: []
+            fields: []

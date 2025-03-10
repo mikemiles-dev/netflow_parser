@@ -1,3 +1,7 @@
+# 0.5.5
+* More IPFIx/V9 Cleanup.
+* Reworked FlowSetBody for IPFIX into an enum since a flowset can only contain a single type.
+
 # 0.5.4
 * Reworked how padding is calculated for IPFIx.
 * Fixed Vecs not being exported for DataNumber.

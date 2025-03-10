@@ -14,7 +14,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           header_id: 3
           length: 28
         body:
-          options_template:
+          OptionsTemplate:
             template_id: 260
             field_count: 3
             scope_field_count: 1
