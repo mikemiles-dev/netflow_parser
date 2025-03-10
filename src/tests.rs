@@ -351,6 +351,7 @@ mod base_tests {
             field_count: 2,
             template_id: 258,
             fields,
+            ..Default::default()
         };
         let mut parser = NetflowParser::default();
         parser.ipfix_parser.templates.insert(258, template);
@@ -365,7 +366,7 @@ mod base_tests {
         let template = IPFixTemplate {
             field_count: 2,
             template_id: 258,
-            fields: vec![],
+            ..Default::default()
         };
         let mut parser = NetflowParser::default();
         parser.ipfix_parser.templates.insert(258, template);

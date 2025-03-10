@@ -15,39 +15,39 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           length: 20
         body:
           Template:
-            - template_id: 256
-              field_count: 3
-              fields:
-                - field_type_number: 8
-                  field_type: SourceIpv4address
-                  field_length: 4
-                - field_type_number: 12
-                  field_type: DestinationIpv4address
-                  field_length: 4
-                - field_type_number: 2
-                  field_type: PacketDeltaCount
-                  field_length: 4
+            template_id: 256
+            field_count: 3
+            fields:
+              - field_type_number: 8
+                field_type: SourceIpv4address
+                field_length: 4
+              - field_type_number: 12
+                field_type: DestinationIpv4address
+                field_length: 4
+              - field_type_number: 2
+                field_type: PacketDeltaCount
+                field_length: 4
       - header:
           header_id: 256
           length: 28
         body:
           Data:
-            - fields:
-                - 0:
-                    - SourceIpv4address
-                    - Ip4Addr: 1.2.3.4
-                - 1:
-                    - DestinationIpv4address
-                    - Ip4Addr: 1.2.3.3
-                - 2:
-                    - PacketDeltaCount
-                    - DataNumber: 16909058
-                - 0:
-                    - SourceIpv4address
-                    - Ip4Addr: 0.2.0.2
-                - 1:
-                    - DestinationIpv4address
-                    - Ip4Addr: 0.1.2.3
-                - 2:
-                    - PacketDeltaCount
-                    - DataNumber: 67438087
+            fields:
+              - 0:
+                  - SourceIpv4address
+                  - Ip4Addr: 1.2.3.4
+              - 1:
+                  - DestinationIpv4address
+                  - Ip4Addr: 1.2.3.3
+              - 2:
+                  - PacketDeltaCount
+                  - DataNumber: 16909058
+              - 0:
+                  - SourceIpv4address
+                  - Ip4Addr: 0.2.0.2
+              - 1:
+                  - DestinationIpv4address
+                  - Ip4Addr: 0.1.2.3
+              - 2:
+                  - PacketDeltaCount
+                  - DataNumber: 67438087

@@ -181,7 +181,7 @@ impl From<&IPFix> for NetflowCommon {
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
-            if let FlowSetBody::Data(data, _) = &flowset.body {
+            if let FlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
                     let value_map: BTreeMap<IPFixField, FieldValue> =
                         data_field.values().cloned().collect();
@@ -515,76 +515,74 @@ mod common_tests {
                     header_id: 0,
                     length: 0,
                 },
-                body: FlowSetBody::Data(
-                    IPFixData {
-                        fields: vec![BTreeMap::from([
+                body: FlowSetBody::Data(IPFixData {
+                    padding: vec![],
+                    fields: vec![BTreeMap::from([
+                        (
+                            0,
                             (
-                                0,
-                                (
-                                    IPFixField::SourceIpv4address,
-                                    FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
-                                ),
+                                IPFixField::SourceIpv4address,
+                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
                             ),
+                        ),
+                        (
+                            1,
                             (
-                                1,
-                                (
-                                    IPFixField::DestinationIpv4address,
-                                    FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
-                                ),
+                                IPFixField::DestinationIpv4address,
+                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
                             ),
+                        ),
+                        (
+                            2,
                             (
-                                2,
-                                (
-                                    IPFixField::SourceTransportPort,
-                                    FieldValue::DataNumber(DataNumber::U16(1234)),
-                                ),
+                                IPFixField::SourceTransportPort,
+                                FieldValue::DataNumber(DataNumber::U16(1234)),
                             ),
+                        ),
+                        (
+                            3,
                             (
-                                3,
-                                (
-                                    IPFixField::DestinationTransportPort,
-                                    FieldValue::DataNumber(DataNumber::U16(80)),
-                                ),
+                                IPFixField::DestinationTransportPort,
+                                FieldValue::DataNumber(DataNumber::U16(80)),
                             ),
+                        ),
+                        (
+                            4,
                             (
-                                4,
-                                (
-                                    IPFixField::ProtocolIdentifier,
-                                    FieldValue::DataNumber(DataNumber::U8(6)),
-                                ),
+                                IPFixField::ProtocolIdentifier,
+                                FieldValue::DataNumber(DataNumber::U8(6)),
                             ),
+                        ),
+                        (
+                            5,
                             (
-                                5,
-                                (
-                                    IPFixField::FlowStartSysUpTime,
-                                    FieldValue::DataNumber(DataNumber::U32(100)),
-                                ),
+                                IPFixField::FlowStartSysUpTime,
+                                FieldValue::DataNumber(DataNumber::U32(100)),
                             ),
+                        ),
+                        (
+                            6,
                             (
-                                6,
-                                (
-                                    IPFixField::FlowEndSysUpTime,
-                                    FieldValue::DataNumber(DataNumber::U32(200)),
-                                ),
+                                IPFixField::FlowEndSysUpTime,
+                                FieldValue::DataNumber(DataNumber::U32(200)),
                             ),
+                        ),
+                        (
+                            7,
                             (
-                                7,
-                                (
-                                    IPFixField::SourceMacaddress,
-                                    FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
-                                ),
+                                IPFixField::SourceMacaddress,
+                                FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
                             ),
+                        ),
+                        (
+                            8,
                             (
-                                8,
-                                (
-                                    IPFixField::DestinationMacaddress,
-                                    FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
-                                ),
+                                IPFixField::DestinationMacaddress,
+                                FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
                             ),
-                        ])],
-                    },
-                    vec![],
-                ),
+                        ),
+                    ])],
+                }),
             }],
         };
 

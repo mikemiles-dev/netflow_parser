@@ -15,17 +15,17 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           length: 28
         body:
           OptionsTemplate:
-            - template_id: 260
-              field_count: 3
-              scope_field_count: 1
-              fields:
-                - field_type_number: 123
-                  field_type: Enterprise
-                  field_length: 4
-                  enterprise_number: 2
-                - field_type_number: 41
-                  field_type: ExportedMessageTotalCount
-                  field_length: 2
-                - field_type_number: 42
-                  field_type: ExportedFlowRecordTotalCount
-                  field_length: 2
+            template_id: 260
+            field_count: 3
+            scope_field_count: 1
+            fields:
+              - field_type_number: 123
+                field_type: Enterprise
+                field_length: 4
+                enterprise_number: 2
+              - field_type_number: 41
+                field_type: ExportedMessageTotalCount
+                field_length: 2
+              - field_type_number: 42
+                field_type: ExportedFlowRecordTotalCount
+                field_length: 2
