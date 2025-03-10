@@ -300,7 +300,7 @@ pub struct ScopeDataField {
 pub struct Data {
     // Data Fields
     #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flowset_id)) }")]
-    pub data_fields: Vec<BTreeMap<usize, V9FieldPair>>,
+    pub fields: Vec<BTreeMap<usize, V9FieldPair>>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -476,7 +476,7 @@ impl V9 {
             }
 
             if let Some(data) = &set.body.data {
-                for data_field in data.data_fields.iter() {
+                for data_field in data.fields.iter() {
                     for (_field_type, (_, field_value)) in data_field.iter() {
                         result.extend_from_slice(&field_value.to_be_bytes());
                     }

@@ -7,7 +7,10 @@ use crate::static_versions::{v5::V5, v7::V7};
 use crate::variable_versions::data_number::FieldValue;
 use crate::variable_versions::ipfix_lookup::IPFixField;
 use crate::variable_versions::v9_lookup::V9Field;
-use crate::variable_versions::{ipfix::IPFix, v9::V9};
+use crate::variable_versions::{
+    ipfix::{FlowSetBody, IPFix},
+    v9::V9,
+};
 
 #[derive(Debug)]
 pub enum NetflowCommonError {
@@ -120,7 +123,7 @@ impl From<&V9> for NetflowCommon {
 
         for flowset in &value.flowsets {
             if let Some(data) = &flowset.body.data {
-                for data_field in &data.data_fields {
+                for data_field in &data.fields {
                     let value_map: BTreeMap<V9Field, FieldValue> =
                         data_field.values().cloned().collect();
                     flowsets.push(NetflowCommonFlowSet {
@@ -178,8 +181,8 @@ impl From<&IPFix> for NetflowCommon {
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
-            if let Some(data) = &flowset.body.data {
-                for data_field in &data.data_fields {
+            if let FlowSetBody::Data(data, _) = &flowset.body {
+                for data_field in &data.fields {
                     let value_map: BTreeMap<IPFixField, FieldValue> =
                         data_field.values().cloned().collect();
                     flowsets.push(NetflowCommonFlowSet {
@@ -243,7 +246,7 @@ mod common_tests {
     use crate::static_versions::v7::{FlowSet as V7FlowSet, Header as V7Header, V7};
     use crate::variable_versions::data_number::{DataNumber, FieldValue};
     use crate::variable_versions::ipfix::{
-        Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody as IPFixFlowSetBody,
+        Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody,
         FlowSetHeader as IPFixFlowSetHeader, Header as IPFixHeader, IPFix,
     };
     use crate::variable_versions::ipfix_lookup::IPFixField;
@@ -403,7 +406,7 @@ mod common_tests {
                     options_data: None,
                     unparsed_data: None,
                     data: Some(V9Data {
-                        data_fields: vec![BTreeMap::from([
+                        fields: vec![BTreeMap::from([
                             (
                                 0,
                                 (
@@ -512,13 +515,9 @@ mod common_tests {
                     header_id: 0,
                     length: 0,
                 },
-                body: IPFixFlowSetBody {
-                    padding: vec![],
-                    template: None,
-                    options_template: None,
-                    options_data: None,
-                    data: Some(IPFixData {
-                        data_fields: vec![BTreeMap::from([
+                body: FlowSetBody::Data(
+                    IPFixData {
+                        fields: vec![BTreeMap::from([
                             (
                                 0,
                                 (
@@ -583,8 +582,9 @@ mod common_tests {
                                 ),
                             ),
                         ])],
-                    }),
-                },
+                    },
+                    vec![],
+                ),
             }],
         };
 
