@@ -61,7 +61,7 @@ pub struct IPFix {
         Parse = "map_res(take(length), |i| {
             many0(complete(|i| FlowSet::parse(i, parser)
                 .map(|(i, flow_set)| (i, flow_set))
-    ))(i)
+            ))(i)
             .map(|(_, flow_sets)| flow_sets) // Extract the Vec<FlowSet>
         })"
     )]
