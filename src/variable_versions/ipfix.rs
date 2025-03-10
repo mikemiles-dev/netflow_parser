@@ -293,7 +293,7 @@ impl FieldParser {
     /// Takes a byte stream and a cached template.
     /// Fields get matched to static types.
     /// Returns BTree of IPFix Types & Fields or IResult Error.
-    fn parse<T: CommonTemplate + std::fmt::Debug>(
+    fn parse<T: CommonTemplate>(
         i: &[u8],
         template: T,
     ) -> IResult<&[u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
