@@ -14,7 +14,7 @@ expression: result
           header_id: 3
           length: 24
         body:
-          options_template:
+          OptionsTemplate:
             template_id: 308
             field_count: 3
             scope_field_count: 1

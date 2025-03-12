@@ -15,243 +15,248 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           flowset_id: 0
           length: 72
         body:
-          templates:
-            - template_id: 1024
-              field_count: 16
-              fields:
-                - field_type_number: 8
-                  field_type: Ipv4SrcAddr
-                  field_length: 4
-                - field_type_number: 12
-                  field_type: Ipv4DstAddr
-                  field_length: 4
-                - field_type_number: 22
-                  field_type: FirstSwitched
-                  field_length: 4
-                - field_type_number: 21
-                  field_type: LastSwitched
-                  field_length: 4
-                - field_type_number: 1
-                  field_type: InBytes
-                  field_length: 4
-                - field_type_number: 2
-                  field_type: InPkts
-                  field_length: 4
-                - field_type_number: 10
-                  field_type: InputSnmp
-                  field_length: 4
-                - field_type_number: 14
-                  field_type: OutputSnmp
-                  field_length: 4
-                - field_type_number: 61
-                  field_type: Direction
-                  field_length: 1
-                - field_type_number: 136
-                  field_type: Unknown
-                  field_length: 1
-                - field_type_number: 7
-                  field_type: L4SrcPort
-                  field_length: 2
-                - field_type_number: 11
-                  field_type: L4DstPort
-                  field_length: 2
-                - field_type_number: 4
-                  field_type: Protocol
-                  field_length: 1
-                - field_type_number: 6
-                  field_type: TcpFlags
-                  field_length: 1
-                - field_type_number: 60
-                  field_type: IpProtocolVersion
-                  field_length: 1
-                - field_type_number: 5
-                  field_type: SrcTos
-                  field_length: 1
+          Template:
+            templates:
+              - template_id: 1024
+                field_count: 16
+                fields:
+                  - field_type_number: 8
+                    field_type: Ipv4SrcAddr
+                    field_length: 4
+                  - field_type_number: 12
+                    field_type: Ipv4DstAddr
+                    field_length: 4
+                  - field_type_number: 22
+                    field_type: FirstSwitched
+                    field_length: 4
+                  - field_type_number: 21
+                    field_type: LastSwitched
+                    field_length: 4
+                  - field_type_number: 1
+                    field_type: InBytes
+                    field_length: 4
+                  - field_type_number: 2
+                    field_type: InPkts
+                    field_length: 4
+                  - field_type_number: 10
+                    field_type: InputSnmp
+                    field_length: 4
+                  - field_type_number: 14
+                    field_type: OutputSnmp
+                    field_length: 4
+                  - field_type_number: 61
+                    field_type: Direction
+                    field_length: 1
+                  - field_type_number: 136
+                    field_type: Unknown
+                    field_length: 1
+                  - field_type_number: 7
+                    field_type: L4SrcPort
+                    field_length: 2
+                  - field_type_number: 11
+                    field_type: L4DstPort
+                    field_length: 2
+                  - field_type_number: 4
+                    field_type: Protocol
+                    field_length: 1
+                  - field_type_number: 6
+                    field_type: TcpFlags
+                    field_length: 1
+                  - field_type_number: 60
+                    field_type: IpProtocolVersion
+                    field_length: 1
+                  - field_type_number: 5
+                    field_type: SrcTos
+                    field_length: 1
       - header:
           flowset_id: 0
           length: 64
         body:
-          templates:
-            - template_id: 1025
-              field_count: 14
-              fields:
-                - field_type_number: 8
-                  field_type: Ipv4SrcAddr
-                  field_length: 4
-                - field_type_number: 12
-                  field_type: Ipv4DstAddr
-                  field_length: 4
-                - field_type_number: 22
-                  field_type: FirstSwitched
-                  field_length: 4
-                - field_type_number: 21
-                  field_type: LastSwitched
-                  field_length: 4
-                - field_type_number: 1
-                  field_type: InBytes
-                  field_length: 4
-                - field_type_number: 2
-                  field_type: InPkts
-                  field_length: 4
-                - field_type_number: 10
-                  field_type: InputSnmp
-                  field_length: 4
-                - field_type_number: 14
-                  field_type: OutputSnmp
-                  field_length: 4
-                - field_type_number: 61
-                  field_type: Direction
-                  field_length: 1
-                - field_type_number: 136
-                  field_type: Unknown
-                  field_length: 1
-                - field_type_number: 32
-                  field_type: IcmpType
-                  field_length: 2
-                - field_type_number: 4
-                  field_type: Protocol
-                  field_length: 1
-                - field_type_number: 60
-                  field_type: IpProtocolVersion
-                  field_length: 1
-                - field_type_number: 5
-                  field_type: SrcTos
-                  field_length: 1
+          Template:
+            templates:
+              - template_id: 1025
+                field_count: 14
+                fields:
+                  - field_type_number: 8
+                    field_type: Ipv4SrcAddr
+                    field_length: 4
+                  - field_type_number: 12
+                    field_type: Ipv4DstAddr
+                    field_length: 4
+                  - field_type_number: 22
+                    field_type: FirstSwitched
+                    field_length: 4
+                  - field_type_number: 21
+                    field_type: LastSwitched
+                    field_length: 4
+                  - field_type_number: 1
+                    field_type: InBytes
+                    field_length: 4
+                  - field_type_number: 2
+                    field_type: InPkts
+                    field_length: 4
+                  - field_type_number: 10
+                    field_type: InputSnmp
+                    field_length: 4
+                  - field_type_number: 14
+                    field_type: OutputSnmp
+                    field_length: 4
+                  - field_type_number: 61
+                    field_type: Direction
+                    field_length: 1
+                  - field_type_number: 136
+                    field_type: Unknown
+                    field_length: 1
+                  - field_type_number: 32
+                    field_type: IcmpType
+                    field_length: 2
+                  - field_type_number: 4
+                    field_type: Protocol
+                    field_length: 1
+                  - field_type_number: 60
+                    field_type: IpProtocolVersion
+                    field_length: 1
+                  - field_type_number: 5
+                    field_type: SrcTos
+                    field_length: 1
       - header:
           flowset_id: 0
           length: 72
         body:
-          templates:
-            - template_id: 2048
-              field_count: 16
-              fields:
-                - field_type_number: 27
-                  field_type: Ipv6SrcAddr
-                  field_length: 16
-                - field_type_number: 28
-                  field_type: Ipv6DstAddr
-                  field_length: 16
-                - field_type_number: 22
-                  field_type: FirstSwitched
-                  field_length: 4
-                - field_type_number: 21
-                  field_type: LastSwitched
-                  field_length: 4
-                - field_type_number: 1
-                  field_type: InBytes
-                  field_length: 4
-                - field_type_number: 2
-                  field_type: InPkts
-                  field_length: 4
-                - field_type_number: 10
-                  field_type: InputSnmp
-                  field_length: 4
-                - field_type_number: 14
-                  field_type: OutputSnmp
-                  field_length: 4
-                - field_type_number: 61
-                  field_type: Direction
-                  field_length: 1
-                - field_type_number: 136
-                  field_type: Unknown
-                  field_length: 1
-                - field_type_number: 7
-                  field_type: L4SrcPort
-                  field_length: 2
-                - field_type_number: 11
-                  field_type: L4DstPort
-                  field_length: 2
-                - field_type_number: 4
-                  field_type: Protocol
-                  field_length: 1
-                - field_type_number: 6
-                  field_type: TcpFlags
-                  field_length: 1
-                - field_type_number: 60
-                  field_type: IpProtocolVersion
-                  field_length: 1
-                - field_type_number: 5
-                  field_type: SrcTos
-                  field_length: 1
+          Template:
+            templates:
+              - template_id: 2048
+                field_count: 16
+                fields:
+                  - field_type_number: 27
+                    field_type: Ipv6SrcAddr
+                    field_length: 16
+                  - field_type_number: 28
+                    field_type: Ipv6DstAddr
+                    field_length: 16
+                  - field_type_number: 22
+                    field_type: FirstSwitched
+                    field_length: 4
+                  - field_type_number: 21
+                    field_type: LastSwitched
+                    field_length: 4
+                  - field_type_number: 1
+                    field_type: InBytes
+                    field_length: 4
+                  - field_type_number: 2
+                    field_type: InPkts
+                    field_length: 4
+                  - field_type_number: 10
+                    field_type: InputSnmp
+                    field_length: 4
+                  - field_type_number: 14
+                    field_type: OutputSnmp
+                    field_length: 4
+                  - field_type_number: 61
+                    field_type: Direction
+                    field_length: 1
+                  - field_type_number: 136
+                    field_type: Unknown
+                    field_length: 1
+                  - field_type_number: 7
+                    field_type: L4SrcPort
+                    field_length: 2
+                  - field_type_number: 11
+                    field_type: L4DstPort
+                    field_length: 2
+                  - field_type_number: 4
+                    field_type: Protocol
+                    field_length: 1
+                  - field_type_number: 6
+                    field_type: TcpFlags
+                    field_length: 1
+                  - field_type_number: 60
+                    field_type: IpProtocolVersion
+                    field_length: 1
+                  - field_type_number: 5
+                    field_type: SrcTos
+                    field_length: 1
       - header:
           flowset_id: 0
           length: 64
         body:
-          templates:
-            - template_id: 2049
-              field_count: 14
-              fields:
-                - field_type_number: 27
-                  field_type: Ipv6SrcAddr
-                  field_length: 16
-                - field_type_number: 28
-                  field_type: Ipv6DstAddr
-                  field_length: 16
-                - field_type_number: 22
-                  field_type: FirstSwitched
-                  field_length: 4
-                - field_type_number: 21
-                  field_type: LastSwitched
-                  field_length: 4
-                - field_type_number: 1
-                  field_type: InBytes
-                  field_length: 4
-                - field_type_number: 2
-                  field_type: InPkts
-                  field_length: 4
-                - field_type_number: 10
-                  field_type: InputSnmp
-                  field_length: 4
-                - field_type_number: 14
-                  field_type: OutputSnmp
-                  field_length: 4
-                - field_type_number: 61
-                  field_type: Direction
-                  field_length: 1
-                - field_type_number: 136
-                  field_type: Unknown
-                  field_length: 1
-                - field_type_number: 139
-                  field_type: Unknown
-                  field_length: 2
-                - field_type_number: 4
-                  field_type: Protocol
-                  field_length: 1
-                - field_type_number: 60
-                  field_type: IpProtocolVersion
-                  field_length: 1
-                - field_type_number: 5
-                  field_type: SrcTos
-                  field_length: 1
+          Template:
+            templates:
+              - template_id: 2049
+                field_count: 14
+                fields:
+                  - field_type_number: 27
+                    field_type: Ipv6SrcAddr
+                    field_length: 16
+                  - field_type_number: 28
+                    field_type: Ipv6DstAddr
+                    field_length: 16
+                  - field_type_number: 22
+                    field_type: FirstSwitched
+                    field_length: 4
+                  - field_type_number: 21
+                    field_type: LastSwitched
+                    field_length: 4
+                  - field_type_number: 1
+                    field_type: InBytes
+                    field_length: 4
+                  - field_type_number: 2
+                    field_type: InPkts
+                    field_length: 4
+                  - field_type_number: 10
+                    field_type: InputSnmp
+                    field_length: 4
+                  - field_type_number: 14
+                    field_type: OutputSnmp
+                    field_length: 4
+                  - field_type_number: 61
+                    field_type: Direction
+                    field_length: 1
+                  - field_type_number: 136
+                    field_type: Unknown
+                    field_length: 1
+                  - field_type_number: 139
+                    field_type: Unknown
+                    field_length: 2
+                  - field_type_number: 4
+                    field_type: Protocol
+                    field_length: 1
+                  - field_type_number: 60
+                    field_type: IpProtocolVersion
+                    field_length: 1
+                  - field_type_number: 5
+                    field_type: SrcTos
+                    field_length: 1
       - header:
           flowset_id: 1
           length: 26
         body:
-          options_templates:
-            - template_id: 256
-              options_scope_length: 4
-              options_length: 12
-              scope_fields:
-                - field_type_number: 2
-                  field_type: Interface
-                  field_length: 4
-              option_fields:
-                - field_type_number: 34
-                  field_type: SamplingInterval
-                  field_length: 4
-                - field_type_number: 35
-                  field_type: SamplingAlgorithm
-                  field_length: 1
-                - field_type_number: 82
-                  field_type: IfName
-                  field_length: 16
+          OptionsTemplate:
+            templates:
+              - template_id: 256
+                options_scope_length: 4
+                options_length: 12
+                scope_fields:
+                  - field_type_number: 2
+                    field_type: Interface
+                    field_length: 4
+                option_fields:
+                  - field_type_number: 34
+                    field_type: SamplingInterval
+                    field_length: 4
+                  - field_type_number: 35
+                    field_type: SamplingAlgorithm
+                    field_length: 1
+                  - field_type_number: 82
+                    field_type: IfName
+                    field_length: 16
       - header:
           flowset_id: 256
           length: 29
         body:
-          options_data:
+          OptionsData:
             scope_fields:
-              - interface:
+              - Interface:
                   - 0
                   - 0
                   - 0
@@ -288,8 +293,8 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           flowset_id: 2048
           length: 205
         body:
-          data:
-            data_fields:
+          Data:
+            fields:
               - 0:
                   - Ipv6SrcAddr
                   - Ip6Addr: "2003:d1:ef3b:2200:fe34:97ff:feb7:686e"
@@ -453,8 +458,8 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           flowset_id: 1024
           length: 256
         body:
-          data:
-            data_fields:
+          Data:
+            fields:
               - 0:
                   - Ipv4SrcAddr
                   - Ip4Addr: 157.240.251.61

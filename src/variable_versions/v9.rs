@@ -5,14 +5,17 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use super::data_number::*;
-use crate::variable_versions::v9_lookup::*;
+use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
 use Nom;
 use nom::Err as NomErr;
 use nom::IResult;
 use nom::bytes::complete::take;
+use nom::combinator::complete;
+use nom::combinator::map_res;
 use nom::error::{Error as NomError, ErrorKind};
+use nom::multi::many0;
 use nom_derive::*;
 use serde::Serialize;
 
@@ -21,24 +24,22 @@ use std::collections::HashMap;
 
 const TEMPLATE_ID: u16 = 0;
 const OPTIONS_TEMPLATE_ID: u16 = 1;
-const FLOWSET_MIN_RANGE: u16 = 255;
 
 type TemplateId = u16;
 pub type V9FieldPair = (V9Field, FieldValue);
 
-pub(crate) fn parse_netflow_v9(
-    packet: &[u8],
-    parser: &mut V9Parser,
-) -> Result<ParsedNetflow, NetflowParseError> {
-    V9::parse(packet, parser)
-        .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
-        .map_err(|e| {
-            NetflowParseError::Partial(PartialParse {
-                version: 9,
-                error: e.to_string(),
-                remaining: packet.to_vec(),
+impl V9Parser {
+    pub fn parse(&mut self, packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
+        V9::parse(packet, self)
+            .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
+            .map_err(|e| {
+                NetflowParseError::Partial(PartialParse {
+                    version: 9,
+                    error: e.to_string(),
+                    remaining: packet.to_vec(),
+                })
             })
-        })
+    }
 }
 
 #[derive(Default, Debug)]
@@ -53,7 +54,7 @@ pub struct V9 {
     /// V9 Header
     pub header: Header,
     /// Flowsets
-    #[nom(Parse = "{ |i| parse_flowsets(i, parser, header.count) }")]
+    #[nom(Parse = "{ |i| FlowSetParser::parse_flowsets(i, parser, header.count) }")]
     pub flowsets: Vec<FlowSet>,
 }
 
@@ -89,7 +90,12 @@ pub struct Header {
 #[nom(ExtraArgs(parser: &mut V9Parser))]
 pub struct FlowSet {
     pub header: FlowSetHeader,
-    #[nom(Parse = "{ |i| parse_set_body(i, parser, header.flowset_id, header.length) }")]
+    #[nom(
+        PreExec = "let length = header.length.saturating_sub(4);",
+        Parse = "map_res(take(length),
+                  |i| FlowSetBody::parse(i, parser, header.flowset_id)
+                      .map(|(_, flow_set)| flow_set))"
+    )]
     pub body: FlowSetBody,
 }
 
@@ -107,55 +113,109 @@ pub struct FlowSetHeader {
     pub length: u16,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flowset_id: u16))]
-pub struct FlowSetBody {
-    /// Templates
-    #[nom(
-        Cond = "flowset_id == TEMPLATE_ID",
-        // Save our templates
-        PostExec = "if let Some(templates) = templates.clone() { 
-            for template in templates {
-                parser.templates.insert(template.template_id, template); 
-            }
-        }"
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub templates: Option<Vec<Template>>,
-    // Options template
-    #[nom(
-        Cond = "flowset_id == OPTIONS_TEMPLATE_ID",
-        Parse = "parse_options_template_vec",
-        // Save our options templates
-        PostExec = "if let Some(options_templates) = options_templates.clone() { 
-            for template in options_templates {
-                parser.options_templates.insert(template.template_id, template); 
-            } 
-        }"
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options_templates: Option<Vec<OptionsTemplate>>,
-    // Options Data
-    #[nom(
-        Cond = "flowset_id > FLOWSET_MIN_RANGE && parser.options_templates.contains_key(&flowset_id)",
-        Parse = "{ |i| OptionsData::parse(i, parser, flowset_id) }"
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub options_data: Option<OptionsData>,
-    // Data
-    #[nom(
-        Cond = "flowset_id > FLOWSET_MIN_RANGE && parser.templates.contains_key(&flowset_id)",
-        Parse = "{ |i| Data::parse(i, parser, flowset_id) }"
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<Data>,
-    // Unparsed data
-    #[nom(Ignore)]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub unparsed_data: Option<Vec<u8>>,
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub enum FlowSetBody {
+    Template(Templates),
+    OptionsTemplate(OptionsTemplates),
+    Data(Data),
+    OptionsData(OptionsData),
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+pub struct Templates {
+    pub templates: Vec<Template>,
+    #[serde(skip_serializing)]
+    pub padding: Vec<u8>,
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+pub struct OptionsTemplates {
+    pub templates: Vec<OptionsTemplate>,
+    #[serde(skip_serializing)]
+    pub padding: Vec<u8>,
+}
+
+/// Parses a FlowSetBody from a provided byte slice, updating the parser state as needed.
+///
+/// This function examines the given identifier (`id`) to determine the type of flowset to parse.
+/// It handles multiple cases based on the value of `id`:
+///
+/// 1. If `id` equals `TEMPLATE_ID`:
+///    - It parses a collection of templates using `Templates::parse`.
+///    - Each parsed template is added to the parser's `templates` collection.
+///    - Returns a `FlowSetBody::Template` variant wrapping the parsed templates.
+///
+/// 2. If `id` equals `OPTIONS_TEMPLATE_ID`:
+///    - It parses a collection of options templates using `OptionsTemplates::parse`.
+///    - Each parsed template is added to the parser's `options_templates` collection.
+///    - Returns a `FlowSetBody::OptionsTemplate` variant wrapping the parsed options templates.
+///
+/// 3. If the parser's `options_templates` already contains the `id`:
+///    - It parses options data using `OptionsData::parse`.
+///    - Returns a `FlowSetBody::OptionsData` variant wrapping the parsed options data.
+///
+/// 4. If the parser's `templates` already contains the `id`:
+///    - It parses standard data using `Data::parse`.
+///    - Returns a `FlowSetBody::Data` variant wrapping the parsed data.
+///
+/// 5. If none of these cases apply:
+///    - The function returns a parsing error with a verification error kind.
+///
+/// # Parameters
+///
+/// - `i`: A byte slice containing the input data to be parsed.
+/// - `parser`: A mutable reference to a `V9Parser` which maintains the state of parsed templates.
+/// - `id`: The identifier that determines which parsing strategy is applied.
+///
+/// # Returns
+///
+/// An `IResult` containing:
+/// - On success: A tuple of the remaining input slice and the parsed `FlowSetBody`.
+/// - On failure: A `nom::Err` with an error kind indicating the failure (using `nom::error::ErrorKind::Verify`).
+impl FlowSetBody {
+    fn parse<'a>(
+        i: &'a [u8],
+        parser: &mut V9Parser,
+        id: u16,
+    ) -> IResult<&'a [u8], FlowSetBody> {
+        match id {
+            _ if id == TEMPLATE_ID => {
+                let (i, templates) = Templates::parse(i)?;
+                parser.templates.extend(
+                    templates
+                        .templates
+                        .iter()
+                        .map(|template| (template.template_id, template.clone())),
+                );
+                Ok((i, FlowSetBody::Template(templates)))
+            }
+            _ if id == OPTIONS_TEMPLATE_ID => {
+                let (i, options_templates) = OptionsTemplates::parse(i)?;
+                parser.options_templates.extend(
+                    options_templates
+                        .templates
+                        .iter()
+                        .map(|template| (template.template_id, template.clone())),
+                );
+                Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
+            }
+            _ if parser.options_templates.contains_key(&id) => {
+                let (i, options_data) = OptionsData::parse(i, parser, id)?;
+                Ok((i, FlowSetBody::OptionsData(options_data)))
+            }
+            _ if parser.templates.contains_key(&id) => {
+                let (i, data) = Data::parse(i, parser, id)?;
+                Ok((i, FlowSetBody::Data(data)))
+            }
+            _ => Err(nom::Err::Error(nom::error::Error::new(
+                i,
+                nom::error::ErrorKind::Verify,
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Default, Nom)]
 pub struct Template {
     /// As a router generates different template FlowSets to match the type of NetFlow
     /// data it will be exporting, each template is given a unique ID. This uniqueness
@@ -172,7 +232,7 @@ pub struct Template {
     pub fields: Vec<TemplateField>,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+#[derive(Debug, PartialEq, Clone, Serialize, Default, Nom)]
 pub struct OptionsTemplate {
     /// As a router generates different template FlowSets to match the type of NetFlow data it is exporting, each template is given a unique ID. This uniqueness is local to the router that generated the template ID. The Template ID is greater than 255. Template IDs inferior to 255 are reserved.
     pub template_id: u16,
@@ -218,66 +278,112 @@ pub struct TemplateField {
 #[nom(ExtraArgs(parser: &mut V9Parser, flowset_id: u16))]
 pub struct OptionsData {
     // Scope Data
-    #[nom(Parse = "{ |i| parse_scope_data_fields(i, flowset_id, &parser.options_templates) }")]
+    #[nom(
+        PreExec = "let template = parser.options_templates.get(&flowset_id).cloned().unwrap_or_default();",
+        PreExec = "let mut field = template.scope_fields.iter();",
+        Parse = "many0(complete( { |i|
+                       ScopeDataField::parse(i, field.next().ok_or(
+                         NomErr::Error(NomError::new(i, ErrorKind::Fail)
+                         )
+                      )? )
+                } ))"
+    )]
     pub scope_fields: Vec<ScopeDataField>,
     // Options Data Fields
     #[nom(
-        Parse = "{ |i| parse_options_data_fields(i, flowset_id, parser.options_templates.clone()) }"
+        PreExec = "let template = parser.options_templates.get(&flowset_id).cloned().unwrap_or_default();",
+        PreExec = "let mut field = template.option_fields.iter();",
+        Parse = "many0(complete( { |i|
+                        OptionDataField::parse(i, field.next().ok_or(
+                            NomErr::Error(NomError::new(i, ErrorKind::Fail))
+                        )? )
+                } ))"
     )]
     pub options_fields: Vec<OptionDataField>,
+    #[serde(skip_serializing)]
+    pub padding: Vec<u8>,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(field: &OptionsTemplateScopeField))]
-pub struct ScopeDataField {
-    /// System
-    #[nom(
-        Cond = "field.field_type == ScopeFieldType::System",
-        Map = "|i: &[u8]| i.to_vec()",
-        Take = "field.field_length"
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub system: Option<Vec<u8>>,
-    /// Interface
-    #[nom(
-        Cond = "field.field_type == ScopeFieldType::Interface",
-        Map = "|i: &[u8]| i.to_vec()",
-        Take = "field.field_length"
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub interface: Option<Vec<u8>>,
-    /// LineCard
-    #[nom(
-        Cond = "field.field_type == ScopeFieldType::LineCard",
-        Map = "|i: &[u8]| i.to_vec()",
-        Take = "field.field_length"
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub line_card: Option<Vec<u8>>,
-    /// NetFlowCache
-    #[nom(
-        Cond = "field.field_type == ScopeFieldType::NetflowCache",
-        Map = "|i: &[u8]| i.to_vec()",
-        Take = "field.field_length"
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub net_flow_cache: Option<Vec<u8>>,
-    /// Template
-    #[nom(
-        Cond = "field.field_type == ScopeFieldType::Template",
-        Map = "|i: &[u8]| i.to_vec()",
-        Take = "field.field_length"
-    )]
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub template: Option<Vec<u8>>,
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub enum ScopeDataField {
+    System(Vec<u8>),
+    Interface(Vec<u8>),
+    LineCard(Vec<u8>),
+    NetFlowCache(Vec<u8>),
+    Template(Vec<u8>),
+}
+
+/// Parses a scope data field from the provided input slice using the given template field information.
+///
+/// This function reads a number of bytes equal to `template_field.field_length` from the `input` slice and maps
+/// the resulting value to the corresponding variant of `ScopeDataField` based on `template_field.field_type`.
+///
+/// Supported field types include:
+/// - `ScopeFieldType::System`
+/// - `ScopeFieldType::Interface`
+/// - `ScopeFieldType::LineCard`
+/// - `ScopeFieldType::NetflowCache`
+/// - `ScopeFieldType::Template`
+///
+/// # Arguments
+///
+/// * `input` - A byte slice that contains the data to be parsed.
+/// * `template_field` - A reference to an `OptionsTemplateScopeField` which holds the metadata describing the expected field,
+///                      including its length and type.
+///
+/// # Returns
+///
+/// Returns an `IResult` tuple containing:
+/// - The remaining unparsed slice.
+/// - A `ScopeDataField` variant with the parsed data.
+///
+/// # Errors
+///
+/// If the field type from `template_field` does not match any of the supported types, the function returns a nom error
+/// with `ErrorKind::Verify`.
+/// ```
+impl ScopeDataField {
+    fn parse<'a>(
+        input: &'a [u8],
+        template_field: &OptionsTemplateScopeField,
+    ) -> IResult<&'a [u8], ScopeDataField> {
+        let (new_input, field_value) = take(template_field.field_length)(input)?;
+
+        match template_field.field_type {
+            ScopeFieldType::System => {
+                Ok((new_input, ScopeDataField::System(field_value.to_vec())))
+            }
+            ScopeFieldType::Interface => {
+                Ok((new_input, ScopeDataField::Interface(field_value.to_vec())))
+            }
+            ScopeFieldType::LineCard => {
+                Ok((new_input, ScopeDataField::LineCard(field_value.to_vec())))
+            }
+            ScopeFieldType::NetflowCache => Ok((
+                new_input,
+                ScopeDataField::NetFlowCache(field_value.to_vec()),
+            )),
+            ScopeFieldType::Template => {
+                Ok((new_input, ScopeDataField::Template(field_value.to_vec())))
+            }
+            _ => Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Verify,
+            ))),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut V9Parser, flowset_id: u16))]
 pub struct Data {
     // Data Fields
-    #[nom(Parse = "{ |i| parse_fields(i, parser.templates.get(&flowset_id)) }")]
-    pub data_fields: Vec<BTreeMap<usize, V9FieldPair>>,
+    #[nom(
+        Parse = "{ |i| FieldParser::parse(i, parser.templates.get(&flowset_id).cloned().unwrap_or_default()) }"
+    )]
+    pub fields: Vec<BTreeMap<usize, V9FieldPair>>,
+    #[serde(skip_serializing)]
+    pub padding: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -297,159 +403,136 @@ impl Template {
     }
 }
 
-impl FlowSet {
-    fn is_unparsed(&self) -> bool {
-        self.body.templates.is_none()
-            && self.body.options_templates.is_none()
-            && self.body.data.is_none()
-            && self.body.options_data.is_none()
-    }
+pub struct FlowSetParser;
 
-    fn is_empty(&self) -> bool {
-        self.header.length == 0
-    }
-}
+impl FlowSetParser {
+    /// Parses a slice of bytes into a vector of FlowSet records.
+    ///
+    /// This method iterates over the input byte slice, attempting to parse each flowset using
+    /// the `FlowSet::parse` function. It continues this process until the input is exhausted
+    /// or the specified number of records (`record_count`) has been parsed.
+    ///
+    /// The parser argument provides necessary context for interpreting version 9 flowsets.
+    ///
+    /// # Arguments
+    ///
+    /// * `i` - A byte slice representing the input data to be parsed.
+    /// * `parser` - A mutable reference to the V9Parser, which maintains context during parsing.
+    /// * `record_count` - The total number of records expected, as specified in the header (includes data and template records).
+    ///
+    /// # Returns
+    ///
+    /// This function returns an `IResult` containing:
+    ///
+    /// * A slice of bytes that remains unparsed.
+    /// * A vector of successfully parsed `FlowSet` objects.
+    ///
+    /// If a parsing error occurs during the processing of any flowset, the error is propagated.
+    fn parse_flowsets<'a>(
+        i: &'a [u8],
+        parser: &mut V9Parser,
+        record_count: u16,
+    ) -> IResult<&'a [u8], Vec<FlowSet>> {
+        let mut flowsets = vec![];
+        let mut remaining = i;
+        let mut record_count_index = 0;
 
-// Custom parse set body function to take only length provided by set header.
-fn parse_set_body<'a>(
-    i: &'a [u8],
-    parser: &mut V9Parser,
-    id: u16,
-    length: u16,
-) -> IResult<&'a [u8], FlowSetBody> {
-    // length - 4 to account for the set header
-    let length = length.checked_sub(4).unwrap_or(length);
-    let (remaining, taken) = take(length)(i)?;
-    let (_, set_body) = FlowSetBody::parse(taken, parser, id)?;
-    Ok((remaining, set_body))
-}
-
-fn parse_flowsets<'a>(
-    i: &'a [u8],
-    parser: &mut V9Parser,
-    record_count: u16,
-) -> IResult<&'a [u8], Vec<FlowSet>> {
-    let mut flowsets = vec![];
-    let mut remaining = i;
-    let mut record_count_index = 0;
-
-    // Header.count represents total number of records in data + records in templates
-    while !remaining.is_empty() && record_count_index < record_count {
-        let (i, mut flowset) = FlowSet::parse(remaining, parser)?;
-
-        if flowset.is_empty() {
-            flowset.body.unparsed_data = Some(remaining.to_vec());
-            remaining = &[];
-        } else if flowset.is_unparsed() {
-            flowset.body.unparsed_data =
-                Some(remaining[..flowset.header.length as usize].to_vec());
-            remaining = &remaining[flowset.header.length as usize..];
-        } else {
+        // Header.count represents total number of records in data + records in templates
+        while !remaining.is_empty() && record_count_index < record_count {
+            let (i, flowset) = FlowSet::parse(remaining, parser)?;
             remaining = i;
+            flowsets.push(flowset);
+            record_count_index += 1;
         }
 
-        flowsets.push(flowset);
-
-        record_count_index += 1;
+        Ok((remaining, flowsets))
     }
-
-    Ok((remaining, flowsets))
 }
 
-fn parse_options_template_vec(i: &[u8]) -> IResult<&[u8], Vec<OptionsTemplate>> {
-    let mut fields = vec![];
-    let mut remaining = i;
-    while let Ok((rem, data)) = OptionsTemplate::parse(remaining) {
-        fields.push(data);
-        remaining = rem;
+pub struct FieldParser;
+
+impl FieldParser {
+    /// Parses the input byte slice into a vector of records based on the provided template.
+    ///
+    /// The function computes the number of records available in the input by dividing the length of the input
+    /// by the template's total size. It then iteratively extracts each record using `parse_data_field`, accumulating
+    /// a vector of BTreeMaps where each map represents a record mapping field indices to `V9FieldPair`.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - A byte slice containing the raw data to parse.
+    /// * `template` - A template that defines the structure and size of each record.
+    ///
+    /// # Returns
+    ///
+    /// A result containing:
+    /// - The remaining slice of input data that was not parsed.
+    /// - A vector of BTreeMaps, each mapping a field index to its corresponding `V9FieldPair`.
+    ///
+    /// # Errors
+    ///
+    /// The function will return an error if any record fails to be parsed according to the template.
+    fn parse(
+        input: &[u8],
+        template: Template,
+    ) -> IResult<&[u8], Vec<BTreeMap<usize, V9FieldPair>>> {
+        let record_count = input
+            .len()
+            .saturating_div(usize::from(template.get_total_size()));
+
+        let (fields, remaining) = (0..record_count).fold(
+            (Vec::new(), input), // Initial accumulator: (fields, remaining)
+            |(mut fields, remaining), _| {
+                let (new_remaining, data_field) =
+                    Self::parse_data_field(remaining, template.clone()).unwrap();
+                fields.push(data_field);
+                (fields, new_remaining)
+            },
+        );
+
+        Ok((remaining, fields))
     }
-    Ok((remaining, fields))
+
+    /// Parses a single record (data field) based on the provided template.
+    ///
+    /// The function iterates over each field defined in the template, using each field's own parser to
+    /// extract its value from the input. The parsed values, along with their corresponding field types,
+    /// are accumulated in a BTreeMap keyed by field index.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - A mutable byte slice from which the field values are parsed.
+    /// * `template` - The template providing the definition and order of fields to be parsed.
+    ///
+    /// # Returns
+    ///
+    /// A result containing:
+    /// - The remaining input slice after parsing the record.
+    /// - A BTreeMap mapping field indices to `V9FieldPair`, where each pair consists of the field type and the parsed value.
+    ///
+    /// # Errors
+    ///
+    /// The function returns an error if parsing any individual field fails according to its type-defined parser.
+    fn parse_data_field(
+        mut input: &[u8],
+        template: Template,
+    ) -> IResult<&[u8], BTreeMap<usize, V9FieldPair>> {
+        let mut data_field = BTreeMap::new();
+
+        for (field_index, template_field) in template.fields.iter().enumerate() {
+            let (new_input, field_value) = template_field.parse_as_field_value(input)?;
+            input = new_input;
+            data_field.insert(field_index, (template_field.field_type, field_value));
+        }
+
+        Ok((input, data_field))
+    }
 }
 
-fn parse_fields<'a>(
-    input: &'a [u8],
-    template: Option<&Template>,
-) -> IResult<&'a [u8], Vec<BTreeMap<usize, V9FieldPair>>> {
-    let template = template
-        .filter(|t| !t.fields.is_empty() && t.get_total_size() > 0)
-        .ok_or_else(|| NomErr::Error(NomError::new(input, ErrorKind::Fail)))?;
-
-    let mut fields = vec![];
-    let mut remaining = input;
-    let record_count = input.len() as u16 / template.get_total_size();
-
-    for _ in 0..record_count {
-        // Fields
-        let (new_remaining, data_field) = parse_data_field(remaining, template)?;
-        remaining = new_remaining;
-        fields.push(data_field);
+impl TemplateField {
+    pub fn parse_as_field_value<'a>(&self, input: &'a [u8]) -> IResult<&'a [u8], FieldValue> {
+        FieldValue::from_field_type(input, self.field_type.into(), self.field_length)
     }
-
-    Ok((remaining, fields))
-}
-
-fn parse_data_field<'a>(
-    mut input: &'a [u8],
-    template: &Template,
-) -> IResult<&'a [u8], BTreeMap<usize, V9FieldPair>> {
-    let mut data_field = BTreeMap::new();
-
-    for (field_index, template_field) in template.fields.iter().enumerate() {
-        let (new_input, field_value) = parse_field(input, template_field)?;
-        input = new_input;
-        data_field.insert(field_index, (template_field.field_type, field_value));
-    }
-
-    Ok((input, data_field))
-}
-
-fn parse_field<'a>(
-    input: &'a [u8],
-    template_field: &TemplateField,
-) -> IResult<&'a [u8], FieldValue> {
-    FieldValue::from_field_type(
-        input,
-        template_field.field_type.into(),
-        template_field.field_length,
-    )
-}
-
-fn parse_options_data_fields(
-    i: &[u8],
-    flowset_id: u16,
-    templates: HashMap<u16, OptionsTemplate>,
-) -> IResult<&[u8], Vec<OptionDataField>> {
-    let template = templates.get(&flowset_id).ok_or_else(|| {
-        // dbg!("Could not fetch any v9 options templates!");
-        NomErr::Error(NomError::new(i, ErrorKind::Fail))
-    })?;
-    let mut fields = vec![];
-    let mut remaining = i;
-    for field in template.option_fields.iter() {
-        let (i, v9_data_field) = OptionDataField::parse(remaining, field)?;
-        remaining = i;
-        fields.push(v9_data_field)
-    }
-    Ok((remaining, fields))
-}
-
-fn parse_scope_data_fields<'a>(
-    i: &'a [u8],
-    flowset_id: u16,
-    templates: &HashMap<u16, OptionsTemplate>,
-) -> IResult<&'a [u8], Vec<ScopeDataField>> {
-    let template = templates.get(&flowset_id).ok_or_else(|| {
-        // dbg!("Could not fetch any v9 options templates!");
-        NomErr::Error(NomError::new(i, ErrorKind::Fail))
-    })?;
-    let mut fields = vec![];
-    let mut remaining = i;
-    for field in template.scope_fields.iter() {
-        let (i, v9_data_field) = ScopeDataField::parse(remaining, field)?;
-        remaining = i;
-        fields.push(v9_data_field)
-    }
-    Ok((remaining, fields))
 }
 
 impl V9 {
@@ -468,8 +551,8 @@ impl V9 {
             result.extend_from_slice(&set.header.flowset_id.to_be_bytes());
             result.extend_from_slice(&set.header.length.to_be_bytes());
 
-            if let Some(templates) = &set.body.templates {
-                for template in templates.iter() {
+            if let FlowSetBody::Template(templates) = &set.body {
+                for template in templates.templates.iter() {
                     result.extend_from_slice(&template.template_id.to_be_bytes());
                     result.extend_from_slice(&template.field_count.to_be_bytes());
                     for field in template.fields.iter() {
@@ -477,10 +560,11 @@ impl V9 {
                         result.extend_from_slice(&field.field_length.to_be_bytes());
                     }
                 }
+                result.extend_from_slice(&templates.padding);
             }
 
-            if let Some(options_templates) = &set.body.options_templates {
-                for template in options_templates.iter() {
+            if let FlowSetBody::OptionsTemplate(options_templates) = &set.body {
+                for template in options_templates.templates.iter() {
                     result.extend_from_slice(&template.template_id.to_be_bytes());
                     result.extend_from_slice(&template.options_scope_length.to_be_bytes());
                     result.extend_from_slice(&template.options_length.to_be_bytes());
@@ -493,46 +577,43 @@ impl V9 {
                         result.extend_from_slice(&field.field_length.to_be_bytes());
                     }
                 }
+                result.extend_from_slice(&options_templates.padding);
             }
 
-            if let Some(data) = &set.body.data {
-                for data_field in data.data_fields.iter() {
+            if let FlowSetBody::Data(data) = &set.body {
+                for data_field in data.fields.iter() {
                     for (_field_type, (_, field_value)) in data_field.iter() {
                         result.extend_from_slice(&field_value.to_be_bytes());
                     }
                 }
             }
 
-            if let Some(options_data) = &set.body.options_data {
+            if let FlowSetBody::OptionsData(options_data) = &set.body {
                 for scope_field in options_data.scope_fields.iter() {
                     match scope_field {
-                        ScopeDataField {
-                            system: Some(system),
-                            ..
-                        } => result.extend_from_slice(system.as_slice()),
-                        ScopeDataField {
-                            interface: Some(interface),
-                            ..
-                        } => result.extend_from_slice(interface.as_slice()),
-                        ScopeDataField {
-                            line_card: Some(line_card),
-                            ..
-                        } => result.extend_from_slice(line_card.as_slice()),
-                        ScopeDataField {
-                            net_flow_cache: Some(net_flow_cache),
-                            ..
-                        } => result.extend_from_slice(net_flow_cache.as_slice()),
-                        ScopeDataField {
-                            template: Some(template),
-                            ..
-                        } => result.extend_from_slice(template.as_slice()),
-                        _ => {}
+                        ScopeDataField::System(system) => {
+                            result.extend_from_slice(system.as_slice())
+                        }
+                        ScopeDataField::Interface(interface) => {
+                            result.extend_from_slice(interface.as_slice())
+                        }
+                        ScopeDataField::LineCard(line_card) => {
+                            result.extend_from_slice(line_card.as_slice())
+                        }
+                        ScopeDataField::NetFlowCache(net_flow_cache) => {
+                            result.extend_from_slice(net_flow_cache.as_slice())
+                        }
+                        ScopeDataField::Template(template) => {
+                            result.extend_from_slice(template.as_slice())
+                        }
                     }
                 }
 
                 for option_field in options_data.options_fields.iter() {
                     result.extend_from_slice(&option_field.field_value);
                 }
+
+                result.extend_from_slice(&options_data.padding);
             }
         }
 

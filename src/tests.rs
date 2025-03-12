@@ -351,6 +351,7 @@ mod base_tests {
             field_count: 2,
             template_id: 258,
             fields,
+            ..Default::default()
         };
         let mut parser = NetflowParser::default();
         parser.ipfix_parser.templates.insert(258, template);
@@ -358,14 +359,14 @@ mod base_tests {
     }
 
     #[test]
-    fn it_parses_ipfix_with_no_template_fields_raises_error() {
+    fn it_parses_ipfix_with_no_template_fields() {
         let packet = [
             0, 10, 0, 26, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 2, 0, 10, 0, 8, 0, 0, 1, 1,
         ];
         let template = IPFixTemplate {
             field_count: 2,
             template_id: 258,
-            fields: vec![],
+            ..Default::default()
         };
         let mut parser = NetflowParser::default();
         parser.ipfix_parser.templates.insert(258, template);
@@ -373,7 +374,7 @@ mod base_tests {
     }
 
     #[test]
-    fn it_parses_v9_with_no_template_fields_raises_error() {
+    fn it_raises_error_when_parsing_v9_with_no_template_fields() {
         let packet = [
             0, 9, 0, 26, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 2, 0, 10, 0, 8, 0, 0, 1, 1,
         ];

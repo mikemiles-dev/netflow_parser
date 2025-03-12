@@ -15,22 +15,23 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           flowset_id: 0
           length: 16
         body:
-          templates:
-            - template_id: 258
-              field_count: 2
-              fields:
-                - field_type_number: 1
-                  field_type: InBytes
-                  field_length: 4
-                - field_type_number: 8
-                  field_type: Ipv4SrcAddr
-                  field_length: 4
+          Template:
+            templates:
+              - template_id: 258
+                field_count: 2
+                fields:
+                  - field_type_number: 1
+                    field_type: InBytes
+                    field_length: 4
+                  - field_type_number: 8
+                    field_type: Ipv4SrcAddr
+                    field_length: 4
       - header:
           flowset_id: 258
           length: 20
         body:
-          data:
-            data_fields:
+          Data:
+            fields:
               - 0:
                   - InBytes
                   - DataNumber: 151126788

@@ -48,7 +48,7 @@ let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 ```
 
-## Parsing out uneeded versions
+## Parsing out unneeded versions
 If you only care about a specific version or versions you can specfic `allowed_version`:
 ```rust
 use netflow_parser::{NetflowParser, NetflowPacket};
@@ -130,7 +130,9 @@ println!("Flowsets: {:?}", netflow_common_flowsets);
 
 ## Re-Exporting flows
 
-Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.
+Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.  Please note for V9/IPFix 
+we only export the original padding we dissected and DO NOT calculate/align the flowset(s) padding ourselves.  If you
+do any modifications to an existing V9/IPFix flow or have created your own you must manually adjust the padding yourself.
 ```rust
 let packet = [
     0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
