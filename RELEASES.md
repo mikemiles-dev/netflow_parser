@@ -3,6 +3,7 @@
 * Reworked FlowSetBody for V9/IPFIX into an enum since a flowset can only contain a single type.
 * Fixed potential V9 parsing bug with a potential divide by 0.
 * DataNumber to_be_bytes to now a Result type return to handle failed u24 conversions.
+* FieldValue to_be_bytes now supports all data types.
 
 # 0.5.4
 * Reworked how padding is calculated for IPFIx.

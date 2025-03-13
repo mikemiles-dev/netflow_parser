@@ -74,6 +74,11 @@ impl_try_from!(
     u128 => U128;
 );
 
+#[derive(Debug)]
+pub enum FieldValueError {
+    InvalidDataType,
+}
+
 impl TryFrom<&FieldValue> for String {
     type Error = FieldValueError;
 
@@ -180,12 +185,7 @@ pub enum FieldValue {
     MacAddr(String),
     Vec(Vec<u8>),
     ProtocolType(ProtocolTypes),
-    Unknown,
-}
-
-#[derive(Debug)]
-pub enum FieldValueError {
-    InvalidDataType,
+    Unknown(Vec<u8>),
 }
 
 impl FieldValue {
@@ -199,10 +199,14 @@ impl FieldValue {
             .to_be_bytes()
             .to_vec()),
             FieldValue::Ip4Addr(ip) => Ok(ip.octets().to_vec()),
+            FieldValue::Ip6Addr(ip) => Ok(ip.octets().to_vec()),
+            FieldValue::MacAddr(mac) => Ok(mac.as_bytes().to_vec()),
+            FieldValue::ProtocolType(p) => Ok(u8::from(*p).to_be_bytes().to_vec()),
             FieldValue::Vec(v) => Ok(v.clone()),
-            _ => Ok(vec![]),
+            FieldValue::Unknown(v) => Ok(v.clone()),
         }
     }
+
     pub fn from_field_type(
         remaining: &[u8],
         field_type: FieldDataType,
@@ -318,10 +322,84 @@ pub enum FieldDataType {
 
 #[cfg(test)]
 mod data_number_tests {
+    use super::{DataNumber, FieldDataType, FieldValue, ProtocolTypes};
+    use std::net::{Ipv4Addr, Ipv6Addr};
+    use std::time::Duration;
+
     #[test]
     fn it_tests_3_byte_data_number_exports() {
-        use super::DataNumber;
         let data = DataNumber::parse(&[1, 246, 118], 3, false).unwrap().1;
         assert_eq!(data.to_be_bytes().unwrap(), vec![1, 246, 118]);
+    }
+
+    #[test]
+    fn it_tests_field_value_to_be_bytes() {
+        let field_value = FieldValue::String("test".to_string());
+        assert_eq!(field_value.to_be_bytes().unwrap(), vec![116, 101, 115, 116]);
+
+        let field_value = FieldValue::DataNumber(DataNumber::U16(12345));
+        assert_eq!(field_value.to_be_bytes().unwrap(), vec![48, 57]);
+
+        let field_value = FieldValue::Float64(123.456);
+        assert_eq!(
+            field_value.to_be_bytes().unwrap(),
+            123.456f64.to_be_bytes().to_vec()
+        );
+
+        let field_value = FieldValue::Duration(Duration::from_secs(12345));
+        assert_eq!(field_value.to_be_bytes().unwrap(), vec![0, 0, 48, 57]);
+
+        let field_value = FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 0, 1));
+        assert_eq!(field_value.to_be_bytes().unwrap(), vec![192, 168, 0, 1]);
+
+        let field_value = FieldValue::Ip6Addr(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1));
+        assert_eq!(field_value.to_be_bytes().unwrap(), vec![
+            32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
+        ]);
+
+        let field_value = FieldValue::MacAddr("00:1B:44:11:3A:B7".to_string());
+        assert_eq!(field_value.to_be_bytes().unwrap(), vec![
+            48, 48, 58, 49, 66, 58, 52, 52, 58, 49, 49, 58, 51, 65, 58, 66, 55
+        ]);
+
+        let field_value = FieldValue::ProtocolType(ProtocolTypes::Tcp);
+        assert_eq!(field_value.to_be_bytes().unwrap(), vec![6]);
+
+        let field_value = FieldValue::Vec(vec![1, 2, 3, 4]);
+        assert_eq!(field_value.to_be_bytes().unwrap(), vec![1, 2, 3, 4]);
+
+        let field_value = FieldValue::Unknown(vec![255, 254, 253]);
+        assert_eq!(field_value.to_be_bytes().unwrap(), vec![255, 254, 253]);
+    }
+
+    #[test]
+    fn it_tests_field_value_from_field_type() {
+        let data = &[1, 2, 3, 4];
+        let field_value =
+            FieldValue::from_field_type(data, FieldDataType::UnsignedDataNumber, 4)
+                .unwrap()
+                .1;
+        assert_eq!(
+            field_value,
+            FieldValue::DataNumber(DataNumber::U32(16909060))
+        );
+
+        let data = &[192, 168, 0, 1];
+        let field_value = FieldValue::from_field_type(data, FieldDataType::Ip4Addr, 4)
+            .unwrap()
+            .1;
+        assert_eq!(
+            field_value,
+            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 0, 1))
+        );
+
+        let data = &[32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+        let field_value = FieldValue::from_field_type(data, FieldDataType::Ip6Addr, 16)
+            .unwrap()
+            .1;
+        assert_eq!(
+            field_value,
+            FieldValue::Ip6Addr(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1))
+        );
     }
 }
