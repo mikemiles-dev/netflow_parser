@@ -480,13 +480,16 @@ impl FieldParser {
             .len()
             .saturating_div(usize::from(template.get_total_size()));
 
-        let (fields, remaining) = (0..record_count).fold(
-            (Vec::new(), input), // Initial accumulator: (fields, remaining)
-            |(mut fields, remaining), _| {
+        let (remaining, fields) = (0..record_count).fold(
+            (input, Vec::new()), // Initial accumulator: (fields, remaining)
+            |(remaining, mut fields), _| {
                 let (new_remaining, data_field) =
-                    Self::parse_data_field(remaining, template.clone()).unwrap();
+                    match Self::parse_data_field(remaining, template.clone()) {
+                        Ok((remaining, data_field)) => (remaining, data_field),
+                        Err(_) => return (remaining, fields),
+                    };
                 fields.push(data_field);
-                (fields, new_remaining)
+                (new_remaining, fields)
             },
         );
 
