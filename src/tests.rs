@@ -169,8 +169,8 @@ mod base_tests {
             .first()
             .unwrap()
         {
-            assert_yaml_snapshot!(v9.to_be_bytes());
-            assert_eq!(v9.to_be_bytes(), packet);
+            assert_yaml_snapshot!(v9.to_be_bytes().unwrap());
+            assert_eq!(v9.to_be_bytes().unwrap(), packet);
         }
     }
 
@@ -303,8 +303,8 @@ mod base_tests {
             .first()
             .unwrap()
         {
-            assert_yaml_snapshot!(ipfix.to_be_bytes());
-            assert_eq!(ipfix.to_be_bytes(), packet);
+            assert_yaml_snapshot!(ipfix.to_be_bytes().unwrap());
+            assert_eq!(ipfix.to_be_bytes().unwrap(), packet);
         }
     }
 

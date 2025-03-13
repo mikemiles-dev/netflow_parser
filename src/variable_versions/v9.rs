@@ -540,7 +540,7 @@ impl TemplateField {
 
 impl V9 {
     /// Convert the V9 struct to a `Vec<u8>` of bytes in big-endian order for exporting
-    pub fn to_be_bytes(&self) -> Vec<u8> {
+    pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut result = vec![];
 
         result.extend_from_slice(&self.header.version.to_be_bytes());
@@ -586,7 +586,7 @@ impl V9 {
             if let FlowSetBody::Data(data) = &set.body {
                 for data_field in data.fields.iter() {
                     for (_field_type, (_, field_value)) in data_field.iter() {
-                        result.extend_from_slice(&field_value.to_be_bytes());
+                        result.extend_from_slice(&field_value.to_be_bytes()?);
                     }
                 }
             }
@@ -620,6 +620,6 @@ impl V9 {
             }
         }
 
-        result
+        Ok(result)
     }
 }
