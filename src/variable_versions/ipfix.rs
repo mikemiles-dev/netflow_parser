@@ -379,7 +379,7 @@ impl TemplateField {
 
 impl IPFix {
     /// Convert the IPFix to a `Vec<u8>` of bytes in big-endian order for exporting
-    pub fn to_be_bytes(&self) -> Vec<u8> {
+    pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut result = vec![];
 
         result.extend_from_slice(&self.header.version.to_be_bytes());
@@ -427,7 +427,7 @@ impl IPFix {
             if let FlowSetBody::Data(data) = &flow.body {
                 for item in data.fields.iter() {
                     for (_, (_, v)) in item.iter() {
-                        result_flowset.extend_from_slice(&v.to_be_bytes());
+                        result_flowset.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }
                 result_flowset.extend_from_slice(&data.padding);
@@ -436,7 +436,7 @@ impl IPFix {
             if let FlowSetBody::OptionsData(data) = &flow.body {
                 for item in data.fields.iter() {
                     for (_, (_, v)) in item.iter() {
-                        result_flowset.extend_from_slice(&v.to_be_bytes());
+                        result_flowset.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }
                 result_flowset.extend_from_slice(&data.padding);
@@ -445,6 +445,6 @@ impl IPFix {
             result.append(&mut result_flowset);
         }
 
-        result
+        Ok(result)
     }
 }

@@ -261,9 +261,9 @@ pub struct NetflowParser {
 
 #[derive(Debug, Clone)]
 pub struct ParsedNetflow {
-    pub(crate) remaining: Vec<u8>,
+    pub remaining: Vec<u8>,
     /// Parsed Netflow Packet
-    pub(crate) result: NetflowPacket,
+    pub result: NetflowPacket,
 }
 
 impl ParsedNetflow {

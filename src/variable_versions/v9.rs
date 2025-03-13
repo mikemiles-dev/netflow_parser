@@ -480,13 +480,16 @@ impl FieldParser {
             .len()
             .saturating_div(usize::from(template.get_total_size()));
 
-        let (fields, remaining) = (0..record_count).fold(
-            (Vec::new(), input), // Initial accumulator: (fields, remaining)
-            |(mut fields, remaining), _| {
+        let (remaining, fields) = (0..record_count).fold(
+            (input, Vec::new()), // Initial accumulator: (fields, remaining)
+            |(remaining, mut fields), _| {
                 let (new_remaining, data_field) =
-                    Self::parse_data_field(remaining, template.clone()).unwrap();
+                    match Self::parse_data_field(remaining, template.clone()) {
+                        Ok((remaining, data_field)) => (remaining, data_field),
+                        Err(_) => return (remaining, fields),
+                    };
                 fields.push(data_field);
-                (fields, new_remaining)
+                (new_remaining, fields)
             },
         );
 
@@ -537,7 +540,7 @@ impl TemplateField {
 
 impl V9 {
     /// Convert the V9 struct to a `Vec<u8>` of bytes in big-endian order for exporting
-    pub fn to_be_bytes(&self) -> Vec<u8> {
+    pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut result = vec![];
 
         result.extend_from_slice(&self.header.version.to_be_bytes());
@@ -583,7 +586,7 @@ impl V9 {
             if let FlowSetBody::Data(data) = &set.body {
                 for data_field in data.fields.iter() {
                     for (_field_type, (_, field_value)) in data_field.iter() {
-                        result.extend_from_slice(&field_value.to_be_bytes());
+                        result.extend_from_slice(&field_value.to_be_bytes()?);
                     }
                 }
             }
@@ -617,6 +620,6 @@ impl V9 {
             }
         }
 
-        result
+        Ok(result)
     }
 }

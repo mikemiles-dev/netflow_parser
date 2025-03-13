@@ -130,24 +130,24 @@ impl DataNumber {
         }
     }
 
-    fn to_be_bytes(&self) -> Vec<u8> {
+    fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
         match self {
-            DataNumber::U8(n) => n.to_be_bytes().to_vec(),
-            DataNumber::U16(n) => n.to_be_bytes().to_vec(),
+            DataNumber::U8(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::U16(n) => Ok(n.to_be_bytes().to_vec()),
             DataNumber::U24(n) => {
                 let mut wtr = Vec::new();
-                wtr.write_u24::<BigEndian>(*n).unwrap();
-                wtr
+                wtr.write_u24::<BigEndian>(*n)?;
+                Ok(wtr)
             }
             DataNumber::I24(n) => {
                 let mut wtr = Vec::new();
-                wtr.write_i24::<BigEndian>(*n).unwrap();
-                wtr
+                wtr.write_i24::<BigEndian>(*n)?;
+                Ok(wtr)
             }
-            DataNumber::U32(n) => n.to_be_bytes().to_vec(),
-            DataNumber::U64(n) => n.to_be_bytes().to_vec(),
-            DataNumber::U128(n) => n.to_be_bytes().to_vec(),
-            DataNumber::I32(n) => n.to_be_bytes().to_vec(),
+            DataNumber::U32(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::U64(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::U128(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::I32(n) => Ok(n.to_be_bytes().to_vec()),
         }
     }
 }
@@ -189,15 +189,18 @@ pub enum FieldValueError {
 }
 
 impl FieldValue {
-    pub fn to_be_bytes(&self) -> Vec<u8> {
+    pub fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
         match self {
-            FieldValue::String(s) => s.as_bytes().to_vec(),
+            FieldValue::String(s) => Ok(s.as_bytes().to_vec()),
             FieldValue::DataNumber(d) => d.to_be_bytes(),
-            FieldValue::Float64(f) => f.to_be_bytes().to_vec(),
-            FieldValue::Duration(d) => (d.as_secs() as u32).to_be_bytes().to_vec(),
-            FieldValue::Ip4Addr(ip) => ip.octets().to_vec(),
-            FieldValue::Vec(v) => v.clone(),
-            _ => vec![],
+            FieldValue::Float64(f) => Ok(f.to_be_bytes().to_vec()),
+            FieldValue::Duration(d) => Ok((u32::try_from(d.as_secs())
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?)
+            .to_be_bytes()
+            .to_vec()),
+            FieldValue::Ip4Addr(ip) => Ok(ip.octets().to_vec()),
+            FieldValue::Vec(v) => Ok(v.clone()),
+            _ => Ok(vec![]),
         }
     }
     pub fn from_field_type(
@@ -319,6 +322,6 @@ mod data_number_tests {
     fn it_tests_3_byte_data_number_exports() {
         use super::DataNumber;
         let data = DataNumber::parse(&[1, 246, 118], 3, false).unwrap().1;
-        assert_eq!(data.to_be_bytes(), vec![1, 246, 118]);
+        assert_eq!(data.to_be_bytes().unwrap(), vec![1, 246, 118]);
     }
 }
