@@ -1,5 +1,6 @@
 # 0.5.6
 * Simplify V9/IPFix Parse function.
+* Added more cases for DataNumber Parsing.
 
 # 0.5.5
 * More IPFIx/V9 Cleanup.
