@@ -195,7 +195,7 @@ impl FieldValue {
             FieldValue::DataNumber(d) => d.to_be_bytes(),
             FieldValue::Float64(f) => Ok(f.to_be_bytes().to_vec()),
             FieldValue::Duration(d) => Ok((u32::try_from(d.as_secs())
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?)
+                .map_err(std::io::Error::other)?)
             .to_be_bytes()
             .to_vec()),
             FieldValue::Ip4Addr(ip) => Ok(ip.octets().to_vec()),
