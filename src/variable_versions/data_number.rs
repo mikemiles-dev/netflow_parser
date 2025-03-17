@@ -124,13 +124,17 @@ impl DataNumber {
     pub fn parse(i: &[u8], field_length: u16, signed: bool) -> IResult<&[u8], DataNumber> {
         match (field_length, signed) {
             (1, false) => Ok(u8::parse(i)?).map(|(i, j)| (i, Self::U8(j))),
+            (1, true) => Ok(i8::parse(i)?).map(|(i, j)| (i, Self::I32(j as i32))),
             (2, false) => Ok(u16::parse(i)?).map(|(i, j)| (i, Self::U16(j))),
+            (2, true) => Ok(i16::parse(i)?).map(|(i, j)| (i, Self::I32(j as i32))),
             (3, false) => Ok(be_u24(i).map(|(i, j)| (i, Self::U24(j)))?),
             (3, true) => Ok(be_i24(i).map(|(i, j)| (i, Self::I24(j)))?),
             (4, true) => Ok(i32::parse(i)?).map(|(i, j)| (i, Self::I32(j))),
             (4, false) => Ok(u32::parse(i)?).map(|(i, j)| (i, Self::U32(j))),
             (8, false) => Ok(u64::parse(i)?).map(|(i, j)| (i, Self::U64(j))),
+            (8, true) => Ok(i64::parse(i)?).map(|(i, j)| (i, Self::I32(j as i32))),
             (16, false) => Ok(u128::parse(i)?).map(|(i, j)| (i, Self::U128(j))),
+            (16, true) => Ok(i128::parse(i)?).map(|(i, j)| (i, Self::I32(j as i32))),
             _ => Err(NomErr::Error(NomError::new(i, ErrorKind::Fail))),
         }
     }
