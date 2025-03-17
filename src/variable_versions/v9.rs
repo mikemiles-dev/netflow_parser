@@ -435,6 +435,9 @@ impl FlowSetParser {
     ) -> IResult<&'a [u8], Vec<FlowSet>> {
         let (remaining, flowsets) =
             (0..record_count).try_fold((i, Vec::new()), |(remaining, mut flowsets), _| {
+                if remaining.is_empty() {
+                    return Ok((remaining, flowsets));
+                }
                 let (i, flowset) = FlowSet::parse(remaining, parser)?;
                 flowsets.push(flowset);
                 Ok((i, flowsets))
