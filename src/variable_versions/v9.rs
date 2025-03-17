@@ -329,7 +329,7 @@ pub enum ScopeDataField {
 ///
 /// * `input` - A byte slice that contains the data to be parsed.
 /// * `template_field` - A reference to an `OptionsTemplateScopeField` which holds the metadata describing the expected field,
-///                      including its length and type.
+///   including its length and type.
 ///
 /// # Returns
 ///

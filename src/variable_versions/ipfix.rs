@@ -98,7 +98,7 @@ pub enum FlowSetBody {
 ///
 /// - `i`: A byte slice (`&[u8]`) representing the input data to be parsed.
 /// - `parser`: A mutable reference to an `IPFixParser` instance, which maintains the state including
-///    registered templates and options templates.
+///   registered templates and options templates.
 /// - `id`: A 16-bit unsigned integer (`u16`) representing the identifier for the flowset to be parsed.
 ///
 /// # Returns

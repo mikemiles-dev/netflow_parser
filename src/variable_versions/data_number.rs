@@ -195,7 +195,7 @@ impl FieldValue {
             FieldValue::DataNumber(d) => d.to_be_bytes(),
             FieldValue::Float64(f) => Ok(f.to_be_bytes().to_vec()),
             FieldValue::Duration(d) => Ok((u32::try_from(d.as_secs())
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?)
+                .map_err(std::io::Error::other)?)
             .to_be_bytes()
             .to_vec()),
             FieldValue::Ip4Addr(ip) => Ok(ip.octets().to_vec()),
@@ -353,14 +353,18 @@ mod data_number_tests {
         assert_eq!(field_value.to_be_bytes().unwrap(), vec![192, 168, 0, 1]);
 
         let field_value = FieldValue::Ip6Addr(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1));
-        assert_eq!(field_value.to_be_bytes().unwrap(), vec![
-            32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
-        ]);
+        assert_eq!(
+            field_value.to_be_bytes().unwrap(),
+            vec![32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+        );
 
         let field_value = FieldValue::MacAddr("00:1B:44:11:3A:B7".to_string());
-        assert_eq!(field_value.to_be_bytes().unwrap(), vec![
-            48, 48, 58, 49, 66, 58, 52, 52, 58, 49, 49, 58, 51, 65, 58, 66, 55
-        ]);
+        assert_eq!(
+            field_value.to_be_bytes().unwrap(),
+            vec![
+                48, 48, 58, 49, 66, 58, 52, 52, 58, 49, 49, 58, 51, 65, 58, 66, 55
+            ]
+        );
 
         let field_value = FieldValue::ProtocolType(ProtocolTypes::Tcp);
         assert_eq!(field_value.to_be_bytes().unwrap(), vec![6]);
