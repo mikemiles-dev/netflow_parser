@@ -433,17 +433,12 @@ impl FlowSetParser {
         parser: &mut V9Parser,
         record_count: u16,
     ) -> IResult<&'a [u8], Vec<FlowSet>> {
-        let mut flowsets = vec![];
-        let mut remaining = i;
-        let mut record_count_index = 0;
-
-        // Header.count represents total number of records in data + records in templates
-        while !remaining.is_empty() && record_count_index < record_count {
-            let (i, flowset) = FlowSet::parse(remaining, parser)?;
-            remaining = i;
-            flowsets.push(flowset);
-            record_count_index += 1;
-        }
+        let (remaining, flowsets) =
+            (0..record_count).try_fold((i, Vec::new()), |(remaining, mut flowsets), _| {
+                let (i, flowset) = FlowSet::parse(remaining, parser)?;
+                flowsets.push(flowset);
+                Ok((i, flowsets))
+            })?;
 
         Ok((remaining, flowsets))
     }

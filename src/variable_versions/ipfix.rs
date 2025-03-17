@@ -287,6 +287,7 @@ pub struct TemplateField {
 // Common trait for both templates.  Mainly for fetching fields.
 trait CommonTemplate {
     fn get_fields(&self) -> &Vec<TemplateField>;
+
     fn get_field_count(&self) -> usize {
         self.get_fields().len()
     }
@@ -319,29 +320,25 @@ impl FieldParser {
         i: &[u8],
         template: T,
     ) -> IResult<&[u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
-        let mut total_taken = 0;
-
         // If no fields there are no fields to parse, return an error.
-        let mut fields = vec![];
-        let mut remaining = i;
-        for (c, field) in template.get_fields().iter().enumerate() {
-            // Iter through template fields and push them to a vec.  If we encouter any zero length fields we return an error.
-            let mut data_field = BTreeMap::new();
-            let (i, field_value) = field.parse_as_field_value(remaining)?;
-            let taken = remaining.len().saturating_sub(i.len());
-            total_taken += taken;
-            remaining = i;
-            data_field.insert(c, (field.field_type, field_value));
-            fields.push(data_field);
-        }
+        let (remaining, mut fields, total_taken) =
+            template.get_fields().iter().enumerate().try_fold(
+                (i, vec![], 0usize),
+                |(remaining, mut fields, total_taken), (c, field)| {
+                    let mut data_field = BTreeMap::new();
+                    let (i, field_value) = field.parse_as_field_value(remaining)?;
+                    let taken = remaining.len().saturating_sub(i.len());
+                    data_field.insert(c, (field.field_type, field_value));
+                    fields.push(data_field);
+                    Ok((i, fields, total_taken.saturating_add(taken)))
+                },
+            )?;
 
-        let remaining = if !remaining.is_empty() && remaining.len() >= total_taken {
+        if remaining.len() >= total_taken {
             let (remaining, more) = Self::parse(remaining, template)?;
             fields.extend(more);
-            remaining
-        } else {
-            remaining
-        };
+            return Ok((remaining, fields));
+        }
 
         Ok((remaining, fields))
     }

@@ -1,3 +1,6 @@
+# 0.5.6
+* Simplify V9/IPFix Parse function.
+
 # 0.5.5
 * More IPFIx/V9 Cleanup.
 * Reworked FlowSetBody for V9/IPFIX into an enum since a flowset can only contain a single type.
