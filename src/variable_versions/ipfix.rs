@@ -6,7 +6,7 @@
 //! - <https://www.ibm.com/docs/en/npi/1.3.1?topic=overview-ipfix-message-format>
 //! - <https://www.iana.org/assignments/ipfix/ipfix.xhtml>
 
-use super::data_number::*;
+use super::data_number::FieldValue;
 use crate::variable_versions::ipfix_lookup::IPFixField;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
