@@ -4,7 +4,7 @@
 //! - <https://www.ietf.org/rfc/rfc3954.txt>
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
-use super::data_number::*;
+use super::data_number::FieldValue;
 use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
