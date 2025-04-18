@@ -1,0 +1,106 @@
+---
+source: src/tests.rs
+expression: "NetflowParser::default().parse_bytes(&packet)"
+---
+- IPFix:
+    header:
+      version: 10
+      length: 115
+      export_time: 1744871721
+      sequence_number: 100000
+      observation_domain_id: 0
+    flowsets:
+      - header:
+          header_id: 1
+          length: 14
+        body:
+          V9OptionsTemplate:
+            template_id: 1256
+            options_scope_length: 1
+            options_length: 6
+            scope_fields: []
+            option_fields:
+              - field_type_number: 34
+                field_type: SamplingInterval
+                field_length: 4
+      - header:
+          header_id: 1256
+          length: 8
+        body:
+          V9OptionsData:
+            scope_fields: []
+            options_fields:
+              - field_type: SamplingInterval
+                field_value:
+                  - 0
+                  - 0
+                  - 0
+                  - 1
+      - header:
+          header_id: 2
+          length: 44
+        body:
+          Template:
+            template_id: 258
+            field_count: 9
+            fields:
+              - field_type_number: 8
+                field_type: SourceIpv4address
+                field_length: 4
+              - field_type_number: 12
+                field_type: DestinationIpv4address
+                field_length: 4
+              - field_type_number: 7
+                field_type: SourceTransportPort
+                field_length: 2
+              - field_type_number: 11
+                field_type: DestinationTransportPort
+                field_length: 2
+              - field_type_number: 4
+                field_type: ProtocolIdentifier
+                field_length: 1
+              - field_type_number: 2
+                field_type: PacketDeltaCount
+                field_length: 4
+              - field_type_number: 1
+                field_type: OctetDeltaCount
+                field_length: 4
+              - field_type_number: 22
+                field_type: FlowStartSysUpTime
+                field_length: 4
+              - field_type_number: 21
+                field_type: FlowEndSysUpTime
+                field_length: 4
+      - header:
+          header_id: 258
+          length: 33
+        body:
+          Data:
+            fields:
+              - 0:
+                  - SourceIpv4address
+                  - Ip4Addr: 70.70.1.1
+              - 1:
+                  - DestinationIpv4address
+                  - Ip4Addr: 120.120.1.1
+              - 2:
+                  - SourceTransportPort
+                  - DataNumber: 12345
+              - 3:
+                  - DestinationTransportPort
+                  - DataNumber: 32777
+              - 4:
+                  - ProtocolIdentifier
+                  - DataNumber: 6
+              - 5:
+                  - PacketDeltaCount
+                  - DataNumber: 100
+              - 6:
+                  - OctetDeltaCount
+                  - DataNumber: 125000000
+              - 7:
+                  - FlowStartSysUpTime
+                  - DataNumber: 1744871721
+              - 8:
+                  - FlowEndSysUpTime
+                  - DataNumber: 1744871721
