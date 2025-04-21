@@ -11,19 +11,26 @@ use crate::variable_versions::ipfix_lookup::IPFixField;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
 use Nom;
+use nom::Err as NomErr;
 use nom::IResult;
 use nom::bytes::complete::take;
 use nom::combinator::complete;
 use nom::combinator::map_res;
+use nom::error::{Error as NomError, ErrorKind};
 use nom::multi::{count, many0};
 use nom::number::complete::{be_u8, be_u16};
 use nom_derive::*;
 use serde::Serialize;
 
+use crate::variable_versions::v9::{
+    DATA_TEMPLATE_V9_ID, Data as V9Data, OPTIONS_TEMPLATE_V9_ID, OptionsData as V9OptionsData,
+    OptionsTemplate as V9OptionsTemplate, ScopeDataField, Template as V9Template,
+};
+
 use std::collections::BTreeMap;
 
-const OPTIONS_TEMPLATE_ID: u16 = 3;
-const SET_MIN_RANGE: u16 = 255;
+const DATA_TEMPLATE_IPFIX_ID: u16 = 2;
+const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
 
 type TemplateId = u16;
 type IPFixFieldPair = (IPFixField, FieldValue);
@@ -31,7 +38,9 @@ type IPFixFieldPair = (IPFixField, FieldValue);
 #[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct IPFixParser {
     pub templates: BTreeMap<TemplateId, Template>,
-    pub options_templates: BTreeMap<TemplateId, OptionsTemplate>,
+    pub v9_templates: BTreeMap<TemplateId, V9Template>,
+    pub ipfix_options_templates: BTreeMap<TemplateId, OptionsTemplate>,
+    pub v9_options_templates: BTreeMap<TemplateId, V9OptionsTemplate>,
 }
 
 impl IPFixParser {
@@ -71,9 +80,13 @@ pub struct IPFix {
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum FlowSetBody {
     Template(Template),
+    V9Template(V9Template),
     OptionsTemplate(OptionsTemplate),
+    V9OptionsTemplate(V9OptionsTemplate),
     Data(Data),
     OptionsData(OptionsData),
+    V9Data(V9Data),
+    V9OptionsData(V9OptionsData),
 }
 
 /// Parses a FlowSetBody from the input byte slice based on the provided flowset ID.
@@ -116,7 +129,7 @@ impl FlowSetBody {
         id: u16,
     ) -> IResult<&'a [u8], FlowSetBody> {
         match id {
-            _ if id < SET_MIN_RANGE && id != OPTIONS_TEMPLATE_ID => {
+            DATA_TEMPLATE_IPFIX_ID => {
                 let (i, template) = Template::parse(i)?;
                 if !template.is_valid() {
                     return Err(nom::Err::Error(nom::error::Error::new(
@@ -129,7 +142,21 @@ impl FlowSetBody {
                     .insert(template.template_id, template.clone());
                 Ok((i, FlowSetBody::Template(template)))
             }
-            OPTIONS_TEMPLATE_ID => {
+            DATA_TEMPLATE_V9_ID => {
+                let (i, template) = V9Template::parse(i)?;
+                parser
+                    .v9_templates
+                    .insert(template.template_id, template.clone());
+                Ok((i, FlowSetBody::V9Template(template)))
+            }
+            OPTIONS_TEMPLATE_V9_ID => {
+                let (i, options_template) = V9OptionsTemplate::parse(i)?;
+                parser
+                    .v9_options_templates
+                    .insert(options_template.template_id, options_template.clone());
+                Ok((i, FlowSetBody::V9OptionsTemplate(options_template)))
+            }
+            OPTIONS_TEMPLATE_IPFIX_ID => {
                 let (i, options_template) = OptionsTemplate::parse(i)?;
                 if !options_template.is_valid() {
                     return Err(nom::Err::Error(nom::error::Error::new(
@@ -138,17 +165,41 @@ impl FlowSetBody {
                     )));
                 }
                 parser
-                    .options_templates
+                    .ipfix_options_templates
                     .insert(options_template.template_id, options_template.clone());
                 Ok((i, FlowSetBody::OptionsTemplate(options_template)))
             }
             _ if parser.templates.contains_key(&id) => {
-                let (i, data) = Data::parse(i, parser, id)?;
+                let template = parser
+                    .templates
+                    .get(&id)
+                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
+                let (i, data) = Data::parse(i, template)?;
                 Ok((i, FlowSetBody::Data(data)))
             }
-            _ if parser.options_templates.contains_key(&id) => {
-                let (i, options_data) = OptionsData::parse(i, parser, id)?;
+            _ if parser.ipfix_options_templates.contains_key(&id) => {
+                let options_template = parser
+                    .ipfix_options_templates
+                    .get(&id)
+                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
+                let (i, options_data) = OptionsData::parse(i, options_template)?;
                 Ok((i, FlowSetBody::OptionsData(options_data)))
+            }
+            _ if parser.v9_templates.contains_key(&id) => {
+                let v9_template = parser
+                    .v9_templates
+                    .get(&id)
+                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
+                let (i, data) = V9Data::parse(i, v9_template)?;
+                Ok((i, FlowSetBody::V9Data(data)))
+            }
+            _ if parser.v9_options_templates.contains_key(&id) => {
+                let v9_template = parser
+                    .v9_options_templates
+                    .get(&id)
+                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
+                let (i, data) = V9OptionsData::parse(i, v9_template)?;
+                Ok((i, FlowSetBody::V9OptionsData(data)))
             }
             _ => Err(nom::Err::Error(nom::error::Error::new(
                 i,
@@ -216,10 +267,9 @@ pub struct FlowSetHeader {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut IPFixParser, set_id: u16))]
+#[nom(ExtraArgs(template: &Template))]
 pub struct Data {
     #[nom(
-        PreExec = "let template = parser.templates.get(&set_id).cloned().unwrap_or_default();",
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<Template>(i, template) }"
     )]
@@ -229,10 +279,9 @@ pub struct Data {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut IPFixParser, set_id: u16))]
+#[nom(ExtraArgs(template: &OptionsTemplate))]
 pub struct OptionsData {
     #[nom(
-        PreExec = "let template = parser.options_templates.get(&set_id).cloned().unwrap_or_default();",
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template) }"
     )]
@@ -288,13 +337,8 @@ pub struct TemplateField {
 trait CommonTemplate {
     fn get_fields(&self) -> &Vec<TemplateField>;
 
-    fn get_field_count(&self) -> usize {
-        self.get_fields().len()
-    }
-
     fn is_valid(&self) -> bool {
-        self.get_field_count() == self.get_fields().len()
-            && self.get_fields().iter().any(|f| f.field_length > 0)
+        !self.get_fields().is_empty() && self.get_fields().iter().any(|f| f.field_length > 0)
     }
 }
 
@@ -312,14 +356,14 @@ impl CommonTemplate for OptionsTemplate {
 
 pub struct FieldParser;
 
-impl FieldParser {
+impl<'a> FieldParser {
     /// Takes a byte stream and a cached template.
     /// Fields get matched to static types.
     /// Returns BTree of IPFix Types & Fields or IResult Error.
     fn parse<T: CommonTemplate>(
-        i: &[u8],
-        template: T,
-    ) -> IResult<&[u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
+        i: &'a [u8],
+        template: &T,
+    ) -> IResult<&'a [u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
         // If no fields there are no fields to parse, return an error.
         let (remaining, mut fields, total_taken) =
             template.get_fields().iter().enumerate().try_fold(
@@ -377,7 +421,7 @@ impl TemplateField {
 impl IPFix {
     /// Convert the IPFix to a `Vec<u8>` of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        let mut result = vec![];
+        let mut result = Vec::new();
 
         result.extend_from_slice(&self.header.version.to_be_bytes());
         result.extend_from_slice(&self.header.length.to_be_bytes());
@@ -405,6 +449,15 @@ impl IPFix {
                 result_flowset.extend_from_slice(&template.padding);
             }
 
+            if let FlowSetBody::V9Template(template) = &flow.body {
+                result.extend_from_slice(&template.template_id.to_be_bytes());
+                result.extend_from_slice(&template.field_count.to_be_bytes());
+                for field in template.fields.iter() {
+                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result.extend_from_slice(&field.field_length.to_be_bytes());
+                }
+            }
+
             if let FlowSetBody::OptionsTemplate(options_template) = &flow.body {
                 result_flowset.extend_from_slice(&options_template.template_id.to_be_bytes());
                 result_flowset.extend_from_slice(&options_template.field_count.to_be_bytes());
@@ -419,6 +472,20 @@ impl IPFix {
                     }
                 }
                 result_flowset.extend_from_slice(&options_template.padding);
+            }
+
+            if let FlowSetBody::V9OptionsTemplate(template) = &flow.body {
+                result.extend_from_slice(&template.template_id.to_be_bytes());
+                result.extend_from_slice(&template.options_scope_length.to_be_bytes());
+                result.extend_from_slice(&template.options_length.to_be_bytes());
+                for field in template.scope_fields.iter() {
+                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result.extend_from_slice(&field.field_length.to_be_bytes());
+                }
+                for field in template.option_fields.iter() {
+                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result.extend_from_slice(&field.field_length.to_be_bytes());
+                }
             }
 
             if let FlowSetBody::Data(data) = &flow.body {
@@ -437,6 +504,40 @@ impl IPFix {
                     }
                 }
                 result_flowset.extend_from_slice(&data.padding);
+            }
+
+            if let FlowSetBody::V9Data(data) = &flow.body {
+                for item in data.fields.iter() {
+                    for (_, (_, v)) in item.iter() {
+                        result_flowset.extend_from_slice(&v.to_be_bytes()?);
+                    }
+                }
+            }
+
+            if let FlowSetBody::V9OptionsData(options_data) = &flow.body {
+                for scope_field in options_data.scope_fields.iter() {
+                    match scope_field {
+                        ScopeDataField::System(system) => {
+                            result.extend_from_slice(system.as_slice())
+                        }
+                        ScopeDataField::Interface(interface) => {
+                            result.extend_from_slice(interface.as_slice())
+                        }
+                        ScopeDataField::LineCard(line_card) => {
+                            result.extend_from_slice(line_card.as_slice())
+                        }
+                        ScopeDataField::NetFlowCache(net_flow_cache) => {
+                            result.extend_from_slice(net_flow_cache.as_slice())
+                        }
+                        ScopeDataField::Template(template) => {
+                            result.extend_from_slice(template.as_slice())
+                        }
+                    }
+                }
+
+                for option_field in options_data.options_fields.iter() {
+                    result.extend_from_slice(&option_field.field_value);
+                }
             }
 
             result.append(&mut result_flowset);

@@ -1,6 +1,7 @@
 # 0.5.6
 * Simplify V9/IPFix Parse function.
 * Added more cases for DataNumber Parsing.
+* IPFix now supports V9 Templates/Options Templates.
 
 # 0.5.5
 * More IPFIx/V9 Cleanup.

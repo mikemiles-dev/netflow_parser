@@ -481,4 +481,11 @@ mod base_tests {
         let result = parser.parse_bytes(&packet);
         assert_yaml_snapshot!(result);
     }
+
+    #[test]
+    fn it_parses_ipfix_with_v9_options_template_packet() {
+        let hex = r#"000a00736800a129000186a0000000000001000e04e8000100060022000404e80008000000010002002c0102000900080004000c000400070002000b00020004000100020004000100040016000400150004010200214646010178780101303980090600000064077359406800a1296800a129"#;
+        let packet = hex::decode(hex).unwrap();
+        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packet));
+    }
 }

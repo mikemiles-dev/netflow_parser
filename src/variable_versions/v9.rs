@@ -22,8 +22,8 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-const TEMPLATE_ID: u16 = 0;
-const OPTIONS_TEMPLATE_ID: u16 = 1;
+pub const DATA_TEMPLATE_V9_ID: u16 = 0;
+pub const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
 
 type TemplateId = u16;
 pub type V9FieldPair = (V9Field, FieldValue);
@@ -179,7 +179,7 @@ impl FlowSetBody {
         id: u16,
     ) -> IResult<&'a [u8], FlowSetBody> {
         match id {
-            _ if id == TEMPLATE_ID => {
+            DATA_TEMPLATE_V9_ID => {
                 let (i, templates) = Templates::parse(i)?;
                 parser.templates.extend(
                     templates
@@ -189,7 +189,7 @@ impl FlowSetBody {
                 );
                 Ok((i, FlowSetBody::Template(templates)))
             }
-            _ if id == OPTIONS_TEMPLATE_ID => {
+            OPTIONS_TEMPLATE_V9_ID => {
                 let (i, options_templates) = OptionsTemplates::parse(i)?;
                 parser.options_templates.extend(
                     options_templates
@@ -200,11 +200,19 @@ impl FlowSetBody {
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
             }
             _ if parser.options_templates.contains_key(&id) => {
-                let (i, options_data) = OptionsData::parse(i, parser, id)?;
+                let template = parser
+                    .options_templates
+                    .get(&id)
+                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
+                let (i, options_data) = OptionsData::parse(i, template)?;
                 Ok((i, FlowSetBody::OptionsData(options_data)))
             }
             _ if parser.templates.contains_key(&id) => {
-                let (i, data) = Data::parse(i, parser, id)?;
+                let template = parser
+                    .templates
+                    .get(&id)
+                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
+                let (i, data) = Data::parse(i, template)?;
                 Ok((i, FlowSetBody::Data(data)))
             }
             _ => Err(nom::Err::Error(nom::error::Error::new(
@@ -275,11 +283,10 @@ pub struct TemplateField {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flowset_id: u16))]
+#[nom(ExtraArgs(template: &OptionsTemplate))]
 pub struct OptionsData {
     // Scope Data
     #[nom(
-        PreExec = "let template = parser.options_templates.get(&flowset_id).cloned().unwrap_or_default();",
         PreExec = "let mut field = template.scope_fields.iter();",
         Parse = "many0(complete( { |i|
                        ScopeDataField::parse(i, field.next().ok_or(
@@ -291,7 +298,6 @@ pub struct OptionsData {
     pub scope_fields: Vec<ScopeDataField>,
     // Options Data Fields
     #[nom(
-        PreExec = "let template = parser.options_templates.get(&flowset_id).cloned().unwrap_or_default();",
         PreExec = "let mut field = template.option_fields.iter();",
         Parse = "many0(complete( { |i|
                         OptionDataField::parse(i, field.next().ok_or(
@@ -375,12 +381,10 @@ impl ScopeDataField {
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser, flowset_id: u16))]
+#[nom(ExtraArgs(template: &Template))]
 pub struct Data {
     // Data Fields
-    #[nom(
-        Parse = "{ |i| FieldParser::parse(i, parser.templates.get(&flowset_id).cloned().unwrap_or_default()) }"
-    )]
+    #[nom(Parse = "{ |i| FieldParser::parse(i, template) }")]
     pub fields: Vec<BTreeMap<usize, V9FieldPair>>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
@@ -449,7 +453,7 @@ impl FlowSetParser {
 
 pub struct FieldParser;
 
-impl FieldParser {
+impl<'a> FieldParser {
     /// Parses the input byte slice into a vector of records based on the provided template.
     ///
     /// The function computes the number of records available in the input by dividing the length of the input
@@ -471,9 +475,9 @@ impl FieldParser {
     ///
     /// The function will return an error if any record fails to be parsed according to the template.
     fn parse(
-        input: &[u8],
-        template: Template,
-    ) -> IResult<&[u8], Vec<BTreeMap<usize, V9FieldPair>>> {
+        input: &'a [u8],
+        template: &Template,
+    ) -> IResult<&'a [u8], Vec<BTreeMap<usize, V9FieldPair>>> {
         let record_count = input
             .len()
             .saturating_div(usize::from(template.get_total_size()));
@@ -482,7 +486,7 @@ impl FieldParser {
             (input, Vec::new()), // Initial accumulator: (fields, remaining)
             |(remaining, mut fields), _| {
                 let (new_remaining, data_field) =
-                    match Self::parse_data_field(remaining, template.clone()) {
+                    match Self::parse_data_field(remaining, template) {
                         Ok((remaining, data_field)) => (remaining, data_field),
                         Err(_) => return (remaining, fields),
                     };
@@ -515,9 +519,9 @@ impl FieldParser {
     ///
     /// The function returns an error if parsing any individual field fails according to its type-defined parser.
     fn parse_data_field(
-        mut input: &[u8],
-        template: Template,
-    ) -> IResult<&[u8], BTreeMap<usize, V9FieldPair>> {
+        mut input: &'a [u8],
+        template: &Template,
+    ) -> IResult<&'a [u8], BTreeMap<usize, V9FieldPair>> {
         let mut data_field = BTreeMap::new();
 
         for (field_index, template_field) in template.fields.iter().enumerate() {
