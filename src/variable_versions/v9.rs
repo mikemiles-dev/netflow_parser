@@ -240,6 +240,15 @@ pub struct Template {
     pub fields: Vec<TemplateField>,
 }
 
+impl Template {
+    /// Returns the total size of the template, including the header and all fields.
+    pub fn get_total_size(&self) -> u16 {
+        self.fields
+            .iter()
+            .fold(0, |acc, i| acc.saturating_add(i.field_length))
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Default, Nom)]
 pub struct OptionsTemplate {
     /// As a router generates different template FlowSets to match the type of NetFlow data it is exporting, each template is given a unique ID. This uniqueness is local to the router that generated the template ID. The Template ID is greater than 255. Template IDs inferior to 255 are reserved.
@@ -285,29 +294,58 @@ pub struct TemplateField {
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(template: &OptionsTemplate))]
 pub struct OptionsData {
+    #[nom(Parse = "{ many0(complete( |i| OptionsDataFields::parse(i, template))) } ")]
+    pub fields: Vec<OptionsDataFields>,
+}
+
+pub struct ScopeParser;
+
+impl<'a> ScopeParser {
+    fn parse(
+        input: &'a [u8],
+        template: &OptionsTemplate,
+    ) -> IResult<&'a [u8], Vec<ScopeDataField>> {
+        let mut result = Vec::new();
+        let mut remaining = input;
+        for template_field in template.scope_fields.iter() {
+            let (i, scope_field) = ScopeDataField::parse(remaining, template_field)?;
+            remaining = i;
+            result.push(scope_field);
+        }
+        Ok((remaining, result))
+    }
+}
+
+pub struct OptionsFieldParser;
+
+impl<'a> OptionsFieldParser {
+    fn parse(
+        input: &'a [u8],
+        template: &OptionsTemplate,
+    ) -> IResult<&'a [u8], Vec<BTreeMap<usize, V9FieldPair>>> {
+        let mut result = Vec::new();
+        let mut remaining = input;
+        for (count, template_field) in template.option_fields.iter().enumerate() {
+            let (i, field_value) = template_field.parse_as_field_value(remaining)?;
+            remaining = i;
+            result.push(BTreeMap::from([(
+                count,
+                (template_field.field_type, field_value),
+            )]));
+        }
+        Ok((remaining, result))
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+#[nom(ExtraArgs(template: &OptionsTemplate))]
+pub struct OptionsDataFields {
     // Scope Data
-    #[nom(
-        PreExec = "let mut field = template.scope_fields.iter();",
-        Parse = "many0(complete( { |i|
-                       ScopeDataField::parse(i, field.next().ok_or(
-                         NomErr::Error(NomError::new(i, ErrorKind::Fail)
-                         )
-                      )? )
-                } ))"
-    )]
+    #[nom(Parse = "{ |i| ScopeParser::parse(i, template) }")]
     pub scope_fields: Vec<ScopeDataField>,
     // Options Data Fields
-    #[nom(
-        PreExec = "let mut field = template.option_fields.iter();",
-        Parse = "many0(complete( { |i|
-                        OptionDataField::parse(i, field.next().ok_or(
-                            NomErr::Error(NomError::new(i, ErrorKind::Fail))
-                        )? )
-                } ))"
-    )]
-    pub options_fields: Vec<OptionDataField>,
-    #[serde(skip_serializing)]
-    pub padding: Vec<u8>,
+    #[nom(Parse = "{ |i| OptionsFieldParser::parse(i, template) }")]
+    pub options_fields: Vec<BTreeMap<usize, V9FieldPair>>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -390,23 +428,6 @@ pub struct Data {
     pub padding: Vec<u8>,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(field: &TemplateField))]
-pub struct OptionDataField {
-    #[nom(Value(field.field_type))]
-    pub field_type: V9Field,
-    #[nom(Map = "|i: &[u8]| i.to_vec()", Take = "field.field_length")]
-    pub field_value: Vec<u8>,
-}
-
-impl Template {
-    fn get_total_size(&self) -> u16 {
-        self.fields
-            .iter()
-            .fold(0, |acc, i| acc.saturating_add(i.field_length))
-    }
-}
-
 pub struct FlowSetParser;
 
 impl FlowSetParser {
@@ -486,7 +507,7 @@ impl<'a> FieldParser {
             (input, Vec::new()), // Initial accumulator: (fields, remaining)
             |(remaining, mut fields), _| {
                 let (new_remaining, data_field) =
-                    match Self::parse_data_field(remaining, template) {
+                    match Self::parse_data_fields(remaining, template) {
                         Ok((remaining, data_field)) => (remaining, data_field),
                         Err(_) => return (remaining, fields),
                     };
@@ -518,7 +539,7 @@ impl<'a> FieldParser {
     /// # Errors
     ///
     /// The function returns an error if parsing any individual field fails according to its type-defined parser.
-    fn parse_data_field(
+    fn parse_data_fields(
         mut input: &'a [u8],
         template: &Template,
     ) -> IResult<&'a [u8], BTreeMap<usize, V9FieldPair>> {
@@ -594,31 +615,33 @@ impl V9 {
             }
 
             if let FlowSetBody::OptionsData(options_data) = &set.body {
-                for scope_field in options_data.scope_fields.iter() {
-                    match scope_field {
-                        ScopeDataField::System(system) => {
-                            result.extend_from_slice(system.as_slice())
+                for options_data_field in options_data.fields.iter() {
+                    for field in options_data_field.scope_fields.iter() {
+                        match field {
+                            ScopeDataField::System(value) => {
+                                result.extend_from_slice(value);
+                            }
+                            ScopeDataField::Interface(value) => {
+                                result.extend_from_slice(value);
+                            }
+                            ScopeDataField::LineCard(value) => {
+                                result.extend_from_slice(value);
+                            }
+                            ScopeDataField::NetFlowCache(value) => {
+                                result.extend_from_slice(value);
+                            }
+                            ScopeDataField::Template(value) => {
+                                result.extend_from_slice(value);
+                            }
                         }
-                        ScopeDataField::Interface(interface) => {
-                            result.extend_from_slice(interface.as_slice())
-                        }
-                        ScopeDataField::LineCard(line_card) => {
-                            result.extend_from_slice(line_card.as_slice())
-                        }
-                        ScopeDataField::NetFlowCache(net_flow_cache) => {
-                            result.extend_from_slice(net_flow_cache.as_slice())
-                        }
-                        ScopeDataField::Template(template) => {
-                            result.extend_from_slice(template.as_slice())
+                    }
+                    for options_field in options_data_field.options_fields.iter() {
+                        for (index, (_field_type, field_value)) in options_field.iter() {
+                            result.extend_from_slice(&index.to_be_bytes());
+                            result.extend_from_slice(&field_value.to_be_bytes()?);
                         }
                     }
                 }
-
-                for option_field in options_data.options_fields.iter() {
-                    result.extend_from_slice(&option_field.field_value);
-                }
-
-                result.extend_from_slice(&options_data.padding);
             }
         }
 

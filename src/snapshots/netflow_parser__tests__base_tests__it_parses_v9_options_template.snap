@@ -36,15 +36,15 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           length: 9
         body:
           OptionsData:
-            scope_fields:
-              - Interface:
-                  - 0
-                  - 2
-            options_fields:
-              - field_type: SamplingInterval
-                field_value:
-                  - 0
-                  - 100
-              - field_type: FlowActiveTimeout
-                field_value:
-                  - 1
+            fields:
+              - scope_fields:
+                  - Interface:
+                      - 0
+                      - 2
+                options_fields:
+                  - 0:
+                      - SamplingInterval
+                      - DataNumber: 100
+                  - 1:
+                      - FlowActiveTimeout
+                      - DataNumber: 1
