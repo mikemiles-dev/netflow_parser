@@ -24,7 +24,8 @@ use serde::Serialize;
 
 use crate::variable_versions::v9::{
     DATA_TEMPLATE_V9_ID, Data as V9Data, OPTIONS_TEMPLATE_V9_ID, OptionsData as V9OptionsData,
-    OptionsTemplate as V9OptionsTemplate, ScopeDataField, Template as V9Template,
+    OptionsTemplate as V9OptionsTemplate, ScopeDataField as V9ScopeDataField,
+    Template as V9Template,
 };
 
 use std::collections::BTreeMap;
@@ -515,28 +516,32 @@ impl IPFix {
             }
 
             if let FlowSetBody::V9OptionsData(options_data) = &flow.body {
-                for scope_field in options_data.scope_fields.iter() {
-                    match scope_field {
-                        ScopeDataField::System(system) => {
-                            result.extend_from_slice(system.as_slice())
-                        }
-                        ScopeDataField::Interface(interface) => {
-                            result.extend_from_slice(interface.as_slice())
-                        }
-                        ScopeDataField::LineCard(line_card) => {
-                            result.extend_from_slice(line_card.as_slice())
-                        }
-                        ScopeDataField::NetFlowCache(net_flow_cache) => {
-                            result.extend_from_slice(net_flow_cache.as_slice())
-                        }
-                        ScopeDataField::Template(template) => {
-                            result.extend_from_slice(template.as_slice())
+                for options_data_field in options_data.fields.iter() {
+                    for field in options_data_field.scope_fields.iter() {
+                        match field {
+                            V9ScopeDataField::System(value) => {
+                                result.extend_from_slice(value);
+                            }
+                            V9ScopeDataField::Interface(value) => {
+                                result.extend_from_slice(value);
+                            }
+                            V9ScopeDataField::LineCard(value) => {
+                                result.extend_from_slice(value);
+                            }
+                            V9ScopeDataField::NetFlowCache(value) => {
+                                result.extend_from_slice(value);
+                            }
+                            V9ScopeDataField::Template(value) => {
+                                result.extend_from_slice(value);
+                            }
                         }
                     }
-                }
-
-                for option_field in options_data.options_fields.iter() {
-                    result.extend_from_slice(&option_field.field_value);
+                    for options_field in options_data_field.options_fields.iter() {
+                        for (index, (_field_type, field_value)) in options_field.iter() {
+                            result.extend_from_slice(&index.to_be_bytes());
+                            result.extend_from_slice(&field_value.to_be_bytes()?);
+                        }
+                    }
                 }
             }
 

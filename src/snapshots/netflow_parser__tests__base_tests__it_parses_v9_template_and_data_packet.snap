@@ -255,40 +255,23 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           length: 29
         body:
           OptionsData:
-            scope_fields:
-              - Interface:
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-            options_fields:
-              - field_type: SamplingInterval
-                field_value:
-                  - 0
-                  - 0
-                  - 0
-                  - 1
-              - field_type: SamplingAlgorithm
-                field_value:
-                  - 1
-              - field_type: IfName
-                field_value:
-                  - 97
-                  - 110
-                  - 121
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-                  - 0
-                  - 0
+            fields:
+              - scope_fields:
+                  - Interface:
+                      - 0
+                      - 0
+                      - 0
+                      - 0
+                options_fields:
+                  - 0:
+                      - SamplingInterval
+                      - DataNumber: 1
+                  - 1:
+                      - SamplingAlgorithm
+                      - DataNumber: 1
+                  - 2:
+                      - IfName
+                      - DataNumber: 129508722417137712562928937060813242368
       - header:
           flowset_id: 2048
           length: 205

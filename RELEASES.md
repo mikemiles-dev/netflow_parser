@@ -1,3 +1,6 @@
+# 0.5.7
+* Fix Scope Data Parsing.
+
 # 0.5.6
 * Simplify V9/IPFix Parse function.
 * Added more cases for DataNumber Parsing.

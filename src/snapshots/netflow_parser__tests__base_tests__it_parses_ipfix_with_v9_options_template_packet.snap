@@ -28,14 +28,12 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           length: 8
         body:
           V9OptionsData:
-            scope_fields: []
-            options_fields:
-              - field_type: SamplingInterval
-                field_value:
-                  - 0
-                  - 0
-                  - 0
-                  - 1
+            fields:
+              - scope_fields: []
+                options_fields:
+                  - 0:
+                      - SamplingInterval
+                      - DataNumber: 1
       - header:
           header_id: 2
           length: 44
