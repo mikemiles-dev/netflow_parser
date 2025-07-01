@@ -20,7 +20,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             scope_field_count: 1
             fields:
               - field_type_number: 123
-                field_type: Enterprise
+                field_type: AssignedforNetFlowv9compatibility
                 field_length: 4
                 enterprise_number: 2
               - field_type_number: 41
@@ -36,7 +36,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           OptionsData:
             fields:
               - 0:
-                  - Enterprise
+                  - AssignedforNetFlowv9compatibility
                   - Vec:
                       - 0
                       - 0
@@ -49,7 +49,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                   - ExportedFlowRecordTotalCount
                   - DataNumber: 5140
               - 0:
-                  - Enterprise
+                  - AssignedforNetFlowv9compatibility
                   - Vec:
                       - 0
                       - 0
