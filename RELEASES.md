@@ -1,3 +1,9 @@
+# 0.5.9
+* IPFIX now supports Multiple Templates
+* Correctly handling Different Enterprise Field Types.
+* Added Netscaler PEN Types.
+* Re-added Enterprise Field Type for Unknown Enterprise Types.
+
 # 0.5.8
 * V9 Found and fixed divide by 0 issue.
 * IPFix Protocol Identifier now parsers as ProtocolIdentifier Field Type and not UnsignedDataNumber.

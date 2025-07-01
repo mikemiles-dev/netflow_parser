@@ -5,7 +5,7 @@ use crate::NetflowPacket;
 use crate::protocol::ProtocolTypes;
 use crate::static_versions::{v5::V5, v7::V7};
 use crate::variable_versions::data_number::FieldValue;
-use crate::variable_versions::ipfix_lookup::IPFixField;
+use crate::variable_versions::ipfix_lookup::{IANAIPFixField, IPFixField};
 use crate::variable_versions::v9_lookup::V9Field;
 use crate::variable_versions::{
     ipfix::{FlowSetBody as IPFixFlowSetBody, IPFix},
@@ -187,40 +187,47 @@ impl From<&IPFix> for NetflowCommon {
                         data_field.values().cloned().collect();
                     flowsets.push(NetflowCommonFlowSet {
                         src_addr: value_map
-                            .get(&IPFixField::SourceIpv4address)
-                            .or_else(|| value_map.get(&IPFixField::SourceIpv6address))
+                            .get(&IPFixField::IANA(IANAIPFixField::SourceIpv4address))
+                            .or_else(|| {
+                                value_map
+                                    .get(&IPFixField::IANA(IANAIPFixField::SourceIpv6address))
+                            })
                             .and_then(|v| v.try_into().ok()),
                         dst_addr: value_map
-                            .get(&IPFixField::DestinationIpv4address)
-                            .or_else(|| value_map.get(&IPFixField::DestinationIpv6address))
+                            .get(&IPFixField::IANA(IANAIPFixField::DestinationIpv4address))
+                            .or_else(|| {
+                                value_map.get(&IPFixField::IANA(
+                                    IANAIPFixField::DestinationIpv6address,
+                                ))
+                            })
                             .and_then(|v| v.try_into().ok()),
                         src_port: value_map
-                            .get(&IPFixField::SourceTransportPort)
+                            .get(&IPFixField::IANA(IANAIPFixField::SourceTransportPort))
                             .and_then(|v| v.try_into().ok()),
                         dst_port: value_map
-                            .get(&IPFixField::DestinationTransportPort)
+                            .get(&IPFixField::IANA(IANAIPFixField::DestinationTransportPort))
                             .and_then(|v| v.try_into().ok()),
                         protocol_number: value_map
-                            .get(&IPFixField::ProtocolIdentifier)
+                            .get(&IPFixField::IANA(IANAIPFixField::ProtocolIdentifier))
                             .and_then(|v| v.try_into().ok()),
-                        protocol_type: value_map.get(&IPFixField::ProtocolIdentifier).and_then(
-                            |v| {
+                        protocol_type: value_map
+                            .get(&IPFixField::IANA(IANAIPFixField::ProtocolIdentifier))
+                            .and_then(|v| {
                                 v.try_into()
                                     .ok()
                                     .map(|proto: u8| ProtocolTypes::from(proto))
-                            },
-                        ),
+                            }),
                         first_seen: value_map
-                            .get(&IPFixField::FlowStartSysUpTime)
+                            .get(&IPFixField::IANA(IANAIPFixField::FlowStartSysUpTime))
                             .and_then(|v| v.try_into().ok()),
                         last_seen: value_map
-                            .get(&IPFixField::FlowEndSysUpTime)
+                            .get(&IPFixField::IANA(IANAIPFixField::FlowEndSysUpTime))
                             .and_then(|v| v.try_into().ok()),
                         src_mac: value_map
-                            .get(&IPFixField::SourceMacaddress)
+                            .get(&IPFixField::IANA(IANAIPFixField::SourceMacaddress))
                             .and_then(|v| v.try_into().ok()),
                         dst_mac: value_map
-                            .get(&IPFixField::DestinationMacaddress)
+                            .get(&IPFixField::IANA(IANAIPFixField::DestinationMacaddress))
                             .and_then(|v| v.try_into().ok()),
                     });
                 }
@@ -249,7 +256,7 @@ mod common_tests {
         Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody as IPFixFlowSetBody,
         FlowSetHeader as IPFixFlowSetHeader, Header as IPFixHeader, IPFix,
     };
-    use crate::variable_versions::ipfix_lookup::IPFixField;
+    use crate::variable_versions::ipfix_lookup::{IANAIPFixField, IPFixField};
     use crate::variable_versions::v9::{
         Data as V9Data, FlowSet as V9FlowSet, FlowSetBody as V9FlowSetBody,
         FlowSetHeader as V9FlowSetHeader, Header as V9Header, V9,
@@ -511,68 +518,67 @@ mod common_tests {
                     length: 0,
                 },
                 body: IPFixFlowSetBody::Data(IPFixData {
-                    padding: vec![],
                     fields: vec![BTreeMap::from([
                         (
                             0,
                             (
-                                IPFixField::SourceIpv4address,
+                                IPFixField::IANA(IANAIPFixField::SourceIpv4address),
                                 FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
                             ),
                         ),
                         (
                             1,
                             (
-                                IPFixField::DestinationIpv4address,
+                                IPFixField::IANA(IANAIPFixField::DestinationIpv4address),
                                 FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
                             ),
                         ),
                         (
                             2,
                             (
-                                IPFixField::SourceTransportPort,
+                                IPFixField::IANA(IANAIPFixField::SourceTransportPort),
                                 FieldValue::DataNumber(DataNumber::U16(1234)),
                             ),
                         ),
                         (
                             3,
                             (
-                                IPFixField::DestinationTransportPort,
+                                IPFixField::IANA(IANAIPFixField::DestinationTransportPort),
                                 FieldValue::DataNumber(DataNumber::U16(80)),
                             ),
                         ),
                         (
                             4,
                             (
-                                IPFixField::ProtocolIdentifier,
+                                IPFixField::IANA(IANAIPFixField::ProtocolIdentifier),
                                 FieldValue::DataNumber(DataNumber::U8(6)),
                             ),
                         ),
                         (
                             5,
                             (
-                                IPFixField::FlowStartSysUpTime,
+                                IPFixField::IANA(IANAIPFixField::FlowStartSysUpTime),
                                 FieldValue::DataNumber(DataNumber::U32(100)),
                             ),
                         ),
                         (
                             6,
                             (
-                                IPFixField::FlowEndSysUpTime,
+                                IPFixField::IANA(IANAIPFixField::FlowEndSysUpTime),
                                 FieldValue::DataNumber(DataNumber::U32(200)),
                             ),
                         ),
                         (
                             7,
                             (
-                                IPFixField::SourceMacaddress,
+                                IPFixField::IANA(IANAIPFixField::SourceMacaddress),
                                 FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
                             ),
                         ),
                         (
                             8,
                             (
-                                IPFixField::DestinationMacaddress,
+                                IPFixField::IANA(IANAIPFixField::DestinationMacaddress),
                                 FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
                             ),
                         ),

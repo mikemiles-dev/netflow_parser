@@ -20,15 +20,18 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             scope_field_count: 1
             fields:
               - field_type_number: 123
-                field_type: AssignedforNetFlowv9compatibility
                 field_length: 4
                 enterprise_number: 2
+                field_type:
+                  Enterprise: 123
               - field_type_number: 41
-                field_type: ExportedMessageTotalCount
                 field_length: 2
+                field_type:
+                  IANA: ExportedMessageTotalCount
               - field_type_number: 42
-                field_type: ExportedFlowRecordTotalCount
                 field_length: 2
+                field_type:
+                  IANA: ExportedFlowRecordTotalCount
       - header:
           header_id: 260
           length: 20
@@ -36,28 +39,28 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           OptionsData:
             fields:
               - 0:
-                  - AssignedforNetFlowv9compatibility
+                  - Enterprise: 123
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 1
               - 1:
-                  - ExportedMessageTotalCount
+                  - IANA: ExportedMessageTotalCount
                   - DataNumber: 276
               - 2:
-                  - ExportedFlowRecordTotalCount
+                  - IANA: ExportedFlowRecordTotalCount
                   - DataNumber: 5140
               - 0:
-                  - AssignedforNetFlowv9compatibility
+                  - Enterprise: 123
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 2
               - 1:
-                  - ExportedMessageTotalCount
+                  - IANA: ExportedMessageTotalCount
                   - DataNumber: 5140
               - 2:
-                  - ExportedFlowRecordTotalCount
+                  - IANA: ExportedFlowRecordTotalCount
                   - DataNumber: 7710

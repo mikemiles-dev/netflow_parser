@@ -19,14 +19,17 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             field_count: 3
             fields:
               - field_type_number: 8
-                field_type: SourceIpv4address
                 field_length: 4
+                field_type:
+                  IANA: SourceIpv4address
               - field_type_number: 12
-                field_type: DestinationIpv4address
                 field_length: 4
+                field_type:
+                  IANA: DestinationIpv4address
               - field_type_number: 65
-                field_type: AssignedforNetFlowv9compatibility
                 field_length: 0
+                field_type:
+                  IANA: AssignedforNetFlowv9compatibility
       - header:
           header_id: 256
           length: 12
@@ -34,11 +37,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           Data:
             fields:
               - 0:
-                  - SourceIpv4address
+                  - IANA: SourceIpv4address
                   - Ip4Addr: 1.2.3.4
               - 1:
-                  - DestinationIpv4address
+                  - IANA: DestinationIpv4address
                   - Ip4Addr: 1.2.3.4
               - 2:
-                  - AssignedforNetFlowv9compatibility
+                  - IANA: AssignedforNetFlowv9compatibility
                   - Vec: []

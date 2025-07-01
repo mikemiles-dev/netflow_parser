@@ -20,11 +20,14 @@ expression: result
             scope_field_count: 1
             fields:
               - field_type_number: 5
-                field_type: IpClassOfService
                 field_length: 2
+                field_type:
+                  IANA: IpClassOfService
               - field_type_number: 36
-                field_type: FlowActiveTimeout
                 field_length: 2
+                field_type:
+                  IANA: FlowActiveTimeout
               - field_type_number: 37
-                field_type: FlowIdleTimeout
                 field_length: 2
+                field_type:
+                  IANA: FlowIdleTimeout
