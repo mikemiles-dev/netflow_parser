@@ -171,23 +171,29 @@ expression: "NetflowParser::default().parse_bytes(&all)"
           Data:
             fields:
               - 0:
-                  - SourceIpv4address
-                  - Ip4Addr: 1.2.3.4
+                  field_type: SourceIpv4address
+                  field_value:
+                    Ip4Addr: 1.2.3.4
               - 1:
-                  - DestinationIpv4address
-                  - Ip4Addr: 1.2.3.3
+                  field_type: DestinationIpv4address
+                  field_value:
+                    Ip4Addr: 1.2.3.3
               - 2:
-                  - PacketDeltaCount
-                  - DataNumber: 16909058
+                  field_type: PacketDeltaCount
+                  field_value:
+                    DataNumber: 16909058
               - 0:
-                  - SourceIpv4address
-                  - Ip4Addr: 0.2.0.2
+                  field_type: SourceIpv4address
+                  field_value:
+                    Ip4Addr: 0.2.0.2
               - 1:
-                  - DestinationIpv4address
-                  - Ip4Addr: 0.1.2.3
+                  field_type: DestinationIpv4address
+                  field_value:
+                    Ip4Addr: 0.1.2.3
               - 2:
-                  - PacketDeltaCount
-                  - DataNumber: 67438087
+                  field_type: PacketDeltaCount
+                  field_value:
+                    DataNumber: 67438087
 - V5:
     header:
       version: 5

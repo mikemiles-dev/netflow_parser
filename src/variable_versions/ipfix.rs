@@ -34,7 +34,6 @@ const DATA_TEMPLATE_IPFIX_ID: u16 = 2;
 const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
 
 type TemplateId = u16;
-type IPFixFieldPair = (IPFixField, FieldValue);
 
 #[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct IPFixParser {
@@ -267,6 +266,18 @@ pub struct FlowSetHeader {
     pub length: u16,
 }
 
+fn is_false(b: &bool) -> bool {
+    !b
+}
+
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub struct Field {
+    pub field_type: IPFixField,
+    pub field_value: FieldValue,
+    #[serde(skip_serializing_if = "is_false")]
+    pub is_enterprise: bool,
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(template: &Template))]
 pub struct Data {
@@ -274,7 +285,7 @@ pub struct Data {
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<Template>(i, template) }"
     )]
-    pub fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
+    pub fields: Vec<BTreeMap<usize, Field>>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
 }
@@ -286,7 +297,7 @@ pub struct OptionsData {
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template) }"
     )]
-    pub fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
+    pub fields: Vec<BTreeMap<usize, Field>>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
 }
@@ -364,7 +375,7 @@ impl<'a> FieldParser {
     fn parse<T: CommonTemplate>(
         i: &'a [u8],
         template: &T,
-    ) -> IResult<&'a [u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
+    ) -> IResult<&'a [u8], Vec<BTreeMap<usize, Field>>> {
         // If no fields there are no fields to parse, return an error.
         let (remaining, mut fields, total_taken) =
             template.get_fields().iter().enumerate().try_fold(
@@ -373,7 +384,12 @@ impl<'a> FieldParser {
                     let mut data_field = BTreeMap::new();
                     let (i, field_value) = field.parse_as_field_value(remaining)?;
                     let taken = remaining.len().saturating_sub(i.len());
-                    data_field.insert(c, (field.field_type, field_value));
+                    let insert_field = Field {
+                        field_type: field.field_type,
+                        field_value,
+                        is_enterprise: field.enterprise_number.is_some(),
+                    };
+                    data_field.insert(c, insert_field);
                     fields.push(data_field);
                     Ok((i, fields, total_taken.saturating_add(taken)))
                 },
@@ -486,8 +502,8 @@ impl IPFix {
 
             if let FlowSetBody::Data(data) = &flow.body {
                 for item in data.fields.iter() {
-                    for (_, (_, v)) in item.iter() {
-                        result_flowset.extend_from_slice(&v.to_be_bytes()?);
+                    for (_idx, field) in item.iter() {
+                        result_flowset.extend_from_slice(&field.field_value.to_be_bytes()?);
                     }
                 }
                 result_flowset.extend_from_slice(&data.padding);
@@ -495,8 +511,8 @@ impl IPFix {
 
             if let FlowSetBody::OptionsData(data) = &flow.body {
                 for item in data.fields.iter() {
-                    for (_, (_, v)) in item.iter() {
-                        result_flowset.extend_from_slice(&v.to_be_bytes()?);
+                    for (_idx, field) in item.iter() {
+                        result_flowset.extend_from_slice(&field.field_value.to_be_bytes()?);
                     }
                 }
                 result_flowset.extend_from_slice(&data.padding);

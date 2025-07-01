@@ -34,11 +34,14 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           Data:
             fields:
               - 0:
-                  - SourceIpv4address
-                  - Ip4Addr: 1.2.3.4
+                  field_type: SourceIpv4address
+                  field_value:
+                    Ip4Addr: 1.2.3.4
               - 1:
-                  - DestinationIpv4address
-                  - Ip4Addr: 1.2.3.4
+                  field_type: DestinationIpv4address
+                  field_value:
+                    Ip4Addr: 1.2.3.4
               - 2:
-                  - AssignedforNetFlowv9compatibility
-                  - Vec: []
+                  field_type: AssignedforNetFlowv9compatibility
+                  field_value:
+                    Vec: []

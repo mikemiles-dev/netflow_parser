@@ -104,1090 +104,1522 @@ expression: result
           Data:
             fields:
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.101.255.1
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.101.255.1
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.10.28.57
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.10.28.57
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 0
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 0
               - 4:
-                  - IpTtl
-                  - DataNumber: 255
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 255
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 2055
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 2055
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 606
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 0
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 0
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 20
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 20
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387228
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387228
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019440532
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019440532
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 53
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 53
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 192505
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 192505
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 155
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 155
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 172.31.255.1
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.255.1
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 172.31.255.1
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.255.1
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 0
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 0
               - 4:
-                  - IpTtl
-                  - DataNumber: 254
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 254
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 3785
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 3785
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 1
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 1
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387232
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387232
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019446788
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019446788
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 120
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 120
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 2208
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 2208
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 184
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 184
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.208.22.118
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.208.22.118
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.101.22.251
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.101.22.251
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 4
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 4
               - 4:
-                  - IpTtl
-                  - DataNumber: 61
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 61
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 17654
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 17654
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 4
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 4
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387236
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387236
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019437108
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019437108
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 59
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 59
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 96
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 96
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 6
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 6
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.0.151.220
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.0.151.220
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.101.151.95
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.101.151.95
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 0
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 0
               - 4:
-                  - IpTtl
-                  - DataNumber: 60
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 60
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 57339
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 57339
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 4
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 4
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387306
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387306
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019447034
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019447034
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 59
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 59
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 15264
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 15264
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 24
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 24
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.101.22.251
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.101.22.251
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.25.22.18
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.25.22.18
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 0
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 0
               - 4:
-                  - IpTtl
-                  - DataNumber: 126
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 126
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 5001
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 5001
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 4
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 4
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 20
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 20
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387310
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387310
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019446976
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019446976
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 59
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 59
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 5872
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 5872
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 367
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 367
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 224.0.0.5
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 224.0.0.5
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 172.31.255.1
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.255.1
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Ospfigp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Ospfigp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 0
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 0
               - 4:
-                  - IpTtl
-                  - DataNumber: 1
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 1
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 0
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 1
                       selector_id: 89
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 2
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 2
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 0
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 0
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387360
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387360
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019444662
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019444662
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 80
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 80
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 23
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 23
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 0
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 0
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 0
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 0
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 172.31.254.101
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.254.101
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 172.31.254.101
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.254.101
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 48
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 48
               - 4:
-                  - IpTtl
-                  - DataNumber: 255
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 255
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 3785
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 3785
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 0
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 0
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 1
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 1
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387474
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387474
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019447040
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019447040
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 60
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 60
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 3816
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 3816
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 318
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 318
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 224.0.0.5
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 224.0.0.5
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 172.31.250.252
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.250.252
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Ospfigp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Ospfigp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 48
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 48
               - 4:
-                  - IpTtl
-                  - DataNumber: 1
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 1
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 0
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 1
                       selector_id: 89
               - 8:
-                  - VlanId
-                  - DataNumber: 290
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 290
               - 9:
-                  - IngressInterface
-                  - DataNumber: 20
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 20
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 2
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 2
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 0
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 0
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387484
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387484
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019444636
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019444636
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 0
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 0
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 7
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 7
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 0
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 0
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 0
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 0
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.208.22.13
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.208.22.13
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.101.22.251
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.101.22.251
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 4
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 4
               - 4:
-                  - IpTtl
-                  - DataNumber: 61
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 61
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 17654
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 17654
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 4
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 4
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387486
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387486
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019437338
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019437338
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 50
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 50
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 740
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 740
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 65
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 65
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 224.0.0.5
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 224.0.0.5
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 172.31.254.27
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.254.27
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Ospfigp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Ospfigp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 48
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 48
               - 4:
-                  - IpTtl
-                  - DataNumber: 1
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 1
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 0
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 1
                       selector_id: 89
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 2
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 2
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 0
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 0
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387494
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387494
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019443438
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019443438
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 0
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 0
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 7
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 7
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 0
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 0
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 0
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 0
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.100.102.116
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.100.102.116
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.205.151.9
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.205.151.9
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 0
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 0
               - 4:
-                  - IpTtl
-                  - DataNumber: 125
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 125
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 3389
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 3389
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 290
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 290
               - 9:
-                  - IngressInterface
-                  - DataNumber: 20
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 20
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 2
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 2
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 17
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 17
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387564
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387564
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019438730
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019438730
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 239
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 239
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 225
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 225
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 8
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 8
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 96
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 96
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 8
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 8
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.208.22.124
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.208.22.124
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.101.22.251
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.101.22.251
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 4
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 4
               - 4:
-                  - IpTtl
-                  - DataNumber: 61
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 61
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 17654
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 17654
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 4
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 4
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387592
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387592
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019437466
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019437466
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 59
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 59
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 96
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 96
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 6
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 6
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 172.31.254.101
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.254.101
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 172.31.254.1
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.254.1
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 48
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 48
               - 4:
-                  - IpTtl
-                  - DataNumber: 255
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 255
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 3784
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 3784
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 0
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 0
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 1
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 1
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387628
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387628
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019445566
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019445566
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 60
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 60
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 552
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 552
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 23
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 23
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.1.22.47
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.1.22.47
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.101.22.251
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.101.22.251
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 8
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 8
               - 4:
-                  - IpTtl
-                  - DataNumber: 61
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 61
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 17654
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 17654
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 4
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 4
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387640
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387640
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019437582
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019437582
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 50
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 50
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 772
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 772
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 67
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 67
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.101.10.12
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.101.10.12
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.0.151.179
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.0.151.179
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Icmp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Icmp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 0
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 0
               - 4:
-                  - IpTtl
-                  - DataNumber: 60
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 60
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 0
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 479
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 2
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 2
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 4
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 4
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387662
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387662
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019446322
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019446322
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 0
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 0
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 19
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 19
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 0
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 0
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 0
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 0
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 172.31.255.1
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.255.1
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 172.31.254.101
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 172.31.254.101
+                  is_enterprise: true
               - 2:
-                  - ProtocolIdentifier
-                  - ProtocolType: Udp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Udp
               - 3:
-                  - IpDiffServCodePoint
-                  - DataNumber: 0
+                  field_type: IpDiffServCodePoint
+                  field_value:
+                    DataNumber: 0
               - 4:
-                  - IpTtl
-                  - DataNumber: 255
+                  field_type: IpTtl
+                  field_value:
+                    DataNumber: 255
               - 5:
-                  - CiscoServerL4Port
-                  - DataNumber: 3784
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 3784
+                  is_enterprise: true
               - 6:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 7:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 13
                       selector_id: 1
               - 8:
-                  - VlanId
-                  - DataNumber: 0
+                  field_type: VlanId
+                  field_value:
+                    DataNumber: 0
               - 9:
-                  - IngressInterface
-                  - DataNumber: 1
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 1
               - 10:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - EgressInterface
-                  - DataNumber: 0
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 0
               - 13:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 14:
-                  - FlowStartSysUpTime
-                  - DataNumber: 4019387700
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 4019387700
               - 15:
-                  - FlowEndSysUpTime
-                  - DataNumber: 4019446700
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 4019446700
               - 16:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 0
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 0
               - 17:
-                  - ConnectionSumDurationSeconds
-                  - DataNumber: 59
+                  field_type: ConnectionSumDurationSeconds
+                  field_value:
+                    DataNumber: 59
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 1632
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 1632
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 68
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 68

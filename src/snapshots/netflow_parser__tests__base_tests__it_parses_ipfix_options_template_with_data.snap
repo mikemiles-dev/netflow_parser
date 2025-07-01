@@ -36,28 +36,36 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           OptionsData:
             fields:
               - 0:
-                  - AssignedforNetFlowv9compatibility
-                  - Vec:
+                  field_type: AssignedforNetFlowv9compatibility
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 1
+                  is_enterprise: true
               - 1:
-                  - ExportedMessageTotalCount
-                  - DataNumber: 276
+                  field_type: ExportedMessageTotalCount
+                  field_value:
+                    DataNumber: 276
               - 2:
-                  - ExportedFlowRecordTotalCount
-                  - DataNumber: 5140
+                  field_type: ExportedFlowRecordTotalCount
+                  field_value:
+                    DataNumber: 5140
               - 0:
-                  - AssignedforNetFlowv9compatibility
-                  - Vec:
+                  field_type: AssignedforNetFlowv9compatibility
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 2
+                  is_enterprise: true
               - 1:
-                  - ExportedMessageTotalCount
-                  - DataNumber: 5140
+                  field_type: ExportedMessageTotalCount
+                  field_value:
+                    DataNumber: 5140
               - 2:
-                  - ExportedFlowRecordTotalCount
-                  - DataNumber: 7710
+                  field_type: ExportedFlowRecordTotalCount
+                  field_value:
+                    DataNumber: 7710

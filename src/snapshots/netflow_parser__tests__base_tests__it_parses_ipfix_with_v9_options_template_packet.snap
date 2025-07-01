@@ -76,29 +76,38 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
           Data:
             fields:
               - 0:
-                  - SourceIpv4address
-                  - Ip4Addr: 70.70.1.1
+                  field_type: SourceIpv4address
+                  field_value:
+                    Ip4Addr: 70.70.1.1
               - 1:
-                  - DestinationIpv4address
-                  - Ip4Addr: 120.120.1.1
+                  field_type: DestinationIpv4address
+                  field_value:
+                    Ip4Addr: 120.120.1.1
               - 2:
-                  - SourceTransportPort
-                  - DataNumber: 12345
+                  field_type: SourceTransportPort
+                  field_value:
+                    DataNumber: 12345
               - 3:
-                  - DestinationTransportPort
-                  - DataNumber: 32777
+                  field_type: DestinationTransportPort
+                  field_value:
+                    DataNumber: 32777
               - 4:
-                  - ProtocolIdentifier
-                  - ProtocolType: Tcp
+                  field_type: ProtocolIdentifier
+                  field_value:
+                    ProtocolType: Tcp
               - 5:
-                  - PacketDeltaCount
-                  - DataNumber: 100
+                  field_type: PacketDeltaCount
+                  field_value:
+                    DataNumber: 100
               - 6:
-                  - OctetDeltaCount
-                  - DataNumber: 125000000
+                  field_type: OctetDeltaCount
+                  field_value:
+                    DataNumber: 125000000
               - 7:
-                  - FlowStartSysUpTime
-                  - DataNumber: 1744871721
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 1744871721
               - 8:
-                  - FlowEndSysUpTime
-                  - DataNumber: 1744871721
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 1744871721

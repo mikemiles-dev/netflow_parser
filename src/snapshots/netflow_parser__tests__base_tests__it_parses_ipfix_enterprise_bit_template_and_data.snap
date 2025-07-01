@@ -168,154 +168,221 @@ expression: result
           Data:
             fields:
               - 0:
-                  - CiscoClientIpv4Address
-                  - Ip4Addr: 10.209.101.66
+                  field_type: CiscoClientIpv4Address
+                  field_value:
+                    Ip4Addr: 10.209.101.66
+                  is_enterprise: true
               - 1:
-                  - CiscoServerIpv4Address
-                  - Ip4Addr: 10.0.0.241
+                  field_type: CiscoServerIpv4Address
+                  field_value:
+                    Ip4Addr: 10.0.0.241
+                  is_enterprise: true
               - 2:
-                  - CiscoClientL4Port
-                  - DataNumber: 49376
+                  field_type: CiscoClientL4Port
+                  field_value:
+                    DataNumber: 49376
+                  is_enterprise: true
               - 3:
-                  - CiscoServerL4Port
-                  - DataNumber: 80
+                  field_type: CiscoServerL4Port
+                  field_value:
+                    DataNumber: 80
+                  is_enterprise: true
               - 4:
-                  - IngressVrfid
-                  - DataNumber: 0
+                  field_type: IngressVrfid
+                  field_value:
+                    DataNumber: 0
               - 5:
-                  - IngressInterface
-                  - DataNumber: 13
+                  field_type: IngressInterface
+                  field_value:
+                    DataNumber: 13
               - 6:
-                  - BiflowDirection
-                  - DataNumber: 1
+                  field_type: BiflowDirection
+                  field_value:
+                    DataNumber: 1
               - 7:
-                  - CiscoConnectionId
-                  - DataNumber: 2378383328
+                  field_type: CiscoConnectionId
+                  field_value:
+                    DataNumber: 2378383328
+                  is_enterprise: true
               - 8:
-                  - ApplicationId
-                  - ApplicationId:
+                  field_type: ApplicationId
+                  field_value:
+                    ApplicationId:
                       classification_engine_id: 3
                       selector_id: 80
               - 9:
-                  - EgressInterface
-                  - DataNumber: 10
+                  field_type: EgressInterface
+                  field_value:
+                    DataNumber: 10
               - 10:
-                  - SamplerId
-                  - DataNumber: 9
+                  field_type: SamplerId
+                  field_value:
+                    DataNumber: 9
               - 11:
-                  - CiscoServicesWaasSegment
-                  - DataNumber: 16
+                  field_type: CiscoServicesWaasSegment
+                  field_value:
+                    DataNumber: 16
+                  is_enterprise: true
               - 12:
-                  - CiscoServicesWaasPassthroughReason
-                  - DataNumber: 0
+                  field_type: CiscoServicesWaasPassthroughReason
+                  field_value:
+                    DataNumber: 0
+                  is_enterprise: true
               - 13:
-                  - CiscoAppHttpUriStatistics
-                  - String: "/DocLib1\u0000\u0000\u0001"
+                  field_type: CiscoAppHttpUriStatistics
+                  field_value:
+                    String: "/DocLib1\u0000\u0000\u0001"
+                  is_enterprise: true
               - 14:
-                  - CiscoAppHttpHost
-                  - String: "\u0003\u0000\u0000P4\u0002portal.medsigroup.ru"
+                  field_type: CiscoAppHttpHost
+                  field_value:
+                    String: "\u0003\u0000\u0000P4\u0002portal.medsigroup.ru"
+                  is_enterprise: true
               - 15:
-                  - FlowStartSysUpTime
-                  - DataNumber: 564191867
+                  field_type: FlowStartSysUpTime
+                  field_value:
+                    DataNumber: 564191867
               - 16:
-                  - FlowEndSysUpTime
-                  - DataNumber: 564303806
+                  field_type: FlowEndSysUpTime
+                  field_value:
+                    DataNumber: 564303806
               - 17:
-                  - NewConnectionDeltaCount
-                  - DataNumber: 1
+                  field_type: NewConnectionDeltaCount
+                  field_value:
+                    DataNumber: 1
               - 18:
-                  - ResponderOctets
-                  - DataNumber: 0
+                  field_type: ResponderOctets
+                  field_value:
+                    DataNumber: 0
               - 19:
-                  - ResponderPackets
-                  - DataNumber: 0
+                  field_type: ResponderPackets
+                  field_value:
+                    DataNumber: 0
               - 20:
-                  - InitiatorOctets
-                  - DataNumber: 6208
+                  field_type: InitiatorOctets
+                  field_value:
+                    DataNumber: 6208
               - 21:
-                  - InitiatorPackets
-                  - DataNumber: 15
+                  field_type: InitiatorPackets
+                  field_value:
+                    DataNumber: 15
               - 22:
-                  - Unknown: 9303
-                  - Vec:
+                  field_type:
+                    Unknown: 9303
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 23:
-                  - Unknown: 9292
-                  - Vec:
+                  field_type:
+                    Unknown: 9292
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 24:
-                  - Unknown: 9300
-                  - Vec:
+                  field_type:
+                    Unknown: 9300
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 25:
-                  - Unknown: 9319
-                  - Vec:
+                  field_type:
+                    Unknown: 9319
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 26:
-                  - Unknown: 9316
-                  - Vec:
+                  field_type:
+                    Unknown: 9316
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 27:
-                  - Unknown: 9268
-                  - Vec:
+                  field_type:
+                    Unknown: 9268
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 28:
-                  - Unknown: 9313
-                  - Vec:
+                  field_type:
+                    Unknown: 9313
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 29:
-                  - Unknown: 9306
-                  - Vec:
+                  field_type:
+                    Unknown: 9306
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 30:
-                  - Unknown: 9307
-                  - Vec:
+                  field_type:
+                    Unknown: 9307
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 31:
-                  - Unknown: 9309
-                  - Vec:
+                  field_type:
+                    Unknown: 9309
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 32:
-                  - Unknown: 9273
-                  - Vec:
+                  field_type:
+                    Unknown: 9273
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true
               - 33:
-                  - Unknown: 9272
-                  - Vec:
+                  field_type:
+                    Unknown: 9272
+                  field_value:
+                    Vec:
                       - 0
                       - 0
                       - 0
                       - 0
+                  is_enterprise: true

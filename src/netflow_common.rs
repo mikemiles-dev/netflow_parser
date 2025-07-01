@@ -183,8 +183,11 @@ impl From<&IPFix> for NetflowCommon {
         for flowset in &value.flowsets {
             if let IPFixFlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
-                    let value_map: BTreeMap<IPFixField, FieldValue> =
-                        data_field.values().cloned().collect();
+                    let value_map: BTreeMap<IPFixField, FieldValue> = data_field
+                        .values()
+                        .cloned()
+                        .map(|v| (v.field_type, v.field_value))
+                        .collect();
                     flowsets.push(NetflowCommonFlowSet {
                         src_addr: value_map
                             .get(&IPFixField::SourceIpv4address)
@@ -515,66 +518,79 @@ mod common_tests {
                     fields: vec![BTreeMap::from([
                         (
                             0,
-                            (
-                                IPFixField::SourceIpv4address,
-                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
-                            ),
+                            crate::variable_versions::ipfix::Field {
+                                field_type: IPFixField::SourceIpv4address,
+                                field_value: FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
+                                is_enterprise: false,
+                            },
                         ),
                         (
                             1,
-                            (
-                                IPFixField::DestinationIpv4address,
-                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
-                            ),
+                            crate::variable_versions::ipfix::Field {
+                                field_type: IPFixField::DestinationIpv4address,
+                                field_value: FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
+                                is_enterprise: false,
+                            },
                         ),
                         (
                             2,
-                            (
-                                IPFixField::SourceTransportPort,
-                                FieldValue::DataNumber(DataNumber::U16(1234)),
-                            ),
+                            crate::variable_versions::ipfix::Field {
+                                field_type: IPFixField::SourceTransportPort,
+                                field_value: FieldValue::DataNumber(DataNumber::U16(1234)),
+                                is_enterprise: false,
+                            },
                         ),
                         (
                             3,
-                            (
-                                IPFixField::DestinationTransportPort,
-                                FieldValue::DataNumber(DataNumber::U16(80)),
-                            ),
+                            crate::variable_versions::ipfix::Field {
+                                field_type: IPFixField::DestinationTransportPort,
+                                field_value: FieldValue::DataNumber(DataNumber::U16(80)),
+                                is_enterprise: false,
+                            },
                         ),
                         (
                             4,
-                            (
-                                IPFixField::ProtocolIdentifier,
-                                FieldValue::DataNumber(DataNumber::U8(6)),
-                            ),
+                            crate::variable_versions::ipfix::Field {
+                                field_type: IPFixField::ProtocolIdentifier,
+                                field_value: FieldValue::DataNumber(DataNumber::U8(6)),
+                                is_enterprise: false,
+                            },
                         ),
                         (
                             5,
-                            (
-                                IPFixField::FlowStartSysUpTime,
-                                FieldValue::DataNumber(DataNumber::U32(100)),
-                            ),
+                            crate::variable_versions::ipfix::Field {
+                                field_type: IPFixField::FlowStartSysUpTime,
+                                field_value: FieldValue::DataNumber(DataNumber::U32(100)),
+                                is_enterprise: false,
+                            },
                         ),
                         (
                             6,
-                            (
-                                IPFixField::FlowEndSysUpTime,
-                                FieldValue::DataNumber(DataNumber::U32(200)),
-                            ),
+                            crate::variable_versions::ipfix::Field {
+                                field_type: IPFixField::FlowEndSysUpTime,
+                                field_value: FieldValue::DataNumber(DataNumber::U32(200)),
+                                is_enterprise: false,
+                            },
                         ),
                         (
                             7,
-                            (
-                                IPFixField::SourceMacaddress,
-                                FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
-                            ),
+                            crate::variable_versions::ipfix::Field {
+                                field_type: IPFixField::SourceMacaddress,
+                                field_value: FieldValue::MacAddr(
+                                    "00:00:00:00:00:01".to_string(),
+                                ),
+                                is_enterprise: false,
+                            },
                         ),
                         (
                             8,
-                            (
-                                IPFixField::DestinationMacaddress,
-                                FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
-                            ),
+                            crate::variable_versions::ipfix::Field {
+                                field_type: IPFixField::DestinationMacaddress,
+                                field_value: FieldValue::MacAddr(
+                                    "00:00:00:00:00:02".to_string(),
+                                ),
+                                is_enterprise: false,
+                            },
                         ),
                     ])],
                 }),
