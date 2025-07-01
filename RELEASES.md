@@ -1,4 +1,5 @@
 # 0.5.8
+* V9 Found and fixed divide by 0 issue.
 * IPFix Protocol Identifier now parsers as ProtocolIdentifier Field Type and not UnsignedDataNumber.
 * IPFix added Application ID Data Type.
 * Enterprise Fields are no longer classified as an "enterprise" field type.
