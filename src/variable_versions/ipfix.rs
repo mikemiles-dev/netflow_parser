@@ -327,7 +327,7 @@ pub struct TemplateField {
                       field_type_number.overflowing_sub(32768).0
                     } else { field_type_number };",
         PostExec = "let field_type = if enterprise_number.is_some() {
-                        IPFixField::Enterprise
+                        IPFixField::from(field_type_number)
                     } else { field_type };"
     )]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -410,12 +410,7 @@ impl TemplateField {
 
     fn parse_as_field_value<'a>(&self, i: &'a [u8]) -> IResult<&'a [u8], FieldValue> {
         let (i, length) = self.parse_field_length(i)?;
-        if self.enterprise_number.is_some() {
-            let (i, data) = take(length)(i)?;
-            Ok((i, FieldValue::Vec(data.to_vec())))
-        } else {
-            FieldValue::from_field_type(i, self.field_type.into(), length)
-        }
+        FieldValue::from_field_type(i, self.field_type.into(), length)
     }
 }
 

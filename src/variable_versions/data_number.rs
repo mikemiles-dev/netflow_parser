@@ -177,9 +177,16 @@ impl From<DataNumber> for usize {
     }
 }
 
+#[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
+pub struct ApplicationId {
+    pub classification_engine_id: u8,
+    pub selector_id: DataNumber,
+}
+
 /// Holds the post parsed field with its relevant datatype
 #[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
 pub enum FieldValue {
+    ApplicationId(ApplicationId),
     String(String),
     DataNumber(DataNumber),
     Float64(f64),
@@ -195,6 +202,12 @@ pub enum FieldValue {
 impl FieldValue {
     pub fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
         match self {
+            FieldValue::ApplicationId(app_id) => {
+                let mut wtr = Vec::new();
+                wtr.write_u8(app_id.classification_engine_id)?;
+                wtr.extend(app_id.selector_id.to_be_bytes()?);
+                Ok(wtr)
+            }
             FieldValue::String(s) => Ok(s.as_bytes().to_vec()),
             FieldValue::DataNumber(d) => d.to_be_bytes(),
             FieldValue::Float64(f) => Ok(f.to_be_bytes().to_vec()),
@@ -217,6 +230,18 @@ impl FieldValue {
         field_length: u16,
     ) -> IResult<&[u8], FieldValue> {
         let (remaining, field_value) = match field_type {
+            FieldDataType::ApplicationId => {
+                let (i, id) = u8::parse(remaining)?;
+                let (i, selector_id) =
+                    DataNumber::parse(i, field_length.saturating_sub(1), false)?;
+                (
+                    i,
+                    FieldValue::ApplicationId(ApplicationId {
+                        classification_engine_id: id,
+                        selector_id,
+                    }),
+                )
+            }
             FieldDataType::UnsignedDataNumber => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
                 (i, FieldValue::DataNumber(data_number))
@@ -227,10 +252,8 @@ impl FieldValue {
             }
             FieldDataType::String => {
                 let (i, taken) = take(field_length)(remaining)?;
-                (
-                    i,
-                    FieldValue::String(String::from_utf8_lossy(taken).to_string()),
-                )
+                let s = String::from_utf8_lossy(taken).to_string();
+                (i, FieldValue::String(s))
             }
             FieldDataType::Ip4Addr => {
                 let (i, taken) = be_u32(remaining)?;
@@ -308,6 +331,7 @@ impl FieldValue {
 /// Helps the parser indent the data type to parse the field as
 #[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub enum FieldDataType {
+    ApplicationId,
     String,
     SignedDataNumber,
     UnsignedDataNumber,

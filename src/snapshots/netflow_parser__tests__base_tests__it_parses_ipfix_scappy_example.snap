@@ -112,7 +112,7 @@ expression: result
                   - DataNumber: 0
               - 3:
                   - ProtocolIdentifier
-                  - DataNumber: 61
+                  - ProtocolType: Anydistributedprotocol
               - 4:
                   - SourceTransportPort
                   - DataNumber: 0

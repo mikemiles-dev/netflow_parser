@@ -1,3 +1,26 @@
+# 0.5.8
+* V9 Found and fixed divide by 0 issue.
+* IPFix Protocol Identifier now parsers as ProtocolIdentifier Field Type and not UnsignedDataNumber.
+* IPFix added Application ID Data Type.
+* Enterprise Fields are no longer classified as an "enterprise" field type.
+* IPFix now supports some Cisco PEN fields listed below:
+```
+    CiscoServerBytesNetwork = 8337,
+    CiscoClientBytesNetwork = 8338,
+    CiscoServicesWaasSegment = 9252,
+    CiscoServicesWaasPassthroughReason = 9253,
+    CiscoAppHttpUriStatistics = 9357,
+    CiscoAppCategoryName = 12232,
+    CiscoAppGroupName = 12234,
+    CiscoAppHttpHost = 12235,
+    CiscoClientIpv4Address = 12236,
+    CiscoServerIpv4Address = 12237,
+    CiscoClientL4Port = 12240,
+    CiscoServerL4Port = 12241,
+    CiscoConnectionId = 12242,
+    CiscoAppBusiness = 12244,
+```
+
 # 0.5.7
 * Fix Scope Data Parsing.
 

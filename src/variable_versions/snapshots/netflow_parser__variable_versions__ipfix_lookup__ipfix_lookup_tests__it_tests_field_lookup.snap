@@ -398,30 +398,30 @@ expression: lookup
 - FlowSelectedFlowDeltaCount
 - SelectorIdtotalFlowsObserved
 - SelectorIdtotalFlowsSelected
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
+- Unknown: 396
+- Unknown: 397
+- Unknown: 398
+- Unknown: 399
+- Unknown: 400
+- Unknown: 401
+- Unknown: 402
+- Unknown: 403
+- Unknown: 404
+- Unknown: 405
+- Unknown: 406
+- Unknown: 407
+- Unknown: 408
+- Unknown: 409
+- Unknown: 410
+- Unknown: 411
+- Unknown: 412
+- Unknown: 413
+- Unknown: 414
 - Dot1qCustomerDestinationMacaddress
-- Unknown
+- Unknown: 416
 - PostLayer2octetDeltaCount
 - PostMcastLayer2octetDeltaCount
-- Unknown
+- Unknown: 419
 - PostLayer2octetTotalCount
 - PostMcastLayer2octetTotalCount
 - MinimumLayer2totalLength

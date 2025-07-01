@@ -89,7 +89,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                   - DataNumber: 32777
               - 4:
                   - ProtocolIdentifier
-                  - DataNumber: 6
+                  - ProtocolType: Tcp
               - 5:
                   - PacketDeltaCount
                   - DataNumber: 100

@@ -19,19 +19,19 @@ expression: result
             field_count: 34
             fields:
               - field_type_number: 12236
-                field_type: Enterprise
+                field_type: CiscoClientIpv4Address
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 12237
-                field_type: Enterprise
+                field_type: CiscoServerIpv4Address
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 12240
-                field_type: Enterprise
+                field_type: CiscoClientL4Port
                 field_length: 2
                 enterprise_number: 9
               - field_type_number: 12241
-                field_type: Enterprise
+                field_type: CiscoServerL4Port
                 field_length: 2
                 enterprise_number: 9
               - field_type_number: 234
@@ -44,7 +44,7 @@ expression: result
                 field_type: BiflowDirection
                 field_length: 1
               - field_type_number: 12242
-                field_type: Enterprise
+                field_type: CiscoConnectionId
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 95
@@ -57,19 +57,19 @@ expression: result
                 field_type: SamplerId
                 field_length: 1
               - field_type_number: 9252
-                field_type: Enterprise
+                field_type: CiscoServicesWaasSegment
                 field_length: 1
                 enterprise_number: 9
               - field_type_number: 9253
-                field_type: Enterprise
+                field_type: CiscoServicesWaasPassthroughReason
                 field_length: 1
                 enterprise_number: 9
               - field_type_number: 9357
-                field_type: Enterprise
+                field_type: CiscoAppHttpUriStatistics
                 field_length: 65535
                 enterprise_number: 9
               - field_type_number: 12235
-                field_type: Enterprise
+                field_type: CiscoAppHttpHost
                 field_length: 65535
                 enterprise_number: 9
               - field_type_number: 22
@@ -94,51 +94,63 @@ expression: result
                 field_type: InitiatorPackets
                 field_length: 8
               - field_type_number: 9303
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9303
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9292
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9292
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9300
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9300
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9319
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9319
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9316
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9316
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9268
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9268
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9313
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9313
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9306
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9306
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9307
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9307
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9309
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9309
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9273
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9273
                 field_length: 4
                 enterprise_number: 9
               - field_type_number: 9272
-                field_type: Enterprise
+                field_type:
+                  Unknown: 9272
                 field_length: 4
                 enterprise_number: 9
 - IPFix:
@@ -156,29 +168,17 @@ expression: result
           Data:
             fields:
               - 0:
-                  - Enterprise
-                  - Vec:
-                      - 10
-                      - 209
-                      - 101
-                      - 66
+                  - CiscoClientIpv4Address
+                  - Ip4Addr: 10.209.101.66
               - 1:
-                  - Enterprise
-                  - Vec:
-                      - 10
-                      - 0
-                      - 0
-                      - 241
+                  - CiscoServerIpv4Address
+                  - Ip4Addr: 10.0.0.241
               - 2:
-                  - Enterprise
-                  - Vec:
-                      - 192
-                      - 224
+                  - CiscoClientL4Port
+                  - DataNumber: 49376
               - 3:
-                  - Enterprise
-                  - Vec:
-                      - 0
-                      - 80
+                  - CiscoServerL4Port
+                  - DataNumber: 80
               - 4:
                   - IngressVrfid
                   - DataNumber: 0
@@ -189,15 +189,13 @@ expression: result
                   - BiflowDirection
                   - DataNumber: 1
               - 7:
-                  - Enterprise
-                  - Vec:
-                      - 141
-                      - 195
-                      - 63
-                      - 224
+                  - CiscoConnectionId
+                  - DataNumber: 2378383328
               - 8:
                   - ApplicationId
-                  - String: "\u0003\u0000\u0000P"
+                  - ApplicationId:
+                      classification_engine_id: 3
+                      selector_id: 80
               - 9:
                   - EgressInterface
                   - DataNumber: 10
@@ -205,56 +203,17 @@ expression: result
                   - SamplerId
                   - DataNumber: 9
               - 11:
-                  - Enterprise
-                  - Vec:
-                      - 16
+                  - CiscoServicesWaasSegment
+                  - DataNumber: 16
               - 12:
-                  - Enterprise
-                  - Vec:
-                      - 0
+                  - CiscoServicesWaasPassthroughReason
+                  - DataNumber: 0
               - 13:
-                  - Enterprise
-                  - Vec:
-                      - 47
-                      - 68
-                      - 111
-                      - 99
-                      - 76
-                      - 105
-                      - 98
-                      - 49
-                      - 0
-                      - 0
-                      - 1
+                  - CiscoAppHttpUriStatistics
+                  - String: "/DocLib1\u0000\u0000\u0001"
               - 14:
-                  - Enterprise
-                  - Vec:
-                      - 3
-                      - 0
-                      - 0
-                      - 80
-                      - 52
-                      - 2
-                      - 112
-                      - 111
-                      - 114
-                      - 116
-                      - 97
-                      - 108
-                      - 46
-                      - 109
-                      - 101
-                      - 100
-                      - 115
-                      - 105
-                      - 103
-                      - 114
-                      - 111
-                      - 117
-                      - 112
-                      - 46
-                      - 114
-                      - 117
+                  - CiscoAppHttpHost
+                  - String: "\u0003\u0000\u0000P4\u0002portal.medsigroup.ru"
               - 15:
                   - FlowStartSysUpTime
                   - DataNumber: 564191867
@@ -277,84 +236,84 @@ expression: result
                   - InitiatorPackets
                   - DataNumber: 15
               - 22:
-                  - Enterprise
+                  - Unknown: 9303
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 23:
-                  - Enterprise
+                  - Unknown: 9292
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 24:
-                  - Enterprise
+                  - Unknown: 9300
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 25:
-                  - Enterprise
+                  - Unknown: 9319
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 26:
-                  - Enterprise
+                  - Unknown: 9316
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 27:
-                  - Enterprise
+                  - Unknown: 9268
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 28:
-                  - Enterprise
+                  - Unknown: 9313
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 29:
-                  - Enterprise
+                  - Unknown: 9306
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 30:
-                  - Enterprise
+                  - Unknown: 9307
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 31:
-                  - Enterprise
+                  - Unknown: 9309
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 32:
-                  - Enterprise
+                  - Unknown: 9273
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
               - 33:
-                  - Enterprise
+                  - Unknown: 9272
                   - Vec:
                       - 0
                       - 0

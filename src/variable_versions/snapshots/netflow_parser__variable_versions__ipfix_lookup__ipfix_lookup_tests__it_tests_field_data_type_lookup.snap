@@ -6,7 +6,7 @@ expression: lookup
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
-- UnsignedDataNumber
+- ProtocolType
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
@@ -97,7 +97,7 @@ expression: lookup
 - UnsignedDataNumber
 - UnsignedDataNumber
 - String
-- String
+- ApplicationId
 - String
 - Unknown
 - UnsignedDataNumber
