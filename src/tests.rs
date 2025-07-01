@@ -507,4 +507,16 @@ mod base_tests {
         result.append(&mut parser.parse_bytes(&packet));
         assert_yaml_snapshot!(result);
     }
+
+    #[test]
+    fn it_parses_v9_empty_template_doesntz_panic() {
+        let packet = vec![
+            0, 9, 0, 49, 0, 8, 0, 0, 9, 0, 0, 20, 0, 24, 24, 24, 24, 91, 0, 0, 0, 0, 0, 9, 1,
+            0, 0, 0, 0, 1, 0, 0, 0, 24, 0,
+        ];
+        NetflowParser::default()
+            .parse_bytes(&packet)
+            .first()
+            .unwrap();
+    }
 }

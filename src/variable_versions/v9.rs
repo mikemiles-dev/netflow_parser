@@ -499,9 +499,11 @@ impl<'a> FieldParser {
         input: &'a [u8],
         template: &Template,
     ) -> IResult<&'a [u8], Vec<BTreeMap<usize, V9FieldPair>>> {
-        let record_count = input
-            .len()
-            .saturating_div(usize::from(template.get_total_size()));
+        let tempalte_total_size = usize::from(template.get_total_size());
+        if tempalte_total_size == 0 {
+            return Err(nom::Err::Error(NomError::new(input, ErrorKind::Verify)));
+        }
+        let record_count = input.len().saturating_div(tempalte_total_size);
 
         let (remaining, fields) = (0..record_count).fold(
             (input, Vec::new()), // Initial accumulator: (fields, remaining)
