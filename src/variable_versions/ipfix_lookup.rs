@@ -8,6 +8,7 @@ const CISCO_ENTERPRISE_NUMBER: u32 = 9;
 const NETSCALER_ENTERPRISE_NUMBER: u32 = 5951;
 const NAT_ENTERPRISE_NUMBER: u32 = 637;
 const YAF_ENTERPRISE_NUMBER: u32 = 6871;
+const VMWARE_ENTERPRISE_NUMBER: u32 = 6876;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
 pub enum IPFixField {
@@ -16,6 +17,7 @@ pub enum IPFixField {
     Netscaler(NetscalerIPFixField),
     Nat(NatIPFixField),
     YafIPFixField(YafIPFixField),
+    VMWare(VMWareIPFixField),
     Enterprise(u16),
 }
 
@@ -34,8 +36,53 @@ impl IPFixField {
             Some(pen) if pen == YAF_ENTERPRISE_NUMBER => {
                 YafIPFixField::from(field_type_number).into()
             }
+            Some(pen) if pen == VMWARE_ENTERPRISE_NUMBER => {
+                VMWareIPFixField::from(field_type_number).into()
+            }
             Some(_) => IPFixField::Enterprise(field_type_number),
             _ => IPFixField::IANA(IANAIPFixField::from(field_type_number)),
+        }
+    }
+}
+
+impl From<VMWareIPFixField> for IPFixField {
+    fn from(field: VMWareIPFixField) -> Self {
+        IPFixField::VMWare(field)
+    }
+}
+
+impl From<VMWareIPFixField> for FieldDataType {
+    fn from(field: VMWareIPFixField) -> Self {
+        match field {
+            VMWareIPFixField::VmwareTenantProtocol => FieldDataType::UnsignedDataNumber, // uint8
+            VMWareIPFixField::VmwareTenantSourceIPv4 => FieldDataType::Ip4Addr,
+            VMWareIPFixField::VmwareTenantDestIPv4 => FieldDataType::Ip4Addr,
+            VMWareIPFixField::VmwareTenantSourceIPv6 => FieldDataType::Ip6Addr,
+            VMWareIPFixField::VmwareTenantDestIPv6 => FieldDataType::Ip6Addr,
+            VMWareIPFixField::VmwareTenantSourcePort => FieldDataType::UnsignedDataNumber, // uint16
+            VMWareIPFixField::VmwareTenantDestPort => FieldDataType::UnsignedDataNumber, // uint16
+            VMWareIPFixField::VmwareEgressInterfaceAttr => FieldDataType::UnsignedDataNumber, // uint16
+            VMWareIPFixField::VmwareVxlanExportRole => FieldDataType::UnsignedDataNumber, // uint8
+            VMWareIPFixField::VmwareIngressInterfaceAttr => FieldDataType::UnsignedDataNumber, // uint16
+            VMWareIPFixField::Unknown(_) => FieldDataType::Unknown,
+        }
+    }
+}
+
+impl From<u16> for VMWareIPFixField {
+    fn from(field_type_number: u16) -> Self {
+        match field_type_number {
+            880 => VMWareIPFixField::VmwareTenantProtocol,
+            881 => VMWareIPFixField::VmwareTenantSourceIPv4,
+            882 => VMWareIPFixField::VmwareTenantDestIPv4,
+            883 => VMWareIPFixField::VmwareTenantSourceIPv6,
+            884 => VMWareIPFixField::VmwareTenantDestIPv6,
+            886 => VMWareIPFixField::VmwareTenantSourcePort,
+            887 => VMWareIPFixField::VmwareTenantDestPort,
+            888 => VMWareIPFixField::VmwareEgressInterfaceAttr,
+            889 => VMWareIPFixField::VmwareVxlanExportRole,
+            890 => VMWareIPFixField::VmwareIngressInterfaceAttr,
+            _ => VMWareIPFixField::Unknown(field_type_number),
         }
     }
 }
@@ -48,6 +95,7 @@ impl From<IPFixField> for FieldDataType {
             IPFixField::Netscaler(field) => field.into(),
             IPFixField::Nat(field) => field.into(),
             IPFixField::YafIPFixField(field) => field.into(),
+            IPFixField::VMWare(field) => field.into(),
             IPFixField::Enterprise(_) => FieldDataType::Unknown,
         }
     }
@@ -275,6 +323,22 @@ impl From<YafIPFixField> for IPFixField {
     fn from(field: YafIPFixField) -> Self {
         IPFixField::YafIPFixField(field)
     }
+}
+
+#[repr(u16)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
+pub enum VMWareIPFixField {
+    VmwareTenantProtocol = 880,
+    VmwareTenantSourceIPv4 = 881,
+    VmwareTenantDestIPv4 = 882,
+    VmwareTenantSourceIPv6 = 883,
+    VmwareTenantDestIPv6 = 884,
+    VmwareTenantSourcePort = 886,
+    VmwareTenantDestPort = 887,
+    VmwareEgressInterfaceAttr = 888,
+    VmwareVxlanExportRole = 889,
+    VmwareIngressInterfaceAttr = 890,
+    Unknown(u16),
 }
 
 #[repr(u16)]

@@ -7,6 +7,7 @@
 * Added Netscaler PEN Types.
 * Added NAT PEN Types.
 * Added YAF PEN Types.
+* Added VMWARE PEN Types.
 * Re-added Enterprise Field Type for Unknown Enterprise Types.
 
 # 0.5.8
