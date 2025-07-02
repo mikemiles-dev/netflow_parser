@@ -83,6 +83,7 @@ pub enum FlowSetBody {
     Template(Template),
     Templates(Vec<Template>),
     V9Template(V9Template),
+    V9Templates(Vec<V9Template>),
     OptionsTemplate(OptionsTemplate),
     OptionsTemplates(Vec<OptionsTemplate>),
     V9OptionsTemplate(V9OptionsTemplate),
@@ -161,11 +162,30 @@ impl FlowSetBody {
                 }
             }
             DATA_TEMPLATE_V9_ID => {
-                let (i, template) = V9Template::parse(i)?;
-                parser
-                    .v9_templates
-                    .insert(template.template_id, template.clone());
-                Ok((i, FlowSetBody::V9Template(template)))
+                let (i, templates) = many0(complete(V9Template::parse))(i)?;
+                if templates.is_empty() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )));
+                }
+                for template in &templates {
+                    parser
+                        .v9_templates
+                        .insert(template.template_id, template.clone());
+                }
+                if templates.len() == 1 {
+                    if let Some(template) = templates.first().cloned() {
+                        Ok((i, FlowSetBody::V9Template(template)))
+                    } else {
+                        Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Verify,
+                        )))
+                    }
+                } else {
+                    Ok((i, FlowSetBody::V9Templates(templates.clone())))
+                }
             }
             OPTIONS_TEMPLATE_V9_ID => {
                 let (i, options_template) = V9OptionsTemplate::parse(i)?;
@@ -217,8 +237,10 @@ impl FlowSetBody {
                     .ipfix_options_templates
                     .get(&id)
                     .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                let (i, options_data) = OptionsData::parse(i, options_template)?;
-                Ok((i, FlowSetBody::OptionsData(options_data)))
+                match OptionsData::parse(i, options_template) {
+                    Ok((i, data)) => Ok((i, FlowSetBody::OptionsData(data))),
+                    Err(_) => Ok((i, FlowSetBody::Empty)),
+                }
             }
             _ if parser.v9_templates.contains_key(&id) => {
                 let v9_template = parser
