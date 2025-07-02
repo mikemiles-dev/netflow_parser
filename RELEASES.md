@@ -1,5 +1,7 @@
 # 0.5.9
-* IPFIX now supports Multiple Templates
+* IPFIX now supports multiple Templates in a flow
+* New IPFix FlowSetBody type added called NoTemplate.
+* NoTemplate allows you to cache flows that do not have a template for later parsing.
 * Correctly handling Different Enterprise Field Types.
 * Added Netscaler PEN Types.
 * Re-added Enterprise Field Type for Unknown Enterprise Types.
