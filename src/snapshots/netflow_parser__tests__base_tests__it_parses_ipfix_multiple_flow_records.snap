@@ -1,0 +1,503 @@
+---
+source: src/tests.rs
+expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
+---
+- IPFix:
+    header:
+      version: 10
+      length: 1217
+      export_time: 1412166683
+      sequence_number: 127681
+      observation_domain_id: 0
+    flowsets:
+      - header:
+          header_id: 277
+          length: 29
+        body:
+          Data:
+            fields:
+              - 0:
+                  - IANA: ObservationPointId
+                  - DataNumber: 8731347
+              - 1:
+                  - IANA: ExportingProcessId
+                  - DataNumber: 0
+              - 2:
+                  - Netscaler: NetscalerLicenseType
+                  - DataNumber: 1
+              - 3:
+                  - Netscaler: NetscalerMaxLicenseCount
+                  - DataNumber: 5
+              - 4:
+                  - Netscaler: NetscalerCurrentLicenseConsumed
+                  - DataNumber: 0
+      - header:
+          header_id: 258
+          length: 433
+        body:
+          Data:
+            fields:
+              - 0:
+                  - IANA: ObservationPointId
+                  - DataNumber: 8731347
+              - 1:
+                  - IANA: ExportingProcessId
+                  - DataNumber: 0
+              - 2:
+                  - IANA: FlowId
+                  - DataNumber: 2040953
+              - 3:
+                  - Netscaler: NetscalerTransactionId
+                  - DataNumber: 94120
+              - 4:
+                  - Netscaler: NetscalerConnectionId
+                  - DataNumber: 2040953
+              - 5:
+                  - IANA: IpVersion
+                  - DataNumber: 4
+              - 6:
+                  - IANA: ProtocolIdentifier
+                  - ProtocolType: Tcp
+              - 7:
+                  - IANA: PaddingOctets
+                  - String: "\u0000\u0000"
+              - 8:
+                  - IANA: SourceIpv4address
+                  - Ip4Addr: 172.18.129.61
+              - 9:
+                  - IANA: DestinationIpv4address
+                  - Ip4Addr: 172.18.159.99
+              - 10:
+                  - IANA: SourceTransportPort
+                  - DataNumber: 51612
+              - 11:
+                  - IANA: DestinationTransportPort
+                  - DataNumber: 443
+              - 12:
+                  - IANA: PacketDeltaCount
+                  - DataNumber: 3
+              - 13:
+                  - IANA: OctetDeltaCount
+                  - DataNumber: 817
+              - 14:
+                  - IANA: TcpControlBits
+                  - DataNumber: 24
+              - 15:
+                  - Netscaler: NetscalerFlowFlags
+                  - DataNumber: 84025344
+              - 16:
+                  - IANA: FlowStartMicroseconds
+                  - Duration:
+                      secs: 15552744373216
+                      nanos: 838403000
+              - 17:
+                  - IANA: FlowEndMicroseconds
+                  - Duration:
+                      secs: 15552744373216
+                      nanos: 849399000
+              - 18:
+                  - IANA: IngressInterface
+                  - DataNumber: 1
+              - 19:
+                  - IANA: EgressInterface
+                  - DataNumber: 2147483651
+              - 20:
+                  - Netscaler: NetscalerAppNameAppId
+                  - DataNumber: 9510
+              - 21:
+                  - Netscaler: NetscalerAppUnitNameAppId
+                  - DataNumber: 0
+              - 22:
+                  - Netscaler: NetscalerHttpResForwFB
+                  - DataNumber: 0
+              - 23:
+                  - Netscaler: NetscalerHttpResForwLB
+                  - DataNumber: 0
+              - 24:
+                  - Netscaler: NetscalerConnectionChainID
+                  - Vec:
+                      - 0
+                      - 80
+                      - 86
+                      - 0
+                      - 215
+                      - 43
+                      - 33
+                      - 84
+                      - 27
+                      - 244
+                      - 43
+                      - 84
+                      - 247
+                      - 173
+                      - 11
+                      - 0
+              - 25:
+                  - Netscaler: NetscalerConnectionChainHopCount
+                  - DataNumber: 1
+              - 26:
+                  - Netscaler: NetscalerHttpReqUrl
+                  - String: "/vpn/index.html\u0000"
+              - 27:
+                  - Netscaler: NetscalerHttpReqCookie
+                  - String: "\u0000"
+              - 28:
+                  - Netscaler: NetscalerHttpReqReferer
+                  - String: "\u0000"
+              - 29:
+                  - Netscaler: NetscalerHttpReqMethod
+                  - String: "GET\u0000"
+              - 30:
+                  - Netscaler: NetscalerHttpReqHost
+                  - String: "int-app-netscaler-10-1-ext.lab2.net\u0000"
+              - 31:
+                  - Netscaler: NetscalerHttpReqUserAgent
+                  - String: "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:32.0) Gecko/20100101 Firefox/32.0\u0000"
+              - 32:
+                  - Netscaler: NetscalerHttpContentType
+                  - String: "\u0000"
+              - 33:
+                  - Netscaler: NetscalerHttpReqAuthorization
+                  - String: "\u0000"
+              - 34:
+                  - Netscaler: NetscalerHttpReqVia
+                  - String: "\u0000"
+              - 35:
+                  - Netscaler: NetscalerHttpReqXForwardedFor
+                  - String: "\u0000"
+              - 36:
+                  - Netscaler: NetscalerAaaUsername
+                  - String: "\u0000"
+      - header:
+          header_id: 257
+          length: 118
+        body:
+          Data:
+            fields:
+              - 0:
+                  - IANA: ObservationPointId
+                  - DataNumber: 8731347
+              - 1:
+                  - IANA: ExportingProcessId
+                  - DataNumber: 0
+              - 2:
+                  - IANA: FlowId
+                  - DataNumber: 2040954
+              - 3:
+                  - Netscaler: NetscalerTransactionId
+                  - DataNumber: 94120
+              - 4:
+                  - Netscaler: NetscalerConnectionId
+                  - DataNumber: 2040953
+              - 5:
+                  - IANA: IpVersion
+                  - DataNumber: 4
+              - 6:
+                  - IANA: ProtocolIdentifier
+                  - ProtocolType: Tcp
+              - 7:
+                  - IANA: PaddingOctets
+                  - String: "\u0000\u0000"
+              - 8:
+                  - IANA: SourceIpv4address
+                  - Ip4Addr: 172.18.159.99
+              - 9:
+                  - IANA: DestinationIpv4address
+                  - Ip4Addr: 172.18.129.61
+              - 10:
+                  - IANA: SourceTransportPort
+                  - DataNumber: 443
+              - 11:
+                  - IANA: DestinationTransportPort
+                  - DataNumber: 51612
+              - 12:
+                  - IANA: PacketDeltaCount
+                  - DataNumber: 7
+              - 13:
+                  - IANA: OctetDeltaCount
+                  - DataNumber: 6917
+              - 14:
+                  - IANA: TcpControlBits
+                  - DataNumber: 24
+              - 15:
+                  - Netscaler: NetscalerFlowFlags
+                  - DataNumber: 1090527232
+              - 16:
+                  - IANA: FlowStartMicroseconds
+                  - Duration:
+                      secs: 15552744373216
+                      nanos: 838403000
+              - 17:
+                  - IANA: FlowEndMicroseconds
+                  - Duration:
+                      secs: 15552744373216
+                      nanos: 850391000
+              - 18:
+                  - Netscaler: NetscalerRoundTripTime
+                  - DataNumber: 3
+              - 19:
+                  - IANA: EgressInterface
+                  - DataNumber: 1
+              - 20:
+                  - IANA: IngressInterface
+                  - DataNumber: 2147483651
+              - 21:
+                  - Netscaler: NetscalerAppNameAppId
+                  - DataNumber: 9510
+              - 22:
+                  - Netscaler: NetscalerConnectionChainID
+                  - Vec:
+                      - 0
+                      - 80
+                      - 86
+                      - 0
+                      - 215
+                      - 43
+                      - 33
+                      - 84
+                      - 27
+                      - 244
+                      - 43
+                      - 84
+                      - 247
+                      - 173
+                      - 11
+                      - 0
+              - 23:
+                  - Netscaler: NetscalerConnectionChainHopCount
+                  - DataNumber: 1
+      - header:
+          header_id: 258
+          length: 503
+        body:
+          Data:
+            fields:
+              - 0:
+                  - IANA: ObservationPointId
+                  - DataNumber: 8731347
+              - 1:
+                  - IANA: ExportingProcessId
+                  - DataNumber: 0
+              - 2:
+                  - IANA: FlowId
+                  - DataNumber: 2040953
+              - 3:
+                  - Netscaler: NetscalerTransactionId
+                  - DataNumber: 94121
+              - 4:
+                  - Netscaler: NetscalerConnectionId
+                  - DataNumber: 2040953
+              - 5:
+                  - IANA: IpVersion
+                  - DataNumber: 4
+              - 6:
+                  - IANA: ProtocolIdentifier
+                  - ProtocolType: Tcp
+              - 7:
+                  - IANA: PaddingOctets
+                  - String: "\u0000\u0000"
+              - 8:
+                  - IANA: SourceIpv4address
+                  - Ip4Addr: 172.18.129.61
+              - 9:
+                  - IANA: DestinationIpv4address
+                  - Ip4Addr: 172.18.159.99
+              - 10:
+                  - IANA: SourceTransportPort
+                  - DataNumber: 51612
+              - 11:
+                  - IANA: DestinationTransportPort
+                  - DataNumber: 443
+              - 12:
+                  - IANA: PacketDeltaCount
+                  - DataNumber: 1
+              - 13:
+                  - IANA: OctetDeltaCount
+                  - DataNumber: 482
+              - 14:
+                  - IANA: TcpControlBits
+                  - DataNumber: 24
+              - 15:
+                  - Netscaler: NetscalerFlowFlags
+                  - DataNumber: 84025344
+              - 16:
+                  - IANA: FlowStartMicroseconds
+                  - Duration:
+                      secs: 15552744373216
+                      nanos: 884381000
+              - 17:
+                  - IANA: FlowEndMicroseconds
+                  - Duration:
+                      secs: 15552744373216
+                      nanos: 884381000
+              - 18:
+                  - IANA: IngressInterface
+                  - DataNumber: 1
+              - 19:
+                  - IANA: EgressInterface
+                  - DataNumber: 2147483651
+              - 20:
+                  - Netscaler: NetscalerAppNameAppId
+                  - DataNumber: 9510
+              - 21:
+                  - Netscaler: NetscalerAppUnitNameAppId
+                  - DataNumber: 0
+              - 22:
+                  - Netscaler: NetscalerHttpResForwFB
+                  - DataNumber: 0
+              - 23:
+                  - Netscaler: NetscalerHttpResForwLB
+                  - DataNumber: 0
+              - 24:
+                  - Netscaler: NetscalerConnectionChainID
+                  - Vec:
+                      - 0
+                      - 80
+                      - 86
+                      - 0
+                      - 215
+                      - 43
+                      - 33
+                      - 84
+                      - 27
+                      - 244
+                      - 43
+                      - 84
+                      - 157
+                      - 54
+                      - 12
+                      - 0
+              - 25:
+                  - Netscaler: NetscalerConnectionChainHopCount
+                  - DataNumber: 1
+              - 26:
+                  - Netscaler: NetscalerHttpReqUrl
+                  - String: "/vpn/images/caxtonstyle.css\u0000"
+              - 27:
+                  - Netscaler: NetscalerHttpReqCookie
+                  - String: "\u0000"
+              - 28:
+                  - Netscaler: NetscalerHttpReqReferer
+                  - String: "https://int-app-netscaler-10-1-ext.lab2.net/vpn/index.html\u0000"
+              - 29:
+                  - Netscaler: NetscalerHttpReqMethod
+                  - String: "GET\u0000"
+              - 30:
+                  - Netscaler: NetscalerHttpReqHost
+                  - String: "int-app-netscaler-10-1-ext.lab2.net\u0000"
+              - 31:
+                  - Netscaler: NetscalerHttpReqUserAgent
+                  - String: "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:32.0) Gecko/20100101 Firefox/32.0\u0000"
+              - 32:
+                  - Netscaler: NetscalerHttpContentType
+                  - String: "\u0000"
+              - 33:
+                  - Netscaler: NetscalerHttpReqAuthorization
+                  - String: "\u0000"
+              - 34:
+                  - Netscaler: NetscalerHttpReqVia
+                  - String: "\u0000"
+              - 35:
+                  - Netscaler: NetscalerHttpReqXForwardedFor
+                  - String: "\u0000"
+              - 36:
+                  - Netscaler: NetscalerAaaUsername
+                  - String: "\u0000"
+      - header:
+          header_id: 257
+          length: 118
+        body:
+          Data:
+            fields:
+              - 0:
+                  - IANA: ObservationPointId
+                  - DataNumber: 8731347
+              - 1:
+                  - IANA: ExportingProcessId
+                  - DataNumber: 0
+              - 2:
+                  - IANA: FlowId
+                  - DataNumber: 2040954
+              - 3:
+                  - Netscaler: NetscalerTransactionId
+                  - DataNumber: 94121
+              - 4:
+                  - Netscaler: NetscalerConnectionId
+                  - DataNumber: 2040953
+              - 5:
+                  - IANA: IpVersion
+                  - DataNumber: 4
+              - 6:
+                  - IANA: ProtocolIdentifier
+                  - ProtocolType: Tcp
+              - 7:
+                  - IANA: PaddingOctets
+                  - String: "\u0000\u0000"
+              - 8:
+                  - IANA: SourceIpv4address
+                  - Ip4Addr: 172.18.159.99
+              - 9:
+                  - IANA: DestinationIpv4address
+                  - Ip4Addr: 172.18.129.61
+              - 10:
+                  - IANA: SourceTransportPort
+                  - DataNumber: 443
+              - 11:
+                  - IANA: DestinationTransportPort
+                  - DataNumber: 51612
+              - 12:
+                  - IANA: PacketDeltaCount
+                  - DataNumber: 15
+              - 13:
+                  - IANA: OctetDeltaCount
+                  - DataNumber: 21968
+              - 14:
+                  - IANA: TcpControlBits
+                  - DataNumber: 24
+              - 15:
+                  - Netscaler: NetscalerFlowFlags
+                  - DataNumber: 1093672960
+              - 16:
+                  - IANA: FlowStartMicroseconds
+                  - Duration:
+                      secs: 15552744373216
+                      nanos: 884381000
+              - 17:
+                  - IANA: FlowEndMicroseconds
+                  - Duration:
+                      secs: 15552744373216
+                      nanos: 886381000
+              - 18:
+                  - Netscaler: NetscalerRoundTripTime
+                  - DataNumber: 2
+              - 19:
+                  - IANA: EgressInterface
+                  - DataNumber: 1
+              - 20:
+                  - IANA: IngressInterface
+                  - DataNumber: 2147483651
+              - 21:
+                  - Netscaler: NetscalerAppNameAppId
+                  - DataNumber: 9510
+              - 22:
+                  - Netscaler: NetscalerConnectionChainID
+                  - Vec:
+                      - 0
+                      - 80
+                      - 86
+                      - 0
+                      - 215
+                      - 43
+                      - 33
+                      - 84
+                      - 27
+                      - 244
+                      - 43
+                      - 84
+                      - 157
+                      - 54
+                      - 12
+                      - 0
+              - 23:
+                  - Netscaler: NetscalerConnectionChainHopCount
+                  - DataNumber: 1

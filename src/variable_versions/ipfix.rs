@@ -90,6 +90,8 @@ pub enum FlowSetBody {
     OptionsData(OptionsData),
     V9Data(V9Data),
     V9OptionsData(V9OptionsData),
+    NoTemplate(Vec<u8>),
+    Empty,
 }
 
 /// Parses a FlowSetBody from the input byte slice based on the provided flowset ID.
@@ -205,8 +207,10 @@ impl FlowSetBody {
                     .templates
                     .get(&id)
                     .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                let (i, data) = Data::parse(i, template)?;
-                Ok((i, FlowSetBody::Data(data)))
+                match Data::parse(i, template) {
+                    Ok((i, data)) => Ok((i, FlowSetBody::Data(data))),
+                    Err(_) => Ok((i, FlowSetBody::Empty)),
+                }
             }
             _ if parser.ipfix_options_templates.contains_key(&id) => {
                 let options_template = parser
@@ -232,6 +236,7 @@ impl FlowSetBody {
                 let (i, data) = V9OptionsData::parse(i, v9_template)?;
                 Ok((i, FlowSetBody::V9OptionsData(data)))
             }
+            _ if id > 255 => Ok((i, FlowSetBody::NoTemplate(i.to_vec()))),
             _ => Err(nom::Err::Error(nom::error::Error::new(
                 i,
                 nom::error::ErrorKind::Verify,
