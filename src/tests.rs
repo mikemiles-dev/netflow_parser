@@ -536,6 +536,7 @@ mod base_tests {
 
         parser.parse_bytes(&hex::decode(hex0).unwrap());
         parser.parse_bytes(&hex::decode(hex1).unwrap());
+
         assert_yaml_snapshot!(parser.parse_bytes(&hex::decode(hex2).unwrap()));
     }
 

@@ -413,23 +413,23 @@ impl<'a> FieldParser {
         template: &T,
     ) -> IResult<&'a [u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
         // If no fields there are no fields to parse, return an error.
-        let (remaining, mut fields, total_taken) =
-            template.get_fields().iter().enumerate().try_fold(
-                (i, vec![], 0usize),
-                |(remaining, mut fields, total_taken), (c, field)| {
-                    let mut data_field = BTreeMap::new();
-                    let (i, field_value) = field.parse_as_field_value(remaining)?;
-                    let taken = remaining.len().saturating_sub(i.len());
-                    data_field.insert(c, (field.field_type, field_value));
-                    fields.push(data_field);
-                    Ok((i, fields, total_taken.saturating_add(taken)))
-                },
-            )?;
+        let (remaining, mut fields) = template.get_fields().iter().enumerate().try_fold(
+            (i, vec![]),
+            |(remaining, mut fields), (c, field)| {
+                let mut data_field = BTreeMap::new();
+                let (i, field_value) = field.parse_as_field_value(remaining)?;
+                data_field.insert(c, (field.field_type, field_value));
+                fields.push(data_field);
+                Ok((i, fields))
+            },
+        )?;
 
-        if remaining.len() >= total_taken {
-            let (remaining, more) = Self::parse(remaining, template)?;
-            fields.extend(more);
-            return Ok((remaining, fields));
+        if !remaining.is_empty() {
+            // Try to parse more, but if it fails, just return what we have so far.
+            if let Ok((rem, more)) = Self::parse(remaining, template) {
+                fields.extend(more);
+                return Ok((rem, fields));
+            }
         }
 
         Ok((remaining, fields))
