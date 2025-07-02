@@ -6,12 +6,14 @@ use serde::Serialize;
 
 const CISCO_ENTERPRISE_NUMBER: u32 = 9;
 const NETSCALER_ENTERPRISE_NUMBER: u32 = 5951;
+const NAT_ENTERPRISE_NUMBER: u32 = 637;
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
 pub enum IPFixField {
     IANA(IANAIPFixField),
     Cisco(CiscoIPFixField),
     Netscaler(NetscalerIPFixField),
+    Nat(NatIPFixField),
     Enterprise(u16),
 }
 
@@ -23,6 +25,9 @@ impl IPFixField {
             }
             Some(pen) if pen == NETSCALER_ENTERPRISE_NUMBER => {
                 NetscalerIPFixField::from(field_type_number).into()
+            }
+            Some(pen) if pen == NAT_ENTERPRISE_NUMBER => {
+                NatIPFixField::from(field_type_number).into()
             }
             Some(_) => IPFixField::Enterprise(field_type_number),
             _ => IPFixField::IANA(IANAIPFixField::from(field_type_number)),
@@ -36,8 +41,44 @@ impl From<IPFixField> for FieldDataType {
             IPFixField::IANA(field) => field.into(),
             IPFixField::Cisco(field) => field.into(),
             IPFixField::Netscaler(field) => field.into(),
+            IPFixField::Nat(field) => field.into(),
             IPFixField::Enterprise(_) => FieldDataType::Unknown,
         }
+    }
+}
+
+#[repr(u16)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
+pub enum NatIPFixField {
+    NatInsideSvcid = 91,
+    NatOutsideSvcid = 92,
+    NatSubString = 93,
+}
+
+impl From<u16> for NatIPFixField {
+    fn from(field_type_number: u16) -> Self {
+        match field_type_number {
+            91 => NatIPFixField::NatInsideSvcid,
+            92 => NatIPFixField::NatOutsideSvcid,
+            93 => NatIPFixField::NatSubString,
+            _ => NatIPFixField::NatInsideSvcid, // Default to a known field
+        }
+    }
+}
+
+impl From<NatIPFixField> for FieldDataType {
+    fn from(field: NatIPFixField) -> FieldDataType {
+        match field {
+            NatIPFixField::NatInsideSvcid => FieldDataType::UnsignedDataNumber,
+            NatIPFixField::NatOutsideSvcid => FieldDataType::UnsignedDataNumber,
+            NatIPFixField::NatSubString => FieldDataType::String,
+        }
+    }
+}
+
+impl From<NatIPFixField> for IPFixField {
+    fn from(field: NatIPFixField) -> Self {
+        IPFixField::Nat(field)
     }
 }
 
