@@ -6,6 +6,7 @@
 * Correctly handling different Enterprise Field Types.
 * Added Netscaler PEN Types.
 * Added NAT PEN Types.
+* Added YAF PEN Types.
 * Re-added Enterprise Field Type for Unknown Enterprise Types.
 
 # 0.5.8
