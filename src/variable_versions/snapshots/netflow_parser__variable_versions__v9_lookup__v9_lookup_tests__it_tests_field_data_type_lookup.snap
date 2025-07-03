@@ -60,7 +60,7 @@ expression: fields
 - MacAddr
 - MacAddr
 - UnsignedDataNumber
-- Unknown
+- UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
 - Ip6Addr
@@ -101,11 +101,11 @@ expression: fields
 - Unknown
 - UnsignedDataNumber
 - UnsignedDataNumber
+- UnsignedDataNumber
 - Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
+- UnsignedDataNumber
+- UnsignedDataNumber
+- UnsignedDataNumber
 - Unknown
 - Unknown
 - Unknown

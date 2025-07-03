@@ -43,62 +43,62 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             field_count: 9
             fields:
               - field_type_number: 8
-                field_type: SourceIpv4address
                 field_length: 4
+                field_type:
+                  IANA: SourceIpv4address
               - field_type_number: 12
-                field_type: DestinationIpv4address
                 field_length: 4
+                field_type:
+                  IANA: DestinationIpv4address
               - field_type_number: 7
-                field_type: SourceTransportPort
                 field_length: 2
+                field_type:
+                  IANA: SourceTransportPort
               - field_type_number: 11
-                field_type: DestinationTransportPort
                 field_length: 2
+                field_type:
+                  IANA: DestinationTransportPort
               - field_type_number: 4
-                field_type: ProtocolIdentifier
                 field_length: 1
+                field_type:
+                  IANA: ProtocolIdentifier
               - field_type_number: 2
-                field_type: PacketDeltaCount
                 field_length: 4
+                field_type:
+                  IANA: PacketDeltaCount
               - field_type_number: 1
-                field_type: OctetDeltaCount
                 field_length: 4
+                field_type:
+                  IANA: OctetDeltaCount
               - field_type_number: 22
-                field_type: FlowStartSysUpTime
                 field_length: 4
+                field_type:
+                  IANA: FlowStartSysUpTime
               - field_type_number: 21
-                field_type: FlowEndSysUpTime
                 field_length: 4
+                field_type:
+                  IANA: FlowEndSysUpTime
       - header:
           header_id: 258
           length: 33
         body:
           Data:
             fields:
-              - 0:
-                  - SourceIpv4address
+              - - - IANA: SourceIpv4address
                   - Ip4Addr: 70.70.1.1
-              - 1:
-                  - DestinationIpv4address
+                - - IANA: DestinationIpv4address
                   - Ip4Addr: 120.120.1.1
-              - 2:
-                  - SourceTransportPort
+                - - IANA: SourceTransportPort
                   - DataNumber: 12345
-              - 3:
-                  - DestinationTransportPort
+                - - IANA: DestinationTransportPort
                   - DataNumber: 32777
-              - 4:
-                  - ProtocolIdentifier
+                - - IANA: ProtocolIdentifier
                   - ProtocolType: Tcp
-              - 5:
-                  - PacketDeltaCount
+                - - IANA: PacketDeltaCount
                   - DataNumber: 100
-              - 6:
-                  - OctetDeltaCount
+                - - IANA: OctetDeltaCount
                   - DataNumber: 125000000
-              - 7:
-                  - FlowStartSysUpTime
+                - - IANA: FlowStartSysUpTime
                   - DataNumber: 1744871721
-              - 8:
-                  - FlowEndSysUpTime
+                - - IANA: FlowEndSysUpTime
                   - DataNumber: 1744871721

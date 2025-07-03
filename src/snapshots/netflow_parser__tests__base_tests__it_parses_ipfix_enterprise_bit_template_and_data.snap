@@ -19,140 +19,177 @@ expression: result
             field_count: 34
             fields:
               - field_type_number: 12236
-                field_type: CiscoClientIpv4Address
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco: CiscoClientIpv4Address
               - field_type_number: 12237
-                field_type: CiscoServerIpv4Address
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco: CiscoServerIpv4Address
               - field_type_number: 12240
-                field_type: CiscoClientL4Port
                 field_length: 2
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 12240
               - field_type_number: 12241
-                field_type: CiscoServerL4Port
                 field_length: 2
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 12241
               - field_type_number: 234
-                field_type: IngressVrfid
                 field_length: 4
+                field_type:
+                  IANA: IngressVrfid
               - field_type_number: 10
-                field_type: IngressInterface
                 field_length: 4
+                field_type:
+                  IANA: IngressInterface
               - field_type_number: 239
-                field_type: BiflowDirection
                 field_length: 1
+                field_type:
+                  IANA: BiflowDirection
               - field_type_number: 12242
-                field_type: CiscoConnectionId
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 12242
               - field_type_number: 95
-                field_type: ApplicationId
                 field_length: 4
+                field_type:
+                  IANA: ApplicationId
               - field_type_number: 14
-                field_type: EgressInterface
                 field_length: 4
+                field_type:
+                  IANA: EgressInterface
               - field_type_number: 48
-                field_type: SamplerId
                 field_length: 1
+                field_type:
+                  IANA: SamplerId
               - field_type_number: 9252
-                field_type: CiscoServicesWaasSegment
                 field_length: 1
                 enterprise_number: 9
+                field_type:
+                  Cisco: CiscoServicesWaasSegment
               - field_type_number: 9253
-                field_type: CiscoServicesWaasPassthroughReason
                 field_length: 1
                 enterprise_number: 9
+                field_type:
+                  Cisco: CiscoServicesWaasPassthroughReason
               - field_type_number: 9357
-                field_type: CiscoAppHttpUriStatistics
                 field_length: 65535
                 enterprise_number: 9
+                field_type:
+                  Cisco: CiscoAppHttpUriStatistics
               - field_type_number: 12235
-                field_type: CiscoAppHttpHost
                 field_length: 65535
                 enterprise_number: 9
+                field_type:
+                  Cisco: CiscoAppHttpHost
               - field_type_number: 22
-                field_type: FlowStartSysUpTime
                 field_length: 4
+                field_type:
+                  IANA: FlowStartSysUpTime
               - field_type_number: 21
-                field_type: FlowEndSysUpTime
                 field_length: 4
+                field_type:
+                  IANA: FlowEndSysUpTime
               - field_type_number: 278
-                field_type: NewConnectionDeltaCount
                 field_length: 4
+                field_type:
+                  IANA: NewConnectionDeltaCount
               - field_type_number: 232
-                field_type: ResponderOctets
                 field_length: 8
+                field_type:
+                  IANA: ResponderOctets
               - field_type_number: 299
-                field_type: ResponderPackets
                 field_length: 8
+                field_type:
+                  IANA: ResponderPackets
               - field_type_number: 231
-                field_type: InitiatorOctets
                 field_length: 8
+                field_type:
+                  IANA: InitiatorOctets
               - field_type_number: 298
-                field_type: InitiatorPackets
                 field_length: 8
+                field_type:
+                  IANA: InitiatorPackets
               - field_type_number: 9303
-                field_type:
-                  Unknown: 9303
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9303
               - field_type_number: 9292
-                field_type:
-                  Unknown: 9292
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9292
               - field_type_number: 9300
-                field_type:
-                  Unknown: 9300
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9300
               - field_type_number: 9319
-                field_type:
-                  Unknown: 9319
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9319
               - field_type_number: 9316
-                field_type:
-                  Unknown: 9316
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9316
               - field_type_number: 9268
-                field_type:
-                  Unknown: 9268
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9268
               - field_type_number: 9313
-                field_type:
-                  Unknown: 9313
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9313
               - field_type_number: 9306
-                field_type:
-                  Unknown: 9306
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9306
               - field_type_number: 9307
-                field_type:
-                  Unknown: 9307
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9307
               - field_type_number: 9309
-                field_type:
-                  Unknown: 9309
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9309
               - field_type_number: 9273
-                field_type:
-                  Unknown: 9273
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9273
               - field_type_number: 9272
-                field_type:
-                  Unknown: 9272
                 field_length: 4
                 enterprise_number: 9
+                field_type:
+                  Cisco:
+                    Unknown: 9272
 - IPFix:
     header:
       version: 10
@@ -167,153 +204,142 @@ expression: result
         body:
           Data:
             fields:
-              - 0:
-                  - CiscoClientIpv4Address
+              - - - Cisco: CiscoClientIpv4Address
                   - Ip4Addr: 10.209.101.66
-              - 1:
-                  - CiscoServerIpv4Address
+                - - Cisco: CiscoServerIpv4Address
                   - Ip4Addr: 10.0.0.241
-              - 2:
-                  - CiscoClientL4Port
-                  - DataNumber: 49376
-              - 3:
-                  - CiscoServerL4Port
-                  - DataNumber: 80
-              - 4:
-                  - IngressVrfid
+                - - Cisco:
+                      Unknown: 12240
+                  - Vec:
+                      - 192
+                      - 224
+                - - Cisco:
+                      Unknown: 12241
+                  - Vec:
+                      - 0
+                      - 80
+                - - IANA: IngressVrfid
                   - DataNumber: 0
-              - 5:
-                  - IngressInterface
+                - - IANA: IngressInterface
                   - DataNumber: 13
-              - 6:
-                  - BiflowDirection
+                - - IANA: BiflowDirection
                   - DataNumber: 1
-              - 7:
-                  - CiscoConnectionId
-                  - DataNumber: 2378383328
-              - 8:
-                  - ApplicationId
+                - - Cisco:
+                      Unknown: 12242
+                  - Vec:
+                      - 141
+                      - 195
+                      - 63
+                      - 224
+                - - IANA: ApplicationId
                   - ApplicationId:
                       classification_engine_id: 3
                       selector_id: 80
-              - 9:
-                  - EgressInterface
+                - - IANA: EgressInterface
                   - DataNumber: 10
-              - 10:
-                  - SamplerId
+                - - IANA: SamplerId
                   - DataNumber: 9
-              - 11:
-                  - CiscoServicesWaasSegment
+                - - Cisco: CiscoServicesWaasSegment
                   - DataNumber: 16
-              - 12:
-                  - CiscoServicesWaasPassthroughReason
+                - - Cisco: CiscoServicesWaasPassthroughReason
                   - DataNumber: 0
-              - 13:
-                  - CiscoAppHttpUriStatistics
+                - - Cisco: CiscoAppHttpUriStatistics
                   - String: "/DocLib1\u0000\u0000\u0001"
-              - 14:
-                  - CiscoAppHttpHost
+                - - Cisco: CiscoAppHttpHost
                   - String: "\u0003\u0000\u0000P4\u0002portal.medsigroup.ru"
-              - 15:
-                  - FlowStartSysUpTime
+                - - IANA: FlowStartSysUpTime
                   - DataNumber: 564191867
-              - 16:
-                  - FlowEndSysUpTime
+                - - IANA: FlowEndSysUpTime
                   - DataNumber: 564303806
-              - 17:
-                  - NewConnectionDeltaCount
+                - - IANA: NewConnectionDeltaCount
                   - DataNumber: 1
-              - 18:
-                  - ResponderOctets
+                - - IANA: ResponderOctets
                   - DataNumber: 0
-              - 19:
-                  - ResponderPackets
+                - - IANA: ResponderPackets
                   - DataNumber: 0
-              - 20:
-                  - InitiatorOctets
+                - - IANA: InitiatorOctets
                   - DataNumber: 6208
-              - 21:
-                  - InitiatorPackets
+                - - IANA: InitiatorPackets
                   - DataNumber: 15
-              - 22:
-                  - Unknown: 9303
+                - - Cisco:
+                      Unknown: 9303
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 23:
-                  - Unknown: 9292
+                - - Cisco:
+                      Unknown: 9292
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 24:
-                  - Unknown: 9300
+                - - Cisco:
+                      Unknown: 9300
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 25:
-                  - Unknown: 9319
+                - - Cisco:
+                      Unknown: 9319
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 26:
-                  - Unknown: 9316
+                - - Cisco:
+                      Unknown: 9316
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 27:
-                  - Unknown: 9268
+                - - Cisco:
+                      Unknown: 9268
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 28:
-                  - Unknown: 9313
+                - - Cisco:
+                      Unknown: 9313
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 29:
-                  - Unknown: 9306
+                - - Cisco:
+                      Unknown: 9306
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 30:
-                  - Unknown: 9307
+                - - Cisco:
+                      Unknown: 9307
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 31:
-                  - Unknown: 9309
+                - - Cisco:
+                      Unknown: 9309
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 32:
-                  - Unknown: 9273
+                - - Cisco:
+                      Unknown: 9273
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 33:
-                  - Unknown: 9272
+                - - Cisco:
+                      Unknown: 9272
                   - Vec:
                       - 0
                       - 0

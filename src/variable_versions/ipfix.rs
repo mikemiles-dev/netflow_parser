@@ -34,7 +34,8 @@ const DATA_TEMPLATE_IPFIX_ID: u16 = 2;
 const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
 
 type TemplateId = u16;
-type IPFixFieldPair = (IPFixField, FieldValue);
+pub type IPFixFieldPair = (IPFixField, FieldValue);
+pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
 
 #[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct IPFixParser {
@@ -81,13 +82,18 @@ pub struct IPFix {
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum FlowSetBody {
     Template(Template),
+    Templates(Vec<Template>),
     V9Template(V9Template),
+    V9Templates(Vec<V9Template>),
     OptionsTemplate(OptionsTemplate),
+    OptionsTemplates(Vec<OptionsTemplate>),
     V9OptionsTemplate(V9OptionsTemplate),
     Data(Data),
     OptionsData(OptionsData),
     V9Data(V9Data),
     V9OptionsData(V9OptionsData),
+    NoTemplate(Vec<u8>),
+    Empty,
 }
 
 /// Parses a FlowSetBody from the input byte slice based on the provided flowset ID.
@@ -131,24 +137,56 @@ impl FlowSetBody {
     ) -> IResult<&'a [u8], FlowSetBody> {
         match id {
             DATA_TEMPLATE_IPFIX_ID => {
-                let (i, template) = Template::parse(i)?;
-                if !template.is_valid() {
+                let (i, templates) = many0(complete(Template::parse))(i)?;
+                if templates.is_empty() || templates.iter().any(|t| !t.is_valid()) {
                     return Err(nom::Err::Error(nom::error::Error::new(
                         i,
                         nom::error::ErrorKind::Verify,
                     )));
                 }
-                parser
-                    .templates
-                    .insert(template.template_id, template.clone());
-                Ok((i, FlowSetBody::Template(template)))
+                for template in &templates {
+                    parser
+                        .templates
+                        .insert(template.template_id, template.clone());
+                }
+                if templates.len() == 1 {
+                    if let Some(template) = templates.first().cloned() {
+                        Ok((i, FlowSetBody::Template(template)))
+                    } else {
+                        Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Verify,
+                        )))
+                    }
+                } else {
+                    Ok((i, FlowSetBody::Templates(templates.clone())))
+                }
             }
             DATA_TEMPLATE_V9_ID => {
-                let (i, template) = V9Template::parse(i)?;
-                parser
-                    .v9_templates
-                    .insert(template.template_id, template.clone());
-                Ok((i, FlowSetBody::V9Template(template)))
+                let (i, templates) = many0(complete(V9Template::parse))(i)?;
+                if templates.is_empty() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )));
+                }
+                for template in &templates {
+                    parser
+                        .v9_templates
+                        .insert(template.template_id, template.clone());
+                }
+                if templates.len() == 1 {
+                    if let Some(template) = templates.first().cloned() {
+                        Ok((i, FlowSetBody::V9Template(template)))
+                    } else {
+                        Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Verify,
+                        )))
+                    }
+                } else {
+                    Ok((i, FlowSetBody::V9Templates(templates.clone())))
+                }
             }
             OPTIONS_TEMPLATE_V9_ID => {
                 let (i, options_template) = V9OptionsTemplate::parse(i)?;
@@ -158,33 +196,52 @@ impl FlowSetBody {
                 Ok((i, FlowSetBody::V9OptionsTemplate(options_template)))
             }
             OPTIONS_TEMPLATE_IPFIX_ID => {
-                let (i, options_template) = OptionsTemplate::parse(i)?;
-                if !options_template.is_valid() {
+                let (i, options_templates) = many0(complete(OptionsTemplate::parse))(i)?;
+                if options_templates.is_empty()
+                    || options_templates.iter().any(|t| !t.is_valid())
+                {
                     return Err(nom::Err::Error(nom::error::Error::new(
                         i,
                         nom::error::ErrorKind::Verify,
                     )));
                 }
-                parser
-                    .ipfix_options_templates
-                    .insert(options_template.template_id, options_template.clone());
-                Ok((i, FlowSetBody::OptionsTemplate(options_template)))
+                for options_template in &options_templates {
+                    parser
+                        .ipfix_options_templates
+                        .insert(options_template.template_id, options_template.clone());
+                }
+                if options_templates.len() == 1 {
+                    if let Some(options_template) = options_templates.first().cloned() {
+                        Ok((i, FlowSetBody::OptionsTemplate(options_template)))
+                    } else {
+                        Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Verify,
+                        )))
+                    }
+                } else {
+                    Ok((i, FlowSetBody::OptionsTemplates(options_templates.clone())))
+                }
             }
             _ if parser.templates.contains_key(&id) => {
                 let template = parser
                     .templates
                     .get(&id)
                     .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                let (i, data) = Data::parse(i, template)?;
-                Ok((i, FlowSetBody::Data(data)))
+                match Data::parse(i, template) {
+                    Ok((i, data)) => Ok((i, FlowSetBody::Data(data))),
+                    Err(_) => Ok((i, FlowSetBody::Empty)),
+                }
             }
             _ if parser.ipfix_options_templates.contains_key(&id) => {
                 let options_template = parser
                     .ipfix_options_templates
                     .get(&id)
                     .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                let (i, options_data) = OptionsData::parse(i, options_template)?;
-                Ok((i, FlowSetBody::OptionsData(options_data)))
+                match OptionsData::parse(i, options_template) {
+                    Ok((i, data)) => Ok((i, FlowSetBody::OptionsData(data))),
+                    Err(_) => Ok((i, FlowSetBody::Empty)),
+                }
             }
             _ if parser.v9_templates.contains_key(&id) => {
                 let v9_template = parser
@@ -202,6 +259,7 @@ impl FlowSetBody {
                 let (i, data) = V9OptionsData::parse(i, v9_template)?;
                 Ok((i, FlowSetBody::V9OptionsData(data)))
             }
+            _ if id > 255 => Ok((i, FlowSetBody::NoTemplate(i.to_vec()))),
             _ => Err(nom::Err::Error(nom::error::Error::new(
                 i,
                 nom::error::ErrorKind::Verify,
@@ -274,9 +332,7 @@ pub struct Data {
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<Template>(i, template) }"
     )]
-    pub fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
-    #[serde(skip_serializing)]
-    pub padding: Vec<u8>,
+    pub fields: Vec<IpFixFlowRecord>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -286,9 +342,7 @@ pub struct OptionsData {
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template) }"
     )]
-    pub fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
-    #[serde(skip_serializing)]
-    pub padding: Vec<u8>,
+    pub fields: Vec<Vec<(IPFixField, FieldValue)>>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -302,36 +356,30 @@ pub struct OptionsTemplate {
         Parse = "count(TemplateField::parse, combined_count)"
     )]
     pub fields: Vec<TemplateField>,
-    #[serde(skip_serializing)]
-    pub padding: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom, Default)]
 pub struct Template {
     pub template_id: u16,
     pub field_count: u16,
+    #[nom(Count = "field_count")]
     pub fields: Vec<TemplateField>,
-    #[serde(skip_serializing)]
-    pub padding: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct TemplateField {
-    pub field_type_number: u16,
-    #[nom(Value(IPFixField::from(field_type_number)))]
-    pub field_type: IPFixField,
-    pub field_length: u16,
     #[nom(
-        Cond = "field_type_number > 32767",
-        PostExec = "let field_type_number = if enterprise_number.is_some() {
-                      field_type_number.overflowing_sub(32768).0
-                    } else { field_type_number };",
-        PostExec = "let field_type = if enterprise_number.is_some() {
-                        IPFixField::from(field_type_number)
-                    } else { field_type };"
+        PostExec = "let (field_type_number, is_enterprise) = if field_type_number > 32767 {
+                        (field_type_number.overflowing_sub(32768).0, true)
+                     } else { (field_type_number, false) };"
     )]
+    pub field_type_number: u16,
+    pub field_length: u16,
+    #[nom(Cond = "is_enterprise")]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub enterprise_number: Option<u32>,
+    #[nom(Value(IPFixField::new(field_type_number, enterprise_number)))]
+    pub field_type: IPFixField,
 }
 
 // Common trait for both templates.  Mainly for fetching fields.
@@ -362,30 +410,26 @@ impl<'a> FieldParser {
     /// Fields get matched to static types.
     /// Returns BTree of IPFix Types & Fields or IResult Error.
     fn parse<T: CommonTemplate>(
-        i: &'a [u8],
+        mut i: &'a [u8],
         template: &T,
-    ) -> IResult<&'a [u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
-        // If no fields there are no fields to parse, return an error.
-        let (remaining, mut fields, total_taken) =
-            template.get_fields().iter().enumerate().try_fold(
-                (i, vec![], 0usize),
-                |(remaining, mut fields, total_taken), (c, field)| {
-                    let mut data_field = BTreeMap::new();
-                    let (i, field_value) = field.parse_as_field_value(remaining)?;
-                    let taken = remaining.len().saturating_sub(i.len());
-                    data_field.insert(c, (field.field_type, field_value));
-                    fields.push(data_field);
-                    Ok((i, fields, total_taken.saturating_add(taken)))
-                },
-            )?;
-
-        if remaining.len() >= total_taken {
-            let (remaining, more) = Self::parse(remaining, template)?;
-            fields.extend(more);
-            return Ok((remaining, fields));
+    ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
+        let template_fields = template.get_fields();
+        let mut res = Vec::new();
+        // Try to parse as much as we can, but if it fails, just return what we have so far.
+        while i.len() > 0 {
+            let mut vec = Vec::new();
+            for field in template_fields.iter() {
+                let field_res = field.parse_as_field_value(i);
+                if field_res.is_err() {
+                    return Ok((i, res));
+                }
+                let (remaining, field_value) = field_res.unwrap();
+                vec.push((field.field_type, field_value));
+                i = remaining;
+            }
+            res.push(vec);
         }
-
-        Ok((remaining, fields))
+        Ok((i, res))
     }
 }
 
@@ -442,7 +486,22 @@ impl IPFix {
                         result_flowset.extend_from_slice(&enterprise.to_be_bytes());
                     }
                 }
-                result_flowset.extend_from_slice(&template.padding);
+            }
+
+            if let FlowSetBody::Templates(templates) = &flow.body {
+                for template in templates.iter() {
+                    result_flowset.extend_from_slice(&template.template_id.to_be_bytes());
+                    result_flowset.extend_from_slice(&template.field_count.to_be_bytes());
+
+                    for field in template.fields.iter() {
+                        result_flowset
+                            .extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result_flowset.extend_from_slice(&field.field_length.to_be_bytes());
+                        if let Some(enterprise) = field.enterprise_number {
+                            result_flowset.extend_from_slice(&enterprise.to_be_bytes());
+                        }
+                    }
+                }
             }
 
             if let FlowSetBody::V9Template(template) = &flow.body {
@@ -467,7 +526,6 @@ impl IPFix {
                         result_flowset.extend_from_slice(&enterprise.to_be_bytes());
                     }
                 }
-                result_flowset.extend_from_slice(&options_template.padding);
             }
 
             if let FlowSetBody::V9OptionsTemplate(template) = &flow.body {
@@ -486,25 +544,23 @@ impl IPFix {
 
             if let FlowSetBody::Data(data) = &flow.body {
                 for item in data.fields.iter() {
-                    for (_, (_, v)) in item.iter() {
+                    for (_, v) in item.iter() {
                         result_flowset.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }
-                result_flowset.extend_from_slice(&data.padding);
             }
 
             if let FlowSetBody::OptionsData(data) = &flow.body {
                 for item in data.fields.iter() {
-                    for (_, (_, v)) in item.iter() {
+                    for (_, v) in item.iter() {
                         result_flowset.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }
-                result_flowset.extend_from_slice(&data.padding);
             }
 
             if let FlowSetBody::V9Data(data) = &flow.body {
                 for item in data.fields.iter() {
-                    for (_, (_, v)) in item.iter() {
+                    for (_, v) in item.iter() {
                         result_flowset.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }

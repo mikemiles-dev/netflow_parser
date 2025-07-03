@@ -9,4 +9,8 @@ expression: parser.parse_bytes(&packet)
       export_time: 1
       sequence_number: 1
       observation_domain_id: 0
-    flowsets: []
+    flowsets:
+      - header:
+          header_id: 258
+          length: 10
+        body: Empty

@@ -1,3 +1,15 @@
+# 0.5.9
+* IPFIX now supports multiple Templates in a flow
+* Fixed bug with parsing IPFix fields that would omit some data.
+* New IPFix FlowSetBody type added called NoTemplate and Empty.
+* NoTemplate returns data that allows you to cache flows that do not have a template for later parsing.
+* Correctly handling different Enterprise Field Types.
+* Added Netscaler PEN Types.
+* Added NAT PEN Types.
+* Added YAF PEN Types.
+* Added VMWARE PEN Types.
+* Re-added Enterprise Field Type for Unknown Enterprise Types.
+
 # 0.5.8
 * V9 Found and fixed divide by 0 issue.
 * IPFix Protocol Identifier now parsers as ProtocolIdentifier Field Type and not UnsignedDataNumber.

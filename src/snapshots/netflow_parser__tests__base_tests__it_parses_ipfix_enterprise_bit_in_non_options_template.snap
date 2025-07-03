@@ -19,11 +19,12 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             field_count: 2
             fields:
               - field_type_number: 103
-                field_type: Layer2packetSectionSize
                 field_length: 65535
                 enterprise_number: 407732327
-              - field_type_number: 32767
                 field_type:
-                  Unknown: 32767
+                  Enterprise: 103
+              - field_type_number: 32767
                 field_length: 0
                 enterprise_number: 407732544
+                field_type:
+                  Enterprise: 32767
