@@ -16,38 +16,31 @@ pub enum IPFixField {
     Cisco(CiscoIPFixField),
     Netscaler(NetscalerIPFixField),
     Nat(NatIPFixField),
-    YafIPFixField(YafIPFixField),
+    Yaf(YafIPFixField),
     VMWare(VMWareIPFixField),
     Enterprise(u16),
 }
 
 impl IPFixField {
     pub fn new(field_type_number: u16, enterprise_number: Option<u32>) -> Self {
+        let enterprise_number = match enterprise_number {
+            Some(enterprise_number) => enterprise_number,
+            None => return IPFixField::IANA(IANAIPFixField::from(field_type_number)),
+        };
         match enterprise_number {
-            Some(pen) if pen == CISCO_ENTERPRISE_NUMBER => {
-                CiscoIPFixField::from(field_type_number).into()
+            CISCO_ENTERPRISE_NUMBER => {
+                IPFixField::Cisco(CiscoIPFixField::from(field_type_number))
             }
-            Some(pen) if pen == NETSCALER_ENTERPRISE_NUMBER => {
-                NetscalerIPFixField::from(field_type_number).into()
+            NETSCALER_ENTERPRISE_NUMBER => {
+                IPFixField::Netscaler(NetscalerIPFixField::from(field_type_number))
             }
-            Some(pen) if pen == NAT_ENTERPRISE_NUMBER => {
-                NatIPFixField::from(field_type_number).into()
+            NAT_ENTERPRISE_NUMBER => IPFixField::Nat(NatIPFixField::from(field_type_number)),
+            YAF_ENTERPRISE_NUMBER => IPFixField::Yaf(YafIPFixField::from(field_type_number)),
+            VMWARE_ENTERPRISE_NUMBER => {
+                IPFixField::VMWare(VMWareIPFixField::from(field_type_number))
             }
-            Some(pen) if pen == YAF_ENTERPRISE_NUMBER => {
-                YafIPFixField::from(field_type_number).into()
-            }
-            Some(pen) if pen == VMWARE_ENTERPRISE_NUMBER => {
-                VMWareIPFixField::from(field_type_number).into()
-            }
-            Some(_) => IPFixField::Enterprise(field_type_number),
-            _ => IPFixField::IANA(IANAIPFixField::from(field_type_number)),
+            _ => IPFixField::Enterprise(field_type_number),
         }
-    }
-}
-
-impl From<VMWareIPFixField> for IPFixField {
-    fn from(field: VMWareIPFixField) -> Self {
-        IPFixField::VMWare(field)
     }
 }
 
@@ -94,7 +87,7 @@ impl From<IPFixField> for FieldDataType {
             IPFixField::Cisco(field) => field.into(),
             IPFixField::Netscaler(field) => field.into(),
             IPFixField::Nat(field) => field.into(),
-            IPFixField::YafIPFixField(field) => field.into(),
+            IPFixField::Yaf(field) => field.into(),
             IPFixField::VMWare(field) => field.into(),
             IPFixField::Enterprise(_) => FieldDataType::Unknown,
         }
@@ -319,12 +312,6 @@ impl From<u16> for YafIPFixField {
     }
 }
 
-impl From<YafIPFixField> for IPFixField {
-    fn from(field: YafIPFixField) -> Self {
-        IPFixField::YafIPFixField(field)
-    }
-}
-
 #[repr(u16)]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
 pub enum VMWareIPFixField {
@@ -470,12 +457,6 @@ impl From<NatIPFixField> for FieldDataType {
             NatIPFixField::NatOutsideSvcid => FieldDataType::UnsignedDataNumber,
             NatIPFixField::NatSubString => FieldDataType::String,
         }
-    }
-}
-
-impl From<NatIPFixField> for IPFixField {
-    fn from(field: NatIPFixField) -> Self {
-        IPFixField::Nat(field)
     }
 }
 
@@ -710,20 +691,6 @@ impl From<NetscalerIPFixField> for FieldDataType {
             NetscalerIPFixField::Unknown(_) => FieldDataType::Unknown,
             _ => FieldDataType::UnsignedDataNumber,
         }
-    }
-}
-
-// Implement From<CiscoIPFixField> for IPFixField
-impl From<CiscoIPFixField> for IPFixField {
-    fn from(field: CiscoIPFixField) -> Self {
-        IPFixField::Cisco(field)
-    }
-}
-
-// Implement From<NetscalerIPFixField> for IPFixField
-impl From<NetscalerIPFixField> for IPFixField {
-    fn from(field: NetscalerIPFixField) -> Self {
-        IPFixField::Netscaler(field)
     }
 }
 
