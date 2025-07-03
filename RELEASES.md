@@ -1,5 +1,6 @@
 # 0.6.0
 * Remove Control Characters from FieldDataType unicode strings
+* Added PCAP example and how to cache IPFix flows without a packet for later parsing.
 
 # 0.5.9
 * IPFIX now supports multiple Templates in a flow
