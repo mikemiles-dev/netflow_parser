@@ -81,12 +81,14 @@ fn main() {
                 NetflowPacket::V7(_v7) => parsed_packets.push(result),
                 NetflowPacket::V9(_v9) => parsed_packets.push(result),
                 NetflowPacket::IPFix(ipfix) => {
-                    for flow in ipfix.flowsets {
-                        if let FlowSetBody::NoTemplate(_) = flow.body {
-                            no_template_packets.push(data);
-                        } else {
-                            parsed_packets.push(result.clone());
-                        }
+                    let has_no_template = ipfix
+                        .flowsets
+                        .iter()
+                        .any(|flow| matches!(flow.body, FlowSetBody::NoTemplate(_)));
+                    if has_no_template {
+                        no_template_packets.push(data);
+                    } else {
+                        parsed_packets.push(result.clone());
                     }
                 }
                 NetflowPacket::Error(e) => println!("Error: {:?}", e),

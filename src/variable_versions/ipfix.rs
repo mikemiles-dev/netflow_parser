@@ -416,7 +416,7 @@ impl<'a> FieldParser {
         let template_fields = template.get_fields();
         let mut res = Vec::new();
         // Try to parse as much as we can, but if it fails, just return what we have so far.
-        while i.len() > 0 {
+        while !i.is_empty() {
             let mut vec = Vec::new();
             for field in template_fields.iter() {
                 let field_res = field.parse_as_field_value(i);
