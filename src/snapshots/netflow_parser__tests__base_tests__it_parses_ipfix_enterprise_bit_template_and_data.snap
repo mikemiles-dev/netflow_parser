@@ -204,175 +204,141 @@ expression: result
         body:
           Data:
             fields:
-              - 0:
-                  - Cisco: CiscoClientIpv4Address
+              - - - Cisco: CiscoClientIpv4Address
                   - Ip4Addr: 10.209.101.66
-              - 1:
-                  - Cisco: CiscoServerIpv4Address
+                - - Cisco: CiscoServerIpv4Address
                   - Ip4Addr: 10.0.0.241
-              - 2:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 12240
                   - Vec:
                       - 192
                       - 224
-              - 3:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 12241
                   - Vec:
                       - 0
                       - 80
-              - 4:
-                  - IANA: IngressVrfid
+                - - IANA: IngressVrfid
                   - DataNumber: 0
-              - 5:
-                  - IANA: IngressInterface
+                - - IANA: IngressInterface
                   - DataNumber: 13
-              - 6:
-                  - IANA: BiflowDirection
+                - - IANA: BiflowDirection
                   - DataNumber: 1
-              - 7:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 12242
                   - Vec:
                       - 141
                       - 195
                       - 63
                       - 224
-              - 8:
-                  - IANA: ApplicationId
+                - - IANA: ApplicationId
                   - ApplicationId:
                       classification_engine_id: 3
                       selector_id: 80
-              - 9:
-                  - IANA: EgressInterface
+                - - IANA: EgressInterface
                   - DataNumber: 10
-              - 10:
-                  - IANA: SamplerId
+                - - IANA: SamplerId
                   - DataNumber: 9
-              - 11:
-                  - Cisco: CiscoServicesWaasSegment
+                - - Cisco: CiscoServicesWaasSegment
                   - DataNumber: 16
-              - 12:
-                  - Cisco: CiscoServicesWaasPassthroughReason
+                - - Cisco: CiscoServicesWaasPassthroughReason
                   - DataNumber: 0
-              - 13:
-                  - Cisco: CiscoAppHttpUriStatistics
+                - - Cisco: CiscoAppHttpUriStatistics
                   - String: "/DocLib1\u0000\u0000\u0001"
-              - 14:
-                  - Cisco: CiscoAppHttpHost
+                - - Cisco: CiscoAppHttpHost
                   - String: "\u0003\u0000\u0000P4\u0002portal.medsigroup.ru"
-              - 15:
-                  - IANA: FlowStartSysUpTime
+                - - IANA: FlowStartSysUpTime
                   - DataNumber: 564191867
-              - 16:
-                  - IANA: FlowEndSysUpTime
+                - - IANA: FlowEndSysUpTime
                   - DataNumber: 564303806
-              - 17:
-                  - IANA: NewConnectionDeltaCount
+                - - IANA: NewConnectionDeltaCount
                   - DataNumber: 1
-              - 18:
-                  - IANA: ResponderOctets
+                - - IANA: ResponderOctets
                   - DataNumber: 0
-              - 19:
-                  - IANA: ResponderPackets
+                - - IANA: ResponderPackets
                   - DataNumber: 0
-              - 20:
-                  - IANA: InitiatorOctets
+                - - IANA: InitiatorOctets
                   - DataNumber: 6208
-              - 21:
-                  - IANA: InitiatorPackets
+                - - IANA: InitiatorPackets
                   - DataNumber: 15
-              - 22:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9303
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 23:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9292
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 24:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9300
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 25:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9319
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 26:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9316
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 27:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9268
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 28:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9313
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 29:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9306
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 30:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9307
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 31:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9309
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 32:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9273
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-              - 33:
-                  - Cisco:
+                - - Cisco:
                       Unknown: 9272
                   - Vec:
                       - 0

@@ -287,135 +287,101 @@ expression: "NetflowParser::default().parse_bytes(&packets)"
         body:
           Data:
             fields:
-              - 0:
-                  - Ipv4SrcAddr
+              - - - Ipv4SrcAddr
                   - Ip4Addr: 192.168.18.10
-                1:
-                  - Ipv4DstAddr
+                - - Ipv4DstAddr
                   - Ip4Addr: 141.24.12.2
-                2:
-                  - Ipv4NextHop
+                - - Ipv4NextHop
                   - Ip4Addr: 0.0.0.0
-                3:
-                  - L4SrcPort
+                - - L4SrcPort
                   - DataNumber: 49856
-                4:
-                  - L4DstPort
+                - - L4DstPort
                   - DataNumber: 53
-                5:
-                  - InputSnmp
+                - - InputSnmp
                   - DataNumber: 2
-                6:
-                  - OutputSnmp
+                - - OutputSnmp
                   - DataNumber: 0
-                7:
-                  - Unknown
+                - - Unknown
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-                8:
-                  - Unknown
+                - - Unknown
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-                9:
-                  - InPkts
+                - - InPkts
                   - DataNumber: 1
-                10:
-                  - InBytes
+                - - InBytes
                   - DataNumber: 82
-                11:
-                  - FirstSwitched
+                - - FirstSwitched
                   - Duration:
                       secs: 10690
                       nanos: 167000000
-                12:
-                  - LastSwitched
+                - - LastSwitched
                   - Duration:
                       secs: 10690
                       nanos: 167000000
-                13:
-                  - Protocol
+                - - Protocol
                   - ProtocolType: Udp
-                14:
-                  - SrcTos
+                - - SrcTos
                   - DataNumber: 0
-                15:
-                  - Unknown
+                - - Unknown
                   - Vec:
                       - 8
                       - 0
-                16:
-                  - Direction
+                - - Direction
                   - DataNumber: 1
-              - 0:
-                  - Ipv4SrcAddr
+              - - - Ipv4SrcAddr
                   - Ip4Addr: 192.168.18.10
-                1:
-                  - Ipv4DstAddr
+                - - Ipv4DstAddr
                   - Ip4Addr: 141.24.12.2
-                2:
-                  - Ipv4NextHop
+                - - Ipv4NextHop
                   - Ip4Addr: 0.0.0.0
-                3:
-                  - L4SrcPort
+                - - L4SrcPort
                   - DataNumber: 40483
-                4:
-                  - L4DstPort
+                - - L4DstPort
                   - DataNumber: 53
-                5:
-                  - InputSnmp
+                - - InputSnmp
                   - DataNumber: 2
-                6:
-                  - OutputSnmp
+                - - OutputSnmp
                   - DataNumber: 0
-                7:
-                  - Unknown
+                - - Unknown
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-                8:
-                  - Unknown
+                - - Unknown
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-                9:
-                  - InPkts
+                - - InPkts
                   - DataNumber: 1
-                10:
-                  - InBytes
+                - - InBytes
                   - DataNumber: 82
-                11:
-                  - FirstSwitched
+                - - FirstSwitched
                   - Duration:
                       secs: 10688
                       nanos: 891000000
-                12:
-                  - LastSwitched
+                - - LastSwitched
                   - Duration:
                       secs: 10688
                       nanos: 891000000
-                13:
-                  - Protocol
+                - - Protocol
                   - ProtocolType: Udp
-                14:
-                  - SrcTos
+                - - SrcTos
                   - DataNumber: 0
-                15:
-                  - Unknown
+                - - Unknown
                   - Vec:
                       - 8
                       - 0
-                16:
-                  - Direction
+                - - Direction
                   - DataNumber: 1
       - header:
           flowset_id: 262
@@ -423,77 +389,57 @@ expression: "NetflowParser::default().parse_bytes(&packets)"
         body:
           Data:
             fields:
-              - 0:
-                  - Ipv6SrcAddr
+              - - - Ipv6SrcAddr
                   - Ip6Addr: "fd01:8::2a20:235f:1f7b:9379"
-                1:
-                  - Ipv6DstAddr
+                - - Ipv6DstAddr
                   - Ip6Addr: "fd00::b2f2:8ff:fe20:1180"
-                2:
-                  - Ipv6NextHop
+                - - Ipv6NextHop
                   - Ip6Addr: "::"
-                3:
-                  - Ipv6FlowLabel
+                - - Ipv6FlowLabel
                   - DataNumber: 128630
-                4:
-                  - L4SrcPort
+                - - L4SrcPort
                   - DataNumber: 58037
-                5:
-                  - L4DstPort
+                - - L4DstPort
                   - DataNumber: 53
-                6:
-                  - TcpFlags
+                - - TcpFlags
                   - DataNumber: 0
-                7:
-                  - InputSnmp
+                - - InputSnmp
                   - DataNumber: 2
-                8:
-                  - OutputSnmp
+                - - OutputSnmp
                   - DataNumber: 0
-                9:
-                  - Unknown
+                - - Unknown
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-                10:
-                  - Unknown
+                - - Unknown
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 0
-                11:
-                  - InPkts
+                - - InPkts
                   - DataNumber: 1
-                12:
-                  - InBytes
+                - - InBytes
                   - DataNumber: 102
-                13:
-                  - FirstSwitched
+                - - FirstSwitched
                   - Duration:
                       secs: 10688
                       nanos: 891000000
-                14:
-                  - LastSwitched
+                - - LastSwitched
                   - Duration:
                       secs: 10688
                       nanos: 891000000
-                15:
-                  - Protocol
+                - - Protocol
                   - ProtocolType: Udp
-                16:
-                  - SrcTos
+                - - SrcTos
                   - DataNumber: 0
-                17:
-                  - InDstMac
+                - - InDstMac
                   - MacAddr: "10:90:27:E0:43:6D"
-                18:
-                  - Unknown
+                - - Unknown
                   - Vec:
                       - 134
                       - 221
-                19:
-                  - Direction
+                - - Direction
                   - DataNumber: 1

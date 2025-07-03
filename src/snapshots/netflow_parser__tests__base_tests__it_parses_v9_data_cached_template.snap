@@ -17,9 +17,7 @@ expression: parser.parse_bytes(&packet)
         body:
           Data:
             fields:
-              - 0:
-                  - InBytes
+              - - - InBytes
                   - DataNumber: 151126788
-                1:
-                  - Ipv4SrcAddr
+                - - Ipv4SrcAddr
                   - Ip4Addr: 9.9.9.8

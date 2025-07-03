@@ -124,76 +124,53 @@ expression: result
         body:
           Data:
             fields:
-              - 0:
-                  - IANA: SourceIpv4address
+              - - - IANA: SourceIpv4address
                   - Ip4Addr: 70.1.115.1
-              - 1:
-                  - IANA: DestinationIpv4address
+                - - IANA: DestinationIpv4address
                   - Ip4Addr: 50.0.71.1
-              - 2:
-                  - IANA: IpClassOfService
+                - - IANA: IpClassOfService
                   - DataNumber: 0
-              - 3:
-                  - IANA: ProtocolIdentifier
+                - - IANA: ProtocolIdentifier
                   - ProtocolType: Anydistributedprotocol
-              - 4:
-                  - IANA: SourceTransportPort
+                - - IANA: SourceTransportPort
                   - DataNumber: 0
-              - 5:
-                  - IANA: DestinationTransportPort
+                - - IANA: DestinationTransportPort
                   - DataNumber: 0
-              - 6:
-                  - IANA: IcmpTypeCodeIpv4
+                - - IANA: IcmpTypeCodeIpv4
                   - DataNumber: 0
-              - 7:
-                  - IANA: IngressInterface
+                - - IANA: IngressInterface
                   - DataNumber: 827
-              - 8:
-                  - IANA: BgpSourceAsNumber
+                - - IANA: BgpSourceAsNumber
                   - DataNumber: 2
-              - 9:
-                  - IANA: BgpDestinationAsNumber
+                - - IANA: BgpDestinationAsNumber
                   - DataNumber: 3
-              - 10:
-                  - IANA: BgpNextHopIpv4address
+                - - IANA: BgpNextHopIpv4address
                   - Ip4Addr: 204.42.110.101
-              - 11:
-                  - IANA: EgressInterface
+                - - IANA: EgressInterface
                   - DataNumber: 854
-              - 12:
-                  - IANA: OctetDeltaCount
+                - - IANA: OctetDeltaCount
                   - DataNumber: 1312
-              - 13:
-                  - IANA: PacketDeltaCount
+                - - IANA: PacketDeltaCount
                   - DataNumber: 9
-              - 14:
-                  - IANA: FlowStartSysUpTime
+                - - IANA: FlowStartSysUpTime
                   - DataNumber: 3019441902
-              - 15:
-                  - IANA: FlowEndSysUpTime
+                - - IANA: FlowEndSysUpTime
                   - DataNumber: 3019616060
-              - 16:
-                  - IANA: IpNextHopIpv4address
+                - - IANA: IpNextHopIpv4address
                   - Ip4Addr: 204.42.110.189
-              - 17:
-                  - IANA: SourceIpv4prefixLength
+                - - IANA: SourceIpv4prefixLength
                   - DataNumber: 24
-              - 18:
-                  - IANA: DestinationIpv4prefixLength
+                - - IANA: DestinationIpv4prefixLength
                   - DataNumber: 24
-              - 19:
-                  - IANA: TcpControlBits
+                - - IANA: TcpControlBits
                   - DataNumber: 0
-              - 20:
-                  - IANA: IpVersion
+                - - IANA: IpVersion
                   - DataNumber: 4
-              - 21:
-                  - IANA: FlowStartMilliseconds
+                - - IANA: FlowStartMilliseconds
                   - Duration:
                       secs: 1480449931
                       nanos: 519000000
-              - 22:
-                  - IANA: FlowEndMilliseconds
+                - - IANA: FlowEndMilliseconds
                   - Duration:
                       secs: 1480450105
                       nanos: 677000000

@@ -84,30 +84,21 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         body:
           Data:
             fields:
-              - 0:
-                  - IANA: SourceIpv4address
+              - - - IANA: SourceIpv4address
                   - Ip4Addr: 70.70.1.1
-              - 1:
-                  - IANA: DestinationIpv4address
+                - - IANA: DestinationIpv4address
                   - Ip4Addr: 120.120.1.1
-              - 2:
-                  - IANA: SourceTransportPort
+                - - IANA: SourceTransportPort
                   - DataNumber: 12345
-              - 3:
-                  - IANA: DestinationTransportPort
+                - - IANA: DestinationTransportPort
                   - DataNumber: 32777
-              - 4:
-                  - IANA: ProtocolIdentifier
+                - - IANA: ProtocolIdentifier
                   - ProtocolType: Tcp
-              - 5:
-                  - IANA: PacketDeltaCount
+                - - IANA: PacketDeltaCount
                   - DataNumber: 100
-              - 6:
-                  - IANA: OctetDeltaCount
+                - - IANA: OctetDeltaCount
                   - DataNumber: 125000000
-              - 7:
-                  - IANA: FlowStartSysUpTime
+                - - IANA: FlowStartSysUpTime
                   - DataNumber: 1744871721
-              - 8:
-                  - IANA: FlowEndSysUpTime
+                - - IANA: FlowEndSysUpTime
                   - DataNumber: 1744871721

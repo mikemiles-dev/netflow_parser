@@ -32,11 +32,9 @@ expression: "NetflowParser::default().parse_bytes(&all)"
         body:
           Data:
             fields:
-              - 0:
-                  - InBytes
+              - - - InBytes
                   - DataNumber: 151126788
-                1:
-                  - Ipv4SrcAddr
+                - - Ipv4SrcAddr
                   - Ip4Addr: 9.9.9.8
 - V5:
     header:
@@ -133,11 +131,9 @@ expression: "NetflowParser::default().parse_bytes(&all)"
         body:
           Data:
             fields:
-              - 0:
-                  - InBytes
+              - - - InBytes
                   - DataNumber: 151126788
-                1:
-                  - Ipv4SrcAddr
+                - - Ipv4SrcAddr
                   - Ip4Addr: 9.9.9.8
 - IPFix:
     header:
@@ -173,23 +169,17 @@ expression: "NetflowParser::default().parse_bytes(&all)"
         body:
           Data:
             fields:
-              - 0:
-                  - IANA: SourceIpv4address
+              - - - IANA: SourceIpv4address
                   - Ip4Addr: 1.2.3.4
-              - 1:
-                  - IANA: DestinationIpv4address
+                - - IANA: DestinationIpv4address
                   - Ip4Addr: 1.2.3.3
-              - 2:
-                  - IANA: PacketDeltaCount
+                - - IANA: PacketDeltaCount
                   - DataNumber: 16909058
-              - 0:
-                  - IANA: SourceIpv4address
+              - - - IANA: SourceIpv4address
                   - Ip4Addr: 0.2.0.2
-              - 1:
-                  - IANA: DestinationIpv4address
+                - - IANA: DestinationIpv4address
                   - Ip4Addr: 0.1.2.3
-              - 2:
-                  - IANA: PacketDeltaCount
+                - - IANA: PacketDeltaCount
                   - DataNumber: 67438087
 - V5:
     header:

@@ -38,29 +38,23 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         body:
           OptionsData:
             fields:
-              - 0:
-                  - Enterprise: 123
+              - - - Enterprise: 123
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 1
-              - 1:
-                  - IANA: ExportedMessageTotalCount
+                - - IANA: ExportedMessageTotalCount
                   - DataNumber: 276
-              - 2:
-                  - IANA: ExportedFlowRecordTotalCount
+                - - IANA: ExportedFlowRecordTotalCount
                   - DataNumber: 5140
-              - 0:
-                  - Enterprise: 123
+              - - - Enterprise: 123
                   - Vec:
                       - 0
                       - 0
                       - 0
                       - 2
-              - 1:
-                  - IANA: ExportedMessageTotalCount
+                - - IANA: ExportedMessageTotalCount
                   - DataNumber: 5140
-              - 2:
-                  - IANA: ExportedFlowRecordTotalCount
+                - - IANA: ExportedFlowRecordTotalCount
                   - DataNumber: 7710
