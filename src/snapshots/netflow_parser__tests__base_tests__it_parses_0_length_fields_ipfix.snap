@@ -36,12 +36,9 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         body:
           Data:
             fields:
-              - 0:
-                  - IANA: SourceIpv4address
+              - - - IANA: SourceIpv4address
                   - Ip4Addr: 1.2.3.4
-              - 1:
-                  - IANA: DestinationIpv4address
+                - - IANA: DestinationIpv4address
                   - Ip4Addr: 1.2.3.4
-              - 2:
-                  - IANA: AssignedforNetFlowv9compatibility
+                - - IANA: AssignedforNetFlowv9compatibility
                   - Vec: []

@@ -34,7 +34,8 @@ const DATA_TEMPLATE_IPFIX_ID: u16 = 2;
 const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
 
 type TemplateId = u16;
-type IPFixFieldPair = (IPFixField, FieldValue);
+pub type IPFixFieldPair = (IPFixField, FieldValue);
+pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
 
 #[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct IPFixParser {
@@ -331,7 +332,7 @@ pub struct Data {
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<Template>(i, template) }"
     )]
-    pub fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
+    pub fields: Vec<IpFixFlowRecord>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -341,7 +342,7 @@ pub struct OptionsData {
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template) }"
     )]
-    pub fields: Vec<BTreeMap<usize, (IPFixField, FieldValue)>>,
+    pub fields: Vec<Vec<(IPFixField, FieldValue)>>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -409,30 +410,26 @@ impl<'a> FieldParser {
     /// Fields get matched to static types.
     /// Returns BTree of IPFix Types & Fields or IResult Error.
     fn parse<T: CommonTemplate>(
-        i: &'a [u8],
+        mut i: &'a [u8],
         template: &T,
-    ) -> IResult<&'a [u8], Vec<BTreeMap<usize, IPFixFieldPair>>> {
-        // If no fields there are no fields to parse, return an error.
-        let (remaining, mut fields) = template.get_fields().iter().enumerate().try_fold(
-            (i, vec![]),
-            |(remaining, mut fields), (c, field)| {
-                let mut data_field = BTreeMap::new();
-                let (i, field_value) = field.parse_as_field_value(remaining)?;
-                data_field.insert(c, (field.field_type, field_value));
-                fields.push(data_field);
-                Ok((i, fields))
-            },
-        )?;
-
-        if !remaining.is_empty() {
-            // Try to parse more, but if it fails, just return what we have so far.
-            if let Ok((rem, more)) = Self::parse(remaining, template) {
-                fields.extend(more);
-                return Ok((rem, fields));
+    ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
+        let template_fields = template.get_fields();
+        let mut res = Vec::new();
+        // Try to parse as much as we can, but if it fails, just return what we have so far.
+        while i.len() > 0 {
+            let mut vec = Vec::new();
+            for field in template_fields.iter() {
+                let field_res = field.parse_as_field_value(i);
+                if field_res.is_err() {
+                    return Ok((i, res));
+                }
+                let (remaining, field_value) = field_res.unwrap();
+                vec.push((field.field_type, field_value));
+                i = remaining;
             }
+            res.push(vec);
         }
-
-        Ok((remaining, fields))
+        Ok((i, res))
     }
 }
 
@@ -547,7 +544,7 @@ impl IPFix {
 
             if let FlowSetBody::Data(data) = &flow.body {
                 for item in data.fields.iter() {
-                    for (_, (_, v)) in item.iter() {
+                    for (_, v) in item.iter() {
                         result_flowset.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }
@@ -555,7 +552,7 @@ impl IPFix {
 
             if let FlowSetBody::OptionsData(data) = &flow.body {
                 for item in data.fields.iter() {
-                    for (_, (_, v)) in item.iter() {
+                    for (_, v) in item.iter() {
                         result_flowset.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }
@@ -563,7 +560,7 @@ impl IPFix {
 
             if let FlowSetBody::V9Data(data) = &flow.body {
                 for item in data.fields.iter() {
-                    for (_, (_, v)) in item.iter() {
+                    for (_, v) in item.iter() {
                         result_flowset.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }

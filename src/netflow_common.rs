@@ -125,7 +125,7 @@ impl From<&V9> for NetflowCommon {
             if let V9FlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
                     let value_map: BTreeMap<V9Field, FieldValue> =
-                        data_field.values().cloned().collect();
+                        data_field.clone().into_iter().collect();
                     flowsets.push(NetflowCommonFlowSet {
                         src_addr: value_map
                             .get(&V9Field::Ipv4SrcAddr)
@@ -184,7 +184,7 @@ impl From<&IPFix> for NetflowCommon {
             if let IPFixFlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
                     let value_map: BTreeMap<IPFixField, FieldValue> =
-                        data_field.values().cloned().collect();
+                        data_field.clone().into_iter().collect();
                     flowsets.push(NetflowCommonFlowSet {
                         src_addr: value_map
                             .get(&IPFixField::IANA(IANAIPFixField::SourceIpv4address))
@@ -244,8 +244,6 @@ impl From<&IPFix> for NetflowCommon {
 
 #[cfg(test)]
 mod common_tests {
-
-    use std::collections::BTreeMap;
     use std::net::{IpAddr, Ipv4Addr};
 
     use crate::netflow_common::NetflowCommon;
@@ -409,66 +407,39 @@ mod common_tests {
                 },
                 body: V9FlowSetBody::Data(V9Data {
                     padding: vec![],
-                    fields: vec![BTreeMap::from([
+                    fields: vec![Vec::from([
                         (
-                            0,
-                            (
-                                V9Field::Ipv4SrcAddr,
-                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
-                            ),
+                            V9Field::Ipv4SrcAddr,
+                            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
                         ),
                         (
-                            1,
-                            (
-                                V9Field::Ipv4DstAddr,
-                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
-                            ),
+                            V9Field::Ipv4DstAddr,
+                            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
                         ),
                         (
-                            2,
-                            (
-                                V9Field::L4SrcPort,
-                                FieldValue::DataNumber(DataNumber::U16(1234)),
-                            ),
+                            V9Field::L4SrcPort,
+                            FieldValue::DataNumber(DataNumber::U16(1234)),
                         ),
                         (
-                            3,
-                            (
-                                V9Field::L4DstPort,
-                                FieldValue::DataNumber(DataNumber::U16(80)),
-                            ),
+                            V9Field::L4DstPort,
+                            FieldValue::DataNumber(DataNumber::U16(80)),
+                        ),
+                        (V9Field::Protocol, FieldValue::DataNumber(DataNumber::U8(6))),
+                        (
+                            V9Field::FirstSwitched,
+                            FieldValue::DataNumber(DataNumber::U32(100)),
                         ),
                         (
-                            4,
-                            (V9Field::Protocol, FieldValue::DataNumber(DataNumber::U8(6))),
+                            V9Field::LastSwitched,
+                            FieldValue::DataNumber(DataNumber::U32(200)),
                         ),
                         (
-                            5,
-                            (
-                                V9Field::FirstSwitched,
-                                FieldValue::DataNumber(DataNumber::U32(100)),
-                            ),
+                            V9Field::InSrcMac,
+                            FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
                         ),
                         (
-                            6,
-                            (
-                                V9Field::LastSwitched,
-                                FieldValue::DataNumber(DataNumber::U32(200)),
-                            ),
-                        ),
-                        (
-                            7,
-                            (
-                                V9Field::InSrcMac,
-                                FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
-                            ),
-                        ),
-                        (
-                            8,
-                            (
-                                V9Field::InDstMac,
-                                FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
-                            ),
+                            V9Field::InDstMac,
+                            FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
                         ),
                     ])],
                 }),
@@ -518,69 +489,42 @@ mod common_tests {
                     length: 0,
                 },
                 body: IPFixFlowSetBody::Data(IPFixData {
-                    fields: vec![BTreeMap::from([
+                    fields: vec![Vec::from([
                         (
-                            0,
-                            (
-                                IPFixField::IANA(IANAIPFixField::SourceIpv4address),
-                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
-                            ),
+                            IPFixField::IANA(IANAIPFixField::SourceIpv4address),
+                            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
                         ),
                         (
-                            1,
-                            (
-                                IPFixField::IANA(IANAIPFixField::DestinationIpv4address),
-                                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
-                            ),
+                            IPFixField::IANA(IANAIPFixField::DestinationIpv4address),
+                            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 2)),
                         ),
                         (
-                            2,
-                            (
-                                IPFixField::IANA(IANAIPFixField::SourceTransportPort),
-                                FieldValue::DataNumber(DataNumber::U16(1234)),
-                            ),
+                            IPFixField::IANA(IANAIPFixField::SourceTransportPort),
+                            FieldValue::DataNumber(DataNumber::U16(1234)),
                         ),
                         (
-                            3,
-                            (
-                                IPFixField::IANA(IANAIPFixField::DestinationTransportPort),
-                                FieldValue::DataNumber(DataNumber::U16(80)),
-                            ),
+                            IPFixField::IANA(IANAIPFixField::DestinationTransportPort),
+                            FieldValue::DataNumber(DataNumber::U16(80)),
                         ),
                         (
-                            4,
-                            (
-                                IPFixField::IANA(IANAIPFixField::ProtocolIdentifier),
-                                FieldValue::DataNumber(DataNumber::U8(6)),
-                            ),
+                            IPFixField::IANA(IANAIPFixField::ProtocolIdentifier),
+                            FieldValue::DataNumber(DataNumber::U8(6)),
                         ),
                         (
-                            5,
-                            (
-                                IPFixField::IANA(IANAIPFixField::FlowStartSysUpTime),
-                                FieldValue::DataNumber(DataNumber::U32(100)),
-                            ),
+                            IPFixField::IANA(IANAIPFixField::FlowStartSysUpTime),
+                            FieldValue::DataNumber(DataNumber::U32(100)),
                         ),
                         (
-                            6,
-                            (
-                                IPFixField::IANA(IANAIPFixField::FlowEndSysUpTime),
-                                FieldValue::DataNumber(DataNumber::U32(200)),
-                            ),
+                            IPFixField::IANA(IANAIPFixField::FlowEndSysUpTime),
+                            FieldValue::DataNumber(DataNumber::U32(200)),
                         ),
                         (
-                            7,
-                            (
-                                IPFixField::IANA(IANAIPFixField::SourceMacaddress),
-                                FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
-                            ),
+                            IPFixField::IANA(IANAIPFixField::SourceMacaddress),
+                            FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
                         ),
                         (
-                            8,
-                            (
-                                IPFixField::IANA(IANAIPFixField::DestinationMacaddress),
-                                FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
-                            ),
+                            IPFixField::IANA(IANAIPFixField::DestinationMacaddress),
+                            FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
                         ),
                     ])],
                 }),

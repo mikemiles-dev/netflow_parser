@@ -27,6 +27,7 @@ pub const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
 
 type TemplateId = u16;
 pub type V9FieldPair = (V9Field, FieldValue);
+pub type V9FlowRecord = Vec<V9FieldPair>;
 
 impl V9Parser {
     pub fn parse(&mut self, packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
@@ -423,7 +424,7 @@ impl ScopeDataField {
 pub struct Data {
     // Data Fields
     #[nom(Parse = "{ |i| FieldParser::parse(i, template) }")]
-    pub fields: Vec<BTreeMap<usize, V9FieldPair>>,
+    pub fields: Vec<V9FlowRecord>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
 }
@@ -496,29 +497,26 @@ impl<'a> FieldParser {
     ///
     /// The function will return an error if any record fails to be parsed according to the template.
     fn parse(
-        input: &'a [u8],
+        mut input: &'a [u8],
         template: &Template,
-    ) -> IResult<&'a [u8], Vec<BTreeMap<usize, V9FieldPair>>> {
+    ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
         let tempalte_total_size = usize::from(template.get_total_size());
         if tempalte_total_size == 0 {
             return Err(nom::Err::Error(NomError::new(input, ErrorKind::Verify)));
         }
-        let record_count = input.len().saturating_div(tempalte_total_size);
 
-        let (remaining, fields) = (0..record_count).fold(
-            (input, Vec::new()), // Initial accumulator: (fields, remaining)
-            |(remaining, mut fields), _| {
-                let (new_remaining, data_field) =
-                    match Self::parse_data_fields(remaining, template) {
-                        Ok((remaining, data_field)) => (remaining, data_field),
-                        Err(_) => return (remaining, fields),
-                    };
-                fields.push(data_field);
-                (new_remaining, fields)
-            },
-        );
+        let mut res = Vec::new();
+        for _ in 0..tempalte_total_size {
+            match Self::parse_data_fields(input, template) {
+                Ok((remaining, record)) => {
+                    input = remaining;
+                    res.push(record);
+                }
+                Err(_) => return Ok((input, res)),
+            };
+        }
 
-        Ok((remaining, fields))
+        Ok((input, res))
     }
 
     /// Parses a single record (data field) based on the provided template.
@@ -544,16 +542,16 @@ impl<'a> FieldParser {
     fn parse_data_fields(
         mut input: &'a [u8],
         template: &Template,
-    ) -> IResult<&'a [u8], BTreeMap<usize, V9FieldPair>> {
-        let mut data_field = BTreeMap::new();
+    ) -> IResult<&'a [u8], V9FlowRecord> {
+        let mut res = Vec::new();
 
-        for (field_index, template_field) in template.fields.iter().enumerate() {
+        for template_field in template.fields.iter() {
             let (new_input, field_value) = template_field.parse_as_field_value(input)?;
             input = new_input;
-            data_field.insert(field_index, (template_field.field_type, field_value));
+            res.push((template_field.field_type, field_value));
         }
 
-        Ok((input, data_field))
+        Ok((input, res))
     }
 }
 
@@ -610,7 +608,7 @@ impl V9 {
 
             if let FlowSetBody::Data(data) = &set.body {
                 for data_field in data.fields.iter() {
-                    for (_field_type, (_, field_value)) in data_field.iter() {
+                    for (_, field_value) in data_field.iter() {
                         result.extend_from_slice(&field_value.to_be_bytes()?);
                     }
                 }
