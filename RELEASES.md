@@ -1,3 +1,6 @@
+# 0.6.0
+* Remove Control Characters from FieldDataType unicode strings
+
 # 0.5.9
 * IPFIX now supports multiple Templates in a flow
 * Fixed bug with parsing IPFix fields that would omit some data.

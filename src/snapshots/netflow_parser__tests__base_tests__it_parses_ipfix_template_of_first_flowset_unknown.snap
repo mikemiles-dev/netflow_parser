@@ -61,7 +61,7 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - IANA: ProtocolIdentifier
                   - ProtocolType: Tcp
                 - - IANA: PaddingOctets
-                  - String: "\u0000\u0000"
+                  - String: ""
                 - - IANA: SourceIpv4address
                   - Ip4Addr: 172.18.129.61
                 - - IANA: DestinationIpv4address
@@ -119,27 +119,27 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - Netscaler: NetscalerConnectionChainHopCount
                   - DataNumber: 1
                 - - Netscaler: NetscalerHttpReqUrl
-                  - String: "/vpn/index.html\u0000"
+                  - String: /vpn/index.html
                 - - Netscaler: NetscalerHttpReqCookie
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqReferer
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqMethod
-                  - String: "GET\u0000"
+                  - String: GET
                 - - Netscaler: NetscalerHttpReqHost
-                  - String: "int-app-netscaler-10-1-ext.lab2.net\u0000"
+                  - String: int-app-netscaler-10-1-ext.lab2.net
                 - - Netscaler: NetscalerHttpReqUserAgent
-                  - String: "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:32.0) Gecko/20100101 Firefox/32.0\u0000"
+                  - String: "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:32.0) Gecko/20100101 Firefox/32.0"
                 - - Netscaler: NetscalerHttpContentType
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqAuthorization
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqVia
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqXForwardedFor
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerAaaUsername
-                  - String: "\u0000"
+                  - String: ""
               - - - IANA: ObservationPointId
                   - DataNumber: 8731347
                 - - IANA: ExportingProcessId
@@ -155,7 +155,7 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - IANA: ProtocolIdentifier
                   - ProtocolType: Tcp
                 - - IANA: PaddingOctets
-                  - String: "\u0000\u0000"
+                  - String: ""
                 - - IANA: SourceIpv4address
                   - Ip4Addr: 172.18.129.61
                 - - IANA: DestinationIpv4address
@@ -213,27 +213,27 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - Netscaler: NetscalerConnectionChainHopCount
                   - DataNumber: 1
                 - - Netscaler: NetscalerHttpReqUrl
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqCookie
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqReferer
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqMethod
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqHost
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqUserAgent
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpContentType
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqAuthorization
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqVia
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqXForwardedFor
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerAaaUsername
-                  - String: "\u0000"
+                  - String: ""
       - header:
           header_id: 257
           length: 118
@@ -255,7 +255,7 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - IANA: ProtocolIdentifier
                   - ProtocolType: Tcp
                 - - IANA: PaddingOctets
-                  - String: "\u0000\u0000"
+                  - String: ""
                 - - IANA: SourceIpv4address
                   - Ip4Addr: 172.18.159.99
                 - - IANA: DestinationIpv4address
@@ -329,7 +329,7 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - IANA: ProtocolIdentifier
                   - ProtocolType: Tcp
                 - - IANA: PaddingOctets
-                  - String: "\u0000\u0000"
+                  - String: ""
                 - - IANA: SourceIpv4address
                   - Ip4Addr: 172.18.129.61
                 - - IANA: DestinationIpv4address
@@ -387,27 +387,27 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - Netscaler: NetscalerConnectionChainHopCount
                   - DataNumber: 1
                 - - Netscaler: NetscalerHttpReqUrl
-                  - String: "/vpn/images/caxtonstyle.css\u0000"
+                  - String: /vpn/images/caxtonstyle.css
                 - - Netscaler: NetscalerHttpReqCookie
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqReferer
-                  - String: "https://int-app-netscaler-10-1-ext.lab2.net/vpn/index.html\u0000"
+                  - String: "https://int-app-netscaler-10-1-ext.lab2.net/vpn/index.html"
                 - - Netscaler: NetscalerHttpReqMethod
-                  - String: "GET\u0000"
+                  - String: GET
                 - - Netscaler: NetscalerHttpReqHost
-                  - String: "int-app-netscaler-10-1-ext.lab2.net\u0000"
+                  - String: int-app-netscaler-10-1-ext.lab2.net
                 - - Netscaler: NetscalerHttpReqUserAgent
-                  - String: "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:32.0) Gecko/20100101 Firefox/32.0\u0000"
+                  - String: "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:32.0) Gecko/20100101 Firefox/32.0"
                 - - Netscaler: NetscalerHttpContentType
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqAuthorization
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqVia
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqXForwardedFor
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerAaaUsername
-                  - String: "\u0000"
+                  - String: ""
               - - - IANA: ObservationPointId
                   - DataNumber: 8731347
                 - - IANA: ExportingProcessId
@@ -423,7 +423,7 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - IANA: ProtocolIdentifier
                   - ProtocolType: Tcp
                 - - IANA: PaddingOctets
-                  - String: "\u0000\u0000"
+                  - String: ""
                 - - IANA: SourceIpv4address
                   - Ip4Addr: 172.18.129.61
                 - - IANA: DestinationIpv4address
@@ -481,27 +481,27 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - Netscaler: NetscalerConnectionChainHopCount
                   - DataNumber: 1
                 - - Netscaler: NetscalerHttpReqUrl
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqCookie
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqReferer
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqMethod
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqHost
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqUserAgent
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpContentType
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqAuthorization
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqVia
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerHttpReqXForwardedFor
-                  - String: "\u0000"
+                  - String: ""
                 - - Netscaler: NetscalerAaaUsername
-                  - String: "\u0000"
+                  - String: ""
       - header:
           header_id: 257
           length: 118
@@ -523,7 +523,7 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                 - - IANA: ProtocolIdentifier
                   - ProtocolType: Tcp
                 - - IANA: PaddingOctets
-                  - String: "\u0000\u0000"
+                  - String: ""
                 - - IANA: SourceIpv4address
                   - Ip4Addr: 172.18.159.99
                 - - IANA: DestinationIpv4address
