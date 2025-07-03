@@ -183,6 +183,12 @@ or
 
 ```cargo run --example netflow_udp_listener_tokio```
 
+or
+
+```cargo run --example netflow_pcap```
+
+The pcap example also shows how to cache flows that have not yet discovered a template.
+
 ## Support My Work
 
 If you find my work helpful, consider supporting me!
