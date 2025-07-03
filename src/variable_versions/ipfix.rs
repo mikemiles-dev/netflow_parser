@@ -414,7 +414,11 @@ impl<'a> FieldParser {
         template: &T,
     ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
         let template_fields = template.get_fields();
+        if template_fields.is_empty() {
+            return Ok((i, Vec::new()));
+        }
         let mut res = Vec::new();
+
         // Try to parse as much as we can, but if it fails, just return what we have so far.
         while !i.is_empty() {
             let mut vec = Vec::new();
