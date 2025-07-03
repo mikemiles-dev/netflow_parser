@@ -253,6 +253,7 @@ impl FieldValue {
             FieldDataType::String => {
                 let (i, taken) = take(field_length)(remaining)?;
                 let s = String::from_utf8_lossy(taken).to_string();
+                let s = s.chars().filter(|&c| !c.is_control()).collect();
                 (i, FieldValue::String(s))
             }
             FieldDataType::Ip4Addr => {

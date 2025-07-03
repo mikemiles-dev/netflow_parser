@@ -244,9 +244,9 @@ expression: result
                 - - Cisco: CiscoServicesWaasPassthroughReason
                   - DataNumber: 0
                 - - Cisco: CiscoAppHttpUriStatistics
-                  - String: "/DocLib1\u0000\u0000\u0001"
+                  - String: /DocLib1
                 - - Cisco: CiscoAppHttpHost
-                  - String: "\u0003\u0000\u0000P4\u0002portal.medsigroup.ru"
+                  - String: P4portal.medsigroup.ru
                 - - IANA: FlowStartSysUpTime
                   - DataNumber: 564191867
                 - - IANA: FlowEndSysUpTime
