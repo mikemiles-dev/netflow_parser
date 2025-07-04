@@ -255,7 +255,7 @@ impl FieldValue {
                 let s = String::from_utf8_lossy(taken).to_string();
                 let s: String = s.chars().filter(|&c| !c.is_control()).collect();
                 let s = if s.starts_with("P4") {
-                    String::new()
+                    s.trim_start_matches("P4").to_string()
                 } else {
                     s
                 };
