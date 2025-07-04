@@ -246,7 +246,7 @@ expression: result
                 - - Cisco: CiscoAppHttpUriStatistics
                   - String: /DocLib1
                 - - Cisco: CiscoAppHttpHost
-                  - String: P4portal.medsigroup.ru
+                  - String: portal.medsigroup.ru
                 - - IANA: FlowStartSysUpTime
                   - DataNumber: 564191867
                 - - IANA: FlowEndSysUpTime
