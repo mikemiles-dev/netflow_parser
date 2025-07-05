@@ -1,3 +1,7 @@
+# 0.6.1
+* V9 Fields also now a Vec instead of BTreeMap.
+* IPFix Templates are now HashMap instead of BTreeMap.
+
 # 0.6.0
 * Remove Control Characters and P4 starting chars from FieldDataType unicode strings.
 * Added PCAP example and how to cache IPFix flows without a packet for later parsing.

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::net::IpAddr;
 
 use crate::NetflowPacket;
@@ -124,7 +124,7 @@ impl From<&V9> for NetflowCommon {
         for flowset in &value.flowsets {
             if let V9FlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
-                    let value_map: BTreeMap<V9Field, FieldValue> =
+                    let value_map: HashMap<V9Field, FieldValue> =
                         data_field.clone().into_iter().collect();
                     flowsets.push(NetflowCommonFlowSet {
                         src_addr: value_map
@@ -183,7 +183,7 @@ impl From<&IPFix> for NetflowCommon {
         for flowset in &value.flowsets {
             if let IPFixFlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
-                    let value_map: BTreeMap<IPFixField, FieldValue> =
+                    let value_map: HashMap<IPFixField, FieldValue> =
                         data_field.clone().into_iter().collect();
                     flowsets.push(NetflowCommonFlowSet {
                         src_addr: value_map
