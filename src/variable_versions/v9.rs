@@ -19,7 +19,6 @@ use nom::multi::many0;
 use nom_derive::*;
 use serde::Serialize;
 
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 
 pub const DATA_TEMPLATE_V9_ID: u16 = 0;
@@ -323,16 +322,13 @@ impl<'a> OptionsFieldParser {
     fn parse(
         input: &'a [u8],
         template: &OptionsTemplate,
-    ) -> IResult<&'a [u8], Vec<BTreeMap<usize, V9FieldPair>>> {
+    ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
         let mut result = Vec::new();
         let mut remaining = input;
-        for (count, template_field) in template.option_fields.iter().enumerate() {
+        for template_field in template.option_fields.iter() {
             let (i, field_value) = template_field.parse_as_field_value(remaining)?;
             remaining = i;
-            result.push(BTreeMap::from([(
-                count,
-                (template_field.field_type, field_value),
-            )]));
+            result.push(vec![(template_field.field_type, field_value)]);
         }
         Ok((remaining, result))
     }
@@ -346,7 +342,7 @@ pub struct OptionsDataFields {
     pub scope_fields: Vec<ScopeDataField>,
     // Options Data Fields
     #[nom(Parse = "{ |i| OptionsFieldParser::parse(i, template) }")]
-    pub options_fields: Vec<BTreeMap<usize, V9FieldPair>>,
+    pub options_fields: Vec<Vec<V9FieldPair>>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
@@ -636,8 +632,7 @@ impl V9 {
                         }
                     }
                     for options_field in options_data_field.options_fields.iter() {
-                        for (index, (_field_type, field_value)) in options_field.iter() {
-                            result.extend_from_slice(&index.to_be_bytes());
+                        for (_field_type, field_value) in options_field.iter() {
                             result.extend_from_slice(&field_value.to_be_bytes()?);
                         }
                     }

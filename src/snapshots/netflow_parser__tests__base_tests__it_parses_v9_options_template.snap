@@ -42,9 +42,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                       - 0
                       - 2
                 options_fields:
-                  - 0:
-                      - SamplingInterval
+                  - - - SamplingInterval
                       - DataNumber: 100
-                  - 1:
-                      - FlowActiveTimeout
+                  - - - FlowActiveTimeout
                       - DataNumber: 1

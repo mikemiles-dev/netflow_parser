@@ -263,14 +263,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                       - 0
                       - 0
                 options_fields:
-                  - 0:
-                      - SamplingInterval
+                  - - - SamplingInterval
                       - DataNumber: 1
-                  - 1:
-                      - SamplingAlgorithm
+                  - - - SamplingAlgorithm
                       - DataNumber: 1
-                  - 2:
-                      - IfName
+                  - - - IfName
                       - DataNumber: 129508722417137712562928937060813242368
       - header:
           flowset_id: 2048

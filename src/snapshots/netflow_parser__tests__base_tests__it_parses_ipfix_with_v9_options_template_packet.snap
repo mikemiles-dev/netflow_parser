@@ -31,8 +31,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
             fields:
               - scope_fields: []
                 options_fields:
-                  - 0:
-                      - SamplingInterval
+                  - - - SamplingInterval
                       - DataNumber: 1
       - header:
           header_id: 2

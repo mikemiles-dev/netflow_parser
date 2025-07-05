@@ -1645,14 +1645,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                       - 1
                       - 244
                 options_fields:
-                  - 0:
-                      - TotalFlowsExp
+                  - - - TotalFlowsExp
                       - DataNumber: 1013367971
-                  - 1:
-                      - TotalPktsExp
+                  - - - TotalPktsExp
                       - DataNumber: 33710346
-                  - 2:
-                      - SamplingInterval
+                  - - - SamplingInterval
                       - DataNumber: 100
               - scope_fields:
                   - System:
@@ -1681,14 +1678,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                       - 1
                       - 244
                 options_fields:
-                  - 0:
-                      - TotalFlowsExp
+                  - - - TotalFlowsExp
                       - DataNumber: 1013367971
-                  - 1:
-                      - TotalPktsExp
+                  - - - TotalPktsExp
                       - DataNumber: 33710346
-                  - 2:
-                      - SamplingInterval
+                  - - - SamplingInterval
                       - DataNumber: 100
               - scope_fields:
                   - System:
@@ -1717,14 +1711,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                       - 1
                       - 244
                 options_fields:
-                  - 0:
-                      - TotalFlowsExp
+                  - - - TotalFlowsExp
                       - DataNumber: 1013367971
-                  - 1:
-                      - TotalPktsExp
+                  - - - TotalPktsExp
                       - DataNumber: 33710346
-                  - 2:
-                      - SamplingInterval
+                  - - - SamplingInterval
                       - DataNumber: 100
               - scope_fields:
                   - System:
@@ -1753,14 +1744,11 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                       - 1
                       - 244
                 options_fields:
-                  - 0:
-                      - TotalFlowsExp
+                  - - - TotalFlowsExp
                       - DataNumber: 1013367971
-                  - 1:
-                      - TotalPktsExp
+                  - - - TotalPktsExp
                       - DataNumber: 33710346
-                  - 2:
-                      - SamplingInterval
+                  - - - SamplingInterval
                       - DataNumber: 100
               - scope_fields:
                   - System:
@@ -1789,12 +1777,9 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                       - 1
                       - 244
                 options_fields:
-                  - 0:
-                      - TotalFlowsExp
+                  - - - TotalFlowsExp
                       - DataNumber: 1013367971
-                  - 1:
-                      - TotalPktsExp
+                  - - - TotalPktsExp
                       - DataNumber: 33710346
-                  - 2:
-                      - SamplingInterval
+                  - - - SamplingInterval
                       - DataNumber: 100

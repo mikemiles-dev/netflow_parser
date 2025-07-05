@@ -28,7 +28,7 @@ use crate::variable_versions::v9::{
     Template as V9Template,
 };
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 const DATA_TEMPLATE_IPFIX_ID: u16 = 2;
 const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
@@ -39,10 +39,10 @@ pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
 
 #[derive(Debug, Default, PartialEq, Clone, Serialize)]
 pub struct IPFixParser {
-    pub templates: BTreeMap<TemplateId, Template>,
-    pub v9_templates: BTreeMap<TemplateId, V9Template>,
-    pub ipfix_options_templates: BTreeMap<TemplateId, OptionsTemplate>,
-    pub v9_options_templates: BTreeMap<TemplateId, V9OptionsTemplate>,
+    pub templates: HashMap<TemplateId, Template>,
+    pub v9_templates: HashMap<TemplateId, V9Template>,
+    pub ipfix_options_templates: HashMap<TemplateId, OptionsTemplate>,
+    pub v9_options_templates: HashMap<TemplateId, V9OptionsTemplate>,
 }
 
 impl IPFixParser {
@@ -342,7 +342,7 @@ pub struct OptionsData {
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template) }"
     )]
-    pub fields: Vec<Vec<(IPFixField, FieldValue)>>,
+    pub fields: Vec<Vec<IPFixFieldPair>>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -592,8 +592,7 @@ impl IPFix {
                         }
                     }
                     for options_field in options_data_field.options_fields.iter() {
-                        for (index, (_field_type, field_value)) in options_field.iter() {
-                            result.extend_from_slice(&index.to_be_bytes());
+                        for (_field_type, field_value) in options_field.iter() {
                             result.extend_from_slice(&field_value.to_be_bytes()?);
                         }
                     }
