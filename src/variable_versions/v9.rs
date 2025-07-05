@@ -476,7 +476,7 @@ impl<'a> FieldParser {
     ///
     /// The function computes the number of records available in the input by dividing the length of the input
     /// by the template's total size. It then iteratively extracts each record using `parse_data_field`, accumulating
-    /// a vector of BTreeMaps where each map represents a record mapping field indices to `V9FieldPair`.
+    /// a vector of where each map represents a record mapping field indices to `V9FieldPair`.
     ///
     /// # Arguments
     ///
@@ -487,7 +487,7 @@ impl<'a> FieldParser {
     ///
     /// A result containing:
     /// - The remaining slice of input data that was not parsed.
-    /// - A vector of BTreeMaps, each mapping a field index to its corresponding `V9FieldPair`.
+    /// - A vector of V9FieldPair, each mapping a field index to its corresponding `V9FieldPair`.
     ///
     /// # Errors
     ///
@@ -518,8 +518,7 @@ impl<'a> FieldParser {
     /// Parses a single record (data field) based on the provided template.
     ///
     /// The function iterates over each field defined in the template, using each field's own parser to
-    /// extract its value from the input. The parsed values, along with their corresponding field types,
-    /// are accumulated in a BTreeMap keyed by field index.
+    /// extract its value from the input. The parsed values, along with their corresponding field types.
     ///
     /// # Arguments
     ///
@@ -530,7 +529,7 @@ impl<'a> FieldParser {
     ///
     /// A result containing:
     /// - The remaining input slice after parsing the record.
-    /// - A BTreeMap mapping field indices to `V9FieldPair`, where each pair consists of the field type and the parsed value.
+    /// - A Vector of `V9FieldPair`, where each pair consists of the field type and the parsed value.
     ///
     /// # Errors
     ///
