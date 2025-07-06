@@ -10,16 +10,13 @@ use super::data_number::FieldValue;
 use crate::variable_versions::ipfix_lookup::IPFixField;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
-use Nom;
-use nom::Err as NomErr;
 use nom::IResult;
 use nom::bytes::complete::take;
 use nom::combinator::complete;
 use nom::combinator::map_res;
-use nom::error::{Error as NomError, ErrorKind};
 use nom::multi::{count, many0};
 use nom::number::complete::{be_u8, be_u16};
-use nom_derive::*;
+use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
 use crate::variable_versions::v9::{
@@ -223,47 +220,32 @@ impl FlowSetBody {
                     Ok((i, FlowSetBody::OptionsTemplates(options_templates.clone())))
                 }
             }
-            _ if parser.templates.contains_key(&id) => {
-                let template = parser
-                    .templates
-                    .get(&id)
-                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                match Data::parse(i, template) {
-                    Ok((i, data)) => Ok((i, FlowSetBody::Data(data))),
-                    Err(_) => Ok((i, FlowSetBody::Empty)),
+            _ => {
+                if let Some(template) = parser.templates.get(&id) {
+                    match Data::parse(i, template) {
+                        Ok((i, data)) => Ok((i, FlowSetBody::Data(data))),
+                        Err(_) => Ok((i, FlowSetBody::Empty)),
+                    }
+                } else if let Some(options_template) = parser.ipfix_options_templates.get(&id) {
+                    match OptionsData::parse(i, options_template) {
+                        Ok((i, data)) => Ok((i, FlowSetBody::OptionsData(data))),
+                        Err(_) => Ok((i, FlowSetBody::Empty)),
+                    }
+                } else if let Some(v9_template) = parser.v9_templates.get(&id) {
+                    let (i, data) = V9Data::parse(i, v9_template)?;
+                    Ok((i, FlowSetBody::V9Data(data)))
+                } else if let Some(v9_options_template) = parser.v9_options_templates.get(&id) {
+                    let (i, data) = V9OptionsData::parse(i, v9_options_template)?;
+                    Ok((i, FlowSetBody::V9OptionsData(data)))
+                } else if id > 255 {
+                    Ok((i, FlowSetBody::NoTemplate(i.to_vec())))
+                } else {
+                    Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )))
                 }
             }
-            _ if parser.ipfix_options_templates.contains_key(&id) => {
-                let options_template = parser
-                    .ipfix_options_templates
-                    .get(&id)
-                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                match OptionsData::parse(i, options_template) {
-                    Ok((i, data)) => Ok((i, FlowSetBody::OptionsData(data))),
-                    Err(_) => Ok((i, FlowSetBody::Empty)),
-                }
-            }
-            _ if parser.v9_templates.contains_key(&id) => {
-                let v9_template = parser
-                    .v9_templates
-                    .get(&id)
-                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                let (i, data) = V9Data::parse(i, v9_template)?;
-                Ok((i, FlowSetBody::V9Data(data)))
-            }
-            _ if parser.v9_options_templates.contains_key(&id) => {
-                let v9_template = parser
-                    .v9_options_templates
-                    .get(&id)
-                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                let (i, data) = V9OptionsData::parse(i, v9_template)?;
-                Ok((i, FlowSetBody::V9OptionsData(data)))
-            }
-            _ if id > 255 => Ok((i, FlowSetBody::NoTemplate(i.to_vec()))),
-            _ => Err(nom::Err::Error(nom::error::Error::new(
-                i,
-                nom::error::ErrorKind::Verify,
-            ))),
         }
     }
 }
