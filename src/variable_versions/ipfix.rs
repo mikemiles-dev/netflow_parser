@@ -56,6 +56,24 @@ impl IPFixParser {
                 })
             })
     }
+
+    /// Add a template (Template, OptionsTemplate, V9Template, or V9OptionsTemplate) to the parser generically.
+    pub fn add_templates<T: Clone + 'static>(&mut self, templates: Vec<T>) {
+        let any = &templates as &dyn std::any::Any;
+        if let Some(ts) = any.downcast_ref::<Vec<Template>>() {
+            self.templates
+                .extend(ts.iter().map(|t| (t.template_id, t.clone())));
+        } else if let Some(ts) = any.downcast_ref::<Vec<OptionsTemplate>>() {
+            self.ipfix_options_templates
+                .extend(ts.iter().map(|t| (t.template_id, t.clone())));
+        } else if let Some(ts) = any.downcast_ref::<Vec<V9Template>>() {
+            self.v9_templates
+                .extend(ts.iter().map(|t| (t.template_id, t.clone())));
+        } else if let Some(ts) = any.downcast_ref::<Vec<V9OptionsTemplate>>() {
+            self.v9_options_templates
+                .extend(ts.iter().map(|t| (t.template_id, t.clone())));
+        }
+    }
 }
 
 #[derive(Nom, Debug, PartialEq, Clone, Serialize)]
@@ -85,6 +103,7 @@ pub enum FlowSetBody {
     OptionsTemplate(OptionsTemplate),
     OptionsTemplates(Vec<OptionsTemplate>),
     V9OptionsTemplate(V9OptionsTemplate),
+    V9OptionsTemplates(Vec<V9OptionsTemplate>),
     Data(Data),
     OptionsData(OptionsData),
     V9Data(V9Data),
@@ -127,99 +146,84 @@ pub enum FlowSetBody {
 ///
 /// In case of any parsing or validation error, a `nom::Err::Error` is returned with an appropriate error kind.
 impl FlowSetBody {
+    fn parse_templates<'a, T, F>(
+        i: &'a [u8],
+        parser: &mut IPFixParser,
+        parse_fn: F,
+        single_variant: fn(T) -> FlowSetBody,
+        multi_variant: fn(Vec<T>) -> FlowSetBody,
+        validate: fn(&T) -> bool,
+        add_templates: fn(&mut IPFixParser, Vec<T>),
+    ) -> IResult<&'a [u8], FlowSetBody>
+    where
+        T: Clone,
+        F: Fn(&'a [u8]) -> IResult<&'a [u8], T>,
+    {
+        let (i, templates) = many0(complete(parse_fn))(i)?;
+        if templates.is_empty() || templates.iter().any(|t| !validate(t)) {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                i,
+                nom::error::ErrorKind::Verify,
+            )));
+        }
+        add_templates(parser, templates.clone());
+        match templates.len() {
+            1 => {
+                if let Some(template) = templates.first().cloned() {
+                    Ok((i, single_variant(template)))
+                } else {
+                    Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )))
+                }
+            }
+            _ => Ok((i, multi_variant(templates))),
+        }
+    }
+
     fn parse<'a>(
         i: &'a [u8],
         parser: &mut IPFixParser,
         id: u16,
     ) -> IResult<&'a [u8], FlowSetBody> {
         match id {
-            DATA_TEMPLATE_IPFIX_ID => {
-                let (i, templates) = many0(complete(Template::parse))(i)?;
-                if templates.is_empty() || templates.iter().any(|t| !t.is_valid()) {
-                    return Err(nom::Err::Error(nom::error::Error::new(
-                        i,
-                        nom::error::ErrorKind::Verify,
-                    )));
-                }
-                for template in &templates {
-                    parser
-                        .templates
-                        .insert(template.template_id, template.clone());
-                }
-                if templates.len() == 1 {
-                    if let Some(template) = templates.first().cloned() {
-                        Ok((i, FlowSetBody::Template(template)))
-                    } else {
-                        Err(nom::Err::Error(nom::error::Error::new(
-                            i,
-                            nom::error::ErrorKind::Verify,
-                        )))
-                    }
-                } else {
-                    Ok((i, FlowSetBody::Templates(templates.clone())))
-                }
-            }
-            DATA_TEMPLATE_V9_ID => {
-                let (i, templates) = many0(complete(V9Template::parse))(i)?;
-                if templates.is_empty() {
-                    return Err(nom::Err::Error(nom::error::Error::new(
-                        i,
-                        nom::error::ErrorKind::Verify,
-                    )));
-                }
-                for template in &templates {
-                    parser
-                        .v9_templates
-                        .insert(template.template_id, template.clone());
-                }
-                if templates.len() == 1 {
-                    if let Some(template) = templates.first().cloned() {
-                        Ok((i, FlowSetBody::V9Template(template)))
-                    } else {
-                        Err(nom::Err::Error(nom::error::Error::new(
-                            i,
-                            nom::error::ErrorKind::Verify,
-                        )))
-                    }
-                } else {
-                    Ok((i, FlowSetBody::V9Templates(templates.clone())))
-                }
-            }
-            OPTIONS_TEMPLATE_V9_ID => {
-                let (i, options_template) = V9OptionsTemplate::parse(i)?;
-                parser
-                    .v9_options_templates
-                    .insert(options_template.template_id, options_template.clone());
-                Ok((i, FlowSetBody::V9OptionsTemplate(options_template)))
-            }
-            OPTIONS_TEMPLATE_IPFIX_ID => {
-                let (i, options_templates) = many0(complete(OptionsTemplate::parse))(i)?;
-                if options_templates.is_empty()
-                    || options_templates.iter().any(|t| !t.is_valid())
-                {
-                    return Err(nom::Err::Error(nom::error::Error::new(
-                        i,
-                        nom::error::ErrorKind::Verify,
-                    )));
-                }
-                for options_template in &options_templates {
-                    parser
-                        .ipfix_options_templates
-                        .insert(options_template.template_id, options_template.clone());
-                }
-                if options_templates.len() == 1 {
-                    if let Some(options_template) = options_templates.first().cloned() {
-                        Ok((i, FlowSetBody::OptionsTemplate(options_template)))
-                    } else {
-                        Err(nom::Err::Error(nom::error::Error::new(
-                            i,
-                            nom::error::ErrorKind::Verify,
-                        )))
-                    }
-                } else {
-                    Ok((i, FlowSetBody::OptionsTemplates(options_templates.clone())))
-                }
-            }
+            DATA_TEMPLATE_IPFIX_ID => Self::parse_templates(
+                i,
+                parser,
+                Template::parse,
+                FlowSetBody::Template,
+                FlowSetBody::Templates,
+                |t: &Template| t.is_valid(),
+                |parser, templates| parser.add_templates(templates),
+            ),
+            DATA_TEMPLATE_V9_ID => Self::parse_templates(
+                i,
+                parser,
+                V9Template::parse,
+                FlowSetBody::V9Template,
+                FlowSetBody::V9Templates,
+                |_t: &V9Template| true,
+                |parser, templates| parser.add_templates(templates),
+            ),
+            OPTIONS_TEMPLATE_V9_ID => Self::parse_templates(
+                i,
+                parser,
+                V9OptionsTemplate::parse,
+                FlowSetBody::V9OptionsTemplate,
+                FlowSetBody::V9OptionsTemplates,
+                |_t: &V9OptionsTemplate| true,
+                |parser, templates| parser.add_templates(templates),
+            ),
+            OPTIONS_TEMPLATE_IPFIX_ID => Self::parse_templates(
+                i,
+                parser,
+                OptionsTemplate::parse,
+                FlowSetBody::OptionsTemplate,
+                FlowSetBody::OptionsTemplates,
+                |t: &OptionsTemplate| t.is_valid(),
+                |parser, templates| parser.add_templates(templates),
+            ),
             _ => {
                 if let Some(template) = parser.templates.get(&id) {
                     match Data::parse(i, template) {

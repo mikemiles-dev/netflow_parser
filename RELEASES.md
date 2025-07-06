@@ -1,3 +1,6 @@
+# 0.6.2
+* IPFix supports multiple V9 Options templates.
+
 # 0.6.1
 * V9 Fields also now a Vec instead of BTreeMap.
 * IPFix Templates are now HashMap instead of BTreeMap.
