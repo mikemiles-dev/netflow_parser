@@ -8,15 +8,13 @@ use super::data_number::FieldValue;
 use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
-use Nom;
-use nom::Err as NomErr;
 use nom::IResult;
 use nom::bytes::complete::take;
 use nom::combinator::complete;
 use nom::combinator::map_res;
 use nom::error::{Error as NomError, ErrorKind};
 use nom::multi::many0;
-use nom_derive::*;
+use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
 use std::collections::HashMap;
@@ -199,26 +197,20 @@ impl FlowSetBody {
                 );
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
             }
-            _ if parser.options_templates.contains_key(&id) => {
-                let template = parser
-                    .options_templates
-                    .get(&id)
-                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                let (i, options_data) = OptionsData::parse(i, template)?;
-                Ok((i, FlowSetBody::OptionsData(options_data)))
+            _ => {
+                if let Some(template) = parser.templates.get(&id) {
+                    let (i, data) = Data::parse(i, template)?;
+                    Ok((i, FlowSetBody::Data(data)))
+                } else if let Some(template) = parser.options_templates.get(&id) {
+                    let (i, options_data) = OptionsData::parse(i, template)?;
+                    Ok((i, FlowSetBody::OptionsData(options_data)))
+                } else {
+                    Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )))
+                }
             }
-            _ if parser.templates.contains_key(&id) => {
-                let template = parser
-                    .templates
-                    .get(&id)
-                    .ok_or(NomErr::Error(NomError::new(i, ErrorKind::Fail)))?;
-                let (i, data) = Data::parse(i, template)?;
-                Ok((i, FlowSetBody::Data(data)))
-            }
-            _ => Err(nom::Err::Error(nom::error::Error::new(
-                i,
-                nom::error::ErrorKind::Verify,
-            ))),
         }
     }
 }
