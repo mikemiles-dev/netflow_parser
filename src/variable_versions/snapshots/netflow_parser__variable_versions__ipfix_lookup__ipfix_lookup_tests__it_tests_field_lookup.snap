@@ -67,11 +67,11 @@ expression: lookup
 - IpNextHopIpv6address
 - BgpNextHopIpv6address
 - Ipv6extensionHeaders
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
+- AssignedforNetFlowv9compatibility65
+- AssignedforNetFlowv9compatibility66
+- AssignedforNetFlowv9compatibility67
+- AssignedforNetFlowv9compatibility68
+- AssignedforNetFlowv9compatibility69
 - MplsTopLabelStackSection
 - MplsLabelStackSection2
 - MplsLabelStackSection3
@@ -99,7 +99,7 @@ expression: lookup
 - ApplicationDescription
 - ApplicationId
 - ApplicationName
-- AssignedforNetFlowv9compatibility
+- AssignedforNetFlowv9compatibility96
 - PostIpDiffServCodePoint
 - MulticastReplicationFactor
 - ClassName
@@ -107,29 +107,29 @@ expression: lookup
 - Layer2packetSectionOffset
 - Layer2packetSectionSize
 - Layer2packetSectionData
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
-- AssignedforNetFlowv9compatibility
+- AssignedforNetFlowv9compatibility105
+- AssignedforNetFlowv9compatibility106
+- AssignedforNetFlowv9compatibility107
+- AssignedforNetFlowv9compatibility108
+- AssignedforNetFlowv9compatibility109
+- AssignedforNetFlowv9compatibility110
+- AssignedforNetFlowv9compatibility111
+- AssignedforNetFlowv9compatibility112
+- AssignedforNetFlowv9compatibility113
+- AssignedforNetFlowv9compatibility114
+- AssignedforNetFlowv9compatibility115
+- AssignedforNetFlowv9compatibility116
+- AssignedforNetFlowv9compatibility117
+- AssignedforNetFlowv9compatibility118
+- AssignedforNetFlowv9compatibility119
+- AssignedforNetFlowv9compatibility120
+- AssignedforNetFlowv9compatibility121
+- AssignedforNetFlowv9compatibility122
+- AssignedforNetFlowv9compatibility123
+- AssignedforNetFlowv9compatibility124
+- AssignedforNetFlowv9compatibility125
+- AssignedforNetFlowv9compatibility126
+- AssignedforNetFlowv9compatibility127
 - BgpNextAdjacentAsNumber
 - BgpPrevAdjacentAsNumber
 - ExporterIpv4address
@@ -398,25 +398,25 @@ expression: lookup
 - FlowSelectedFlowDeltaCount
 - SelectorIdtotalFlowsObserved
 - SelectorIdtotalFlowsSelected
-- Unknown: 396
-- Unknown: 397
-- Unknown: 398
-- Unknown: 399
-- Unknown: 400
-- Unknown: 401
-- Unknown: 402
-- Unknown: 403
-- Unknown: 404
-- Unknown: 405
-- Unknown: 406
-- Unknown: 407
-- Unknown: 408
-- Unknown: 409
-- Unknown: 410
-- Unknown: 411
-- Unknown: 412
-- Unknown: 413
-- Unknown: 414
+- SamplingFlowInterval
+- SamplingFlowSpacing
+- FlowSamplingTimeInterval
+- FlowSamplingTimeSpacing
+- HashFlowDomain
+- TransportOctetDeltaCount
+- TransportPacketDeltaCount
+- OriginalExporterIpv4address
+- OriginalExporterIpv6address
+- OriginalObservationDomainId
+- IntermediateProcessId
+- IgnoredDataRecordTotalCount
+- DataLinkFrameType
+- SectionOffset
+- SectionExportedOctets
+- Dot1qServiceInstanceTag
+- Dot1qServiceInstanceId
+- Dot1qServiceInstancePriority
+- Dot1qCustomerSourceMacaddress
 - Dot1qCustomerDestinationMacaddress
 - Unknown: 416
 - PostLayer2octetDeltaCount

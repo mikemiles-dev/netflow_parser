@@ -2,6 +2,7 @@
 * V9 Fields also now a Vec instead of BTreeMap.
 * IPFix Templates are now HashMap instead of BTreeMap.
 * Faster Data Parsing for V9/IPFix by removing inefficient contains_key lookup.
+* Fixed issue with certain ipfix lookup fields.
 
 # 0.6.0
 * Remove Control Characters and P4 starting chars from FieldDataType unicode strings.
