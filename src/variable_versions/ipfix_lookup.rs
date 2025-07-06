@@ -44,39 +44,57 @@ impl IPFixField {
     }
 }
 
-impl From<VMWareIPFixField> for FieldDataType {
-    fn from(field: VMWareIPFixField) -> Self {
-        match field {
-            VMWareIPFixField::VmwareTenantProtocol => FieldDataType::UnsignedDataNumber, // uint8
-            VMWareIPFixField::VmwareTenantSourceIPv4 => FieldDataType::Ip4Addr,
-            VMWareIPFixField::VmwareTenantDestIPv4 => FieldDataType::Ip4Addr,
-            VMWareIPFixField::VmwareTenantSourceIPv6 => FieldDataType::Ip6Addr,
-            VMWareIPFixField::VmwareTenantDestIPv6 => FieldDataType::Ip6Addr,
-            VMWareIPFixField::VmwareTenantSourcePort => FieldDataType::UnsignedDataNumber, // uint16
-            VMWareIPFixField::VmwareTenantDestPort => FieldDataType::UnsignedDataNumber, // uint16
-            VMWareIPFixField::VmwareEgressInterfaceAttr => FieldDataType::UnsignedDataNumber, // uint16
-            VMWareIPFixField::VmwareVxlanExportRole => FieldDataType::UnsignedDataNumber, // uint8
-            VMWareIPFixField::VmwareIngressInterfaceAttr => FieldDataType::UnsignedDataNumber, // uint16
-            VMWareIPFixField::Unknown(_) => FieldDataType::Unknown,
+macro_rules! ipfix_field_enum {
+    (
+        $(#[$enum_meta:meta])*
+        $vis:vis enum $enum_name:ident {
+            $(
+                $variant:ident = $value:expr => $field_type:expr
+            ),* $(,)?
         }
-    }
+    ) => {
+        $(#[$enum_meta])*
+        $vis enum $enum_name {
+            $(
+                $variant = $value,
+            )*
+            Unknown(u16),
+        }
+
+        impl From<u16> for $enum_name {
+            fn from(field_type_number: u16) -> Self {
+                match field_type_number {
+                    $($value => $enum_name::$variant,)*
+                    _ => $enum_name::Unknown(field_type_number),
+                }
+            }
+        }
+
+        impl From<$enum_name> for FieldDataType {
+            fn from(field: $enum_name) -> Self {
+                match field {
+                    $($enum_name::$variant => $field_type,)*
+                    $enum_name::Unknown(_) => FieldDataType::Unknown,
+                }
+            }
+        }
+    };
 }
 
-impl From<u16> for VMWareIPFixField {
-    fn from(field_type_number: u16) -> Self {
-        match field_type_number {
-            880 => VMWareIPFixField::VmwareTenantProtocol,
-            881 => VMWareIPFixField::VmwareTenantSourceIPv4,
-            882 => VMWareIPFixField::VmwareTenantDestIPv4,
-            883 => VMWareIPFixField::VmwareTenantSourceIPv6,
-            884 => VMWareIPFixField::VmwareTenantDestIPv6,
-            886 => VMWareIPFixField::VmwareTenantSourcePort,
-            887 => VMWareIPFixField::VmwareTenantDestPort,
-            888 => VMWareIPFixField::VmwareEgressInterfaceAttr,
-            889 => VMWareIPFixField::VmwareVxlanExportRole,
-            890 => VMWareIPFixField::VmwareIngressInterfaceAttr,
-            _ => VMWareIPFixField::Unknown(field_type_number),
-        }
+ipfix_field_enum! {
+    #[repr(u16)]
+    #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
+    pub enum VMWareIPFixField {
+        VmwareTenantProtocol = 880 => FieldDataType::UnsignedDataNumber,
+        VmwareTenantSourceIPv4 = 881 => FieldDataType::Ip4Addr,
+        VmwareTenantDestIPv4 = 882 => FieldDataType::Ip4Addr,
+        VmwareTenantSourceIPv6 = 883 => FieldDataType::Ip6Addr,
+        VmwareTenantDestIPv6 = 884 => FieldDataType::Ip6Addr,
+        VmwareTenantSourcePort = 886 => FieldDataType::UnsignedDataNumber,
+        VmwareTenantDestPort = 887 => FieldDataType::UnsignedDataNumber,
+        VmwareEgressInterfaceAttr = 888 => FieldDataType::UnsignedDataNumber,
+        VmwareVxlanExportRole = 889 => FieldDataType::UnsignedDataNumber,
+        VmwareIngressInterfaceAttr = 890 => FieldDataType::UnsignedDataNumber
     }
 }
 
@@ -310,22 +328,6 @@ impl From<u16> for YafIPFixField {
             _ => YafIPFixField::Unknown(value),
         }
     }
-}
-
-#[repr(u16)]
-#[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
-pub enum VMWareIPFixField {
-    VmwareTenantProtocol = 880,
-    VmwareTenantSourceIPv4 = 881,
-    VmwareTenantDestIPv4 = 882,
-    VmwareTenantSourceIPv6 = 883,
-    VmwareTenantDestIPv6 = 884,
-    VmwareTenantSourcePort = 886,
-    VmwareTenantDestPort = 887,
-    VmwareEgressInterfaceAttr = 888,
-    VmwareVxlanExportRole = 889,
-    VmwareIngressInterfaceAttr = 890,
-    Unknown(u16),
 }
 
 #[repr(u16)]
