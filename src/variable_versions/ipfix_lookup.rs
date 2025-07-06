@@ -522,95 +522,35 @@ ipfix_field_enum! {
     }
 }
 
+ipfix_field_enum! {
 #[repr(u16)]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
-pub enum NatIPFixField {
-    NatInsideSvcid = 91,
-    NatOutsideSvcid = 92,
-    NatSubString = 93,
-}
-
-impl From<u16> for NatIPFixField {
-    fn from(field_type_number: u16) -> Self {
-        match field_type_number {
-            91 => NatIPFixField::NatInsideSvcid,
-            92 => NatIPFixField::NatOutsideSvcid,
-            93 => NatIPFixField::NatSubString,
-            _ => NatIPFixField::NatInsideSvcid, // Default to a known field
-        }
+    pub enum NatIPFixField {
+    NatInsideSvcid = 91 => FieldDataType::UnsignedDataNumber,
+    NatOutsideSvcid = 92 => FieldDataType::UnsignedDataNumber,
+    NatSubString = 93 => FieldDataType::String,
     }
 }
 
-impl From<NatIPFixField> for FieldDataType {
-    fn from(field: NatIPFixField) -> FieldDataType {
-        match field {
-            NatIPFixField::NatInsideSvcid => FieldDataType::UnsignedDataNumber,
-            NatIPFixField::NatOutsideSvcid => FieldDataType::UnsignedDataNumber,
-            NatIPFixField::NatSubString => FieldDataType::String,
-        }
-    }
-}
-
-impl From<u16> for CiscoIPFixField {
-    fn from(value: u16) -> Self {
-        match value {
-            8337 => CiscoIPFixField::CiscoServerBytesNetwork,
-            8338 => CiscoIPFixField::CiscoClientBytesNetwork,
-            9252 => CiscoIPFixField::CiscoServicesWaasSegment,
-            9253 => CiscoIPFixField::CiscoServicesWaasPassthroughReason,
-            9357 => CiscoIPFixField::CiscoAppHttpUriStatistics,
-            12232 => CiscoIPFixField::CiscoAppCategoryName,
-            12234 => CiscoIPFixField::CiscoAppGroupName,
-            12235 => CiscoIPFixField::CiscoAppHttpHost,
-            12236 => CiscoIPFixField::CiscoClientIpv4Address,
-            12237 => CiscoIPFixField::CiscoServerIpv4Address,
-            _ => CiscoIPFixField::Unknown(value),
-        }
-    }
-}
-
-impl From<CiscoIPFixField> for FieldDataType {
-    fn from(d: CiscoIPFixField) -> FieldDataType {
-        match d {
-            CiscoIPFixField::CiscoServerBytesNetwork => FieldDataType::UnsignedDataNumber,
-            CiscoIPFixField::CiscoClientBytesNetwork => FieldDataType::UnsignedDataNumber,
-            CiscoIPFixField::CiscoServicesWaasSegment => FieldDataType::UnsignedDataNumber,
-            CiscoIPFixField::CiscoServicesWaasPassthroughReason => {
-                FieldDataType::UnsignedDataNumber
-            }
-            CiscoIPFixField::CiscoAppHttpUriStatistics => FieldDataType::String,
-            CiscoIPFixField::CiscoAppCategoryName => FieldDataType::String,
-            CiscoIPFixField::CiscoAppGroupName => FieldDataType::String,
-            CiscoIPFixField::CiscoAppHttpHost => FieldDataType::String,
-            CiscoIPFixField::CiscoClientIpv4Address => FieldDataType::Ip4Addr,
-            CiscoIPFixField::CiscoServerIpv4Address => FieldDataType::Ip4Addr,
-            CiscoIPFixField::CiscoClientL4Port => FieldDataType::UnsignedDataNumber,
-            CiscoIPFixField::CiscoServerL4Port => FieldDataType::UnsignedDataNumber,
-            CiscoIPFixField::CiscoConnectionId => FieldDataType::UnsignedDataNumber,
-            CiscoIPFixField::CiscoAppBusiness => FieldDataType::String,
-            CiscoIPFixField::Unknown(_) => FieldDataType::Unknown,
-        }
-    }
-}
-
+ipfix_field_enum! {
 #[repr(u16)]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
-pub enum CiscoIPFixField {
-    CiscoServerBytesNetwork = 8337,
-    CiscoClientBytesNetwork = 8338,
-    CiscoServicesWaasSegment = 9252,
-    CiscoServicesWaasPassthroughReason = 9253,
-    CiscoAppHttpUriStatistics = 9357,
-    CiscoAppCategoryName = 12232,
-    CiscoAppGroupName = 12234,
-    CiscoAppHttpHost = 12235,
-    CiscoClientIpv4Address = 12236,
-    CiscoServerIpv4Address = 12237,
-    CiscoClientL4Port = 12240,
-    CiscoServerL4Port = 12241,
-    CiscoConnectionId = 12242,
-    CiscoAppBusiness = 12244,
-    Unknown(u16),
+    pub enum CiscoIPFixField {
+        CiscoServerBytesNetwork = 8337 => FieldDataType::UnsignedDataNumber,
+        CiscoClientBytesNetwork = 8338 => FieldDataType::UnsignedDataNumber,
+        CiscoServicesWaasSegment = 9252 => FieldDataType::UnsignedDataNumber,
+        CiscoServicesWaasPassthroughReason = 9253 => FieldDataType::UnsignedDataNumber,
+        CiscoAppHttpUriStatistics = 9357 => FieldDataType::String,
+        CiscoAppCategoryName = 12232 => FieldDataType::String,
+        CiscoAppGroupName = 12234 => FieldDataType::String,
+        CiscoAppHttpHost = 12235 => FieldDataType::String,
+        CiscoClientIpv4Address = 12236 => FieldDataType::Ip4Addr,
+        CiscoServerIpv4Address = 12237 => FieldDataType::Ip4Addr,
+        CiscoClientL4Port = 12240 => FieldDataType::UnsignedDataNumber,
+        CiscoServerL4Port = 12241 => FieldDataType::UnsignedDataNumber,
+        CiscoConnectionId = 12242 => FieldDataType::UnsignedDataNumber,
+        CiscoAppBusiness = 12244 => FieldDataType::String,
+    }
 }
 
 /// IANA IPFix Fields

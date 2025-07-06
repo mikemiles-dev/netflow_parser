@@ -32,14 +32,12 @@ expression: result
                 field_length: 2
                 enterprise_number: 9
                 field_type:
-                  Cisco:
-                    Unknown: 12240
+                  Cisco: CiscoClientL4Port
               - field_type_number: 12241
                 field_length: 2
                 enterprise_number: 9
                 field_type:
-                  Cisco:
-                    Unknown: 12241
+                  Cisco: CiscoServerL4Port
               - field_type_number: 234
                 field_length: 4
                 field_type:
@@ -56,8 +54,7 @@ expression: result
                 field_length: 4
                 enterprise_number: 9
                 field_type:
-                  Cisco:
-                    Unknown: 12242
+                  Cisco: CiscoConnectionId
               - field_type_number: 95
                 field_length: 4
                 field_type:
@@ -208,29 +205,18 @@ expression: result
                   - Ip4Addr: 10.209.101.66
                 - - Cisco: CiscoServerIpv4Address
                   - Ip4Addr: 10.0.0.241
-                - - Cisco:
-                      Unknown: 12240
-                  - Vec:
-                      - 192
-                      - 224
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 0
-                      - 80
+                - - Cisco: CiscoClientL4Port
+                  - DataNumber: 49376
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 80
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: IngressInterface
                   - DataNumber: 13
                 - - IANA: BiflowDirection
                   - DataNumber: 1
-                - - Cisco:
-                      Unknown: 12242
-                  - Vec:
-                      - 141
-                      - 195
-                      - 63
-                      - 224
+                - - Cisco: CiscoConnectionId
+                  - DataNumber: 2378383328
                 - - IANA: ApplicationId
                   - ApplicationId:
                       classification_engine_id: 3

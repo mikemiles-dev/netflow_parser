@@ -44,8 +44,7 @@ expression: result
                 field_length: 2
                 enterprise_number: 9
                 field_type:
-                  Cisco:
-                    Unknown: 12241
+                  Cisco: CiscoServerL4Port
               - field_type_number: 234
                 field_length: 4
                 field_type:
@@ -136,11 +135,8 @@ expression: result
                   - DataNumber: 0
                 - - IANA: IpTtl
                   - DataNumber: 255
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 8
-                      - 7
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 2055
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -185,11 +181,8 @@ expression: result
                   - DataNumber: 0
                 - - IANA: IpTtl
                   - DataNumber: 254
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 14
-                      - 201
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 3785
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -234,11 +227,8 @@ expression: result
                   - DataNumber: 4
                 - - IANA: IpTtl
                   - DataNumber: 61
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 68
-                      - 246
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 17654
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -283,11 +273,8 @@ expression: result
                   - DataNumber: 0
                 - - IANA: IpTtl
                   - DataNumber: 60
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 223
-                      - 251
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 57339
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -332,11 +319,8 @@ expression: result
                   - DataNumber: 0
                 - - IANA: IpTtl
                   - DataNumber: 126
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 19
-                      - 137
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 5001
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -381,11 +365,8 @@ expression: result
                   - DataNumber: 0
                 - - IANA: IpTtl
                   - DataNumber: 1
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 0
-                      - 0
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 0
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -430,11 +411,8 @@ expression: result
                   - DataNumber: 48
                 - - IANA: IpTtl
                   - DataNumber: 255
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 14
-                      - 201
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 3785
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -479,11 +457,8 @@ expression: result
                   - DataNumber: 48
                 - - IANA: IpTtl
                   - DataNumber: 1
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 0
-                      - 0
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 0
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -528,11 +503,8 @@ expression: result
                   - DataNumber: 4
                 - - IANA: IpTtl
                   - DataNumber: 61
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 68
-                      - 246
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 17654
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -577,11 +549,8 @@ expression: result
                   - DataNumber: 48
                 - - IANA: IpTtl
                   - DataNumber: 1
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 0
-                      - 0
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 0
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -626,11 +595,8 @@ expression: result
                   - DataNumber: 0
                 - - IANA: IpTtl
                   - DataNumber: 125
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 13
-                      - 61
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 3389
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -675,11 +641,8 @@ expression: result
                   - DataNumber: 4
                 - - IANA: IpTtl
                   - DataNumber: 61
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 68
-                      - 246
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 17654
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -724,11 +687,8 @@ expression: result
                   - DataNumber: 48
                 - - IANA: IpTtl
                   - DataNumber: 255
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 14
-                      - 200
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 3784
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -773,11 +733,8 @@ expression: result
                   - DataNumber: 8
                 - - IANA: IpTtl
                   - DataNumber: 61
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 68
-                      - 246
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 17654
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -822,11 +779,8 @@ expression: result
                   - DataNumber: 0
                 - - IANA: IpTtl
                   - DataNumber: 60
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 0
-                      - 0
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 0
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
@@ -871,11 +825,8 @@ expression: result
                   - DataNumber: 0
                 - - IANA: IpTtl
                   - DataNumber: 255
-                - - Cisco:
-                      Unknown: 12241
-                  - Vec:
-                      - 14
-                      - 200
+                - - Cisco: CiscoServerL4Port
+                  - DataNumber: 3784
                 - - IANA: IngressVrfid
                   - DataNumber: 0
                 - - IANA: ApplicationId
