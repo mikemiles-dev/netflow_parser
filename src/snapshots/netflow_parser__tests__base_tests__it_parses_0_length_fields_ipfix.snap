@@ -29,7 +29,7 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
               - field_type_number: 65
                 field_length: 0
                 field_type:
-                  IANA: AssignedforNetFlowv9compatibility
+                  IANA: AssignedforNetFlowv9compatibility65
       - header:
           header_id: 256
           length: 12
@@ -40,5 +40,5 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                   - Ip4Addr: 1.2.3.4
                 - - IANA: DestinationIpv4address
                   - Ip4Addr: 1.2.3.4
-                - - IANA: AssignedforNetFlowv9compatibility
+                - - IANA: AssignedforNetFlowv9compatibility65
                   - Vec: []
