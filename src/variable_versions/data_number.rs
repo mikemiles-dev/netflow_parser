@@ -51,7 +51,9 @@ macro_rules! impl_try_from {
 #[serde(untagged)]
 pub enum DataNumber {
     U8(u8),
+    I8(i8),
     U16(u16),
+    I16(i16),
     U24(u32),
     I24(i32),
     U32(u32),
@@ -128,9 +130,9 @@ impl DataNumber {
     pub fn parse(i: &[u8], field_length: u16, signed: bool) -> IResult<&[u8], DataNumber> {
         match (field_length, signed) {
             (1, false) => Ok(u8::parse(i)?).map(|(i, j)| (i, Self::U8(j))),
-            (1, true) => Ok(i8::parse(i)?).map(|(i, j)| (i, Self::I32(i32::from(j)))),
+            (1, true) => Ok(i8::parse(i)?).map(|(i, j)| (i, Self::I8(j))),
             (2, false) => Ok(u16::parse(i)?).map(|(i, j)| (i, Self::U16(j))),
-            (2, true) => Ok(i16::parse(i)?).map(|(i, j)| (i, Self::I32(i32::from(j)))),
+            (2, true) => Ok(i16::parse(i)?).map(|(i, j)| (i, Self::I16(j))),
             (3, false) => Ok(be_u24(i).map(|(i, j)| (i, Self::U24(j)))?),
             (3, true) => Ok(be_i24(i).map(|(i, j)| (i, Self::I24(j)))?),
             (4, true) => Ok(i32::parse(i)?).map(|(i, j)| (i, Self::I32(j))),
@@ -146,7 +148,9 @@ impl DataNumber {
     fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
         match self {
             DataNumber::U8(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::I8(n) => Ok(n.to_be_bytes().to_vec()),
             DataNumber::U16(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::I16(n) => Ok(n.to_be_bytes().to_vec()),
             DataNumber::U24(n) => {
                 let mut wtr = Vec::new();
                 wtr.write_u24::<BigEndian>(*n)?;
@@ -172,11 +176,13 @@ impl From<DataNumber> for usize {
     fn from(val: DataNumber) -> Self {
         match val {
             DataNumber::U8(i) => usize::from(i),
+            DataNumber::I8(i) => i as usize,
+            DataNumber::U16(i) => i as usize,
+            DataNumber::I16(i) => i as usize,
             DataNumber::I24(i) => i as usize,
             DataNumber::U24(i) => i as usize,
             DataNumber::U32(i) => i as usize,
             DataNumber::I32(i) => i as usize,
-            DataNumber::U16(i) => i as usize,
             DataNumber::U64(i) => i as usize,
             DataNumber::I64(i) => i as usize,
             DataNumber::U128(i) => i as usize,
