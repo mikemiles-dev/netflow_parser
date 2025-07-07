@@ -1,6 +1,7 @@
 # 0.6.2
 * IPFix supports multiple V9 Options templates.
-* Found casting issues that could result in dataloss in the DataNumbets module.
+* Found casting issues that could result in dataloss in the DataNumbers module.
+* Fixed incorrect datatypes for DataNumbers.
 * Added Reverse Information Element PEN fields.
 
 # 0.6.1
