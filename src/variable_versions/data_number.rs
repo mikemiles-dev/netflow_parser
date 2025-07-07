@@ -71,7 +71,9 @@ pub enum DataNumberError {
 
 impl_try_from!(
     u8 => U8,
+    i8 => I8,
     u16 => U16,
+    i16 => I16,
     u32 => U32,
     i32 => I32,
     u64 => U64,
