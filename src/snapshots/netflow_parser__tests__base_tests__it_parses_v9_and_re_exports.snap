@@ -1,6 +1,6 @@
 ---
 source: src/tests.rs
-expression: v9.to_be_bytes()
+expression: v9.to_be_bytes().unwrap()
 ---
 - 0
 - 9
