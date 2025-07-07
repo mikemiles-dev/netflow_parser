@@ -1,6 +1,6 @@
 ---
 source: src/tests.rs
-expression: ipfix.to_be_bytes()
+expression: ipfix.to_be_bytes().unwrap()
 ---
 - 0
 - 10

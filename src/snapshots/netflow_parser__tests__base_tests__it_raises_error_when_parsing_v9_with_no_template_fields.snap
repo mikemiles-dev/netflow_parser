@@ -59,4 +59,3 @@ expression: parser.parse_bytes(&packet)
       - 0
       - 1
       - 1
-
