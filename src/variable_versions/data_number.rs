@@ -56,7 +56,9 @@ pub enum DataNumber {
     I24(i32),
     U32(u32),
     U64(u64),
+    I64(i64),
     U128(u128),
+    I128(i128),
     I32(i32),
 }
 
@@ -71,7 +73,9 @@ impl_try_from!(
     u32 => U32,
     i32 => I32,
     u64 => U64,
-    u128 => U128;
+    i64 => I64,
+    u128 => U128,
+    i128 => I128;
 );
 
 #[derive(Debug)]
@@ -124,17 +128,17 @@ impl DataNumber {
     pub fn parse(i: &[u8], field_length: u16, signed: bool) -> IResult<&[u8], DataNumber> {
         match (field_length, signed) {
             (1, false) => Ok(u8::parse(i)?).map(|(i, j)| (i, Self::U8(j))),
-            (1, true) => Ok(i8::parse(i)?).map(|(i, j)| (i, Self::I32(j as i32))),
+            (1, true) => Ok(i8::parse(i)?).map(|(i, j)| (i, Self::I32(i32::from(j)))),
             (2, false) => Ok(u16::parse(i)?).map(|(i, j)| (i, Self::U16(j))),
-            (2, true) => Ok(i16::parse(i)?).map(|(i, j)| (i, Self::I32(j as i32))),
+            (2, true) => Ok(i16::parse(i)?).map(|(i, j)| (i, Self::I32(i32::from(j)))),
             (3, false) => Ok(be_u24(i).map(|(i, j)| (i, Self::U24(j)))?),
             (3, true) => Ok(be_i24(i).map(|(i, j)| (i, Self::I24(j)))?),
             (4, true) => Ok(i32::parse(i)?).map(|(i, j)| (i, Self::I32(j))),
             (4, false) => Ok(u32::parse(i)?).map(|(i, j)| (i, Self::U32(j))),
             (8, false) => Ok(u64::parse(i)?).map(|(i, j)| (i, Self::U64(j))),
-            (8, true) => Ok(i64::parse(i)?).map(|(i, j)| (i, Self::I32(j as i32))),
+            (8, true) => Ok(i64::parse(i)?).map(|(i, j)| (i, Self::I64(j))),
             (16, false) => Ok(u128::parse(i)?).map(|(i, j)| (i, Self::U128(j))),
-            (16, true) => Ok(i128::parse(i)?).map(|(i, j)| (i, Self::I32(j as i32))),
+            (16, true) => Ok(i128::parse(i)?).map(|(i, j)| (i, Self::I128(j))),
             _ => Err(NomErr::Error(NomError::new(i, ErrorKind::Fail))),
         }
     }
@@ -155,8 +159,10 @@ impl DataNumber {
             }
             DataNumber::U32(n) => Ok(n.to_be_bytes().to_vec()),
             DataNumber::U64(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::I64(n) => Ok(n.to_be_bytes().to_vec()),
             DataNumber::U128(n) => Ok(n.to_be_bytes().to_vec()),
             DataNumber::I32(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::I128(n) => Ok(n.to_be_bytes().to_vec()),
         }
     }
 }
@@ -165,14 +171,16 @@ impl DataNumber {
 impl From<DataNumber> for usize {
     fn from(val: DataNumber) -> Self {
         match val {
-            DataNumber::U8(i) => i as usize,
+            DataNumber::U8(i) => usize::from(i),
             DataNumber::I24(i) => i as usize,
             DataNumber::U24(i) => i as usize,
             DataNumber::U32(i) => i as usize,
             DataNumber::I32(i) => i as usize,
             DataNumber::U16(i) => i as usize,
             DataNumber::U64(i) => i as usize,
+            DataNumber::I64(i) => i as usize,
             DataNumber::U128(i) => i as usize,
+            DataNumber::I128(i) => i as usize,
         }
     }
 }
