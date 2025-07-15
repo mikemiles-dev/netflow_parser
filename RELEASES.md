@@ -1,3 +1,7 @@
+# 0.6.3
+* Ipfix dateTimeNanoseconds and dateTimeMicroseconds use the NTP 64 bit time format #15
+* Added NetEvent and ObservationTimeMilliseconds for V9.
+
 # 0.6.2
 * IPFix supports multiple V9 Options templates.
 * Found casting issues that could result in dataloss in the DataNumbers module.

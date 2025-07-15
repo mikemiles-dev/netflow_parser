@@ -137,8 +137,10 @@ pub enum V9Field {
     PostNATDestinationIPv4Address = 226,
     PostNATTSourceTransportPort = 227,
     PostNATTDestinationTransportPort = 228,
+    NatEvent = 230,
     PostNATSourceIpv6Address = 281,
     PostNATDestinationIpv6Address = 282,
+    ObservationTimeMilliseconds = 323,
     Vendor,
     Unknown,
 }
@@ -252,6 +254,8 @@ impl From<V9Field> for FieldDataType {
             V9Field::PostNATTDestinationTransportPort => FieldDataType::UnsignedDataNumber,
             V9Field::PostNATSourceIpv6Address => FieldDataType::Ip6Addr,
             V9Field::PostNATDestinationIpv6Address => FieldDataType::Ip6Addr,
+            V9Field::ObservationTimeMilliseconds => FieldDataType::DurationMillis,
+            V9Field::NatEvent => FieldDataType::UnsignedDataNumber,
             _ => FieldDataType::Unknown,
         }
     }
@@ -372,8 +376,10 @@ impl From<u16> for V9Field {
             226 => V9Field::PostNATDestinationIPv4Address,
             227 => V9Field::PostNATTSourceTransportPort,
             228 => V9Field::PostNATTDestinationTransportPort,
+            230 => V9Field::NatEvent,
             281 => V9Field::PostNATSourceIpv6Address,
             282 => V9Field::PostNATDestinationIpv6Address,
+            323 => V9Field::ObservationTimeMilliseconds,
             _ => V9Field::Unknown,
         }
     }
