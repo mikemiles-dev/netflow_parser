@@ -231,7 +231,7 @@ expression: fields
 - PostNATTSourceTransportPort
 - PostNATTDestinationTransportPort
 - Unknown
-- Unknown
+- NatEvent
 - Unknown
 - Unknown
 - Unknown

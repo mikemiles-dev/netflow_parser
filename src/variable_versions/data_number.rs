@@ -317,15 +317,20 @@ impl FieldValue {
             FieldDataType::DurationMicros => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                let dur = Duration::from_secs(seconds as u64)
-                    + Duration::from_micros((fraction as u64 * 1_000_000) >> 32);
+                let dur =
+                    Duration::from_secs(seconds as u64).saturating_add(Duration::from_micros(
+                        ((u64::from(fraction)).saturating_mul(1_000_000)) >> 32,
+                    ));
                 (i, FieldValue::Duration(dur))
             }
             FieldDataType::DurationNanos => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                let dur = Duration::from_secs(seconds as u64)
-                    + Duration::from_nanos((fraction as u64 * 1_000_000_000) >> 32);
+                let dur = Duration::from_secs(u64::from(seconds)).saturating_add(
+                    Duration::from_nanos(
+                        (u64::from(fraction).saturating_mul(1_000_000_000)) >> 32,
+                    ),
+                );
                 (i, FieldValue::Duration(dur))
             }
             FieldDataType::ProtocolType => {
