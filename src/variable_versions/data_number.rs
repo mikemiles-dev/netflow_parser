@@ -315,22 +315,18 @@ impl FieldValue {
                 )
             }
             FieldDataType::DurationMicros => {
-                let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
-                (
-                    i,
-                    FieldValue::Duration(Duration::from_micros(
-                        <DataNumber as Into<usize>>::into(data_number) as u64,
-                    )),
-                )
+                let (i, seconds) = u32::parse_be(remaining)?;
+                let (i, fraction) = u32::parse_be(i)?;
+                let dur = Duration::from_secs(seconds as u64)
+                    + Duration::from_micros((fraction as u64 * 1_000_000) >> 32);
+                (i, FieldValue::Duration(dur))
             }
             FieldDataType::DurationNanos => {
-                let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
-                (
-                    i,
-                    FieldValue::Duration(Duration::from_nanos(
-                        <DataNumber as Into<usize>>::into(data_number) as u64,
-                    )),
-                )
+                let (i, seconds) = u32::parse_be(remaining)?;
+                let (i, fraction) = u32::parse_be(i)?;
+                let dur = Duration::from_secs(seconds as u64)
+                    + Duration::from_nanos((fraction as u64 * 1_000_000_000) >> 32);
+                (i, FieldValue::Duration(dur))
             }
             FieldDataType::ProtocolType => {
                 let (i, protocol) = ProtocolTypes::parse(remaining)?;

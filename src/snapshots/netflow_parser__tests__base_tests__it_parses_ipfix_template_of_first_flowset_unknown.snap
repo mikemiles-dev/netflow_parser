@@ -80,12 +80,12 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                   - DataNumber: 84025344
                 - - IANA: FlowStartMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 838403000
+                      secs: 3621155483
+                      nanos: 175000
                 - - IANA: FlowEndMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 849399000
+                      secs: 3621155483
+                      nanos: 178000
                 - - IANA: IngressInterface
                   - DataNumber: 1
                 - - IANA: EgressInterface
@@ -174,12 +174,12 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                   - DataNumber: 84025344
                 - - IANA: FlowStartMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 853386000
+                      secs: 3621155483
+                      nanos: 179000
                 - - IANA: FlowEndMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 853386000
+                      secs: 3621155483
+                      nanos: 179000
                 - - IANA: IngressInterface
                   - DataNumber: 1
                 - - IANA: EgressInterface
@@ -274,12 +274,12 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                   - DataNumber: 1090527232
                 - - IANA: FlowStartMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 838403000
+                      secs: 3621155483
+                      nanos: 175000
                 - - IANA: FlowEndMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 850391000
+                      secs: 3621155483
+                      nanos: 178000
                 - - Netscaler: NetscalerRoundTripTime
                   - DataNumber: 3
                 - - IANA: EgressInterface
@@ -348,12 +348,12 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                   - DataNumber: 84025344
                 - - IANA: FlowStartMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 884381000
+                      secs: 3621155483
+                      nanos: 186000
                 - - IANA: FlowEndMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 884381000
+                      secs: 3621155483
+                      nanos: 186000
                 - - IANA: IngressInterface
                   - DataNumber: 1
                 - - IANA: EgressInterface
@@ -442,12 +442,12 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                   - DataNumber: 84025344
                 - - IANA: FlowStartMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 886381000
+                      secs: 3621155483
+                      nanos: 186000
                 - - IANA: FlowEndMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 889368000
+                      secs: 3621155483
+                      nanos: 187000
                 - - IANA: IngressInterface
                   - DataNumber: 1
                 - - IANA: EgressInterface
@@ -542,12 +542,12 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
                   - DataNumber: 1093672960
                 - - IANA: FlowStartMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 884381000
+                      secs: 3621155483
+                      nanos: 186000
                 - - IANA: FlowEndMicroseconds
                   - Duration:
-                      secs: 15552744373216
-                      nanos: 886381000
+                      secs: 3621155483
+                      nanos: 186000
                 - - Netscaler: NetscalerRoundTripTime
                   - DataNumber: 2
                 - - IANA: EgressInterface
