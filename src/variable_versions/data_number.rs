@@ -1,17 +1,17 @@
 use crate::protocol::ProtocolTypes;
-
 use byteorder::{BigEndian, WriteBytesExt};
-use nom::Err as NomErr;
-use nom::IResult;
-use nom::bytes::complete::take;
-use nom::error::{Error as NomError, ErrorKind};
-use nom::number::complete::{be_i24, be_u24, be_u32, be_u128};
-use nom_derive::*;
+use nom::{
+    Err as NomErr, IResult,
+    bytes::complete::take,
+    error::{Error as NomError, ErrorKind},
+    number::complete::{be_i24, be_u24, be_u32, be_u128},
+};
+use nom_derive::Parse;
 use serde::Serialize;
-
-use std::convert::Into;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::time::Duration;
+use std::{
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    time::Duration,
+};
 
 macro_rules! impl_try_from {
     ($($t:ty => $v:ident),*; $($s:ty => $sv:ident),*) => {
@@ -173,26 +173,6 @@ impl DataNumber {
     }
 }
 
-/// Convert into usize, mainly for serialization purposes
-impl From<DataNumber> for usize {
-    fn from(val: DataNumber) -> Self {
-        match val {
-            DataNumber::U8(i) => usize::from(i),
-            DataNumber::I8(i) => i as usize,
-            DataNumber::U16(i) => i as usize,
-            DataNumber::I16(i) => i as usize,
-            DataNumber::I24(i) => i as usize,
-            DataNumber::U24(i) => i as usize,
-            DataNumber::U32(i) => i as usize,
-            DataNumber::I32(i) => i as usize,
-            DataNumber::U64(i) => i as usize,
-            DataNumber::I64(i) => i as usize,
-            DataNumber::U128(i) => i as usize,
-            DataNumber::I128(i) => i as usize,
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
 pub struct ApplicationId {
     pub classification_engine_id: u8,
@@ -238,6 +218,12 @@ impl FieldValue {
             FieldValue::Vec(v) => Ok(v.clone()),
             FieldValue::Unknown(v) => Ok(v.clone()),
         }
+    }
+
+    fn make_ntp_time_with_unit(seconds: u32, fraction: u32, unit: u64) -> Duration {
+        Duration::from_secs(u64::from(seconds)).saturating_add(Duration::from_micros(
+            ((u64::from(fraction)).saturating_mul(unit)) >> 32,
+        ))
     }
 
     pub fn from_field_type(
@@ -297,40 +283,51 @@ impl FieldValue {
                 (i, FieldValue::MacAddr(mac_addr))
             }
             FieldDataType::DurationSeconds => {
-                let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
-                (
-                    i,
-                    FieldValue::Duration(Duration::from_secs(
-                        <DataNumber as Into<usize>>::into(data_number) as u64,
-                    )),
-                )
+                let (i, value) = match field_length {
+                    4 => {
+                        let (i, seconds) = u32::parse_be(remaining)?;
+                        let dur = Duration::from_secs(seconds.into());
+                        (i, FieldValue::Duration(dur))
+                    }
+                    8 => {
+                        let (i, seconds) = u64::parse_be(remaining)?;
+                        let dur = Duration::from_secs(seconds);
+                        (i, FieldValue::Duration(dur))
+                    }
+                    _ => {
+                        return Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)));
+                    }
+                };
+                (i, value)
             }
             FieldDataType::DurationMillis => {
-                let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
-                (
-                    i,
-                    FieldValue::Duration(Duration::from_millis(
-                        <DataNumber as Into<usize>>::into(data_number) as u64,
-                    )),
-                )
+                let (i, value) = match field_length {
+                    4 => {
+                        let (i, seconds) = u32::parse_be(remaining)?;
+                        let dur = Duration::from_millis(u64::from(seconds));
+                        (i, FieldValue::Duration(dur))
+                    }
+                    8 => {
+                        let (i, seconds) = u64::parse_be(remaining)?;
+                        let dur = Duration::from_millis(seconds);
+                        (i, FieldValue::Duration(dur))
+                    }
+                    _ => {
+                        return Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)));
+                    }
+                };
+                (i, value)
             }
-            FieldDataType::DurationMicros => {
+            FieldDataType::DurationMicrosNTP => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                let dur =
-                    Duration::from_secs(seconds as u64).saturating_add(Duration::from_micros(
-                        ((u64::from(fraction)).saturating_mul(1_000_000)) >> 32,
-                    ));
+                let dur = Self::make_ntp_time_with_unit(seconds, fraction, 1_000_000);
                 (i, FieldValue::Duration(dur))
             }
-            FieldDataType::DurationNanos => {
+            FieldDataType::DurationNanosNTP => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                let dur = Duration::from_secs(u64::from(seconds)).saturating_add(
-                    Duration::from_nanos(
-                        (u64::from(fraction).saturating_mul(1_000_000_000)) >> 32,
-                    ),
-                );
+                let dur = Self::make_ntp_time_with_unit(seconds, fraction, 1_000_000_000);
                 (i, FieldValue::Duration(dur))
             }
             FieldDataType::ProtocolType => {
@@ -361,8 +358,8 @@ pub enum FieldDataType {
     Float64,
     DurationSeconds,
     DurationMillis,
-    DurationMicros,
-    DurationNanos,
+    DurationMicrosNTP,
+    DurationNanosNTP,
     Ip4Addr,
     Ip6Addr,
     MacAddr,
