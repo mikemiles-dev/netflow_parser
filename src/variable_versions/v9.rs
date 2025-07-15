@@ -250,10 +250,10 @@ pub struct OptionsTemplate {
     /// This field gives the length (in bytes) of any Options field definitions that are contained in this options template
     pub options_length: u16,
     /// Options Scope Fields
-    #[nom(Count = "usize::from((options_scope_length.saturating_div(4)))")]
+    #[nom(Count = "usize::from(options_scope_length.saturating_div(4))")]
     pub scope_fields: Vec<OptionsTemplateScopeField>,
     /// Options Fields
-    #[nom(Count = "usize::from((options_length.saturating_div(4)))")]
+    #[nom(Count = "usize::from(options_length.saturating_div(4))")]
     pub option_fields: Vec<TemplateField>,
 }
 

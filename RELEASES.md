@@ -1,6 +1,6 @@
 # 0.6.4
 * Removed uneeded DataNumber Parsing for Durations.
-* Explicity rename methods DurationMicros and DurationNanos into DurationMicrosNTP and DurationNanosNTP
+* Explicity rename methods DurationMicros and DurationNanos into DurationMicrosNTP and DurationNanosNTP.
 
 # 0.6.3
 * Ipfix dateTimeNanoseconds and dateTimeMicroseconds use the NTP 64 bit time format #15
