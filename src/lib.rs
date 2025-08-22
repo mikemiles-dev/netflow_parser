@@ -339,36 +339,16 @@ impl NetflowParser {
         }
 
         match self.parse_packet_by_version(packet) {
-            Ok(parsed_netflow) => {
-                let mut results = vec![parsed_netflow.result];
-                if !parsed_netflow.remaining.is_empty() {
-                    results.extend(self.parse_bytes(&parsed_netflow.remaining));
-                }
-                results
+            Ok(parsed) => {
+                let mut packets = vec![parsed.result];
+                packets.extend(self.parse_bytes(&parsed.remaining));
+                packets
             }
-            Err(e) => match e {
-                NetflowParseError::Incomplete(_) => {
-                    vec![NetflowPacket::Error(NetflowPacketError {
-                        error: e,
-                        remaining: packet.to_vec(),
-                    })]
-                }
-                NetflowParseError::Partial(partial) => {
-                    vec![NetflowPacket::Error(NetflowPacketError {
-                        error: NetflowParseError::Partial(partial),
-                        remaining: packet.to_vec(),
-                    })]
-                }
-                NetflowParseError::UnknownVersion(_) => {
-                    vec![NetflowPacket::Error(NetflowPacketError {
-                        error: e,
-                        remaining: packet.to_vec(),
-                    })]
-                }
-                NetflowParseError::UnallowedVersion(_) => {
-                    vec![]
-                }
-            },
+            Err(NetflowParseError::UnallowedVersion(_)) => vec![],
+            Err(e) => vec![NetflowPacket::Error(NetflowPacketError {
+                error: e,
+                remaining: packet.to_vec(),
+            })],
         }
     }
 
