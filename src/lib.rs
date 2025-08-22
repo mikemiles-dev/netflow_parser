@@ -338,18 +338,29 @@ impl NetflowParser {
             return vec![];
         }
 
-        match self.parse_packet_by_version(packet) {
-            Ok(parsed) => {
-                let mut packets = vec![parsed.result];
-                packets.extend(self.parse_bytes(&parsed.remaining));
-                packets
+        let mut packets = Vec::new();
+        let mut remaining = packet.to_vec();
+
+        while !remaining.is_empty() {
+            match self.parse_packet_by_version(&remaining) {
+                Ok(parsed) => {
+                    packets.push(parsed.result);
+                    remaining = parsed.remaining;
+                }
+                Err(NetflowParseError::UnallowedVersion(_)) => {
+                    break;
+                }
+                Err(e) => {
+                    packets.push(NetflowPacket::Error(NetflowPacketError {
+                        error: e,
+                        remaining: remaining.to_vec(),
+                    }));
+                    break;
+                }
             }
-            Err(NetflowParseError::UnallowedVersion(_)) => vec![],
-            Err(e) => vec![NetflowPacket::Error(NetflowPacketError {
-                error: e,
-                remaining: packet.to_vec(),
-            })],
         }
+
+        packets
     }
 
     /// Takes a Netflow packet slice and returns a vector of Parsed NetflowCommonFlowSet
@@ -368,9 +379,9 @@ impl NetflowParser {
     /// Checks the first u16 of the packet to determine the version.  Parses the packet based on the version.
     /// If the version is unknown it returns an error.  If the packet is incomplete it returns an error.
     /// If the packet is parsed successfully it returns the parsed Netflow packet and the remaining bytes.
-    fn parse_packet_by_version<'a>(
-        &'a mut self,
-        packet: &'a [u8],
+    fn parse_packet_by_version(
+        &mut self,
+        packet: &[u8],
     ) -> Result<ParsedNetflow, NetflowParseError> {
         let (packet, version) = GenericNetflowHeader::parse(packet)
             .map(|(remaining, header)| (remaining, header.version))
