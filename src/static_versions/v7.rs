@@ -16,16 +16,20 @@ use std::net::Ipv4Addr;
 pub struct V7Parser;
 
 impl V7Parser {
-    pub fn parse(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
-        V7::parse(packet)
-            .map(|(remaining, v7)| ParsedNetflow::new(remaining, NetflowPacket::V7(v7)))
-            .map_err(|e| {
-                NetflowParseError::Partial(PartialParse {
+    pub fn parse(packet: &[u8]) -> ParsedNetflow {
+        match V7::parse(packet) {
+            Ok((remaining, v7)) => ParsedNetflow::Success {
+                packet: NetflowPacket::V7(v7),
+                remaining: remaining.to_vec(),
+            },
+            Err(e) => ParsedNetflow::Error {
+                error: NetflowParseError::Partial(PartialParse {
                     version: 7,
                     error: e.to_string(),
                     remaining: packet.to_vec(),
-                })
-            })
+                }),
+            },
+        }
     }
 }
 

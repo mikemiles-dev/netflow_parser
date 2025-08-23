@@ -266,19 +266,15 @@ pub struct NetflowParser {
 }
 
 #[derive(Debug, Clone)]
-pub struct ParsedNetflow {
-    pub remaining: Vec<u8>,
-    /// Parsed Netflow Packet
-    pub result: NetflowPacket,
-}
-
-impl ParsedNetflow {
-    fn new(remaining: &[u8], result: NetflowPacket) -> Self {
-        Self {
-            remaining: remaining.to_vec(),
-            result,
-        }
-    }
+pub enum ParsedNetflow {
+    Success {
+        packet: NetflowPacket,
+        remaining: Vec<u8>,
+    },
+    Error {
+        error: NetflowParseError,
+    },
+    UnallowedVersion,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -291,7 +287,6 @@ pub struct NetflowPacketError {
 pub enum NetflowParseError {
     Incomplete(String),
     Partial(PartialParse),
-    UnallowedVersion(u16),
     UnknownVersion(Vec<u8>),
 }
 
@@ -343,16 +338,19 @@ impl NetflowParser {
 
         while !remaining.is_empty() {
             match self.parse_packet_by_version(&remaining) {
-                Ok(parsed) => {
-                    packets.push(parsed.result);
-                    remaining = parsed.remaining;
+                ParsedNetflow::Success {
+                    packet,
+                    remaining: new_remaining,
+                } => {
+                    packets.push(packet);
+                    remaining = new_remaining;
                 }
-                Err(NetflowParseError::UnallowedVersion(_)) => {
+                ParsedNetflow::UnallowedVersion => {
                     break;
                 }
-                Err(e) => {
+                ParsedNetflow::Error { error } => {
                     packets.push(NetflowPacket::Error(NetflowPacketError {
-                        error: e,
+                        error,
                         remaining: remaining.to_vec(),
                     }));
                     break;
@@ -376,19 +374,18 @@ impl NetflowParser {
             .collect()
     }
 
-    /// Checks the first u16 of the packet to determine the version.  Parses the packet based on the version.
-    /// If the version is unknown it returns an error.  If the packet is incomplete it returns an error.
-    /// If the packet is parsed successfully it returns the parsed Netflow packet and the remaining bytes.
-    fn parse_packet_by_version(
-        &mut self,
-        packet: &[u8],
-    ) -> Result<ParsedNetflow, NetflowParseError> {
-        let (packet, version) = GenericNetflowHeader::parse(packet)
-            .map(|(remaining, header)| (remaining, header.version))
-            .map_err(|e| NetflowParseError::Incomplete(e.to_string()))?;
+    fn parse_packet_by_version(&mut self, packet: &[u8]) -> ParsedNetflow {
+        let (packet, version) = match GenericNetflowHeader::parse(packet) {
+            Ok((remaining, header)) => (remaining, header.version),
+            Err(e) => {
+                return ParsedNetflow::Error {
+                    error: NetflowParseError::Incomplete(e.to_string()),
+                };
+            }
+        };
 
         if !self.allowed_versions.contains(&version) {
-            return Err(NetflowParseError::UnallowedVersion(version));
+            return ParsedNetflow::UnallowedVersion;
         }
 
         match version {
@@ -396,7 +393,9 @@ impl NetflowParser {
             7 => V7Parser::parse(packet),
             9 => self.v9_parser.parse(packet),
             10 => self.ipfix_parser.parse(packet),
-            _ => Err(NetflowParseError::UnknownVersion(packet.to_vec())),
+            _ => ParsedNetflow::Error {
+                error: NetflowParseError::UnknownVersion(packet.to_vec()),
+            },
         }
     }
 }
