@@ -15,16 +15,20 @@ use std::net::Ipv4Addr;
 pub struct V5Parser;
 
 impl V5Parser {
-    pub fn parse(packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
-        V5::parse(packet)
-            .map(|(remaining, v5)| ParsedNetflow::new(remaining, NetflowPacket::V5(v5)))
-            .map_err(|e| {
-                NetflowParseError::Partial(PartialParse {
+    pub fn parse(packet: &[u8]) -> ParsedNetflow {
+        match V5::parse(packet) {
+            Ok((remaining, v5)) => ParsedNetflow::Success {
+                packet: NetflowPacket::V5(v5),
+                remaining: remaining.to_vec(),
+            },
+            Err(e) => ParsedNetflow::Error {
+                error: NetflowParseError::Partial(PartialParse {
                     version: 5,
                     error: e.to_string(),
                     remaining: packet.to_vec(),
-                })
-            })
+                }),
+            },
+        }
     }
 }
 

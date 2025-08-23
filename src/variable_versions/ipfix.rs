@@ -43,18 +43,20 @@ pub struct IPFixParser {
 }
 
 impl IPFixParser {
-    pub fn parse(&mut self, packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
-        IPFix::parse(packet, self)
-            .map(|(remaining, ipfix)| {
-                ParsedNetflow::new(remaining, NetflowPacket::IPFix(ipfix))
-            })
-            .map_err(|e| {
-                NetflowParseError::Partial(PartialParse {
+    pub fn parse(&mut self, packet: &[u8]) -> ParsedNetflow {
+        match IPFix::parse(packet, self) {
+            Ok((remaining, ipfix)) => ParsedNetflow::Success {
+                packet: NetflowPacket::IPFix(ipfix),
+                remaining: remaining.to_vec(),
+            },
+            Err(e) => ParsedNetflow::Error {
+                error: NetflowParseError::Partial(PartialParse {
                     version: 10,
                     error: e.to_string(),
                     remaining: packet.to_vec(),
-                })
-            })
+                }),
+            },
+        }
     }
 
     /// Add a template (Template, OptionsTemplate, V9Template, or V9OptionsTemplate) to the parser generically.

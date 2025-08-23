@@ -27,16 +27,20 @@ pub type V9FieldPair = (V9Field, FieldValue);
 pub type V9FlowRecord = Vec<V9FieldPair>;
 
 impl V9Parser {
-    pub fn parse(&mut self, packet: &[u8]) -> Result<ParsedNetflow, NetflowParseError> {
-        V9::parse(packet, self)
-            .map(|(remaining, v9)| ParsedNetflow::new(remaining, NetflowPacket::V9(v9)))
-            .map_err(|e| {
-                NetflowParseError::Partial(PartialParse {
+    pub fn parse(&mut self, packet: &[u8]) -> ParsedNetflow {
+        match V9::parse(packet, self) {
+            Ok((remaining, v9)) => ParsedNetflow::Success {
+                packet: NetflowPacket::V9(v9),
+                remaining: remaining.to_vec(),
+            },
+            Err(e) => ParsedNetflow::Error {
+                error: NetflowParseError::Partial(PartialParse {
                     version: 9,
                     error: e.to_string(),
                     remaining: packet.to_vec(),
-                })
-            })
+                }),
+            },
+        }
     }
 }
 
