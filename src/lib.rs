@@ -361,6 +361,27 @@ impl NetflowParser {
         packets
     }
 
+    #[inline]
+    fn parse_packet_by_version(&mut self, packet: &[u8]) -> ParsedNetflow {
+        match GenericNetflowHeader::parse(packet) {
+            Ok((packet, header)) if self.allowed_versions.contains(&header.version) => {
+                match header.version {
+                    5 => V5Parser::parse(packet),
+                    7 => V7Parser::parse(packet),
+                    9 => self.v9_parser.parse(packet),
+                    10 => self.ipfix_parser.parse(packet),
+                    _ => ParsedNetflow::Error {
+                        error: NetflowParseError::UnknownVersion(packet.to_vec()),
+                    },
+                }
+            }
+            Ok((_, _)) => ParsedNetflow::UnallowedVersion,
+            Err(e) => ParsedNetflow::Error {
+                error: NetflowParseError::Incomplete(e.to_string()),
+            },
+        }
+    }
+
     /// Takes a Netflow packet slice and returns a vector of Parsed NetflowCommonFlowSet
     #[inline]
     pub fn parse_bytes_as_netflow_common_flowsets(
@@ -372,30 +393,5 @@ impl NetflowParser {
             .iter()
             .flat_map(|n| n.as_netflow_common().unwrap_or_default().flowsets)
             .collect()
-    }
-
-    fn parse_packet_by_version(&mut self, packet: &[u8]) -> ParsedNetflow {
-        let (packet, version) = match GenericNetflowHeader::parse(packet) {
-            Ok((remaining, header)) => (remaining, header.version),
-            Err(e) => {
-                return ParsedNetflow::Error {
-                    error: NetflowParseError::Incomplete(e.to_string()),
-                };
-            }
-        };
-
-        if !self.allowed_versions.contains(&version) {
-            return ParsedNetflow::UnallowedVersion;
-        }
-
-        match version {
-            5 => V5Parser::parse(packet),
-            7 => V7Parser::parse(packet),
-            9 => self.v9_parser.parse(packet),
-            10 => self.ipfix_parser.parse(packet),
-            _ => ParsedNetflow::Error {
-                error: NetflowParseError::UnknownVersion(packet.to_vec()),
-            },
-        }
     }
 }
