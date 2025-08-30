@@ -1,6 +1,6 @@
 # 0.6.4
 * Removed uneeded DataNumber Parsing for Durations.
-* Explicity rename methods DurationMicros and DurationNanos into DurationMicrosNTP and DurationNanosNTP.
+* Renamed methods DurationMicros and DurationNanos into DurationMicrosNTP and DurationNanosNTP.
 * Minor Performance optimizations
 
 # 0.6.3
