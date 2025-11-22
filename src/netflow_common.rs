@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::net::IpAddr;
 
 use crate::NetflowPacket;
@@ -116,6 +115,14 @@ impl From<&V7> for NetflowCommon {
     }
 }
 
+/// Helper function to find a field value in a V9 flow record by field type
+fn find_v9_field<'a>(
+    fields: &'a [(V9Field, FieldValue)],
+    field: V9Field,
+) -> Option<&'a FieldValue> {
+    fields.iter().find(|(f, _)| *f == field).map(|(_, v)| v)
+}
+
 impl From<&V9> for NetflowCommon {
     fn from(value: &V9) -> Self {
         // Convert V9 to NetflowCommon
@@ -124,42 +131,33 @@ impl From<&V9> for NetflowCommon {
         for flowset in &value.flowsets {
             if let V9FlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
-                    let value_map: HashMap<V9Field, FieldValue> =
-                        data_field.clone().into_iter().collect();
                     flowsets.push(NetflowCommonFlowSet {
-                        src_addr: value_map
-                            .get(&V9Field::Ipv4SrcAddr)
-                            .or_else(|| value_map.get(&V9Field::Ipv6SrcAddr))
+                        src_addr: find_v9_field(data_field, V9Field::Ipv4SrcAddr)
+                            .or_else(|| find_v9_field(data_field, V9Field::Ipv6SrcAddr))
                             .and_then(|v| v.try_into().ok()),
-                        dst_addr: value_map
-                            .get(&V9Field::Ipv4DstAddr)
-                            .or_else(|| value_map.get(&V9Field::Ipv6DstAddr))
+                        dst_addr: find_v9_field(data_field, V9Field::Ipv4DstAddr)
+                            .or_else(|| find_v9_field(data_field, V9Field::Ipv6DstAddr))
                             .and_then(|v| v.try_into().ok()),
-                        src_port: value_map
-                            .get(&V9Field::L4SrcPort)
+                        src_port: find_v9_field(data_field, V9Field::L4SrcPort)
                             .and_then(|v| v.try_into().ok()),
-                        dst_port: value_map
-                            .get(&V9Field::L4DstPort)
+                        dst_port: find_v9_field(data_field, V9Field::L4DstPort)
                             .and_then(|v| v.try_into().ok()),
-                        protocol_number: value_map
-                            .get(&V9Field::Protocol)
+                        protocol_number: find_v9_field(data_field, V9Field::Protocol)
                             .and_then(|v| v.try_into().ok()),
-                        protocol_type: value_map.get(&V9Field::Protocol).and_then(|v| {
-                            v.try_into()
-                                .ok()
-                                .map(|proto: u8| ProtocolTypes::from(proto))
-                        }),
-                        first_seen: value_map
-                            .get(&V9Field::FirstSwitched)
+                        protocol_type: find_v9_field(data_field, V9Field::Protocol).and_then(
+                            |v| {
+                                v.try_into()
+                                    .ok()
+                                    .map(|proto: u8| ProtocolTypes::from(proto))
+                            },
+                        ),
+                        first_seen: find_v9_field(data_field, V9Field::FirstSwitched)
                             .and_then(|v| v.try_into().ok()),
-                        last_seen: value_map
-                            .get(&V9Field::LastSwitched)
+                        last_seen: find_v9_field(data_field, V9Field::LastSwitched)
                             .and_then(|v| v.try_into().ok()),
-                        src_mac: value_map
-                            .get(&V9Field::InSrcMac)
+                        src_mac: find_v9_field(data_field, V9Field::InSrcMac)
                             .and_then(|v| v.try_into().ok()),
-                        dst_mac: value_map
-                            .get(&V9Field::InDstMac)
+                        dst_mac: find_v9_field(data_field, V9Field::InDstMac)
                             .and_then(|v| v.try_into().ok()),
                     });
                 }
@@ -174,6 +172,14 @@ impl From<&V9> for NetflowCommon {
     }
 }
 
+/// Helper function to find a field value in an IPFix flow record by field type
+fn find_ipfix_field<'a>(
+    fields: &'a [(IPFixField, FieldValue)],
+    field: IPFixField,
+) -> Option<&'a FieldValue> {
+    fields.iter().find(|(f, _)| *f == field).map(|(_, v)| v)
+}
+
 impl From<&IPFix> for NetflowCommon {
     fn from(value: &IPFix) -> Self {
         // Convert IPFix to NetflowCommon
@@ -183,52 +189,73 @@ impl From<&IPFix> for NetflowCommon {
         for flowset in &value.flowsets {
             if let IPFixFlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
-                    let value_map: HashMap<IPFixField, FieldValue> =
-                        data_field.clone().into_iter().collect();
                     flowsets.push(NetflowCommonFlowSet {
-                        src_addr: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::SourceIpv4address))
-                            .or_else(|| {
-                                value_map
-                                    .get(&IPFixField::IANA(IANAIPFixField::SourceIpv6address))
-                            })
-                            .and_then(|v| v.try_into().ok()),
-                        dst_addr: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::DestinationIpv4address))
-                            .or_else(|| {
-                                value_map.get(&IPFixField::IANA(
-                                    IANAIPFixField::DestinationIpv6address,
-                                ))
-                            })
-                            .and_then(|v| v.try_into().ok()),
-                        src_port: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::SourceTransportPort))
-                            .and_then(|v| v.try_into().ok()),
-                        dst_port: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::DestinationTransportPort))
-                            .and_then(|v| v.try_into().ok()),
-                        protocol_number: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::ProtocolIdentifier))
-                            .and_then(|v| v.try_into().ok()),
-                        protocol_type: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::ProtocolIdentifier))
-                            .and_then(|v| {
-                                v.try_into()
-                                    .ok()
-                                    .map(|proto: u8| ProtocolTypes::from(proto))
-                            }),
-                        first_seen: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::FlowStartSysUpTime))
-                            .and_then(|v| v.try_into().ok()),
-                        last_seen: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::FlowEndSysUpTime))
-                            .and_then(|v| v.try_into().ok()),
-                        src_mac: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::SourceMacaddress))
-                            .and_then(|v| v.try_into().ok()),
-                        dst_mac: value_map
-                            .get(&IPFixField::IANA(IANAIPFixField::DestinationMacaddress))
-                            .and_then(|v| v.try_into().ok()),
+                        src_addr: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::SourceIpv4address),
+                        )
+                        .or_else(|| {
+                            find_ipfix_field(
+                                data_field,
+                                IPFixField::IANA(IANAIPFixField::SourceIpv6address),
+                            )
+                        })
+                        .and_then(|v| v.try_into().ok()),
+                        dst_addr: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::DestinationIpv4address),
+                        )
+                        .or_else(|| {
+                            find_ipfix_field(
+                                data_field,
+                                IPFixField::IANA(IANAIPFixField::DestinationIpv6address),
+                            )
+                        })
+                        .and_then(|v| v.try_into().ok()),
+                        src_port: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::SourceTransportPort),
+                        )
+                        .and_then(|v| v.try_into().ok()),
+                        dst_port: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::DestinationTransportPort),
+                        )
+                        .and_then(|v| v.try_into().ok()),
+                        protocol_number: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::ProtocolIdentifier),
+                        )
+                        .and_then(|v| v.try_into().ok()),
+                        protocol_type: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::ProtocolIdentifier),
+                        )
+                        .and_then(|v| {
+                            v.try_into()
+                                .ok()
+                                .map(|proto: u8| ProtocolTypes::from(proto))
+                        }),
+                        first_seen: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::FlowStartSysUpTime),
+                        )
+                        .and_then(|v| v.try_into().ok()),
+                        last_seen: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::FlowEndSysUpTime),
+                        )
+                        .and_then(|v| v.try_into().ok()),
+                        src_mac: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::SourceMacaddress),
+                        )
+                        .and_then(|v| v.try_into().ok()),
+                        dst_mac: find_ipfix_field(
+                            data_field,
+                            IPFixField::IANA(IANAIPFixField::DestinationMacaddress),
+                        )
+                        .and_then(|v| v.try_into().ok()),
                     });
                 }
             }

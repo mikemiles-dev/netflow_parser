@@ -27,11 +27,11 @@ pub type V9FieldPair = (V9Field, FieldValue);
 pub type V9FlowRecord = Vec<V9FieldPair>;
 
 impl V9Parser {
-    pub fn parse(&mut self, packet: &[u8]) -> ParsedNetflow {
+    pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match V9::parse(packet, self) {
             Ok((remaining, v9)) => ParsedNetflow::Success {
                 packet: NetflowPacket::V9(v9),
-                remaining: remaining.to_vec(),
+                remaining,
             },
             Err(e) => ParsedNetflow::Error {
                 error: NetflowParseError::Partial(PartialParse {
@@ -183,22 +183,20 @@ impl FlowSetBody {
         match id {
             DATA_TEMPLATE_V9_ID => {
                 let (i, templates) = Templates::parse(i)?;
-                parser.templates.extend(
-                    templates
+                for template in &templates.templates {
+                    parser
                         .templates
-                        .iter()
-                        .map(|template| (template.template_id, template.clone())),
-                );
+                        .insert(template.template_id, template.clone());
+                }
                 Ok((i, FlowSetBody::Template(templates)))
             }
             OPTIONS_TEMPLATE_V9_ID => {
                 let (i, options_templates) = OptionsTemplates::parse(i)?;
-                parser.options_templates.extend(
-                    options_templates
-                        .templates
-                        .iter()
-                        .map(|template| (template.template_id, template.clone())),
-                );
+                for template in &options_templates.templates {
+                    parser
+                        .options_templates
+                        .insert(template.template_id, template.clone());
+                }
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
             }
             _ => {
@@ -301,7 +299,7 @@ impl<'a> ScopeParser {
         input: &'a [u8],
         template: &OptionsTemplate,
     ) -> IResult<&'a [u8], Vec<ScopeDataField>> {
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(template.scope_fields.len());
         let mut remaining = input;
         for template_field in template.scope_fields.iter() {
             let (i, scope_field) = ScopeDataField::parse(remaining, template_field)?;
@@ -319,7 +317,7 @@ impl<'a> OptionsFieldParser {
         input: &'a [u8],
         template: &OptionsTemplate,
     ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
-        let mut result = Vec::new();
+        let mut result = Vec::with_capacity(template.option_fields.len());
         let mut remaining = input;
         for template_field in template.option_fields.iter() {
             let (i, field_value) = template_field.parse_as_field_value(remaining)?;
@@ -492,13 +490,16 @@ impl<'a> FieldParser {
         mut input: &'a [u8],
         template: &Template,
     ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
-        let tempalte_total_size = usize::from(template.get_total_size());
-        if tempalte_total_size == 0 {
+        let template_total_size = usize::from(template.get_total_size());
+        if template_total_size == 0 {
             return Err(nom::Err::Error(NomError::new(input, ErrorKind::Verify)));
         }
 
-        let mut res = Vec::new();
-        for _ in 0..tempalte_total_size {
+        // Calculate how many complete records we can parse based on input length
+        let record_count = input.len() / template_total_size;
+        let mut res = Vec::with_capacity(record_count);
+
+        for _ in 0..record_count {
             match Self::parse_data_fields(input, template) {
                 Ok((remaining, record)) => {
                     input = remaining;
@@ -534,7 +535,7 @@ impl<'a> FieldParser {
         mut input: &'a [u8],
         template: &Template,
     ) -> IResult<&'a [u8], V9FlowRecord> {
-        let mut res = Vec::new();
+        let mut res = Vec::with_capacity(template.fields.len());
 
         for template_field in template.fields.iter() {
             let (new_input, field_value) = template_field.parse_as_field_value(input)?;

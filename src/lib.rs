@@ -266,10 +266,10 @@ pub struct NetflowParser {
 }
 
 #[derive(Debug, Clone)]
-pub enum ParsedNetflow {
+pub enum ParsedNetflow<'a> {
     Success {
         packet: NetflowPacket,
-        remaining: Vec<u8>,
+        remaining: &'a [u8],
     },
     Error {
         error: NetflowParseError,
@@ -334,10 +334,10 @@ impl NetflowParser {
         }
 
         let mut packets = Vec::new();
-        let mut remaining = packet.to_vec();
+        let mut remaining = packet;
 
         while !remaining.is_empty() {
-            match self.parse_packet_by_version(&remaining) {
+            match self.parse_packet_by_version(remaining) {
                 ParsedNetflow::Success {
                     packet,
                     remaining: new_remaining,
@@ -362,7 +362,7 @@ impl NetflowParser {
     }
 
     #[inline]
-    fn parse_packet_by_version(&mut self, packet: &[u8]) -> ParsedNetflow {
+    fn parse_packet_by_version<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match GenericNetflowHeader::parse(packet) {
             Ok((packet, header)) if self.allowed_versions.contains(&header.version) => {
                 match header.version {

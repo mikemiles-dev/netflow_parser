@@ -43,11 +43,11 @@ pub struct IPFixParser {
 }
 
 impl IPFixParser {
-    pub fn parse(&mut self, packet: &[u8]) -> ParsedNetflow {
+    pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match IPFix::parse(packet, self) {
             Ok((remaining, ipfix)) => ParsedNetflow::Success {
                 packet: NetflowPacket::IPFix(ipfix),
-                remaining: remaining.to_vec(),
+                remaining,
             },
             Err(e) => ParsedNetflow::Error {
                 error: NetflowParseError::Partial(PartialParse {
@@ -59,21 +59,29 @@ impl IPFixParser {
         }
     }
 
-    /// Add a template (Template, OptionsTemplate, V9Template, or V9OptionsTemplate) to the parser generically.
-    pub fn add_templates<T: Clone + 'static>(&mut self, templates: Vec<T>) {
-        let any = &templates as &dyn std::any::Any;
-        if let Some(ts) = any.downcast_ref::<Vec<Template>>() {
-            self.templates
-                .extend(ts.iter().map(|t| (t.template_id, t.clone())));
-        } else if let Some(ts) = any.downcast_ref::<Vec<OptionsTemplate>>() {
+    /// Add templates to the parser from a slice.
+    fn add_ipfix_templates(&mut self, templates: &[Template]) {
+        for t in templates {
+            self.templates.insert(t.template_id, t.clone());
+        }
+    }
+
+    fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
+        for t in templates {
             self.ipfix_options_templates
-                .extend(ts.iter().map(|t| (t.template_id, t.clone())));
-        } else if let Some(ts) = any.downcast_ref::<Vec<V9Template>>() {
-            self.v9_templates
-                .extend(ts.iter().map(|t| (t.template_id, t.clone())));
-        } else if let Some(ts) = any.downcast_ref::<Vec<V9OptionsTemplate>>() {
-            self.v9_options_templates
-                .extend(ts.iter().map(|t| (t.template_id, t.clone())));
+                .insert(t.template_id, t.clone());
+        }
+    }
+
+    fn add_v9_templates(&mut self, templates: &[V9Template]) {
+        for t in templates {
+            self.v9_templates.insert(t.template_id, t.clone());
+        }
+    }
+
+    fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
+        for t in templates {
+            self.v9_options_templates.insert(t.template_id, t.clone());
         }
     }
 }
@@ -155,7 +163,7 @@ impl FlowSetBody {
         single_variant: fn(T) -> FlowSetBody,
         multi_variant: fn(Vec<T>) -> FlowSetBody,
         validate: fn(&T) -> bool,
-        add_templates: fn(&mut IPFixParser, Vec<T>),
+        add_templates: fn(&mut IPFixParser, &[T]),
     ) -> IResult<&'a [u8], FlowSetBody>
     where
         T: Clone,
@@ -168,10 +176,10 @@ impl FlowSetBody {
                 nom::error::ErrorKind::Verify,
             )));
         }
-        add_templates(parser, templates.clone());
+        add_templates(parser, &templates);
         match templates.len() {
             1 => {
-                if let Some(template) = templates.first().cloned() {
+                if let Some(template) = templates.into_iter().next() {
                     Ok((i, single_variant(template)))
                 } else {
                     Err(nom::Err::Error(nom::error::Error::new(
@@ -197,7 +205,7 @@ impl FlowSetBody {
                 FlowSetBody::Template,
                 FlowSetBody::Templates,
                 |t: &Template| t.is_valid(),
-                |parser, templates| parser.add_templates(templates),
+                |parser, templates| parser.add_ipfix_templates(templates),
             ),
             DATA_TEMPLATE_V9_ID => Self::parse_templates(
                 i,
@@ -206,7 +214,7 @@ impl FlowSetBody {
                 FlowSetBody::V9Template,
                 FlowSetBody::V9Templates,
                 |_t: &V9Template| true,
-                |parser, templates| parser.add_templates(templates),
+                |parser, templates| parser.add_v9_templates(templates),
             ),
             OPTIONS_TEMPLATE_V9_ID => Self::parse_templates(
                 i,
@@ -215,7 +223,7 @@ impl FlowSetBody {
                 FlowSetBody::V9OptionsTemplate,
                 FlowSetBody::V9OptionsTemplates,
                 |_t: &V9OptionsTemplate| true,
-                |parser, templates| parser.add_templates(templates),
+                |parser, templates| parser.add_v9_options_templates(templates),
             ),
             OPTIONS_TEMPLATE_IPFIX_ID => Self::parse_templates(
                 i,
@@ -224,7 +232,7 @@ impl FlowSetBody {
                 FlowSetBody::OptionsTemplate,
                 FlowSetBody::OptionsTemplates,
                 |t: &OptionsTemplate| t.is_valid(),
-                |parser, templates| parser.add_templates(templates),
+                |parser, templates| parser.add_ipfix_options_templates(templates),
             ),
             // Parse Data
             _ => {
@@ -406,11 +414,22 @@ impl<'a> FieldParser {
         if template_fields.is_empty() {
             return Ok((i, Vec::new()));
         }
-        let mut res = Vec::new();
+
+        // Estimate capacity based on input size and template field count
+        let template_size: usize = template_fields
+            .iter()
+            .map(|f| usize::from(f.field_length))
+            .sum();
+        let estimated_records = if template_size > 0 {
+            i.len() / template_size
+        } else {
+            0
+        };
+        let mut res = Vec::with_capacity(estimated_records);
 
         // Try to parse as much as we can, but if it fails, just return what we have so far.
         while !i.is_empty() {
-            let mut vec = Vec::new();
+            let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {
                 let field_res = field.parse_as_field_value(i);
                 if field_res.is_err() {
