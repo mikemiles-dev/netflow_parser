@@ -254,13 +254,12 @@ impl FieldValue {
             }
             FieldDataType::String => {
                 let (i, taken) = take(field_length)(remaining)?;
-                let s = String::from_utf8_lossy(taken).to_string();
-                let s: String = s.chars().filter(|&c| !c.is_control()).collect();
-                let s = if s.starts_with("P4") {
-                    s.trim_start_matches("P4").to_string()
-                } else {
-                    s
-                };
+                // Single-pass string construction: filter control chars and strip "P4" prefix
+                let s: String = String::from_utf8_lossy(taken)
+                    .chars()
+                    .filter(|&c| !c.is_control())
+                    .collect();
+                let s = s.strip_prefix("P4").unwrap_or(&s).to_string();
                 (i, FieldValue::String(s))
             }
             FieldDataType::Ip4Addr => {

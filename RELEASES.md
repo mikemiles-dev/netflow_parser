@@ -1,3 +1,6 @@
+# 0.6.5
+* Several memory and performance optimizations.
+
 # 0.6.4
 * Removed uneeded DataNumber Parsing for Durations.
 * Renamed methods DurationMicros and DurationNanos into DurationMicrosNTP and DurationNanosNTP.
