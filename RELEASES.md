@@ -1,4 +1,9 @@
 # 0.6.6
+* Added configurable field mappings for V9 and IPFIX in NetflowCommon.
+* New `V9FieldMappingConfig` and `IPFixFieldMappingConfig` structs allow customizing which fields map to `NetflowCommonFlowSet`.
+* New methods `NetflowCommon::from_v9_with_config()` and `NetflowCommon::from_ipfix_with_config()` for custom field extraction.
+* Each field mapping supports a primary field and an optional fallback (e.g., prefer IPv6, fall back to IPv4).
+* Default configurations maintain backward compatibility with existing behavior.
 * Netflow Common is now a feature.
 
 # 0.6.5
