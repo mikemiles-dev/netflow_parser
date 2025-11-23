@@ -63,6 +63,11 @@
 //!
 //! ## Netflow Common
 //!
+//! **Note:** This feature requires the `netflow_common` feature flag to be enabled:
+//! ```toml
+//! netflow_parser = { version = "x.x.x", features = ["netflow_common"] }
+//! ```
+//!
 //! We have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
 //! This will allow you to use common fields without unpacking values from specific versions.
 //! If the packet flow does not have the matching field it will simply be left as `None`.
@@ -96,7 +101,7 @@
 //!
 //! ### Converting NetflowPacket to NetflowCommon
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
@@ -116,7 +121,7 @@
 //!
 //! ### Alternative if you just want to gather all flowsets from all packets into a flattened vector of NetflowCommonFlowSet:
 //!
-//! ```rust
+//! ```rust,ignore
 //! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
@@ -166,6 +171,7 @@
 //! ## Features
 //!
 //! * `parse_unknown_fields` - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
+//! * `netflow_common` - When enabled provides `NetflowCommon` and `NetflowCommonFlowSet` structures for working with common fields across different Netflow versions.  Disabled by default.
 //!
 //! ## Included Examples
 //! Examples have been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multithreaded examples in the examples directory.
@@ -196,12 +202,14 @@
 //!
 //! [![GitHub Sponsors](https://img.shields.io/badge/sponsor-30363D?style=for-the-badge&logo=GitHub-Sponsors&logoColor=#EA4AAA)](https://github.com/sponsors/mikemiles-dev)
 
+#[cfg(feature = "netflow_common")]
 pub mod netflow_common;
 pub mod protocol;
 pub mod static_versions;
 mod tests;
 pub mod variable_versions;
 
+#[cfg(feature = "netflow_common")]
 use crate::netflow_common::{NetflowCommon, NetflowCommonError, NetflowCommonFlowSet};
 
 use static_versions::{
@@ -247,6 +255,7 @@ impl NetflowPacket {
     pub fn is_error(&self) -> bool {
         matches!(self, Self::Error(_v))
     }
+    #[cfg(feature = "netflow_common")]
     pub fn as_netflow_common(&self) -> Result<NetflowCommon, NetflowCommonError> {
         self.try_into()
     }
@@ -383,6 +392,7 @@ impl NetflowParser {
     }
 
     /// Takes a Netflow packet slice and returns a vector of Parsed NetflowCommonFlowSet
+    #[cfg(feature = "netflow_common")]
     #[inline]
     pub fn parse_bytes_as_netflow_common_flowsets(
         &mut self,

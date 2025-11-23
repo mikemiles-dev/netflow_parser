@@ -1,3 +1,6 @@
+# 0.6.6
+* Netflow Common is now a feature.
+
 # 0.6.5
 * Several memory and performance optimizations.
 
