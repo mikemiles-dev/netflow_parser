@@ -16,6 +16,194 @@ pub enum NetflowCommonError {
     UnknownVersion(NetflowPacket),
 }
 
+/// Configuration for mapping V9 fields to NetflowCommonFlowSet fields.
+/// Each field can have a primary and optional fallback field type.
+#[derive(Debug, Clone)]
+pub struct V9FieldMapping {
+    /// Primary field to search for
+    pub primary: V9Field,
+    /// Optional fallback field if primary is not found
+    pub fallback: Option<V9Field>,
+}
+
+impl V9FieldMapping {
+    /// Create a new field mapping with only a primary field
+    pub fn new(primary: V9Field) -> Self {
+        Self {
+            primary,
+            fallback: None,
+        }
+    }
+
+    /// Create a new field mapping with a primary and fallback field
+    pub fn with_fallback(primary: V9Field, fallback: V9Field) -> Self {
+        Self {
+            primary,
+            fallback: Some(fallback),
+        }
+    }
+}
+
+/// Configuration for mapping IPFIX fields to NetflowCommonFlowSet fields.
+/// Each field can have a primary and optional fallback field type.
+#[derive(Debug, Clone)]
+pub struct IPFixFieldMapping {
+    /// Primary field to search for
+    pub primary: IPFixField,
+    /// Optional fallback field if primary is not found
+    pub fallback: Option<IPFixField>,
+}
+
+impl IPFixFieldMapping {
+    /// Create a new field mapping with only a primary field
+    pub fn new(primary: IPFixField) -> Self {
+        Self {
+            primary,
+            fallback: None,
+        }
+    }
+
+    /// Create a new field mapping with a primary and fallback field
+    pub fn with_fallback(primary: IPFixField, fallback: IPFixField) -> Self {
+        Self {
+            primary,
+            fallback: Some(fallback),
+        }
+    }
+}
+
+/// Configuration for V9 field mappings used when converting V9 to NetflowCommon.
+///
+/// This allows customization of which V9 fields map to which NetflowCommonFlowSet fields.
+/// By default, standard IANA field mappings are used.
+///
+/// # Example
+///
+/// ```rust
+/// use netflow_parser::netflow_common::V9FieldMappingConfig;
+/// use netflow_parser::variable_versions::v9_lookup::V9Field;
+///
+/// // Use default mappings
+/// let config = V9FieldMappingConfig::default();
+///
+/// // Or customize specific fields
+/// let mut config = V9FieldMappingConfig::default();
+/// config.src_addr.primary = V9Field::Ipv6SrcAddr;  // Prefer IPv6
+/// config.src_addr.fallback = Some(V9Field::Ipv4SrcAddr);  // Fall back to IPv4
+/// ```
+#[derive(Debug, Clone)]
+pub struct V9FieldMappingConfig {
+    /// Mapping for source address field
+    pub src_addr: V9FieldMapping,
+    /// Mapping for destination address field
+    pub dst_addr: V9FieldMapping,
+    /// Mapping for source port field
+    pub src_port: V9FieldMapping,
+    /// Mapping for destination port field
+    pub dst_port: V9FieldMapping,
+    /// Mapping for protocol field
+    pub protocol: V9FieldMapping,
+    /// Mapping for first seen timestamp field
+    pub first_seen: V9FieldMapping,
+    /// Mapping for last seen timestamp field
+    pub last_seen: V9FieldMapping,
+    /// Mapping for source MAC address field
+    pub src_mac: V9FieldMapping,
+    /// Mapping for destination MAC address field
+    pub dst_mac: V9FieldMapping,
+}
+
+impl Default for V9FieldMappingConfig {
+    fn default() -> Self {
+        Self {
+            src_addr: V9FieldMapping::with_fallback(V9Field::Ipv4SrcAddr, V9Field::Ipv6SrcAddr),
+            dst_addr: V9FieldMapping::with_fallback(V9Field::Ipv4DstAddr, V9Field::Ipv6DstAddr),
+            src_port: V9FieldMapping::new(V9Field::L4SrcPort),
+            dst_port: V9FieldMapping::new(V9Field::L4DstPort),
+            protocol: V9FieldMapping::new(V9Field::Protocol),
+            first_seen: V9FieldMapping::new(V9Field::FirstSwitched),
+            last_seen: V9FieldMapping::new(V9Field::LastSwitched),
+            src_mac: V9FieldMapping::new(V9Field::InSrcMac),
+            dst_mac: V9FieldMapping::new(V9Field::InDstMac),
+        }
+    }
+}
+
+/// Configuration for IPFIX field mappings used when converting IPFIX to NetflowCommon.
+///
+/// This allows customization of which IPFIX fields map to which NetflowCommonFlowSet fields.
+/// By default, standard IANA field mappings are used.
+///
+/// # Example
+///
+/// ```rust
+/// use netflow_parser::netflow_common::IPFixFieldMappingConfig;
+/// use netflow_parser::variable_versions::ipfix_lookup::{IPFixField, IANAIPFixField};
+///
+/// // Use default mappings
+/// let config = IPFixFieldMappingConfig::default();
+///
+/// // Or customize specific fields
+/// let mut config = IPFixFieldMappingConfig::default();
+/// config.src_addr.primary = IPFixField::IANA(IANAIPFixField::SourceIpv6address);  // Prefer IPv6
+/// config.src_addr.fallback = Some(IPFixField::IANA(IANAIPFixField::SourceIpv4address));  // Fall back to IPv4
+/// ```
+#[derive(Debug, Clone)]
+pub struct IPFixFieldMappingConfig {
+    /// Mapping for source address field
+    pub src_addr: IPFixFieldMapping,
+    /// Mapping for destination address field
+    pub dst_addr: IPFixFieldMapping,
+    /// Mapping for source port field
+    pub src_port: IPFixFieldMapping,
+    /// Mapping for destination port field
+    pub dst_port: IPFixFieldMapping,
+    /// Mapping for protocol field
+    pub protocol: IPFixFieldMapping,
+    /// Mapping for first seen timestamp field
+    pub first_seen: IPFixFieldMapping,
+    /// Mapping for last seen timestamp field
+    pub last_seen: IPFixFieldMapping,
+    /// Mapping for source MAC address field
+    pub src_mac: IPFixFieldMapping,
+    /// Mapping for destination MAC address field
+    pub dst_mac: IPFixFieldMapping,
+}
+
+impl Default for IPFixFieldMappingConfig {
+    fn default() -> Self {
+        Self {
+            src_addr: IPFixFieldMapping::with_fallback(
+                IPFixField::IANA(IANAIPFixField::SourceIpv4address),
+                IPFixField::IANA(IANAIPFixField::SourceIpv6address),
+            ),
+            dst_addr: IPFixFieldMapping::with_fallback(
+                IPFixField::IANA(IANAIPFixField::DestinationIpv4address),
+                IPFixField::IANA(IANAIPFixField::DestinationIpv6address),
+            ),
+            src_port: IPFixFieldMapping::new(IPFixField::IANA(
+                IANAIPFixField::SourceTransportPort,
+            )),
+            dst_port: IPFixFieldMapping::new(IPFixField::IANA(
+                IANAIPFixField::DestinationTransportPort,
+            )),
+            protocol: IPFixFieldMapping::new(IPFixField::IANA(
+                IANAIPFixField::ProtocolIdentifier,
+            )),
+            first_seen: IPFixFieldMapping::new(IPFixField::IANA(
+                IANAIPFixField::FlowStartSysUpTime,
+            )),
+            last_seen: IPFixFieldMapping::new(IPFixField::IANA(
+                IANAIPFixField::FlowEndSysUpTime,
+            )),
+            src_mac: IPFixFieldMapping::new(IPFixField::IANA(IANAIPFixField::SourceMacaddress)),
+            dst_mac: IPFixFieldMapping::new(IPFixField::IANA(
+                IANAIPFixField::DestinationMacaddress,
+            )),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 /// Common structure for Netflow
 pub struct NetflowCommon {
@@ -123,9 +311,87 @@ fn find_v9_field<'a>(
     fields.iter().find(|(f, _)| *f == field).map(|(_, v)| v)
 }
 
+/// Helper function to find a field value using a V9FieldMapping configuration
+fn find_v9_field_with_mapping<'a>(
+    fields: &'a [(V9Field, FieldValue)],
+    mapping: &V9FieldMapping,
+) -> Option<&'a FieldValue> {
+    find_v9_field(fields, mapping.primary).or_else(|| {
+        mapping
+            .fallback
+            .and_then(|fallback| find_v9_field(fields, fallback))
+    })
+}
+
+impl NetflowCommon {
+    /// Convert a V9 packet to NetflowCommon using a custom field mapping configuration.
+    ///
+    /// This allows you to specify which V9 fields should be used for each
+    /// NetflowCommonFlowSet field, including fallback fields.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use netflow_parser::netflow_common::V9FieldMappingConfig;
+    /// use netflow_parser::variable_versions::v9_lookup::V9Field;
+    ///
+    /// // Use custom configuration that prefers IPv6
+    /// let mut config = V9FieldMappingConfig::default();
+    /// config.src_addr.primary = V9Field::Ipv6SrcAddr;
+    /// config.src_addr.fallback = Some(V9Field::Ipv4SrcAddr);
+    ///
+    /// // Then use: NetflowCommon::from_v9_with_config(&v9, &config);
+    /// ```
+    pub fn from_v9_with_config(value: &V9, config: &V9FieldMappingConfig) -> Self {
+        let mut flowsets = vec![];
+
+        for flowset in &value.flowsets {
+            if let V9FlowSetBody::Data(data) = &flowset.body {
+                for data_field in &data.fields {
+                    flowsets.push(NetflowCommonFlowSet {
+                        src_addr: find_v9_field_with_mapping(data_field, &config.src_addr)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_addr: find_v9_field_with_mapping(data_field, &config.dst_addr)
+                            .and_then(|v| v.try_into().ok()),
+                        src_port: find_v9_field_with_mapping(data_field, &config.src_port)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_port: find_v9_field_with_mapping(data_field, &config.dst_port)
+                            .and_then(|v| v.try_into().ok()),
+                        protocol_number: find_v9_field_with_mapping(
+                            data_field,
+                            &config.protocol,
+                        )
+                        .and_then(|v| v.try_into().ok()),
+                        protocol_type: find_v9_field_with_mapping(data_field, &config.protocol)
+                            .and_then(|v| {
+                                v.try_into()
+                                    .ok()
+                                    .map(|proto: u8| ProtocolTypes::from(proto))
+                            }),
+                        first_seen: find_v9_field_with_mapping(data_field, &config.first_seen)
+                            .and_then(|v| v.try_into().ok()),
+                        last_seen: find_v9_field_with_mapping(data_field, &config.last_seen)
+                            .and_then(|v| v.try_into().ok()),
+                        src_mac: find_v9_field_with_mapping(data_field, &config.src_mac)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_mac: find_v9_field_with_mapping(data_field, &config.dst_mac)
+                            .and_then(|v| v.try_into().ok()),
+                    });
+                }
+            }
+        }
+
+        NetflowCommon {
+            version: value.header.version,
+            timestamp: value.header.sys_up_time,
+            flowsets,
+        }
+    }
+}
+
 impl From<&V9> for NetflowCommon {
     fn from(value: &V9) -> Self {
-        // Convert V9 to NetflowCommon
+        // Convert V9 to NetflowCommon using default configuration
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
@@ -178,6 +444,91 @@ fn find_ipfix_field<'a>(
     field: IPFixField,
 ) -> Option<&'a FieldValue> {
     fields.iter().find(|(f, _)| *f == field).map(|(_, v)| v)
+}
+
+/// Helper function to find a field value using an IPFixFieldMapping configuration
+fn find_ipfix_field_with_mapping<'a>(
+    fields: &'a [(IPFixField, FieldValue)],
+    mapping: &IPFixFieldMapping,
+) -> Option<&'a FieldValue> {
+    find_ipfix_field(fields, mapping.primary.clone()).or_else(|| {
+        mapping
+            .fallback
+            .as_ref()
+            .and_then(|fallback| find_ipfix_field(fields, fallback.clone()))
+    })
+}
+
+impl NetflowCommon {
+    /// Convert an IPFIX packet to NetflowCommon using a custom field mapping configuration.
+    ///
+    /// This allows you to specify which IPFIX fields should be used for each
+    /// NetflowCommonFlowSet field, including fallback fields.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use netflow_parser::netflow_common::IPFixFieldMappingConfig;
+    /// use netflow_parser::variable_versions::ipfix_lookup::{IPFixField, IANAIPFixField};
+    ///
+    /// // Use custom configuration that prefers IPv6
+    /// let mut config = IPFixFieldMappingConfig::default();
+    /// config.src_addr.primary = IPFixField::IANA(IANAIPFixField::SourceIpv6address);
+    /// config.src_addr.fallback = Some(IPFixField::IANA(IANAIPFixField::SourceIpv4address));
+    ///
+    /// // Then use: NetflowCommon::from_ipfix_with_config(&ipfix, &config);
+    /// ```
+    pub fn from_ipfix_with_config(value: &IPFix, config: &IPFixFieldMappingConfig) -> Self {
+        let mut flowsets = vec![];
+
+        for flowset in &value.flowsets {
+            if let IPFixFlowSetBody::Data(data) = &flowset.body {
+                for data_field in &data.fields {
+                    flowsets.push(NetflowCommonFlowSet {
+                        src_addr: find_ipfix_field_with_mapping(data_field, &config.src_addr)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_addr: find_ipfix_field_with_mapping(data_field, &config.dst_addr)
+                            .and_then(|v| v.try_into().ok()),
+                        src_port: find_ipfix_field_with_mapping(data_field, &config.src_port)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_port: find_ipfix_field_with_mapping(data_field, &config.dst_port)
+                            .and_then(|v| v.try_into().ok()),
+                        protocol_number: find_ipfix_field_with_mapping(
+                            data_field,
+                            &config.protocol,
+                        )
+                        .and_then(|v| v.try_into().ok()),
+                        protocol_type: find_ipfix_field_with_mapping(
+                            data_field,
+                            &config.protocol,
+                        )
+                        .and_then(|v| {
+                            v.try_into()
+                                .ok()
+                                .map(|proto: u8| ProtocolTypes::from(proto))
+                        }),
+                        first_seen: find_ipfix_field_with_mapping(
+                            data_field,
+                            &config.first_seen,
+                        )
+                        .and_then(|v| v.try_into().ok()),
+                        last_seen: find_ipfix_field_with_mapping(data_field, &config.last_seen)
+                            .and_then(|v| v.try_into().ok()),
+                        src_mac: find_ipfix_field_with_mapping(data_field, &config.src_mac)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_mac: find_ipfix_field_with_mapping(data_field, &config.dst_mac)
+                            .and_then(|v| v.try_into().ok()),
+                    });
+                }
+            }
+        }
+
+        NetflowCommon {
+            version: value.header.version,
+            timestamp: value.header.export_time,
+            flowsets,
+        }
+    }
 }
 
 impl From<&IPFix> for NetflowCommon {
@@ -582,5 +933,166 @@ mod common_tests {
         assert_eq!(flowset.last_seen.unwrap(), 200);
         assert_eq!(flowset.src_mac.as_ref().unwrap(), "00:00:00:00:00:01");
         assert_eq!(flowset.dst_mac.as_ref().unwrap(), "00:00:00:00:00:02");
+    }
+
+    #[test]
+    fn it_converts_v9_to_common_with_custom_config() {
+        use crate::netflow_common::V9FieldMappingConfig;
+        use std::net::Ipv6Addr;
+
+        // Create a V9 packet with both IPv4 and IPv6 addresses
+        let v9 = V9 {
+            header: V9Header {
+                version: 9,
+                count: 1,
+                sys_up_time: 100,
+                unix_secs: 1609459200,
+                sequence_number: 1,
+                source_id: 0,
+            },
+            flowsets: vec![V9FlowSet {
+                header: V9FlowSetHeader {
+                    flowset_id: 0,
+                    length: 0,
+                },
+                body: V9FlowSetBody::Data(V9Data {
+                    padding: vec![],
+                    fields: vec![Vec::from([
+                        (
+                            V9Field::Ipv4SrcAddr,
+                            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
+                        ),
+                        (
+                            V9Field::Ipv6SrcAddr,
+                            FieldValue::Ip6Addr(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)),
+                        ),
+                        (
+                            V9Field::L4SrcPort,
+                            FieldValue::DataNumber(DataNumber::U16(1234)),
+                        ),
+                    ])],
+                }),
+            }],
+        };
+
+        // Default config prefers IPv4
+        let default_config = V9FieldMappingConfig::default();
+        let common = NetflowCommon::from_v9_with_config(&v9, &default_config);
+        assert_eq!(
+            common.flowsets[0].src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))
+        );
+
+        // Custom config that prefers IPv6
+        let mut ipv6_config = V9FieldMappingConfig::default();
+        ipv6_config.src_addr.primary = V9Field::Ipv6SrcAddr;
+        ipv6_config.src_addr.fallback = Some(V9Field::Ipv4SrcAddr);
+
+        let common_ipv6 = NetflowCommon::from_v9_with_config(&v9, &ipv6_config);
+        assert_eq!(
+            common_ipv6.flowsets[0].src_addr.unwrap(),
+            IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1))
+        );
+    }
+
+    #[test]
+    fn it_converts_ipfix_to_common_with_custom_config() {
+        use crate::netflow_common::IPFixFieldMappingConfig;
+        use std::net::Ipv6Addr;
+
+        // Create an IPFIX packet with both IPv4 and IPv6 addresses
+        let ipfix = IPFix {
+            header: IPFixHeader {
+                version: 10,
+                length: 0,
+                export_time: 100,
+                sequence_number: 1,
+                observation_domain_id: 0,
+            },
+            flowsets: vec![IPFixFlowSet {
+                header: IPFixFlowSetHeader {
+                    header_id: 0,
+                    length: 0,
+                },
+                body: IPFixFlowSetBody::Data(IPFixData {
+                    fields: vec![Vec::from([
+                        (
+                            IPFixField::IANA(IANAIPFixField::SourceIpv4address),
+                            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
+                        ),
+                        (
+                            IPFixField::IANA(IANAIPFixField::SourceIpv6address),
+                            FieldValue::Ip6Addr(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1)),
+                        ),
+                        (
+                            IPFixField::IANA(IANAIPFixField::SourceTransportPort),
+                            FieldValue::DataNumber(DataNumber::U16(1234)),
+                        ),
+                    ])],
+                }),
+            }],
+        };
+
+        // Default config prefers IPv4
+        let default_config = IPFixFieldMappingConfig::default();
+        let common = NetflowCommon::from_ipfix_with_config(&ipfix, &default_config);
+        assert_eq!(
+            common.flowsets[0].src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1))
+        );
+
+        // Custom config that prefers IPv6
+        let mut ipv6_config = IPFixFieldMappingConfig::default();
+        ipv6_config.src_addr.primary = IPFixField::IANA(IANAIPFixField::SourceIpv6address);
+        ipv6_config.src_addr.fallback =
+            Some(IPFixField::IANA(IANAIPFixField::SourceIpv4address));
+
+        let common_ipv6 = NetflowCommon::from_ipfix_with_config(&ipfix, &ipv6_config);
+        assert_eq!(
+            common_ipv6.flowsets[0].src_addr.unwrap(),
+            IpAddr::V6(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1))
+        );
+    }
+
+    #[test]
+    fn it_uses_fallback_when_primary_not_found() {
+        use crate::netflow_common::V9FieldMappingConfig;
+
+        // Create a V9 packet with only IPv6 address (no IPv4)
+        let v9 = V9 {
+            header: V9Header {
+                version: 9,
+                count: 1,
+                sys_up_time: 100,
+                unix_secs: 1609459200,
+                sequence_number: 1,
+                source_id: 0,
+            },
+            flowsets: vec![V9FlowSet {
+                header: V9FlowSetHeader {
+                    flowset_id: 0,
+                    length: 0,
+                },
+                body: V9FlowSetBody::Data(V9Data {
+                    padding: vec![],
+                    fields: vec![Vec::from([(
+                        V9Field::Ipv4SrcAddr,
+                        FieldValue::Ip4Addr(Ipv4Addr::new(10, 0, 0, 1)),
+                    )])],
+                }),
+            }],
+        };
+
+        // Config that prefers IPv6 but falls back to IPv4
+        let mut config = V9FieldMappingConfig::default();
+        config.src_addr.primary = V9Field::Ipv6SrcAddr;
+        config.src_addr.fallback = Some(V9Field::Ipv4SrcAddr);
+
+        let common = NetflowCommon::from_v9_with_config(&v9, &config);
+        // Should fall back to IPv4 since IPv6 is not present
+        assert_eq!(
+            common.flowsets[0].src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))
+        );
     }
 }
