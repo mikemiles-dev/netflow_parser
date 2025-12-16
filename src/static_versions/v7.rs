@@ -120,9 +120,8 @@ impl V7 {
         let header_version = self.header.version.to_be_bytes();
         let header_count = self.header.count.to_be_bytes();
         let header_sys_up_time = self.header.sys_up_time.to_be_bytes();
-        let mut header_unix_timestamp = self.header.unix_secs.to_be_bytes().to_vec();
-        let header_unix_nsecs = self.header.unix_nsecs.to_be_bytes().to_vec();
-        header_unix_timestamp.extend_from_slice(&header_unix_nsecs);
+        let header_unix_secs = self.header.unix_secs.to_be_bytes();
+        let header_unix_nsecs = self.header.unix_nsecs.to_be_bytes();
         let header_flow_seq = self.header.flow_sequence.to_be_bytes();
         let reserved = self.header.reserved.to_be_bytes();
 
@@ -131,7 +130,8 @@ impl V7 {
         result.extend_from_slice(&header_version);
         result.extend_from_slice(&header_count);
         result.extend_from_slice(&header_sys_up_time);
-        result.extend_from_slice(&header_unix_timestamp);
+        result.extend_from_slice(&header_unix_secs);
+        result.extend_from_slice(&header_unix_nsecs);
         result.extend_from_slice(&header_flow_seq);
         result.extend_from_slice(&reserved);
 

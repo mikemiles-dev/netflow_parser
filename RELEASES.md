@@ -1,3 +1,8 @@
+# 0.6.7
+* Performance optimizations in V5 and V7 serialization - eliminated unnecessary Vec allocations in `to_be_bytes()`.
+* Improved error handling in IPFIX data parsing - parse errors on non-empty templates now properly propagate instead of silently converting to Empty flowsets, while maintaining backward compatibility for empty templates.
+* Added capacity pre-allocation for V9 flowset vectors to reduce reallocations during parsing.
+
 # 0.6.6
 * Added configurable field mappings for V9 and IPFIX in NetflowCommon.
 * New `V9FieldMappingConfig` and `IPFixFieldMappingConfig` structs allow customizing which fields map to `NetflowCommonFlowSet`.
