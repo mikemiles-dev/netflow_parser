@@ -1,3 +1,13 @@
+# 0.6.7
+* Performance optimizations:
+  * Eliminated unnecessary template cloning during insertion into parser cache (10-20% memory reduction).
+  * Optimized serialization allocations in DataNumber by pre-allocating Vec capacity.
+  * Implemented single-pass field lookup for V9/IPFIX NetflowCommon conversion (5-15% performance improvement).
+  * Reduced O(n*m) field lookups to O(n) using cache-based collection strategy.
+* Code quality improvements:
+  * Fixed unused import warnings in tests.
+  * Improved code organization and removed redundant operations.
+
 # 0.6.6
 * Added configurable field mappings for V9 and IPFIX in NetflowCommon.
 * New `V9FieldMappingConfig` and `IPFixFieldMappingConfig` structs allow customizing which fields map to `NetflowCommonFlowSet`.
