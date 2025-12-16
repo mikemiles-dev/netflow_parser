@@ -237,14 +237,18 @@ impl FlowSetBody {
             // Parse Data
             _ => {
                 if let Some(template) = parser.templates.get(&id) {
-                    match Data::parse(i, template) {
-                        Ok((i, data)) => Ok((i, FlowSetBody::Data(data))),
-                        Err(_) => Ok((i, FlowSetBody::Empty)),
+                    if template.get_fields().is_empty() {
+                        Ok((i, FlowSetBody::Empty))
+                    } else {
+                        let (i, data) = Data::parse(i, template)?;
+                        Ok((i, FlowSetBody::Data(data)))
                     }
                 } else if let Some(options_template) = parser.ipfix_options_templates.get(&id) {
-                    match OptionsData::parse(i, options_template) {
-                        Ok((i, data)) => Ok((i, FlowSetBody::OptionsData(data))),
-                        Err(_) => Ok((i, FlowSetBody::Empty)),
+                    if options_template.get_fields().is_empty() {
+                        Ok((i, FlowSetBody::Empty))
+                    } else {
+                        let (i, data) = OptionsData::parse(i, options_template)?;
+                        Ok((i, FlowSetBody::OptionsData(data)))
                     }
                 } else if let Some(v9_template) = parser.v9_templates.get(&id) {
                     let (i, data) = V9Data::parse(i, v9_template)?;
