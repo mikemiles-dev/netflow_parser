@@ -10,7 +10,6 @@ mod base_tests {
     };
     use crate::{NetflowPacket, NetflowParser};
 
-    use hex;
     use insta::assert_yaml_snapshot;
     use std::collections::HashSet;
 

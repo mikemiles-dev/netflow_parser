@@ -149,17 +149,17 @@ impl DataNumber {
 
     fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
         match self {
-            DataNumber::U8(n) => Ok(n.to_be_bytes().to_vec()),
-            DataNumber::I8(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::U8(n) => Ok(vec![*n]),
+            DataNumber::I8(n) => Ok(vec![u8::try_from(*n).map_err(std::io::Error::other)?]),
             DataNumber::U16(n) => Ok(n.to_be_bytes().to_vec()),
             DataNumber::I16(n) => Ok(n.to_be_bytes().to_vec()),
             DataNumber::U24(n) => {
-                let mut wtr = Vec::new();
+                let mut wtr = Vec::with_capacity(3);
                 wtr.write_u24::<BigEndian>(*n)?;
                 Ok(wtr)
             }
             DataNumber::I24(n) => {
-                let mut wtr = Vec::new();
+                let mut wtr = Vec::with_capacity(3);
                 wtr.write_i24::<BigEndian>(*n)?;
                 Ok(wtr)
             }

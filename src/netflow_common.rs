@@ -304,11 +304,62 @@ impl From<&V7> for NetflowCommon {
 }
 
 /// Helper function to find a field value in a V9 flow record by field type
-fn find_v9_field<'a>(
-    fields: &'a [(V9Field, FieldValue)],
-    field: V9Field,
-) -> Option<&'a FieldValue> {
+fn find_v9_field(fields: &[(V9Field, FieldValue)], field: V9Field) -> Option<&FieldValue> {
     fields.iter().find(|(f, _)| *f == field).map(|(_, v)| v)
+}
+
+/// Helper structure to store all found V9 fields in a single pass
+#[derive(Copy, Clone)]
+struct V9FieldCache<'a> {
+    src_addr_v4: Option<&'a FieldValue>,
+    src_addr_v6: Option<&'a FieldValue>,
+    dst_addr_v4: Option<&'a FieldValue>,
+    dst_addr_v6: Option<&'a FieldValue>,
+    src_port: Option<&'a FieldValue>,
+    dst_port: Option<&'a FieldValue>,
+    protocol: Option<&'a FieldValue>,
+    first_seen: Option<&'a FieldValue>,
+    last_seen: Option<&'a FieldValue>,
+    src_mac: Option<&'a FieldValue>,
+    dst_mac: Option<&'a FieldValue>,
+}
+
+impl<'a> V9FieldCache<'a> {
+    fn from_fields(fields: &'a [(V9Field, FieldValue)]) -> Self {
+        let mut cache = Self {
+            src_addr_v4: None,
+            src_addr_v6: None,
+            dst_addr_v4: None,
+            dst_addr_v6: None,
+            src_port: None,
+            dst_port: None,
+            protocol: None,
+            first_seen: None,
+            last_seen: None,
+            src_mac: None,
+            dst_mac: None,
+        };
+
+        // Single pass through all fields
+        for (field_type, field_value) in fields {
+            match field_type {
+                V9Field::Ipv4SrcAddr => cache.src_addr_v4 = Some(field_value),
+                V9Field::Ipv6SrcAddr => cache.src_addr_v6 = Some(field_value),
+                V9Field::Ipv4DstAddr => cache.dst_addr_v4 = Some(field_value),
+                V9Field::Ipv6DstAddr => cache.dst_addr_v6 = Some(field_value),
+                V9Field::L4SrcPort => cache.src_port = Some(field_value),
+                V9Field::L4DstPort => cache.dst_port = Some(field_value),
+                V9Field::Protocol => cache.protocol = Some(field_value),
+                V9Field::FirstSwitched => cache.first_seen = Some(field_value),
+                V9Field::LastSwitched => cache.last_seen = Some(field_value),
+                V9Field::InSrcMac => cache.src_mac = Some(field_value),
+                V9Field::InDstMac => cache.dst_mac = Some(field_value),
+                _ => {} // Ignore other fields
+            }
+        }
+
+        cache
+    }
 }
 
 /// Helper function to find a field value using a V9FieldMapping configuration
@@ -391,40 +442,36 @@ impl NetflowCommon {
 
 impl From<&V9> for NetflowCommon {
     fn from(value: &V9) -> Self {
-        // Convert V9 to NetflowCommon using default configuration
+        // Convert V9 to NetflowCommon using default configuration with single-pass field lookup
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
             if let V9FlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
+                    // Single pass through fields to collect all values
+                    let cache = V9FieldCache::from_fields(data_field);
+
                     flowsets.push(NetflowCommonFlowSet {
-                        src_addr: find_v9_field(data_field, V9Field::Ipv4SrcAddr)
-                            .or_else(|| find_v9_field(data_field, V9Field::Ipv6SrcAddr))
+                        src_addr: cache
+                            .src_addr_v4
+                            .or(cache.src_addr_v6)
                             .and_then(|v| v.try_into().ok()),
-                        dst_addr: find_v9_field(data_field, V9Field::Ipv4DstAddr)
-                            .or_else(|| find_v9_field(data_field, V9Field::Ipv6DstAddr))
+                        dst_addr: cache
+                            .dst_addr_v4
+                            .or(cache.dst_addr_v6)
                             .and_then(|v| v.try_into().ok()),
-                        src_port: find_v9_field(data_field, V9Field::L4SrcPort)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_port: find_v9_field(data_field, V9Field::L4DstPort)
-                            .and_then(|v| v.try_into().ok()),
-                        protocol_number: find_v9_field(data_field, V9Field::Protocol)
-                            .and_then(|v| v.try_into().ok()),
-                        protocol_type: find_v9_field(data_field, V9Field::Protocol).and_then(
-                            |v| {
-                                v.try_into()
-                                    .ok()
-                                    .map(|proto: u8| ProtocolTypes::from(proto))
-                            },
-                        ),
-                        first_seen: find_v9_field(data_field, V9Field::FirstSwitched)
-                            .and_then(|v| v.try_into().ok()),
-                        last_seen: find_v9_field(data_field, V9Field::LastSwitched)
-                            .and_then(|v| v.try_into().ok()),
-                        src_mac: find_v9_field(data_field, V9Field::InSrcMac)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_mac: find_v9_field(data_field, V9Field::InDstMac)
-                            .and_then(|v| v.try_into().ok()),
+                        src_port: cache.src_port.and_then(|v| v.try_into().ok()),
+                        dst_port: cache.dst_port.and_then(|v| v.try_into().ok()),
+                        protocol_number: cache.protocol.and_then(|v| v.try_into().ok()),
+                        protocol_type: cache.protocol.and_then(|v| {
+                            v.try_into()
+                                .ok()
+                                .map(|proto: u8| ProtocolTypes::from(proto))
+                        }),
+                        first_seen: cache.first_seen.and_then(|v| v.try_into().ok()),
+                        last_seen: cache.last_seen.and_then(|v| v.try_into().ok()),
+                        src_mac: cache.src_mac.and_then(|v| v.try_into().ok()),
+                        dst_mac: cache.dst_mac.and_then(|v| v.try_into().ok()),
                     });
                 }
             }
@@ -439,11 +486,87 @@ impl From<&V9> for NetflowCommon {
 }
 
 /// Helper function to find a field value in an IPFix flow record by field type
-fn find_ipfix_field<'a>(
-    fields: &'a [(IPFixField, FieldValue)],
+fn find_ipfix_field(
+    fields: &[(IPFixField, FieldValue)],
     field: IPFixField,
-) -> Option<&'a FieldValue> {
+) -> Option<&FieldValue> {
     fields.iter().find(|(f, _)| *f == field).map(|(_, v)| v)
+}
+
+/// Helper structure to store all found IPFIX fields in a single pass
+#[derive(Copy, Clone)]
+struct IPFixFieldCache<'a> {
+    src_addr_v4: Option<&'a FieldValue>,
+    src_addr_v6: Option<&'a FieldValue>,
+    dst_addr_v4: Option<&'a FieldValue>,
+    dst_addr_v6: Option<&'a FieldValue>,
+    src_port: Option<&'a FieldValue>,
+    dst_port: Option<&'a FieldValue>,
+    protocol: Option<&'a FieldValue>,
+    first_seen: Option<&'a FieldValue>,
+    last_seen: Option<&'a FieldValue>,
+    src_mac: Option<&'a FieldValue>,
+    dst_mac: Option<&'a FieldValue>,
+}
+
+impl<'a> IPFixFieldCache<'a> {
+    fn from_fields(fields: &'a [(IPFixField, FieldValue)]) -> Self {
+        let mut cache = Self {
+            src_addr_v4: None,
+            src_addr_v6: None,
+            dst_addr_v4: None,
+            dst_addr_v6: None,
+            src_port: None,
+            dst_port: None,
+            protocol: None,
+            first_seen: None,
+            last_seen: None,
+            src_mac: None,
+            dst_mac: None,
+        };
+
+        // Single pass through all fields
+        for (field_type, field_value) in fields {
+            match field_type {
+                IPFixField::IANA(IANAIPFixField::SourceIpv4address) => {
+                    cache.src_addr_v4 = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::SourceIpv6address) => {
+                    cache.src_addr_v6 = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::DestinationIpv4address) => {
+                    cache.dst_addr_v4 = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::DestinationIpv6address) => {
+                    cache.dst_addr_v6 = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::SourceTransportPort) => {
+                    cache.src_port = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::DestinationTransportPort) => {
+                    cache.dst_port = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::ProtocolIdentifier) => {
+                    cache.protocol = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::FlowStartSysUpTime) => {
+                    cache.first_seen = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::FlowEndSysUpTime) => {
+                    cache.last_seen = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::SourceMacaddress) => {
+                    cache.src_mac = Some(field_value)
+                }
+                IPFixField::IANA(IANAIPFixField::DestinationMacaddress) => {
+                    cache.dst_mac = Some(field_value)
+                }
+                _ => {} // Ignore other fields
+            }
+        }
+
+        cache
+    }
 }
 
 /// Helper function to find a field value using an IPFixFieldMapping configuration
@@ -451,11 +574,11 @@ fn find_ipfix_field_with_mapping<'a>(
     fields: &'a [(IPFixField, FieldValue)],
     mapping: &IPFixFieldMapping,
 ) -> Option<&'a FieldValue> {
-    find_ipfix_field(fields, mapping.primary.clone()).or_else(|| {
+    find_ipfix_field(fields, mapping.primary).or_else(|| {
         mapping
             .fallback
             .as_ref()
-            .and_then(|fallback| find_ipfix_field(fields, fallback.clone()))
+            .and_then(|fallback| find_ipfix_field(fields, *fallback))
     })
 }
 
@@ -533,80 +656,36 @@ impl NetflowCommon {
 
 impl From<&IPFix> for NetflowCommon {
     fn from(value: &IPFix) -> Self {
-        // Convert IPFix to NetflowCommon
-
+        // Convert IPFix to NetflowCommon with single-pass field lookup
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
             if let IPFixFlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
+                    // Single pass through fields to collect all values
+                    let cache = IPFixFieldCache::from_fields(data_field);
+
                     flowsets.push(NetflowCommonFlowSet {
-                        src_addr: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::SourceIpv4address),
-                        )
-                        .or_else(|| {
-                            find_ipfix_field(
-                                data_field,
-                                IPFixField::IANA(IANAIPFixField::SourceIpv6address),
-                            )
-                        })
-                        .and_then(|v| v.try_into().ok()),
-                        dst_addr: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::DestinationIpv4address),
-                        )
-                        .or_else(|| {
-                            find_ipfix_field(
-                                data_field,
-                                IPFixField::IANA(IANAIPFixField::DestinationIpv6address),
-                            )
-                        })
-                        .and_then(|v| v.try_into().ok()),
-                        src_port: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::SourceTransportPort),
-                        )
-                        .and_then(|v| v.try_into().ok()),
-                        dst_port: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::DestinationTransportPort),
-                        )
-                        .and_then(|v| v.try_into().ok()),
-                        protocol_number: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::ProtocolIdentifier),
-                        )
-                        .and_then(|v| v.try_into().ok()),
-                        protocol_type: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::ProtocolIdentifier),
-                        )
-                        .and_then(|v| {
+                        src_addr: cache
+                            .src_addr_v4
+                            .or(cache.src_addr_v6)
+                            .and_then(|v| v.try_into().ok()),
+                        dst_addr: cache
+                            .dst_addr_v4
+                            .or(cache.dst_addr_v6)
+                            .and_then(|v| v.try_into().ok()),
+                        src_port: cache.src_port.and_then(|v| v.try_into().ok()),
+                        dst_port: cache.dst_port.and_then(|v| v.try_into().ok()),
+                        protocol_number: cache.protocol.and_then(|v| v.try_into().ok()),
+                        protocol_type: cache.protocol.and_then(|v| {
                             v.try_into()
                                 .ok()
                                 .map(|proto: u8| ProtocolTypes::from(proto))
                         }),
-                        first_seen: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::FlowStartSysUpTime),
-                        )
-                        .and_then(|v| v.try_into().ok()),
-                        last_seen: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::FlowEndSysUpTime),
-                        )
-                        .and_then(|v| v.try_into().ok()),
-                        src_mac: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::SourceMacaddress),
-                        )
-                        .and_then(|v| v.try_into().ok()),
-                        dst_mac: find_ipfix_field(
-                            data_field,
-                            IPFixField::IANA(IANAIPFixField::DestinationMacaddress),
-                        )
-                        .and_then(|v| v.try_into().ok()),
+                        first_seen: cache.first_seen.and_then(|v| v.try_into().ok()),
+                        last_seen: cache.last_seen.and_then(|v| v.try_into().ok()),
+                        src_mac: cache.src_mac.and_then(|v| v.try_into().ok()),
+                        dst_mac: cache.dst_mac.and_then(|v| v.try_into().ok()),
                     });
                 }
             }

@@ -59,29 +59,28 @@ impl IPFixParser {
         }
     }
 
-    /// Add templates to the parser from a slice.
-    fn add_ipfix_templates(&mut self, templates: &[Template]) {
+    /// Add templates to the parser by moving them in.
+    fn add_ipfix_templates(&mut self, templates: Vec<Template>) {
         for t in templates {
-            self.templates.insert(t.template_id, t.clone());
+            self.templates.insert(t.template_id, t);
         }
     }
 
-    fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
+    fn add_ipfix_options_templates(&mut self, templates: Vec<OptionsTemplate>) {
         for t in templates {
-            self.ipfix_options_templates
-                .insert(t.template_id, t.clone());
+            self.ipfix_options_templates.insert(t.template_id, t);
         }
     }
 
-    fn add_v9_templates(&mut self, templates: &[V9Template]) {
+    fn add_v9_templates(&mut self, templates: Vec<V9Template>) {
         for t in templates {
-            self.v9_templates.insert(t.template_id, t.clone());
+            self.v9_templates.insert(t.template_id, t);
         }
     }
 
-    fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
+    fn add_v9_options_templates(&mut self, templates: Vec<V9OptionsTemplate>) {
         for t in templates {
-            self.v9_options_templates.insert(t.template_id, t.clone());
+            self.v9_options_templates.insert(t.template_id, t);
         }
     }
 }
@@ -163,7 +162,7 @@ impl FlowSetBody {
         single_variant: fn(T) -> FlowSetBody,
         multi_variant: fn(Vec<T>) -> FlowSetBody,
         validate: fn(&T) -> bool,
-        add_templates: fn(&mut IPFixParser, &[T]),
+        add_templates: fn(&mut IPFixParser, Vec<T>),
     ) -> IResult<&'a [u8], FlowSetBody>
     where
         T: Clone,
@@ -176,7 +175,9 @@ impl FlowSetBody {
                 nom::error::ErrorKind::Verify,
             )));
         }
-        add_templates(parser, &templates);
+        // Clone templates for storage, since we need to return them too
+        let templates_for_storage = templates.clone();
+        add_templates(parser, templates_for_storage);
         match templates.len() {
             1 => {
                 if let Some(template) = templates.into_iter().next() {

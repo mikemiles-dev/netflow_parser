@@ -183,19 +183,19 @@ impl FlowSetBody {
         match id {
             DATA_TEMPLATE_V9_ID => {
                 let (i, templates) = Templates::parse(i)?;
-                for template in &templates.templates {
-                    parser
-                        .templates
-                        .insert(template.template_id, template.clone());
+                // Store templates by moving them into the HashMap
+                for template in templates.templates.clone() {
+                    parser.templates.insert(template.template_id, template);
                 }
                 Ok((i, FlowSetBody::Template(templates)))
             }
             OPTIONS_TEMPLATE_V9_ID => {
                 let (i, options_templates) = OptionsTemplates::parse(i)?;
-                for template in &options_templates.templates {
+                // Store templates by moving them into the HashMap
+                for template in options_templates.templates.clone() {
                     parser
                         .options_templates
-                        .insert(template.template_id, template.clone());
+                        .insert(template.template_id, template);
                 }
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
             }
