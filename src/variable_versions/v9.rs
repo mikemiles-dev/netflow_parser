@@ -458,7 +458,8 @@ impl FlowSetParser {
                 let (i, flowset) = FlowSet::parse(remaining, parser)?;
                 flowsets.push(flowset);
                 Ok((i, flowsets))
-            })?;
+            },
+        )?;
 
         Ok((remaining, flowsets))
     }
