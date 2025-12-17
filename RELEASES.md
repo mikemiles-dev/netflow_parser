@@ -1,18 +1,19 @@
 # 0.6.7
-* Optimized serialization allocations in DataNumber by pre-allocating Vec capacity.
-* Implemented single-pass field lookup for V9/IPFIX NetflowCommon conversion.
-* Reduced O(n*m) field lookups to O(n) using cache-based collection strategy for NetflowCommon.
-* Performance optimizations in V5 and V7 serialization - eliminated unnecessary Vec allocations in `to_be_bytes()`.
-* Improved error handling in IPFIX data parsing - parse errors on non-empty templates now properly propagate instead of silently converting to Empty flowsets, while maintaining backward compatibility for empty templates.
-* Added capacity pre-allocation for V9 flowset vectors to reduce reallocations during parsing.
-- Fixed integer overflow in V9 options template field counting - now uses `checked_div` with proper error handling
-- Fixed unbounded buffer reads in IPFIX variable-length fields - adds validation to prevent reading beyond buffer boundaries
-- Fixed memory exhaustion vulnerability in error handling.
-- Optimized string processing in hot path with single-pass filtering and P4 prefix stripping
-- Added capacity pre-allocations in serialization paths
-- Comprehensive thread safety documentation and best practices
-- Performance tuning guide for high-throughput scenarios
-- Better validation for malformed packets
+
+**Performance Improvements:**
+* Optimized NetflowCommon conversion with single-pass field lookups (reduced O(n*m) to O(n))
+* Reduced memory allocations in V5/V7/DataNumber serialization through capacity pre-allocation
+* Faster string processing in hot paths
+
+**Security Fixes:**
+* Fixed integer overflow in V9 options template field counting
+* Fixed unbounded buffer reads in IPFIX variable-length fields
+* Fixed memory exhaustion vulnerability in error handling
+* Enhanced validation for malformed packets
+
+**Other Changes:**
+* Improved IPFIX error handling - parse errors now properly propagate
+* Added thread safety documentation and performance tuning guide
 
 # 0.6.6
 * Added configurable field mappings for V9 and IPFIX in NetflowCommon.
