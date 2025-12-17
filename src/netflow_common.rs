@@ -374,6 +374,108 @@ fn find_v9_field_with_mapping<'a>(
     })
 }
 
+/// Helper structure to cache V9 field lookups with custom mapping in a single pass
+#[derive(Copy, Clone)]
+struct V9ConfigFieldCache<'a> {
+    src_addr: Option<&'a FieldValue>,
+    dst_addr: Option<&'a FieldValue>,
+    src_port: Option<&'a FieldValue>,
+    dst_port: Option<&'a FieldValue>,
+    protocol: Option<&'a FieldValue>,
+    first_seen: Option<&'a FieldValue>,
+    last_seen: Option<&'a FieldValue>,
+    src_mac: Option<&'a FieldValue>,
+    dst_mac: Option<&'a FieldValue>,
+}
+
+impl<'a> V9ConfigFieldCache<'a> {
+    fn from_fields_with_config(
+        fields: &'a [(V9Field, FieldValue)],
+        config: &V9FieldMappingConfig,
+    ) -> Self {
+        let mut cache = Self {
+            src_addr: None,
+            dst_addr: None,
+            src_port: None,
+            dst_port: None,
+            protocol: None,
+            first_seen: None,
+            last_seen: None,
+            src_mac: None,
+            dst_mac: None,
+        };
+
+        // Single pass through all fields, collecting based on config
+        for (field_type, field_value) in fields {
+            // Check each configured mapping
+            if *field_type == config.src_addr.primary {
+                cache.src_addr = Some(field_value);
+            } else if Some(*field_type) == config.src_addr.fallback && cache.src_addr.is_none()
+            {
+                cache.src_addr = Some(field_value);
+            }
+
+            if *field_type == config.dst_addr.primary {
+                cache.dst_addr = Some(field_value);
+            } else if Some(*field_type) == config.dst_addr.fallback && cache.dst_addr.is_none()
+            {
+                cache.dst_addr = Some(field_value);
+            }
+
+            if *field_type == config.src_port.primary {
+                cache.src_port = Some(field_value);
+            } else if Some(*field_type) == config.src_port.fallback && cache.src_port.is_none()
+            {
+                cache.src_port = Some(field_value);
+            }
+
+            if *field_type == config.dst_port.primary {
+                cache.dst_port = Some(field_value);
+            } else if Some(*field_type) == config.dst_port.fallback && cache.dst_port.is_none()
+            {
+                cache.dst_port = Some(field_value);
+            }
+
+            if *field_type == config.protocol.primary {
+                cache.protocol = Some(field_value);
+            } else if Some(*field_type) == config.protocol.fallback && cache.protocol.is_none()
+            {
+                cache.protocol = Some(field_value);
+            }
+
+            if *field_type == config.first_seen.primary {
+                cache.first_seen = Some(field_value);
+            } else if Some(*field_type) == config.first_seen.fallback
+                && cache.first_seen.is_none()
+            {
+                cache.first_seen = Some(field_value);
+            }
+
+            if *field_type == config.last_seen.primary {
+                cache.last_seen = Some(field_value);
+            } else if Some(*field_type) == config.last_seen.fallback
+                && cache.last_seen.is_none()
+            {
+                cache.last_seen = Some(field_value);
+            }
+
+            if *field_type == config.src_mac.primary {
+                cache.src_mac = Some(field_value);
+            } else if Some(*field_type) == config.src_mac.fallback && cache.src_mac.is_none() {
+                cache.src_mac = Some(field_value);
+            }
+
+            if *field_type == config.dst_mac.primary {
+                cache.dst_mac = Some(field_value);
+            } else if Some(*field_type) == config.dst_mac.fallback && cache.dst_mac.is_none() {
+                cache.dst_mac = Some(field_value);
+            }
+        }
+
+        cache
+    }
+}
+
 impl NetflowCommon {
     /// Convert a V9 packet to NetflowCommon using a custom field mapping configuration.
     ///
@@ -399,34 +501,24 @@ impl NetflowCommon {
         for flowset in &value.flowsets {
             if let V9FlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
+                    // Single pass through fields to collect all values with config
+                    let cache = V9ConfigFieldCache::from_fields_with_config(data_field, config);
+
                     flowsets.push(NetflowCommonFlowSet {
-                        src_addr: find_v9_field_with_mapping(data_field, &config.src_addr)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_addr: find_v9_field_with_mapping(data_field, &config.dst_addr)
-                            .and_then(|v| v.try_into().ok()),
-                        src_port: find_v9_field_with_mapping(data_field, &config.src_port)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_port: find_v9_field_with_mapping(data_field, &config.dst_port)
-                            .and_then(|v| v.try_into().ok()),
-                        protocol_number: find_v9_field_with_mapping(
-                            data_field,
-                            &config.protocol,
-                        )
-                        .and_then(|v| v.try_into().ok()),
-                        protocol_type: find_v9_field_with_mapping(data_field, &config.protocol)
-                            .and_then(|v| {
-                                v.try_into()
-                                    .ok()
-                                    .map(|proto: u8| ProtocolTypes::from(proto))
-                            }),
-                        first_seen: find_v9_field_with_mapping(data_field, &config.first_seen)
-                            .and_then(|v| v.try_into().ok()),
-                        last_seen: find_v9_field_with_mapping(data_field, &config.last_seen)
-                            .and_then(|v| v.try_into().ok()),
-                        src_mac: find_v9_field_with_mapping(data_field, &config.src_mac)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_mac: find_v9_field_with_mapping(data_field, &config.dst_mac)
-                            .and_then(|v| v.try_into().ok()),
+                        src_addr: cache.src_addr.and_then(|v| v.try_into().ok()),
+                        dst_addr: cache.dst_addr.and_then(|v| v.try_into().ok()),
+                        src_port: cache.src_port.and_then(|v| v.try_into().ok()),
+                        dst_port: cache.dst_port.and_then(|v| v.try_into().ok()),
+                        protocol_number: cache.protocol.and_then(|v| v.try_into().ok()),
+                        protocol_type: cache.protocol.and_then(|v| {
+                            v.try_into()
+                                .ok()
+                                .map(|proto: u8| ProtocolTypes::from(proto))
+                        }),
+                        first_seen: cache.first_seen.and_then(|v| v.try_into().ok()),
+                        last_seen: cache.last_seen.and_then(|v| v.try_into().ok()),
+                        src_mac: cache.src_mac.and_then(|v| v.try_into().ok()),
+                        dst_mac: cache.dst_mac.and_then(|v| v.try_into().ok()),
                     });
                 }
             }
@@ -582,6 +674,117 @@ fn find_ipfix_field_with_mapping<'a>(
     })
 }
 
+/// Helper structure to cache IPFIX field lookups with custom mapping in a single pass
+#[derive(Copy, Clone)]
+struct IPFixConfigFieldCache<'a> {
+    src_addr: Option<&'a FieldValue>,
+    dst_addr: Option<&'a FieldValue>,
+    src_port: Option<&'a FieldValue>,
+    dst_port: Option<&'a FieldValue>,
+    protocol: Option<&'a FieldValue>,
+    first_seen: Option<&'a FieldValue>,
+    last_seen: Option<&'a FieldValue>,
+    src_mac: Option<&'a FieldValue>,
+    dst_mac: Option<&'a FieldValue>,
+}
+
+impl<'a> IPFixConfigFieldCache<'a> {
+    fn from_fields_with_config(
+        fields: &'a [(IPFixField, FieldValue)],
+        config: &IPFixFieldMappingConfig,
+    ) -> Self {
+        let mut cache = Self {
+            src_addr: None,
+            dst_addr: None,
+            src_port: None,
+            dst_port: None,
+            protocol: None,
+            first_seen: None,
+            last_seen: None,
+            src_mac: None,
+            dst_mac: None,
+        };
+
+        // Single pass through all fields, collecting based on config
+        for (field_type, field_value) in fields {
+            // Check each configured mapping
+            if *field_type == config.src_addr.primary {
+                cache.src_addr = Some(field_value);
+            } else if config.src_addr.fallback.as_ref() == Some(field_type)
+                && cache.src_addr.is_none()
+            {
+                cache.src_addr = Some(field_value);
+            }
+
+            if *field_type == config.dst_addr.primary {
+                cache.dst_addr = Some(field_value);
+            } else if config.dst_addr.fallback.as_ref() == Some(field_type)
+                && cache.dst_addr.is_none()
+            {
+                cache.dst_addr = Some(field_value);
+            }
+
+            if *field_type == config.src_port.primary {
+                cache.src_port = Some(field_value);
+            } else if config.src_port.fallback.as_ref() == Some(field_type)
+                && cache.src_port.is_none()
+            {
+                cache.src_port = Some(field_value);
+            }
+
+            if *field_type == config.dst_port.primary {
+                cache.dst_port = Some(field_value);
+            } else if config.dst_port.fallback.as_ref() == Some(field_type)
+                && cache.dst_port.is_none()
+            {
+                cache.dst_port = Some(field_value);
+            }
+
+            if *field_type == config.protocol.primary {
+                cache.protocol = Some(field_value);
+            } else if config.protocol.fallback.as_ref() == Some(field_type)
+                && cache.protocol.is_none()
+            {
+                cache.protocol = Some(field_value);
+            }
+
+            if *field_type == config.first_seen.primary {
+                cache.first_seen = Some(field_value);
+            } else if config.first_seen.fallback.as_ref() == Some(field_type)
+                && cache.first_seen.is_none()
+            {
+                cache.first_seen = Some(field_value);
+            }
+
+            if *field_type == config.last_seen.primary {
+                cache.last_seen = Some(field_value);
+            } else if config.last_seen.fallback.as_ref() == Some(field_type)
+                && cache.last_seen.is_none()
+            {
+                cache.last_seen = Some(field_value);
+            }
+
+            if *field_type == config.src_mac.primary {
+                cache.src_mac = Some(field_value);
+            } else if config.src_mac.fallback.as_ref() == Some(field_type)
+                && cache.src_mac.is_none()
+            {
+                cache.src_mac = Some(field_value);
+            }
+
+            if *field_type == config.dst_mac.primary {
+                cache.dst_mac = Some(field_value);
+            } else if config.dst_mac.fallback.as_ref() == Some(field_type)
+                && cache.dst_mac.is_none()
+            {
+                cache.dst_mac = Some(field_value);
+            }
+        }
+
+        cache
+    }
+}
+
 impl NetflowCommon {
     /// Convert an IPFIX packet to NetflowCommon using a custom field mapping configuration.
     ///
@@ -607,40 +810,25 @@ impl NetflowCommon {
         for flowset in &value.flowsets {
             if let IPFixFlowSetBody::Data(data) = &flowset.body {
                 for data_field in &data.fields {
+                    // Single pass through fields to collect all values with config
+                    let cache =
+                        IPFixConfigFieldCache::from_fields_with_config(data_field, config);
+
                     flowsets.push(NetflowCommonFlowSet {
-                        src_addr: find_ipfix_field_with_mapping(data_field, &config.src_addr)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_addr: find_ipfix_field_with_mapping(data_field, &config.dst_addr)
-                            .and_then(|v| v.try_into().ok()),
-                        src_port: find_ipfix_field_with_mapping(data_field, &config.src_port)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_port: find_ipfix_field_with_mapping(data_field, &config.dst_port)
-                            .and_then(|v| v.try_into().ok()),
-                        protocol_number: find_ipfix_field_with_mapping(
-                            data_field,
-                            &config.protocol,
-                        )
-                        .and_then(|v| v.try_into().ok()),
-                        protocol_type: find_ipfix_field_with_mapping(
-                            data_field,
-                            &config.protocol,
-                        )
-                        .and_then(|v| {
+                        src_addr: cache.src_addr.and_then(|v| v.try_into().ok()),
+                        dst_addr: cache.dst_addr.and_then(|v| v.try_into().ok()),
+                        src_port: cache.src_port.and_then(|v| v.try_into().ok()),
+                        dst_port: cache.dst_port.and_then(|v| v.try_into().ok()),
+                        protocol_number: cache.protocol.and_then(|v| v.try_into().ok()),
+                        protocol_type: cache.protocol.and_then(|v| {
                             v.try_into()
                                 .ok()
                                 .map(|proto: u8| ProtocolTypes::from(proto))
                         }),
-                        first_seen: find_ipfix_field_with_mapping(
-                            data_field,
-                            &config.first_seen,
-                        )
-                        .and_then(|v| v.try_into().ok()),
-                        last_seen: find_ipfix_field_with_mapping(data_field, &config.last_seen)
-                            .and_then(|v| v.try_into().ok()),
-                        src_mac: find_ipfix_field_with_mapping(data_field, &config.src_mac)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_mac: find_ipfix_field_with_mapping(data_field, &config.dst_mac)
-                            .and_then(|v| v.try_into().ok()),
+                        first_seen: cache.first_seen.and_then(|v| v.try_into().ok()),
+                        last_seen: cache.last_seen.and_then(|v| v.try_into().ok()),
+                        src_mac: cache.src_mac.and_then(|v| v.try_into().ok()),
+                        dst_mac: cache.dst_mac.and_then(|v| v.try_into().ok()),
                     });
                 }
             }

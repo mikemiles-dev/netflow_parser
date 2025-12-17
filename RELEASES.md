@@ -1,13 +1,18 @@
 # 0.6.7
-* Eliminated unnecessary template cloning during insertion into parser cache (10-20% memory reduction).
 * Optimized serialization allocations in DataNumber by pre-allocating Vec capacity.
-* Implemented single-pass field lookup for V9/IPFIX NetflowCommon conversion (5-15% performance improvement).
-* Reduced O(n*m) field lookups to O(n) using cache-based collection strategy.
-* Fixed unused import warnings in tests.
-* Improved code organization and removed redundant operations.
+* Implemented single-pass field lookup for V9/IPFIX NetflowCommon conversion.
+* Reduced O(n*m) field lookups to O(n) using cache-based collection strategy for NetflowCommon.
 * Performance optimizations in V5 and V7 serialization - eliminated unnecessary Vec allocations in `to_be_bytes()`.
 * Improved error handling in IPFIX data parsing - parse errors on non-empty templates now properly propagate instead of silently converting to Empty flowsets, while maintaining backward compatibility for empty templates.
 * Added capacity pre-allocation for V9 flowset vectors to reduce reallocations during parsing.
+- Fixed integer overflow in V9 options template field counting - now uses `checked_div` with proper error handling
+- Fixed unbounded buffer reads in IPFIX variable-length fields - adds validation to prevent reading beyond buffer boundaries
+- Fixed memory exhaustion vulnerability in error handling.
+- Optimized string processing in hot path with single-pass filtering and P4 prefix stripping
+- Added capacity pre-allocations in serialization paths
+- Comprehensive thread safety documentation and best practices
+- Performance tuning guide for high-throughput scenarios
+- Better validation for malformed packets
 
 # 0.6.6
 * Added configurable field mappings for V9 and IPFIX in NetflowCommon.

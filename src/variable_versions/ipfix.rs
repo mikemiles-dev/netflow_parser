@@ -34,12 +34,27 @@ type TemplateId = u16;
 pub type IPFixFieldPair = (IPFixField, FieldValue);
 pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
 
-#[derive(Debug, Default, PartialEq, Clone, Serialize)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct IPFixParser {
     pub templates: HashMap<TemplateId, Template>,
     pub v9_templates: HashMap<TemplateId, V9Template>,
     pub ipfix_options_templates: HashMap<TemplateId, OptionsTemplate>,
     pub v9_options_templates: HashMap<TemplateId, V9OptionsTemplate>,
+    /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
+    /// Defaults to 256 bytes.
+    pub max_error_sample_size: usize,
+}
+
+impl Default for IPFixParser {
+    fn default() -> Self {
+        Self {
+            templates: HashMap::default(),
+            v9_templates: HashMap::default(),
+            ipfix_options_templates: HashMap::default(),
+            v9_options_templates: HashMap::default(),
+            max_error_sample_size: 256,
+        }
+    }
 }
 
 impl IPFixParser {
@@ -49,38 +64,47 @@ impl IPFixParser {
                 packet: NetflowPacket::IPFix(ipfix),
                 remaining,
             },
-            Err(e) => ParsedNetflow::Error {
-                error: NetflowParseError::Partial(PartialParse {
-                    version: 10,
-                    error: e.to_string(),
-                    remaining: packet.to_vec(),
-                }),
-            },
+            Err(e) => {
+                // Only include first N bytes to prevent memory exhaustion
+                let remaining_sample = if packet.len() > self.max_error_sample_size {
+                    packet[..self.max_error_sample_size].to_vec()
+                } else {
+                    packet.to_vec()
+                };
+                ParsedNetflow::Error {
+                    error: NetflowParseError::Partial(PartialParse {
+                        version: 10,
+                        error: e.to_string(),
+                        remaining: remaining_sample,
+                    }),
+                }
+            }
         }
     }
 
-    /// Add templates to the parser by moving them in.
-    fn add_ipfix_templates(&mut self, templates: Vec<Template>) {
+    /// Add templates to the parser by cloning from slice.
+    fn add_ipfix_templates(&mut self, templates: &[Template]) {
         for t in templates {
-            self.templates.insert(t.template_id, t);
+            self.templates.insert(t.template_id, t.clone());
         }
     }
 
-    fn add_ipfix_options_templates(&mut self, templates: Vec<OptionsTemplate>) {
+    fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         for t in templates {
-            self.ipfix_options_templates.insert(t.template_id, t);
+            self.ipfix_options_templates
+                .insert(t.template_id, t.clone());
         }
     }
 
-    fn add_v9_templates(&mut self, templates: Vec<V9Template>) {
+    fn add_v9_templates(&mut self, templates: &[V9Template]) {
         for t in templates {
-            self.v9_templates.insert(t.template_id, t);
+            self.v9_templates.insert(t.template_id, t.clone());
         }
     }
 
-    fn add_v9_options_templates(&mut self, templates: Vec<V9OptionsTemplate>) {
+    fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         for t in templates {
-            self.v9_options_templates.insert(t.template_id, t);
+            self.v9_options_templates.insert(t.template_id, t.clone());
         }
     }
 }
@@ -162,7 +186,7 @@ impl FlowSetBody {
         single_variant: fn(T) -> FlowSetBody,
         multi_variant: fn(Vec<T>) -> FlowSetBody,
         validate: fn(&T) -> bool,
-        add_templates: fn(&mut IPFixParser, Vec<T>),
+        add_templates: fn(&mut IPFixParser, &[T]),
     ) -> IResult<&'a [u8], FlowSetBody>
     where
         T: Clone,
@@ -175,9 +199,8 @@ impl FlowSetBody {
                 nom::error::ErrorKind::Verify,
             )));
         }
-        // Clone templates for storage, since we need to return them too
-        let templates_for_storage = templates.clone();
-        add_templates(parser, templates_for_storage);
+        // Pass slice to add_templates to clone only what's needed
+        add_templates(parser, &templates);
         match templates.len() {
             1 => {
                 if let Some(template) = templates.into_iter().next() {
@@ -451,7 +474,7 @@ impl<'a> FieldParser {
 }
 
 impl TemplateField {
-    // If 65335, read 1 byte.
+    // If 65535, read 1 byte.
     // If that byte is < 255 that is the length.
     // If that byte is == 255 then read 2 bytes.  That is the length.
     // Otherwise, return the field length.
@@ -460,8 +483,23 @@ impl TemplateField {
             65535 => {
                 let (i, length) = be_u8(i)?;
                 if length == 255 {
-                    be_u16(i)
+                    let (i, full_length) = be_u16(i)?;
+                    // Validate length doesn't exceed remaining buffer
+                    if (full_length as usize) > i.len() {
+                        return Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Eof,
+                        )));
+                    }
+                    Ok((i, full_length))
                 } else {
+                    // Validate length doesn't exceed remaining buffer
+                    if (length as usize) > i.len() {
+                        return Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Eof,
+                        )));
+                    }
                     Ok((i, u16::from(length)))
                 }
             }

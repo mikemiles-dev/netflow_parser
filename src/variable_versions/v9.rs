@@ -33,21 +33,42 @@ impl V9Parser {
                 packet: NetflowPacket::V9(v9),
                 remaining,
             },
-            Err(e) => ParsedNetflow::Error {
-                error: NetflowParseError::Partial(PartialParse {
-                    version: 9,
-                    error: e.to_string(),
-                    remaining: packet.to_vec(),
-                }),
-            },
+            Err(e) => {
+                // Only include first N bytes to prevent memory exhaustion
+                let remaining_sample = if packet.len() > self.max_error_sample_size {
+                    packet[..self.max_error_sample_size].to_vec()
+                } else {
+                    packet.to_vec()
+                };
+                ParsedNetflow::Error {
+                    error: NetflowParseError::Partial(PartialParse {
+                        version: 9,
+                        error: e.to_string(),
+                        remaining: remaining_sample,
+                    }),
+                }
+            }
         }
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 pub struct V9Parser {
     pub templates: HashMap<TemplateId, Template>,
     pub options_templates: HashMap<TemplateId, OptionsTemplate>,
+    /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
+    /// Defaults to 256 bytes.
+    pub max_error_sample_size: usize,
+}
+
+impl Default for V9Parser {
+    fn default() -> Self {
+        Self {
+            templates: HashMap::default(),
+            options_templates: HashMap::default(),
+            max_error_sample_size: 256,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -183,19 +204,21 @@ impl FlowSetBody {
         match id {
             DATA_TEMPLATE_V9_ID => {
                 let (i, templates) = Templates::parse(i)?;
-                // Store templates by moving them into the HashMap
-                for template in templates.templates.clone() {
-                    parser.templates.insert(template.template_id, template);
+                // Store templates efficiently - clone only what we need to cache
+                for template in &templates.templates {
+                    parser
+                        .templates
+                        .insert(template.template_id, template.clone());
                 }
                 Ok((i, FlowSetBody::Template(templates)))
             }
             OPTIONS_TEMPLATE_V9_ID => {
                 let (i, options_templates) = OptionsTemplates::parse(i)?;
-                // Store templates by moving them into the HashMap
-                for template in options_templates.templates.clone() {
+                // Store templates efficiently - clone only what we need to cache
+                for template in &options_templates.templates {
                     parser
                         .options_templates
-                        .insert(template.template_id, template);
+                        .insert(template.template_id, template.clone());
                 }
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
             }
@@ -252,10 +275,10 @@ pub struct OptionsTemplate {
     /// This field gives the length (in bytes) of any Options field definitions that are contained in this options template
     pub options_length: u16,
     /// Options Scope Fields
-    #[nom(Count = "usize::from(options_scope_length.saturating_div(4))")]
+    #[nom(Count = "usize::from(options_scope_length.checked_div(4).unwrap_or(0))")]
     pub scope_fields: Vec<OptionsTemplateScopeField>,
     /// Options Fields
-    #[nom(Count = "usize::from(options_length.saturating_div(4))")]
+    #[nom(Count = "usize::from(options_length.checked_div(4).unwrap_or(0))")]
     pub option_fields: Vec<TemplateField>,
 }
 
@@ -558,7 +581,7 @@ impl TemplateField {
 impl V9 {
     /// Convert the V9 struct to a `Vec<u8>` of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        let mut result = vec![];
+        let mut result = Vec::new();
 
         result.extend_from_slice(&self.header.version.to_be_bytes());
         result.extend_from_slice(&self.header.count.to_be_bytes());

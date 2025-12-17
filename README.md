@@ -8,6 +8,7 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 - [Serialization (JSON)](#want-serialization-such-as-json)
 - [Filtering for a Specific Version](#filtering-for-a-specific-version)
 - [Parsing Out Unneeded Versions](#parsing-out-unneeded-versions)
+- [Error Handling Configuration](#error-handling-configuration)
 - [Netflow Common](#netflow-common)
 - [Re-Exporting Flows](#re-exporting-flows)
 - [V9/IPFIX Notes](#v9ipfix-notes)
@@ -127,6 +128,30 @@ let parsed = parser.parse_bytes(&v5_packet);
 ```
 
 This code will return an empty Vec as version 5 is not allowed.
+
+## Error Handling Configuration
+
+To prevent memory exhaustion from malformed packets, the parser limits the size of error buffer samples. By default, only the first 256 bytes of unparseable data are stored in error messages. You can customize this limit for all parsers:
+
+```rust
+use netflow_parser::NetflowParser;
+
+let mut parser = NetflowParser::default();
+
+// Configure maximum error buffer size for the main parser (default: 256 bytes)
+// This applies to generic parsing errors
+parser.max_error_sample_size = 512;
+
+// Configure maximum error buffer size for V9 (default: 256 bytes)
+parser.v9_parser.max_error_sample_size = 512;
+
+// Configure maximum error buffer size for IPFIX (default: 256 bytes)
+parser.ipfix_parser.max_error_sample_size = 512;
+
+let parsed = parser.parse_bytes(&some_packet);
+```
+
+This setting helps prevent memory exhaustion when processing malformed or malicious packets while still providing enough context for debugging.
 
 ## Netflow Common
 
@@ -296,9 +321,36 @@ dbg!(parser.v9_parser.options_templates);
 
 To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attribute on the Parsed Record.  In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
 
+## Performance & Thread Safety
+
+### Thread Safety
+
+Parsers (`NetflowParser`, `V9Parser`, `IPFixParser`) are **not thread-safe** and should not be shared across threads without external synchronization. Each parser maintains internal state (template caches) that is modified during parsing.
+
+**Recommended pattern for multi-threaded applications:**
+- Create one parser instance per thread
+- Each thread processes packets from a single router/source
+- See `examples/netflow_udp_listener_multi_threaded.rs` for implementation example
+
+### Performance Optimizations
+
+This library includes several performance optimizations:
+
+1. **Single-pass field caching** - NetflowCommon conversions use efficient single-pass lookups
+2. **Minimal cloning** - Template storage avoids unnecessary vector clones
+3. **Optimized string processing** - Single-pass filtering and prefix stripping
+4. **Capacity pre-allocation** - Vectors pre-allocate when sizes are known
+5. **Bounded error buffers** - Error handling limits memory consumption to prevent exhaustion
+
+**Best practices for optimal performance:**
+- Reuse parser instances instead of creating new ones for each packet
+- Use `parse_bytes_as_netflow_common_flowsets()` when you only need flow data
+- For V9/IPFIX, batch process packets from the same source to maximize template cache hits
+
 ## Features
 
 * `parse_unknown_fields` - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
+* `netflow_common` - When enabled provides `NetflowCommon` and `NetflowCommonFlowSet` structures for working with common fields across different Netflow versions.  Disabled by default.
 
 ## Included Examples
 
