@@ -254,7 +254,7 @@ impl FieldValue {
             }
             FieldDataType::String => {
                 let (i, taken) = take(field_length)(remaining)?;
-                // Single-pass string construction: filter control chars and strip "P4" prefix
+                // Filter control chars first, then strip P4 prefix (original logic)
                 let s: String = String::from_utf8_lossy(taken)
                     .chars()
                     .filter(|&c| !c.is_control())

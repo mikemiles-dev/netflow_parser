@@ -272,6 +272,9 @@ pub struct NetflowParser {
     pub v9_parser: V9Parser,
     pub ipfix_parser: IPFixParser,
     pub allowed_versions: HashSet<u16>,
+    /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
+    /// Defaults to 256 bytes.
+    pub max_error_sample_size: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -312,6 +315,7 @@ impl Default for NetflowParser {
             v9_parser: V9Parser::default(),
             ipfix_parser: IPFixParser::default(),
             allowed_versions: [5, 7, 9, 10].iter().cloned().collect(),
+            max_error_sample_size: 256,
         }
     }
 }
@@ -358,9 +362,15 @@ impl NetflowParser {
                     break;
                 }
                 ParsedNetflow::Error { error } => {
+                    // Only include first N bytes of remaining data in error to prevent memory exhaustion
+                    let remaining_sample = if remaining.len() > self.max_error_sample_size {
+                        remaining[..self.max_error_sample_size].to_vec()
+                    } else {
+                        remaining.to_vec()
+                    };
                     packets.push(NetflowPacket::Error(NetflowPacketError {
                         error,
-                        remaining: remaining.to_vec(),
+                        remaining: remaining_sample,
                     }));
                     break;
                 }
