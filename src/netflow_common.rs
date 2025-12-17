@@ -16,19 +16,19 @@ pub enum NetflowCommonError {
     UnknownVersion(NetflowPacket),
 }
 
-/// Configuration for mapping V9 fields to NetflowCommonFlowSet fields.
+/// Generic configuration for mapping fields to NetflowCommonFlowSet fields.
 /// Each field can have a primary and optional fallback field type.
 #[derive(Debug, Clone)]
-pub struct V9FieldMapping {
+pub struct FieldMapping<T> {
     /// Primary field to search for
-    pub primary: V9Field,
+    pub primary: T,
     /// Optional fallback field if primary is not found
-    pub fallback: Option<V9Field>,
+    pub fallback: Option<T>,
 }
 
-impl V9FieldMapping {
+impl<T> FieldMapping<T> {
     /// Create a new field mapping with only a primary field
-    pub fn new(primary: V9Field) -> Self {
+    pub fn new(primary: T) -> Self {
         Self {
             primary,
             fallback: None,
@@ -36,7 +36,7 @@ impl V9FieldMapping {
     }
 
     /// Create a new field mapping with a primary and fallback field
-    pub fn with_fallback(primary: V9Field, fallback: V9Field) -> Self {
+    pub fn with_fallback(primary: T, fallback: T) -> Self {
         Self {
             primary,
             fallback: Some(fallback),
@@ -44,33 +44,11 @@ impl V9FieldMapping {
     }
 }
 
-/// Configuration for mapping IPFIX fields to NetflowCommonFlowSet fields.
-/// Each field can have a primary and optional fallback field type.
-#[derive(Debug, Clone)]
-pub struct IPFixFieldMapping {
-    /// Primary field to search for
-    pub primary: IPFixField,
-    /// Optional fallback field if primary is not found
-    pub fallback: Option<IPFixField>,
-}
+/// Type alias for V9 field mapping configuration
+pub type V9FieldMapping = FieldMapping<V9Field>;
 
-impl IPFixFieldMapping {
-    /// Create a new field mapping with only a primary field
-    pub fn new(primary: IPFixField) -> Self {
-        Self {
-            primary,
-            fallback: None,
-        }
-    }
-
-    /// Create a new field mapping with a primary and fallback field
-    pub fn with_fallback(primary: IPFixField, fallback: IPFixField) -> Self {
-        Self {
-            primary,
-            fallback: Some(fallback),
-        }
-    }
-}
+/// Type alias for IPFix field mapping configuration
+pub type IPFixFieldMapping = FieldMapping<IPFixField>;
 
 /// Configuration for V9 field mappings used when converting V9 to NetflowCommon.
 ///
@@ -303,11 +281,6 @@ impl From<&V7> for NetflowCommon {
     }
 }
 
-/// Helper function to find a field value in a V9 flow record by field type
-fn find_v9_field(fields: &[(V9Field, FieldValue)], field: V9Field) -> Option<&FieldValue> {
-    fields.iter().find(|(f, _)| *f == field).map(|(_, v)| v)
-}
-
 /// Helper structure to store all found V9 fields in a single pass
 #[derive(Copy, Clone)]
 struct V9FieldCache<'a> {
@@ -362,16 +335,67 @@ impl<'a> V9FieldCache<'a> {
     }
 }
 
-/// Helper function to find a field value using a V9FieldMapping configuration
-fn find_v9_field_with_mapping<'a>(
-    fields: &'a [(V9Field, FieldValue)],
-    mapping: &V9FieldMapping,
-) -> Option<&'a FieldValue> {
-    find_v9_field(fields, mapping.primary).or_else(|| {
-        mapping
-            .fallback
-            .and_then(|fallback| find_v9_field(fields, fallback))
-    })
+/// Macro to create NetflowCommonFlowSet from a cache structure with separate v4/v6 fields
+macro_rules! create_common_flowset_with_ip_versions {
+    ($cache:expr, $src_v4:ident, $src_v6:ident, $dst_v4:ident, $dst_v6:ident) => {
+        NetflowCommonFlowSet {
+            src_addr: $cache
+                .$src_v4
+                .or($cache.$src_v6)
+                .and_then(|v| v.try_into().ok()),
+            dst_addr: $cache
+                .$dst_v4
+                .or($cache.$dst_v6)
+                .and_then(|v| v.try_into().ok()),
+            src_port: $cache.src_port.and_then(|v| v.try_into().ok()),
+            dst_port: $cache.dst_port.and_then(|v| v.try_into().ok()),
+            protocol_number: $cache.protocol.and_then(|v| v.try_into().ok()),
+            protocol_type: $cache.protocol.and_then(|v| {
+                v.try_into()
+                    .ok()
+                    .map(|proto: u8| ProtocolTypes::from(proto))
+            }),
+            first_seen: $cache.first_seen.and_then(|v| v.try_into().ok()),
+            last_seen: $cache.last_seen.and_then(|v| v.try_into().ok()),
+            src_mac: $cache.src_mac.and_then(|v| v.try_into().ok()),
+            dst_mac: $cache.dst_mac.and_then(|v| v.try_into().ok()),
+        }
+    };
+}
+
+/// Macro to create NetflowCommonFlowSet from a cache structure
+macro_rules! create_common_flowset {
+    ($cache:expr) => {
+        NetflowCommonFlowSet {
+            src_addr: $cache.src_addr.and_then(|v| v.try_into().ok()),
+            dst_addr: $cache.dst_addr.and_then(|v| v.try_into().ok()),
+            src_port: $cache.src_port.and_then(|v| v.try_into().ok()),
+            dst_port: $cache.dst_port.and_then(|v| v.try_into().ok()),
+            protocol_number: $cache.protocol.and_then(|v| v.try_into().ok()),
+            protocol_type: $cache.protocol.and_then(|v| {
+                v.try_into()
+                    .ok()
+                    .map(|proto: u8| ProtocolTypes::from(proto))
+            }),
+            first_seen: $cache.first_seen.and_then(|v| v.try_into().ok()),
+            last_seen: $cache.last_seen.and_then(|v| v.try_into().ok()),
+            src_mac: $cache.src_mac.and_then(|v| v.try_into().ok()),
+            dst_mac: $cache.dst_mac.and_then(|v| v.try_into().ok()),
+        }
+    };
+}
+
+/// Macro to generate field cache checking logic for config-based caches
+macro_rules! check_field_mapping {
+    ($field_type:expr, $field_value:expr, $cache:expr, $config:expr, $field_name:ident) => {
+        if *$field_type == $config.$field_name.primary {
+            $cache.$field_name = Some($field_value);
+        } else if Some(*$field_type) == $config.$field_name.fallback
+            && $cache.$field_name.is_none()
+        {
+            $cache.$field_name = Some($field_value);
+        }
+    };
 }
 
 /// Helper structure to cache V9 field lookups with custom mapping in a single pass
@@ -407,69 +431,15 @@ impl<'a> V9ConfigFieldCache<'a> {
 
         // Single pass through all fields, collecting based on config
         for (field_type, field_value) in fields {
-            // Check each configured mapping
-            if *field_type == config.src_addr.primary {
-                cache.src_addr = Some(field_value);
-            } else if Some(*field_type) == config.src_addr.fallback && cache.src_addr.is_none()
-            {
-                cache.src_addr = Some(field_value);
-            }
-
-            if *field_type == config.dst_addr.primary {
-                cache.dst_addr = Some(field_value);
-            } else if Some(*field_type) == config.dst_addr.fallback && cache.dst_addr.is_none()
-            {
-                cache.dst_addr = Some(field_value);
-            }
-
-            if *field_type == config.src_port.primary {
-                cache.src_port = Some(field_value);
-            } else if Some(*field_type) == config.src_port.fallback && cache.src_port.is_none()
-            {
-                cache.src_port = Some(field_value);
-            }
-
-            if *field_type == config.dst_port.primary {
-                cache.dst_port = Some(field_value);
-            } else if Some(*field_type) == config.dst_port.fallback && cache.dst_port.is_none()
-            {
-                cache.dst_port = Some(field_value);
-            }
-
-            if *field_type == config.protocol.primary {
-                cache.protocol = Some(field_value);
-            } else if Some(*field_type) == config.protocol.fallback && cache.protocol.is_none()
-            {
-                cache.protocol = Some(field_value);
-            }
-
-            if *field_type == config.first_seen.primary {
-                cache.first_seen = Some(field_value);
-            } else if Some(*field_type) == config.first_seen.fallback
-                && cache.first_seen.is_none()
-            {
-                cache.first_seen = Some(field_value);
-            }
-
-            if *field_type == config.last_seen.primary {
-                cache.last_seen = Some(field_value);
-            } else if Some(*field_type) == config.last_seen.fallback
-                && cache.last_seen.is_none()
-            {
-                cache.last_seen = Some(field_value);
-            }
-
-            if *field_type == config.src_mac.primary {
-                cache.src_mac = Some(field_value);
-            } else if Some(*field_type) == config.src_mac.fallback && cache.src_mac.is_none() {
-                cache.src_mac = Some(field_value);
-            }
-
-            if *field_type == config.dst_mac.primary {
-                cache.dst_mac = Some(field_value);
-            } else if Some(*field_type) == config.dst_mac.fallback && cache.dst_mac.is_none() {
-                cache.dst_mac = Some(field_value);
-            }
+            check_field_mapping!(field_type, field_value, cache, config, src_addr);
+            check_field_mapping!(field_type, field_value, cache, config, dst_addr);
+            check_field_mapping!(field_type, field_value, cache, config, src_port);
+            check_field_mapping!(field_type, field_value, cache, config, dst_port);
+            check_field_mapping!(field_type, field_value, cache, config, protocol);
+            check_field_mapping!(field_type, field_value, cache, config, first_seen);
+            check_field_mapping!(field_type, field_value, cache, config, last_seen);
+            check_field_mapping!(field_type, field_value, cache, config, src_mac);
+            check_field_mapping!(field_type, field_value, cache, config, dst_mac);
         }
 
         cache
@@ -503,23 +473,7 @@ impl NetflowCommon {
                 for data_field in &data.fields {
                     // Single pass through fields to collect all values with config
                     let cache = V9ConfigFieldCache::from_fields_with_config(data_field, config);
-
-                    flowsets.push(NetflowCommonFlowSet {
-                        src_addr: cache.src_addr.and_then(|v| v.try_into().ok()),
-                        dst_addr: cache.dst_addr.and_then(|v| v.try_into().ok()),
-                        src_port: cache.src_port.and_then(|v| v.try_into().ok()),
-                        dst_port: cache.dst_port.and_then(|v| v.try_into().ok()),
-                        protocol_number: cache.protocol.and_then(|v| v.try_into().ok()),
-                        protocol_type: cache.protocol.and_then(|v| {
-                            v.try_into()
-                                .ok()
-                                .map(|proto: u8| ProtocolTypes::from(proto))
-                        }),
-                        first_seen: cache.first_seen.and_then(|v| v.try_into().ok()),
-                        last_seen: cache.last_seen.and_then(|v| v.try_into().ok()),
-                        src_mac: cache.src_mac.and_then(|v| v.try_into().ok()),
-                        dst_mac: cache.dst_mac.and_then(|v| v.try_into().ok()),
-                    });
+                    flowsets.push(create_common_flowset!(cache));
                 }
             }
         }
@@ -542,29 +496,13 @@ impl From<&V9> for NetflowCommon {
                 for data_field in &data.fields {
                     // Single pass through fields to collect all values
                     let cache = V9FieldCache::from_fields(data_field);
-
-                    flowsets.push(NetflowCommonFlowSet {
-                        src_addr: cache
-                            .src_addr_v4
-                            .or(cache.src_addr_v6)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_addr: cache
-                            .dst_addr_v4
-                            .or(cache.dst_addr_v6)
-                            .and_then(|v| v.try_into().ok()),
-                        src_port: cache.src_port.and_then(|v| v.try_into().ok()),
-                        dst_port: cache.dst_port.and_then(|v| v.try_into().ok()),
-                        protocol_number: cache.protocol.and_then(|v| v.try_into().ok()),
-                        protocol_type: cache.protocol.and_then(|v| {
-                            v.try_into()
-                                .ok()
-                                .map(|proto: u8| ProtocolTypes::from(proto))
-                        }),
-                        first_seen: cache.first_seen.and_then(|v| v.try_into().ok()),
-                        last_seen: cache.last_seen.and_then(|v| v.try_into().ok()),
-                        src_mac: cache.src_mac.and_then(|v| v.try_into().ok()),
-                        dst_mac: cache.dst_mac.and_then(|v| v.try_into().ok()),
-                    });
+                    flowsets.push(create_common_flowset_with_ip_versions!(
+                        cache,
+                        src_addr_v4,
+                        src_addr_v6,
+                        dst_addr_v4,
+                        dst_addr_v6
+                    ));
                 }
             }
         }
@@ -575,14 +513,6 @@ impl From<&V9> for NetflowCommon {
             flowsets,
         }
     }
-}
-
-/// Helper function to find a field value in an IPFix flow record by field type
-fn find_ipfix_field(
-    fields: &[(IPFixField, FieldValue)],
-    field: IPFixField,
-) -> Option<&FieldValue> {
-    fields.iter().find(|(f, _)| *f == field).map(|(_, v)| v)
 }
 
 /// Helper structure to store all found IPFIX fields in a single pass
@@ -661,17 +591,17 @@ impl<'a> IPFixFieldCache<'a> {
     }
 }
 
-/// Helper function to find a field value using an IPFixFieldMapping configuration
-fn find_ipfix_field_with_mapping<'a>(
-    fields: &'a [(IPFixField, FieldValue)],
-    mapping: &IPFixFieldMapping,
-) -> Option<&'a FieldValue> {
-    find_ipfix_field(fields, mapping.primary).or_else(|| {
-        mapping
-            .fallback
-            .as_ref()
-            .and_then(|fallback| find_ipfix_field(fields, *fallback))
-    })
+/// Macro to check field mapping for types that need as_ref() for fallback comparison
+macro_rules! check_field_mapping_ref {
+    ($field_type:expr, $field_value:expr, $cache:expr, $config:expr, $field_name:ident) => {
+        if *$field_type == $config.$field_name.primary {
+            $cache.$field_name = Some($field_value);
+        } else if $config.$field_name.fallback.as_ref() == Some($field_type)
+            && $cache.$field_name.is_none()
+        {
+            $cache.$field_name = Some($field_value);
+        }
+    };
 }
 
 /// Helper structure to cache IPFIX field lookups with custom mapping in a single pass
@@ -707,78 +637,15 @@ impl<'a> IPFixConfigFieldCache<'a> {
 
         // Single pass through all fields, collecting based on config
         for (field_type, field_value) in fields {
-            // Check each configured mapping
-            if *field_type == config.src_addr.primary {
-                cache.src_addr = Some(field_value);
-            } else if config.src_addr.fallback.as_ref() == Some(field_type)
-                && cache.src_addr.is_none()
-            {
-                cache.src_addr = Some(field_value);
-            }
-
-            if *field_type == config.dst_addr.primary {
-                cache.dst_addr = Some(field_value);
-            } else if config.dst_addr.fallback.as_ref() == Some(field_type)
-                && cache.dst_addr.is_none()
-            {
-                cache.dst_addr = Some(field_value);
-            }
-
-            if *field_type == config.src_port.primary {
-                cache.src_port = Some(field_value);
-            } else if config.src_port.fallback.as_ref() == Some(field_type)
-                && cache.src_port.is_none()
-            {
-                cache.src_port = Some(field_value);
-            }
-
-            if *field_type == config.dst_port.primary {
-                cache.dst_port = Some(field_value);
-            } else if config.dst_port.fallback.as_ref() == Some(field_type)
-                && cache.dst_port.is_none()
-            {
-                cache.dst_port = Some(field_value);
-            }
-
-            if *field_type == config.protocol.primary {
-                cache.protocol = Some(field_value);
-            } else if config.protocol.fallback.as_ref() == Some(field_type)
-                && cache.protocol.is_none()
-            {
-                cache.protocol = Some(field_value);
-            }
-
-            if *field_type == config.first_seen.primary {
-                cache.first_seen = Some(field_value);
-            } else if config.first_seen.fallback.as_ref() == Some(field_type)
-                && cache.first_seen.is_none()
-            {
-                cache.first_seen = Some(field_value);
-            }
-
-            if *field_type == config.last_seen.primary {
-                cache.last_seen = Some(field_value);
-            } else if config.last_seen.fallback.as_ref() == Some(field_type)
-                && cache.last_seen.is_none()
-            {
-                cache.last_seen = Some(field_value);
-            }
-
-            if *field_type == config.src_mac.primary {
-                cache.src_mac = Some(field_value);
-            } else if config.src_mac.fallback.as_ref() == Some(field_type)
-                && cache.src_mac.is_none()
-            {
-                cache.src_mac = Some(field_value);
-            }
-
-            if *field_type == config.dst_mac.primary {
-                cache.dst_mac = Some(field_value);
-            } else if config.dst_mac.fallback.as_ref() == Some(field_type)
-                && cache.dst_mac.is_none()
-            {
-                cache.dst_mac = Some(field_value);
-            }
+            check_field_mapping_ref!(field_type, field_value, cache, config, src_addr);
+            check_field_mapping_ref!(field_type, field_value, cache, config, dst_addr);
+            check_field_mapping_ref!(field_type, field_value, cache, config, src_port);
+            check_field_mapping_ref!(field_type, field_value, cache, config, dst_port);
+            check_field_mapping_ref!(field_type, field_value, cache, config, protocol);
+            check_field_mapping_ref!(field_type, field_value, cache, config, first_seen);
+            check_field_mapping_ref!(field_type, field_value, cache, config, last_seen);
+            check_field_mapping_ref!(field_type, field_value, cache, config, src_mac);
+            check_field_mapping_ref!(field_type, field_value, cache, config, dst_mac);
         }
 
         cache
@@ -813,23 +680,7 @@ impl NetflowCommon {
                     // Single pass through fields to collect all values with config
                     let cache =
                         IPFixConfigFieldCache::from_fields_with_config(data_field, config);
-
-                    flowsets.push(NetflowCommonFlowSet {
-                        src_addr: cache.src_addr.and_then(|v| v.try_into().ok()),
-                        dst_addr: cache.dst_addr.and_then(|v| v.try_into().ok()),
-                        src_port: cache.src_port.and_then(|v| v.try_into().ok()),
-                        dst_port: cache.dst_port.and_then(|v| v.try_into().ok()),
-                        protocol_number: cache.protocol.and_then(|v| v.try_into().ok()),
-                        protocol_type: cache.protocol.and_then(|v| {
-                            v.try_into()
-                                .ok()
-                                .map(|proto: u8| ProtocolTypes::from(proto))
-                        }),
-                        first_seen: cache.first_seen.and_then(|v| v.try_into().ok()),
-                        last_seen: cache.last_seen.and_then(|v| v.try_into().ok()),
-                        src_mac: cache.src_mac.and_then(|v| v.try_into().ok()),
-                        dst_mac: cache.dst_mac.and_then(|v| v.try_into().ok()),
-                    });
+                    flowsets.push(create_common_flowset!(cache));
                 }
             }
         }
@@ -852,29 +703,13 @@ impl From<&IPFix> for NetflowCommon {
                 for data_field in &data.fields {
                     // Single pass through fields to collect all values
                     let cache = IPFixFieldCache::from_fields(data_field);
-
-                    flowsets.push(NetflowCommonFlowSet {
-                        src_addr: cache
-                            .src_addr_v4
-                            .or(cache.src_addr_v6)
-                            .and_then(|v| v.try_into().ok()),
-                        dst_addr: cache
-                            .dst_addr_v4
-                            .or(cache.dst_addr_v6)
-                            .and_then(|v| v.try_into().ok()),
-                        src_port: cache.src_port.and_then(|v| v.try_into().ok()),
-                        dst_port: cache.dst_port.and_then(|v| v.try_into().ok()),
-                        protocol_number: cache.protocol.and_then(|v| v.try_into().ok()),
-                        protocol_type: cache.protocol.and_then(|v| {
-                            v.try_into()
-                                .ok()
-                                .map(|proto: u8| ProtocolTypes::from(proto))
-                        }),
-                        first_seen: cache.first_seen.and_then(|v| v.try_into().ok()),
-                        last_seen: cache.last_seen.and_then(|v| v.try_into().ok()),
-                        src_mac: cache.src_mac.and_then(|v| v.try_into().ok()),
-                        dst_mac: cache.dst_mac.and_then(|v| v.try_into().ok()),
-                    });
+                    flowsets.push(create_common_flowset_with_ip_versions!(
+                        cache,
+                        src_addr_v4,
+                        src_addr_v6,
+                        dst_addr_v4,
+                        dst_addr_v6
+                    ));
                 }
             }
         }
