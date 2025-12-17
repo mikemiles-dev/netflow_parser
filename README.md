@@ -7,6 +7,7 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 - [Example](#example)
 - [Serialization (JSON)](#want-serialization-such-as-json)
 - [Filtering for a Specific Version](#filtering-for-a-specific-version)
+- [Stream Processing (Iterator API)](#stream-processing-iterator-api)
 - [Parsing Out Unneeded Versions](#parsing-out-unneeded-versions)
 - [Error Handling Configuration](#error-handling-configuration)
 - [Netflow Common](#netflow-common)
@@ -109,6 +110,65 @@ let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 
 let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 
 let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
+```
+
+## Stream Processing (Iterator API)
+
+For high-performance scenarios where you want to avoid allocating a `Vec`, you can use the iterator API to process packets one-by-one as they're parsed:
+
+```rust
+use netflow_parser::{NetflowParser, NetflowPacket};
+
+let buffer = /* your netflow data */;
+let mut parser = NetflowParser::default();
+
+// Process packets without collecting into a Vec
+for packet in parser.parse_bytes_iter(&buffer) {
+    match packet {
+        NetflowPacket::V5(v5) => {
+            // Process V5 packet
+            println!("V5 packet from {}", v5.header.version);
+        }
+        NetflowPacket::V9(v9) => {
+            // Process V9 packet
+            for flowset in &v9.flowsets {
+                // Handle flowsets
+            }
+        }
+        NetflowPacket::IPFix(ipfix) => {
+            // Process IPFIX packet
+        }
+        NetflowPacket::Error(e) => {
+            eprintln!("Parse error: {:?}", e);
+        }
+        _ => {}
+    }
+}
+```
+
+### Benefits of Iterator API
+
+- **Zero allocation**: Packets are yielded one-by-one without allocating a `Vec`
+- **Memory efficient**: Ideal for processing large batches or continuous streams
+- **Lazy evaluation**: Only parses packets as you consume them
+- **Template caching preserved**: V9/IPFIX template state is maintained across iterations
+- **Composable**: Works with standard Rust iterator methods (`.filter()`, `.map()`, `.take()`, etc.)
+
+### Iterator Examples
+
+```rust
+// Count V5 packets without collecting
+let count = parser.parse_bytes_iter(&buffer)
+    .filter(|p| p.is_v5())
+    .count();
+
+// Process only the first 10 packets
+for packet in parser.parse_bytes_iter(&buffer).take(10) {
+    // Handle packet
+}
+
+// Collect only if needed (equivalent to parse_bytes())
+let packets: Vec<_> = parser.parse_bytes_iter(&buffer).collect();
 ```
 
 ## Parsing Out Unneeded Versions
@@ -344,6 +404,7 @@ This library includes several performance optimizations:
 
 **Best practices for optimal performance:**
 - Reuse parser instances instead of creating new ones for each packet
+- Use `parse_bytes_iter()` instead of `parse_bytes()` when you don't need all packets in a Vec
 - Use `parse_bytes_as_netflow_common_flowsets()` when you only need flow data
 - For V9/IPFIX, batch process packets from the same source to maximize template cache hits
 

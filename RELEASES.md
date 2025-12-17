@@ -1,17 +1,11 @@
 # 0.6.7
-
-**Performance Improvements:**
 * Optimized NetflowCommon conversion with single-pass field lookups (reduced O(n*m) to O(n))
-* Reduced memory allocations in V5/V7/DataNumber serialization through capacity pre-allocation
+* Added V5/V7/DataNumber capacity pre-allocation
 * Faster string processing in hot paths
-
-**Security Fixes:**
 * Fixed integer overflow in V9 options template field counting
 * Fixed unbounded buffer reads in IPFIX variable-length fields
 * Fixed memory exhaustion vulnerability in error handling
 * Enhanced validation for malformed packets
-
-**Other Changes:**
 * Improved IPFIX error handling - parse errors now properly propagate
 * Added thread safety documentation and performance tuning guide
 

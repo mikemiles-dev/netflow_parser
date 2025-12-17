@@ -309,6 +309,52 @@ pub struct PartialParse {
     pub error: String,
 }
 
+/// Iterator that yields NetflowPacket items from a byte buffer without allocating a Vec.
+/// Maintains parser state for template caching (V9/IPFIX).
+pub struct NetflowPacketIterator<'a> {
+    parser: &'a mut NetflowParser,
+    remaining: &'a [u8],
+    errored: bool,
+}
+
+impl<'a> Iterator for NetflowPacketIterator<'a> {
+    type Item = NetflowPacket;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Stop if we've errored or no bytes remain
+        if self.errored || self.remaining.is_empty() {
+            return None;
+        }
+
+        match self.parser.parse_packet_by_version(self.remaining) {
+            ParsedNetflow::Success {
+                packet,
+                remaining: new_remaining,
+            } => {
+                self.remaining = new_remaining;
+                Some(packet)
+            }
+            ParsedNetflow::UnallowedVersion => {
+                self.errored = true;
+                None
+            }
+            ParsedNetflow::Error { error } => {
+                self.errored = true;
+                // Only include first N bytes of remaining data in error to prevent memory exhaustion
+                let remaining_sample = if self.remaining.len() > self.parser.max_error_sample_size {
+                    self.remaining[..self.parser.max_error_sample_size].to_vec()
+                } else {
+                    self.remaining.to_vec()
+                };
+                Some(NetflowPacket::Error(NetflowPacketError {
+                    error,
+                    remaining: remaining_sample,
+                }))
+            }
+        }
+    }
+}
+
 impl Default for NetflowParser {
     fn default() -> Self {
         Self {
@@ -378,6 +424,34 @@ impl NetflowParser {
         }
 
         packets
+    }
+
+    /// Returns an iterator that yields NetflowPacket items without allocating a Vec.
+    /// This is useful for processing large batches of packets without collecting all results in memory.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::{NetflowParser, NetflowPacket};
+    ///
+    /// let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
+    /// let mut parser = NetflowParser::default();
+    ///
+    /// for packet in parser.parse_bytes_iter(&v5_packet) {
+    ///     match packet {
+    ///         NetflowPacket::V5(v5) => println!("V5 packet: {:?}", v5.header.version),
+    ///         NetflowPacket::Error(e) => println!("Error: {:?}", e),
+    ///         _ => (),
+    ///     }
+    /// }
+    /// ```
+    #[inline]
+    pub fn parse_bytes_iter<'a>(&'a mut self, packet: &'a [u8]) -> NetflowPacketIterator<'a> {
+        NetflowPacketIterator {
+            parser: self,
+            remaining: packet,
+            errored: false,
+        }
     }
 
     #[inline]
