@@ -1,12 +1,6 @@
 //! # netflow_parser
 //!
-//! ## Description
-//!
-//! A Netflow Parser library for Cisco V5, V7, V9, IPFIX written in Rust.
-//! Supports chaining of multiple versions in the same stream.  ({v5 packet}, {v7 packet}, {v5 packet}, {v9 packet}, etc.)
-//!
-//! ## References
-//! See: <https://en.wikipedia.org/wiki/NetFlow>
+A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Supports chaining of multiple versions in the same stream.
 //!
 //! ## Example
 //!
@@ -34,10 +28,51 @@
 //! ```
 //!
 //! ```json
-//! [{"V5":{"body":{"d_octets":66051,"d_pkts":101124105,"dst_addr":"4.5.6.7","dst_as":515,"dst_mask":5,"dst_port":1029,"first":67438087,"input":515,"last":134807553,"next_hop":"8.9.0.1","output":1029,"pad1":6,"pad2":1543,"protocol":"EGP","src_addr":"0.1.2.3","src_as":1,"src_mask":4,"src_port":515,"tcp_flags":7,"tos":9},"header":{"count":512,"engine_id":7,"engine_type":6,"flow_sequence":33752069,"sampling_interval":2057,"sys_up_time":50332672,"unix_nsecs":134807553,"unix_secs":83887623,"unix_time":{"nanos_since_epoch":134807553,"secs_since_epoch":83887623},"version":5}}}]
+//! [
+//!   {
+//!     "V5": {
+//!       "header": {
+//!         "count": 1,
+//!         "engine_id": 7,
+//!         "engine_type": 6,
+//!         "flow_sequence": 33752069,
+//!         "sampling_interval": 2057,
+//!         "sys_up_time": { "nanos": 672000000, "secs": 50332 },
+//!         "unix_nsecs": 134807553,
+//!         "unix_secs": 83887623,
+//!         "version": 5
+//!       },
+//!       "sets": [
+//!         {
+//!           "d_octets": 66051,
+//!           "d_pkts": 101124105,
+//!           "dst_addr": "4.5.6.7",
+//!           "dst_as": 515,
+//!           "dst_mask": 5,
+//!           "dst_port": 1029,
+//!           "first": { "nanos": 87000000, "secs": 67438 },
+//!           "input": 515,
+//!           "last": { "nanos": 553000000, "secs": 134807 },
+//!           "next_hop": "8.9.0.1",
+//!           "output": 1029,
+//!           "pad1": 6,
+//!           "pad2": 1543,
+//!           "protocol_number": 8,
+//!           "protocol_type": "Egp",
+//!           "src_addr": "0.1.2.3",
+//!           "src_as": 1,
+//!           "src_mask": 4,
+//!           "src_port": 515,
+//!           "tcp_flags": 7,
+//!           "tos": 9
+//!         }
+//!       ]
+//!     }
+//!   }
+//! ]
 //! ```
 //!
-//! ## Filtering for a specific version
+//! ## Filtering for a Specific Version
 //!
 //! ```rust
 //! use netflow_parser::{NetflowParser, NetflowPacket};
@@ -48,25 +83,107 @@
 //! let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 //! ```
 //!
-//! ## Parsing out unneeded versions
-//! If you only care about a specific version or versions you can specfic `allowed_version`:
+//! ## Stream Processing (Iterator API)
+//!
+//! For high-performance scenarios where you want to avoid allocating a `Vec`, you can use the iterator API to process packets one-by-one as they're parsed:
+//!
+//! ```rust
+//! use netflow_parser::{NetflowParser, NetflowPacket};
+//!
+//! # let buffer = [0u8; 72];
+//! let mut parser = NetflowParser::default();
+//!
+//! // Process packets without collecting into a Vec
+//! for packet in parser.parse_bytes_iter(&buffer) {
+//!     match packet {
+//!         NetflowPacket::V5(v5) => {
+//!             // Process V5 packet
+//!             println!("V5 packet from {}", v5.header.version);
+//!         }
+//!         NetflowPacket::V9(v9) => {
+//!             // Process V9 packet
+//!             for flowset in &v9.flowsets {
+//!                 // Handle flowsets
+//!             }
+//!         }
+//!         NetflowPacket::IPFix(ipfix) => {
+//!             // Process IPFIX packet
+//!         }
+//!         NetflowPacket::Error(e) => {
+//!             eprintln!("Parse error: {:?}", e);
+//!         }
+//!         _ => {}
+//!     }
+//! }
+//! ```
+//!
+//! ### Benefits of Iterator API
+//!
+//! - **Zero allocation**: Packets are yielded one-by-one without allocating a `Vec`
+//! - **Memory efficient**: Ideal for processing large batches or continuous streams
+//! - **Lazy evaluation**: Only parses packets as you consume them
+//! - **Template caching preserved**: V9/IPFIX template state is maintained across iterations
+//! - **Composable**: Works with standard Rust iterator methods (`.filter()`, `.map()`, `.take()`, etc.)
+//!
+//! ### Iterator Examples
+//!
+//! ```rust
+//! # use netflow_parser::{NetflowParser, NetflowPacket};
+//! # let buffer = [0u8; 72];
+//! # let mut parser = NetflowParser::default();
+//! // Count V5 packets without collecting
+//! let count = parser.parse_bytes_iter(&buffer)
+//!     .filter(|p| p.is_v5())
+//!     .count();
+//!
+//! // Process only the first 10 packets
+//! for packet in parser.parse_bytes_iter(&buffer).take(10) {
+//!     // Handle packet
+//! }
+//!
+//! // Collect only if needed (equivalent to parse_bytes())
+//! let packets: Vec<_> = parser.parse_bytes_iter(&buffer).collect();
+//! ```
+//!
+//! ## Parsing Out Unneeded Versions
+//! If you only care about a specific version or versions you can specify `allowed_versions`:
 //! ```rust
 //! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
 //! let mut parser = NetflowParser::default();
 //! parser.allowed_versions = [7, 9].into();
-//! let parsed = NetflowParser::default().parse_bytes(&v5_packet);
+//! let parsed = parser.parse_bytes(&v5_packet);
 //! ```
 //!
-// !This code will return an empty Vec as version 5 is not allowed.
+//! This code will return an empty Vec as version 5 is not allowed.
+//!
+//! ## Error Handling Configuration
+//!
+//! To prevent memory exhaustion from malformed packets, the parser limits the size of error buffer samples. By default, only the first 256 bytes of unparseable data are stored in error messages. You can customize this limit for all parsers:
+//!
+//! ```rust
+//! use netflow_parser::NetflowParser;
+//!
+//! let mut parser = NetflowParser::default();
+//!
+//! // Configure maximum error buffer size for the main parser (default: 256 bytes)
+//! // This applies to generic parsing errors
+//! parser.max_error_sample_size = 512;
+//!
+//! // Configure maximum error buffer size for V9 (default: 256 bytes)
+//! parser.v9_parser.max_error_sample_size = 512;
+//!
+//! // Configure maximum error buffer size for IPFIX (default: 256 bytes)
+//! parser.ipfix_parser.max_error_sample_size = 512;
+//!
+//! # let some_packet = [0u8; 72];
+//! let parsed = parser.parse_bytes(&some_packet);
+//! ```
+//!
+//! This setting helps prevent memory exhaustion when processing malformed or malicious packets while still providing enough context for debugging.
 //!
 //! ## Netflow Common
-//!
-//! **Note:** This feature requires the `netflow_common` feature flag to be enabled:
-//! ```toml
-//! netflow_parser = { version = "x.x.x", features = ["netflow_common"] }
-//! ```
 //!
 //! We have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
 //! This will allow you to use common fields without unpacking values from specific versions.
@@ -119,24 +236,82 @@
 //! }
 //! ```
 //!
-//! ### Alternative if you just want to gather all flowsets from all packets into a flattened vector of NetflowCommonFlowSet:
+//! ### Flattened flowsets
+//!
+//! To gather all flowsets from all packets into a flattened vector:
 //!
 //! ```rust,ignore
-//! use netflow_parser::{NetflowParser, NetflowPacket};
+//! use netflow_parser::NetflowParser;
 //!
-//! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-//!     4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-//!     2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7];
-//! let netflow_common_flowsets = NetflowParser::default()
-//!                     .parse_bytes_as_netflow_common_flowsets(&v5_packet);
-//!
-//! println!("Flowsets: {:?}", netflow_common_flowsets);
+//! # let v5_packet = [0u8; 72];
+//! let flowsets = NetflowParser::default().parse_bytes_as_netflow_common_flowsets(&v5_packet);
 //! ```
 //!
-//! ## Re-Exporting flows
-//! Netflow Parser now supports parsed V5, V7, V9, IPFix can be re-exported back into bytes.  Please note for V9/IPFix
-//! we only export the original padding we dissected and DO NOT calculate/align the flowset(s) padding ourselves.  If you
-//! do any modifications to an existing V9/IPFix flow or have created your own you must manually adjust the padding yourself.
+//! ### Custom Field Mappings for V9 and IPFIX
+//!
+//! By default, NetflowCommon maps standard IANA fields to the common structure. However, you can customize which fields are used for V9 and IPFIX packets using configuration structs. This is useful when:
+//!
+//! - You want to prefer IPv6 addresses over IPv4
+//! - Your vendor uses non-standard field mappings
+//! - You need to extract data from vendor-specific enterprise fields
+//!
+//! #### V9 Custom Field Mapping
+//!
+//! ```rust,ignore
+//! use netflow_parser::netflow_common::{NetflowCommon, V9FieldMappingConfig};
+//! use netflow_parser::variable_versions::v9_lookup::V9Field;
+//!
+//! // Create a custom configuration that prefers IPv6 addresses
+//! let mut config = V9FieldMappingConfig::default();
+//! config.src_addr.primary = V9Field::Ipv6SrcAddr;
+//! config.src_addr.fallback = Some(V9Field::Ipv4SrcAddr);
+//! config.dst_addr.primary = V9Field::Ipv6DstAddr;
+//! config.dst_addr.fallback = Some(V9Field::Ipv4DstAddr);
+//!
+//! // Use with a parsed V9 packet
+//! // let common = NetflowCommon::from_v9_with_config(&v9_packet, &config);
+//! ```
+//!
+//! #### IPFIX Custom Field Mapping
+//!
+//! ```rust,ignore
+//! use netflow_parser::netflow_common::{NetflowCommon, IPFixFieldMappingConfig};
+//! use netflow_parser::variable_versions::ipfix_lookup::{IPFixField, IANAIPFixField};
+//!
+//! // Create a custom configuration that prefers IPv6 addresses
+//! let mut config = IPFixFieldMappingConfig::default();
+//! config.src_addr.primary = IPFixField::IANA(IANAIPFixField::SourceIpv6address);
+//! config.src_addr.fallback = Some(IPFixField::IANA(IANAIPFixField::SourceIpv4address));
+//! config.dst_addr.primary = IPFixField::IANA(IANAIPFixField::DestinationIpv6address);
+//! config.dst_addr.fallback = Some(IPFixField::IANA(IANAIPFixField::DestinationIpv4address));
+//!
+//! // Use with a parsed IPFIX packet
+//! // let common = NetflowCommon::from_ipfix_with_config(&ipfix_packet, &config);
+//! ```
+//!
+//! #### Available Configuration Fields
+//!
+//! Both `V9FieldMappingConfig` and `IPFixFieldMappingConfig` support configuring:
+//!
+//! | Field | Description | Default V9 Field | Default IPFIX Field |
+//! |-------|-------------|------------------|---------------------|
+//! | `src_addr` | Source IP address | Ipv4SrcAddr (fallback: Ipv6SrcAddr) | SourceIpv4address (fallback: SourceIpv6address) |
+//! | `dst_addr` | Destination IP address | Ipv4DstAddr (fallback: Ipv6DstAddr) | DestinationIpv4address (fallback: DestinationIpv6address) |
+//! | `src_port` | Source port | L4SrcPort | SourceTransportPort |
+//! | `dst_port` | Destination port | L4DstPort | DestinationTransportPort |
+//! | `protocol` | Protocol number | Protocol | ProtocolIdentifier |
+//! | `first_seen` | Flow start time | FirstSwitched | FlowStartSysUpTime |
+//! | `last_seen` | Flow end time | LastSwitched | FlowEndSysUpTime |
+//! | `src_mac` | Source MAC address | InSrcMac | SourceMacaddress |
+//! | `dst_mac` | Destination MAC address | InDstMac | DestinationMacaddress |
+//!
+//! Each field mapping has a `primary` field (always checked first) and an optional `fallback` field (used if primary is not present in the flow record).
+//!
+//! ## Re-Exporting Flows
+//!
+//! Parsed V5, V7, V9, and IPFIX packets can be re-exported back into bytes.
+//!
+//! **Note:** For V9/IPFIX, we only export the original padding we dissected and do not calculate/align the flowset padding ourselves. If you modify an existing V9/IPFIX flow or create your own, you must manually adjust the padding.
 //! ```rust
 //! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
@@ -154,11 +329,11 @@
 //! }
 //! ```
 //!
-//! ## V9/IPFix notes:
+//! ## V9/IPFIX Notes
 //!
-//! Parse the data (`&[u8]` as any other versions.  The parser (NetflowParser) holds onto already parsed templates, so you can just send a header/data flowset combo, and it will use the cached templates.)   To see cached templates simply use the parser for the correct version (v9_parser for v9, ipfix_parser for IPFix.)
+//! Parse the data (`&[u8]`) like any other version. The parser (`NetflowParser`) caches parsed templates, so you can send header/data flowset combos and it will use the cached templates. To see cached templates, use the parser for the correct version (`v9_parser` for V9, `ipfix_parser` for IPFIX).
 //!
-//! **IPFIx Note:**  We only parse sequence number and domain id, it is up to you if you wish to validate it.
+//! **IPFIX Note:**  We only parse sequence number and domain id, it is up to you if you wish to validate it.
 //!
 //! ```rust
 //! use netflow_parser::NetflowParser;
@@ -168,13 +343,41 @@
 //! ```
 //! To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attribute on the Parsed Record.  In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
 //!
+//! ## Performance & Thread Safety
+//!
+//! ### Thread Safety
+//!
+//! Parsers (`NetflowParser`, `V9Parser`, `IPFixParser`) are **not thread-safe** and should not be shared across threads without external synchronization. Each parser maintains internal state (template caches) that is modified during parsing.
+//!
+//! **Recommended pattern for multi-threaded applications:**
+//! - Create one parser instance per thread
+//! - Each thread processes packets from a single router/source
+//! - See `examples/netflow_udp_listener_multi_threaded.rs` for implementation example
+//!
+//! ### Performance Optimizations
+//!
+//! This library includes several performance optimizations:
+//!
+//! 1. **Single-pass field caching** - NetflowCommon conversions use efficient single-pass lookups
+//! 2. **Minimal cloning** - Template storage avoids unnecessary vector clones
+//! 3. **Optimized string processing** - Single-pass filtering and prefix stripping
+//! 4. **Capacity pre-allocation** - Vectors pre-allocate when sizes are known
+//! 5. **Bounded error buffers** - Error handling limits memory consumption to prevent exhaustion
+//!
+//! **Best practices for optimal performance:**
+//! - Reuse parser instances instead of creating new ones for each packet
+//! - Use `parse_bytes_iter()` instead of `parse_bytes()` when you don't need all packets in a Vec
+//! - Use `parse_bytes_as_netflow_common_flowsets()` when you only need flow data
+//! - For V9/IPFIX, batch process packets from the same source to maximize template cache hits
+//!
 //! ## Features
 //!
 //! * `parse_unknown_fields` - When enabled fields not listed in this library will attempt to be parsed as a Vec of bytes and the field_number listed.  When disabled an error is thrown when attempting to parse those fields.  Enabled by default.
 //! * `netflow_common` - When enabled provides `NetflowCommon` and `NetflowCommonFlowSet` structures for working with common fields across different Netflow versions.  Disabled by default.
 //!
 //! ## Included Examples
-//! Examples have been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multithreaded examples in the examples directory.
+//!
+//! Examples have been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
 //!
 //! To run:
 //!
