@@ -549,4 +549,82 @@ mod base_tests {
         parser.parse_bytes(&hex::decode(hex1).unwrap());
         assert_yaml_snapshot!(parser.parse_bytes(&hex::decode(hex2).unwrap()));
     }
+
+    #[test]
+    fn it_parses_bytes_iter_produces_same_results_as_vec() {
+        // Test with V5 packet
+        let v5_packet = [
+            0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+
+        let mut parser1 = NetflowParser::default();
+        let mut parser2 = NetflowParser::default();
+
+        let vec_result = parser1.parse_bytes(&v5_packet);
+        let iter_result: Vec<_> = parser2.parse_bytes_iter(&v5_packet).collect();
+
+        assert_eq!(vec_result.len(), iter_result.len());
+        assert_eq!(vec_result.len(), 1);
+
+        // Test with multiple chained packets
+        let v5_packet2 = [
+            0, 5, 0, 2, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+
+        let mut chained = v5_packet.to_vec();
+        chained.extend_from_slice(&v5_packet2);
+
+        let mut parser3 = NetflowParser::default();
+        let mut parser4 = NetflowParser::default();
+
+        let vec_result_chained = parser3.parse_bytes(&chained);
+        let iter_result_chained: Vec<_> = parser4.parse_bytes_iter(&chained).collect();
+
+        assert_eq!(vec_result_chained.len(), iter_result_chained.len());
+        assert_eq!(vec_result_chained.len(), 2);
+    }
+
+    #[test]
+    fn it_parses_bytes_iter_handles_empty_buffer() {
+        let mut parser = NetflowParser::default();
+        let empty: &[u8] = &[];
+        let result: Vec<_> = parser.parse_bytes_iter(empty).collect();
+        assert_eq!(result.len(), 0);
+    }
+
+    #[test]
+    fn it_parses_bytes_iter_handles_errors() {
+        let mut parser = NetflowParser::default();
+        let invalid_packet = [0]; // Incomplete packet - cannot parse header
+
+        let result: Vec<_> = parser.parse_bytes_iter(&invalid_packet).collect();
+        assert_eq!(result.len(), 1);
+        assert!(result[0].is_error());
+    }
+
+    #[test]
+    fn it_parses_bytes_iter_can_be_used_without_collecting() {
+        let v5_packet = [
+            0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+            4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        ];
+
+        let mut parser = NetflowParser::default();
+        let mut count = 0;
+
+        // Demonstrate zero-allocation usage pattern
+        for packet in parser.parse_bytes_iter(&v5_packet) {
+            match packet {
+                NetflowPacket::V5(_) => count += 1,
+                _ => {}
+            }
+        }
+
+        assert_eq!(count, 1);
+    }
 }
