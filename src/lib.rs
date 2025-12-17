@@ -341,11 +341,12 @@ impl<'a> Iterator for NetflowPacketIterator<'a> {
             ParsedNetflow::Error { error } => {
                 self.errored = true;
                 // Only include first N bytes of remaining data in error to prevent memory exhaustion
-                let remaining_sample = if self.remaining.len() > self.parser.max_error_sample_size {
-                    self.remaining[..self.parser.max_error_sample_size].to_vec()
-                } else {
-                    self.remaining.to_vec()
-                };
+                let remaining_sample =
+                    if self.remaining.len() > self.parser.max_error_sample_size {
+                        self.remaining[..self.parser.max_error_sample_size].to_vec()
+                    } else {
+                        self.remaining.to_vec()
+                    };
                 Some(NetflowPacket::Error(NetflowPacketError {
                     error,
                     remaining: remaining_sample,
