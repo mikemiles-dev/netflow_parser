@@ -563,7 +563,7 @@ mod base_tests {
         let mut parser2 = NetflowParser::default();
 
         let vec_result = parser1.parse_bytes(&v5_packet);
-        let iter_result: Vec<_> = parser2.parse_bytes_iter(&v5_packet).collect();
+        let iter_result: Vec<_> = parser2.iter_packets(&v5_packet).collect();
 
         assert_eq!(vec_result.len(), iter_result.len());
         assert_eq!(vec_result.len(), 1);
@@ -582,7 +582,7 @@ mod base_tests {
         let mut parser4 = NetflowParser::default();
 
         let vec_result_chained = parser3.parse_bytes(&chained);
-        let iter_result_chained: Vec<_> = parser4.parse_bytes_iter(&chained).collect();
+        let iter_result_chained: Vec<_> = parser4.iter_packets(&chained).collect();
 
         assert_eq!(vec_result_chained.len(), iter_result_chained.len());
         assert_eq!(vec_result_chained.len(), 2);
@@ -592,7 +592,7 @@ mod base_tests {
     fn it_parses_bytes_iter_handles_empty_buffer() {
         let mut parser = NetflowParser::default();
         let empty: &[u8] = &[];
-        let result: Vec<_> = parser.parse_bytes_iter(empty).collect();
+        let result: Vec<_> = parser.iter_packets(empty).collect();
         assert_eq!(result.len(), 0);
     }
 
@@ -601,7 +601,7 @@ mod base_tests {
         let mut parser = NetflowParser::default();
         let invalid_packet = [0]; // Incomplete packet - cannot parse header
 
-        let result: Vec<_> = parser.parse_bytes_iter(&invalid_packet).collect();
+        let result: Vec<_> = parser.iter_packets(&invalid_packet).collect();
         assert_eq!(result.len(), 1);
         assert!(result[0].is_error());
     }
@@ -618,7 +618,7 @@ mod base_tests {
         let mut count = 0;
 
         // Demonstrate zero-allocation usage pattern
-        for packet in parser.parse_bytes_iter(&v5_packet) {
+        for packet in parser.iter_packets(&v5_packet) {
             match packet {
                 NetflowPacket::V5(_) => count += 1,
                 _ => {}
