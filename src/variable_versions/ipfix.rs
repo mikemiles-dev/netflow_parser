@@ -37,7 +37,8 @@ pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
 /// Calculate padding needed to align to 4-byte boundary.
 /// Returns a Vec of zero bytes with the appropriate length.
 fn calculate_padding(content_size: usize) -> Vec<u8> {
-    let padding_len = (4 - (content_size % 4)) % 4;
+    const PADDING_SIZES: [usize; 4] = [0, 3, 2, 1];
+    let padding_len = PADDING_SIZES[content_size % 4];
     vec![0u8; padding_len]
 }
 

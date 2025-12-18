@@ -29,7 +29,8 @@ pub type V9FlowRecord = Vec<V9FieldPair>;
 /// Calculate padding needed to align to 4-byte boundary.
 /// Returns a Vec of zero bytes with the appropriate length.
 fn calculate_padding(content_size: usize) -> Vec<u8> {
-    let padding_len = (4 - (content_size % 4)) % 4;
+    const PADDING_SIZES: [usize; 4] = [0, 3, 2, 1];
+    let padding_len = PADDING_SIZES[content_size % 4];
     vec![0u8; padding_len]
 }
 
@@ -607,7 +608,8 @@ impl V9 {
                     template_content.extend_from_slice(&template.template_id.to_be_bytes());
                     template_content.extend_from_slice(&template.field_count.to_be_bytes());
                     for field in template.fields.iter() {
-                        template_content.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        template_content
+                            .extend_from_slice(&field.field_type_number.to_be_bytes());
                         template_content.extend_from_slice(&field.field_length.to_be_bytes());
                     }
                 }
@@ -626,14 +628,17 @@ impl V9 {
                 let mut options_content = Vec::new();
                 for template in options_templates.templates.iter() {
                     options_content.extend_from_slice(&template.template_id.to_be_bytes());
-                    options_content.extend_from_slice(&template.options_scope_length.to_be_bytes());
+                    options_content
+                        .extend_from_slice(&template.options_scope_length.to_be_bytes());
                     options_content.extend_from_slice(&template.options_length.to_be_bytes());
                     for field in template.scope_fields.iter() {
-                        options_content.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        options_content
+                            .extend_from_slice(&field.field_type_number.to_be_bytes());
                         options_content.extend_from_slice(&field.field_length.to_be_bytes());
                     }
                     for field in template.option_fields.iter() {
-                        options_content.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        options_content
+                            .extend_from_slice(&field.field_type_number.to_be_bytes());
                         options_content.extend_from_slice(&field.field_length.to_be_bytes());
                     }
                 }
