@@ -16,15 +16,12 @@ fn main() {
         let filled_buf = &mut buf[..number_of_bytes];
 
         // Fetch Parser by src_addr or insert new parser for src_addr and process bytes
-        let result = match parsers.get_mut(&src_addr.clone()) {
-            Some(parser) => parser.parse_bytes(filled_buf),
-            None => {
-                let mut new_parser = NetflowParser::default();
-                let result = new_parser.parse_bytes(filled_buf);
-                parsers.insert(src_addr, new_parser);
-                result
-            }
-        };
-        println!("{:?}", result);
+        let parser = parsers
+            .entry(src_addr)
+            .or_insert_with(NetflowParser::default);
+
+        for packet in parser.iter_packets(filled_buf) {
+            println!("{:?}", packet);
+        }
     }
 }

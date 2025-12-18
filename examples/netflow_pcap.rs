@@ -74,13 +74,12 @@ fn main() {
     let mut parsed_packets = vec![];
 
     for data in pcap_data.iter() {
-        let results = parser.parse_bytes(data);
-        for result in results.iter().cloned() {
-            match result.clone() {
-                NetflowPacket::V5(_v5) => parsed_packets.push(result),
-                NetflowPacket::V7(_v7) => parsed_packets.push(result),
-                NetflowPacket::V9(_v9) => parsed_packets.push(result),
-                NetflowPacket::IPFix(ipfix) => {
+        for result in parser.iter_packets(data) {
+            match result {
+                NetflowPacket::V5(ref _v5) => parsed_packets.push(result),
+                NetflowPacket::V7(ref _v7) => parsed_packets.push(result),
+                NetflowPacket::V9(ref _v9) => parsed_packets.push(result),
+                NetflowPacket::IPFix(ref ipfix) => {
                     let has_no_template = ipfix
                         .flowsets
                         .iter()
@@ -88,7 +87,7 @@ fn main() {
                     if has_no_template {
                         no_template_packets.push(data);
                     } else {
-                        parsed_packets.push(result.clone());
+                        parsed_packets.push(result);
                     }
                 }
                 NetflowPacket::Error(e) => println!("Error: {:?}", e),
@@ -96,8 +95,7 @@ fn main() {
         }
     }
     for item in no_template_packets.iter() {
-        let results = parser.parse_bytes(item);
-        parsed_packets.extend(results);
+        parsed_packets.extend(parser.iter_packets(item));
     }
     for (i, p) in parsed_packets.iter().enumerate() {
         println!("Parsed {}: {:?}", i, p);
