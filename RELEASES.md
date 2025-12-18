@@ -8,6 +8,12 @@
 * Enhanced validation for malformed packets
 * Improved IPFIX error handling - parse errors now properly propagate
 * Added thread safety documentation and performance tuning guide
+* **Fixed V9/IPFIX padding handling:**
+  * Fixed missing padding export for V9 Data FlowSets
+  * Added padding fields to IPFIX Data and OptionsData structures
+  * Auto-calculate padding for manually created packets (when padding field is empty)
+  * Preserve original padding for parsed packets (byte-perfect round-trips)
+  * Added `examples/manual_ipfix_creation.rs` demonstrating manual packet creation
 
 # 0.6.6
 * Added configurable field mappings for V9 and IPFIX in NetflowCommon.
