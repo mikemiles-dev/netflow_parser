@@ -123,7 +123,7 @@ let buffer = /* your netflow data */;
 let mut parser = NetflowParser::default();
 
 // Process packets without collecting into a Vec
-for packet in parser.parse_bytes_iter(&buffer) {
+for packet in parser.iter_packets(&buffer) {
     match packet {
         NetflowPacket::V5(v5) => {
             // Process V5 packet
@@ -158,17 +158,17 @@ for packet in parser.parse_bytes_iter(&buffer) {
 
 ```rust
 // Count V5 packets without collecting
-let count = parser.parse_bytes_iter(&buffer)
+let count = parser.iter_packets(&buffer)
     .filter(|p| p.is_v5())
     .count();
 
 // Process only the first 10 packets
-for packet in parser.parse_bytes_iter(&buffer).take(10) {
+for packet in parser.iter_packets(&buffer).take(10) {
     // Handle packet
 }
 
 // Collect only if needed (equivalent to parse_bytes())
-let packets: Vec<_> = parser.parse_bytes_iter(&buffer).collect();
+let packets: Vec<_> = parser.iter_packets(&buffer).collect();
 ```
 
 ## Parsing Out Unneeded Versions
@@ -404,7 +404,7 @@ This library includes several performance optimizations:
 
 **Best practices for optimal performance:**
 - Reuse parser instances instead of creating new ones for each packet
-- Use `parse_bytes_iter()` instead of `parse_bytes()` when you don't need all packets in a Vec
+- Use `iter_packets()` instead of `parse_bytes()` when you don't need all packets in a Vec
 - Use `parse_bytes_as_netflow_common_flowsets()` when you only need flow data
 - For V9/IPFIX, batch process packets from the same source to maximize template cache hits
 

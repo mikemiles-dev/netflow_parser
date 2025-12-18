@@ -1,6 +1,6 @@
 //! # netflow_parser
 //!
-A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Supports chaining of multiple versions in the same stream.
+//! A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Supports chaining of multiple versions in the same stream.
 //!
 //! ## Example
 //!
@@ -94,7 +94,7 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 //! let mut parser = NetflowParser::default();
 //!
 //! // Process packets without collecting into a Vec
-//! for packet in parser.parse_bytes_iter(&buffer) {
+//! for packet in parser.iter_packets(&buffer) {
 //!     match packet {
 //!         NetflowPacket::V5(v5) => {
 //!             // Process V5 packet
@@ -132,17 +132,17 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 //! # let buffer = [0u8; 72];
 //! # let mut parser = NetflowParser::default();
 //! // Count V5 packets without collecting
-//! let count = parser.parse_bytes_iter(&buffer)
+//! let count = parser.iter_packets(&buffer)
 //!     .filter(|p| p.is_v5())
 //!     .count();
 //!
 //! // Process only the first 10 packets
-//! for packet in parser.parse_bytes_iter(&buffer).take(10) {
+//! for packet in parser.iter_packets(&buffer).take(10) {
 //!     // Handle packet
 //! }
 //!
 //! // Collect only if needed (equivalent to parse_bytes())
-//! let packets: Vec<_> = parser.parse_bytes_iter(&buffer).collect();
+//! let packets: Vec<_> = parser.iter_packets(&buffer).collect();
 //! ```
 //!
 //! ## Parsing Out Unneeded Versions
@@ -366,7 +366,7 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 //!
 //! **Best practices for optimal performance:**
 //! - Reuse parser instances instead of creating new ones for each packet
-//! - Use `parse_bytes_iter()` instead of `parse_bytes()` when you don't need all packets in a Vec
+//! - Use `iter_packets()` instead of `parse_bytes()` when you don't need all packets in a Vec
 //! - Use `parse_bytes_as_netflow_common_flowsets()` when you only need flow data
 //! - For V9/IPFIX, batch process packets from the same source to maximize template cache hits
 //!
@@ -641,7 +641,7 @@ impl NetflowParser {
     /// let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
     /// let mut parser = NetflowParser::default();
     ///
-    /// for packet in parser.parse_bytes_iter(&v5_packet) {
+    /// for packet in parser.iter_packets(&v5_packet) {
     ///     match packet {
     ///         NetflowPacket::V5(v5) => println!("V5 packet: {:?}", v5.header.version),
     ///         NetflowPacket::Error(e) => println!("Error: {:?}", e),
@@ -650,7 +650,7 @@ impl NetflowParser {
     /// }
     /// ```
     #[inline]
-    pub fn parse_bytes_iter<'a>(&'a mut self, packet: &'a [u8]) -> NetflowPacketIterator<'a> {
+    pub fn iter_packets<'a>(&'a mut self, packet: &'a [u8]) -> NetflowPacketIterator<'a> {
         NetflowPacketIterator {
             parser: self,
             remaining: packet,
