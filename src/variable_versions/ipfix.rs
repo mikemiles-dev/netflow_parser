@@ -34,6 +34,13 @@ type TemplateId = u16;
 pub type IPFixFieldPair = (IPFixField, FieldValue);
 pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
 
+/// Calculate padding needed to align to 4-byte boundary.
+/// Returns a Vec of zero bytes with the appropriate length.
+fn calculate_padding(content_size: usize) -> Vec<u8> {
+    let padding_len = (4 - (content_size % 4)) % 4;
+    vec![0u8; padding_len]
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct IPFixParser {
     pub templates: HashMap<TemplateId, Template>,
@@ -358,6 +365,8 @@ pub struct Data {
         Parse = "{ |i| FieldParser::parse::<Template>(i, template) }"
     )]
     pub fields: Vec<IpFixFlowRecord>,
+    #[serde(skip_serializing)]
+    pub padding: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -368,6 +377,8 @@ pub struct OptionsData {
         Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template) }"
     )]
     pub fields: Vec<Vec<IPFixFieldPair>>,
+    #[serde(skip_serializing)]
+    pub padding: Vec<u8>,
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -598,19 +609,39 @@ impl IPFix {
             }
 
             if let FlowSetBody::Data(data) = &flow.body {
+                let mut data_content = Vec::new();
                 for item in data.fields.iter() {
                     for (_, v) in item.iter() {
-                        result_flowset.extend_from_slice(&v.to_be_bytes()?);
+                        data_content.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }
+                result_flowset.extend_from_slice(&data_content);
+
+                // Auto-calculate padding if not provided (for manually created packets)
+                let padding = if data.padding.is_empty() {
+                    calculate_padding(data_content.len())
+                } else {
+                    data.padding.clone()
+                };
+                result_flowset.extend_from_slice(&padding);
             }
 
             if let FlowSetBody::OptionsData(data) = &flow.body {
+                let mut options_data_content = Vec::new();
                 for item in data.fields.iter() {
                     for (_, v) in item.iter() {
-                        result_flowset.extend_from_slice(&v.to_be_bytes()?);
+                        options_data_content.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }
+                result_flowset.extend_from_slice(&options_data_content);
+
+                // Auto-calculate padding if not provided (for manually created packets)
+                let padding = if data.padding.is_empty() {
+                    calculate_padding(options_data_content.len())
+                } else {
+                    data.padding.clone()
+                };
+                result_flowset.extend_from_slice(&padding);
             }
 
             if let FlowSetBody::V9Data(data) = &flow.body {

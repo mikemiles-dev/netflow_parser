@@ -374,7 +374,12 @@ Each field mapping has a `primary` field (always checked first) and an optional 
 
 Parsed V5, V7, V9, and IPFIX packets can be re-exported back into bytes.
 
-**Note:** For V9/IPFIX, we only export the original padding we dissected and do not calculate/align the flowset padding ourselves. If you modify an existing V9/IPFIX flow or create your own, you must manually adjust the padding.
+**V9/IPFIX Padding Behavior:**
+- For **parsed packets**: Original padding is preserved exactly for byte-perfect round-trips
+- For **manually created packets**: Padding is automatically calculated to align FlowSets to 4-byte boundaries - simply leave the `padding` field empty (`vec![]`)
+
+See `examples/manual_ipfix_creation.rs` for a complete example of creating IPFIX packets from scratch.
+
 ```rust
 // 0000   00 05 00 01 03 00 04 00 05 00 06 07 08 09 00 01   ................
 // 0010   02 03 04 05 06 07 08 09 00 01 02 03 04 05 06 07   ................
