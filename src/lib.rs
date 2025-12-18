@@ -1,6 +1,6 @@
 //! # netflow_parser
 //!
-A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Supports chaining of multiple versions in the same stream.
+//! A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Supports chaining of multiple versions in the same stream.
 //!
 //! ## Example
 //!
