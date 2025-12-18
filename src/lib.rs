@@ -83,7 +83,7 @@
 //! let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 //! ```
 //!
-//! ## Stream Processing (Iterator API)
+//! ## Iterator API
 //!
 //! For high-performance scenarios where you want to avoid allocating a `Vec`, you can use the iterator API to process packets one-by-one as they're parsed:
 //!
@@ -117,6 +117,26 @@
 //! }
 //! ```
 //!
+//! The iterator provides access to unconsumed bytes for advanced use cases:
+//!
+//! ```rust
+//! use netflow_parser::NetflowParser;
+//!
+//! # let buffer = [0u8; 72];
+//! let mut parser = NetflowParser::default();
+//! let mut iter = parser.iter_packets(&buffer);
+//!
+//! while let Some(packet) = iter.next() {
+//!     // Process packet
+//! #   _ = packet;
+//! }
+//!
+//! // Check if all bytes were consumed
+//! if !iter.is_complete() {
+//!     println!("Warning: {} bytes remain unconsumed", iter.remaining().len());
+//! }
+//! ```
+//!
 //! ### Benefits of Iterator API
 //!
 //! - **Zero allocation**: Packets are yielded one-by-one without allocating a `Vec`
@@ -124,6 +144,7 @@
 //! - **Lazy evaluation**: Only parses packets as you consume them
 //! - **Template caching preserved**: V9/IPFIX template state is maintained across iterations
 //! - **Composable**: Works with standard Rust iterator methods (`.filter()`, `.map()`, `.take()`, etc.)
+//! - **Buffer inspection**: Access unconsumed bytes via `.remaining()` and check completion with `.is_complete()`
 //!
 //! ### Iterator Examples
 //!
@@ -139,10 +160,23 @@
 //! // Process only the first 10 packets
 //! for packet in parser.iter_packets(&buffer).take(10) {
 //!     // Handle packet
+//! #   _ = packet;
 //! }
 //!
 //! // Collect only if needed (equivalent to parse_bytes())
 //! let packets: Vec<_> = parser.iter_packets(&buffer).collect();
+//!
+//! // Check unconsumed bytes (useful for mixed protocol streams)
+//! let mut iter = parser.iter_packets(&buffer);
+//! for packet in &mut iter {
+//!     // Process packet
+//! #   _ = packet;
+//! }
+//! if !iter.is_complete() {
+//!     let remaining = iter.remaining();
+//!     // Handle non-netflow data at end of buffer
+//! #   _ = remaining;
+//! }
 //! ```
 //!
 //! ## Parsing Out Unneeded Versions
@@ -518,6 +552,59 @@ pub struct NetflowPacketIterator<'a> {
     parser: &'a mut NetflowParser,
     remaining: &'a [u8],
     errored: bool,
+}
+
+impl<'a> NetflowPacketIterator<'a> {
+    /// Returns the unconsumed bytes remaining in the buffer.
+    ///
+    /// This is useful for:
+    /// - Debugging: See how much data was consumed
+    /// - Mixed protocols: Process non-netflow data after netflow packets
+    /// - Resumption: Know where parsing stopped
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
+    /// let mut parser = NetflowParser::default();
+    /// let mut iter = parser.iter_packets(&v5_packet);
+    ///
+    /// while let Some(_packet) = iter.next() {
+    ///     // Process packet
+    /// }
+    ///
+    /// // Check how many bytes remain unconsumed
+    /// assert_eq!(iter.remaining().len(), 0);
+    /// ```
+    pub fn remaining(&self) -> &'a [u8] {
+        self.remaining
+    }
+
+    /// Returns true if all bytes have been consumed or an error occurred.
+    ///
+    /// This is useful for validation and ensuring complete buffer processing.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
+    /// let mut parser = NetflowParser::default();
+    /// let mut iter = parser.iter_packets(&v5_packet);
+    ///
+    /// // Consume all packets
+    /// for _packet in &mut iter {
+    ///     // Process packet
+    /// }
+    ///
+    /// assert!(iter.is_complete());
+    /// ```
+    pub fn is_complete(&self) -> bool {
+        self.remaining.is_empty() || self.errored
+    }
 }
 
 impl<'a> Iterator for NetflowPacketIterator<'a> {

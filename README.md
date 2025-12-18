@@ -7,7 +7,7 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 - [Example](#example)
 - [Serialization (JSON)](#want-serialization-such-as-json)
 - [Filtering for a Specific Version](#filtering-for-a-specific-version)
-- [Stream Processing (Iterator API)](#stream-processing-iterator-api)
+- [Iterator API](#iterator-api)
 - [Parsing Out Unneeded Versions](#parsing-out-unneeded-versions)
 - [Error Handling Configuration](#error-handling-configuration)
 - [Netflow Common](#netflow-common)
@@ -112,9 +112,8 @@ let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 ```
 
-## Stream Processing (Iterator API)
-
-For high-performance scenarios where you want to avoid allocating a `Vec`, you can use the iterator API to process packets one-by-one as they're parsed:
+## Iterator API
+You can use the iterator API to process packets one-by-one as they're parsed instead of returning `Vec`:
 
 ```rust
 use netflow_parser::{NetflowParser, NetflowPacket};
@@ -146,6 +145,25 @@ for packet in parser.iter_packets(&buffer) {
 }
 ```
 
+The iterator provides access to unconsumed bytes for advanced use cases:
+
+```rust
+use netflow_parser::NetflowParser;
+
+let buffer = /* your netflow data */;
+let mut parser = NetflowParser::default();
+let mut iter = parser.iter_packets(&buffer);
+
+while let Some(packet) = iter.next() {
+    // Process packet
+}
+
+// Check if all bytes were consumed
+if !iter.is_complete() {
+    println!("Warning: {} bytes remain unconsumed", iter.remaining().len());
+}
+```
+
 ### Benefits of Iterator API
 
 - **Zero allocation**: Packets are yielded one-by-one without allocating a `Vec`
@@ -153,6 +171,7 @@ for packet in parser.iter_packets(&buffer) {
 - **Lazy evaluation**: Only parses packets as you consume them
 - **Template caching preserved**: V9/IPFIX template state is maintained across iterations
 - **Composable**: Works with standard Rust iterator methods (`.filter()`, `.map()`, `.take()`, etc.)
+- **Buffer inspection**: Access unconsumed bytes via `.remaining()` and check completion with `.is_complete()`
 
 ### Iterator Examples
 
@@ -169,6 +188,16 @@ for packet in parser.iter_packets(&buffer).take(10) {
 
 // Collect only if needed (equivalent to parse_bytes())
 let packets: Vec<_> = parser.iter_packets(&buffer).collect();
+
+// Check unconsumed bytes (useful for mixed protocol streams)
+let mut iter = parser.iter_packets(&buffer);
+for packet in &mut iter {
+    // Process packet
+}
+if !iter.is_complete() {
+    let remaining = iter.remaining();
+    // Handle non-netflow data at end of buffer
+}
 ```
 
 ## Parsing Out Unneeded Versions
