@@ -376,7 +376,20 @@ Parsed V5, V7, V9, and IPFIX packets can be re-exported back into bytes.
 
 **V9/IPFIX Padding Behavior:**
 - For **parsed packets**: Original padding is preserved exactly for byte-perfect round-trips
-- For **manually created packets**: Padding is automatically calculated to align FlowSets to 4-byte boundaries - simply leave the `padding` field empty (`vec![]`)
+- For **manually created packets**: Padding is automatically calculated to align FlowSets to 4-byte boundaries
+
+**Creating Data Structs:**
+For convenience, use `Data::new()` and `OptionsData::new()` to create data structures without manually specifying padding:
+
+```rust
+use netflow_parser::variable_versions::ipfix::Data;
+
+// Padding is automatically set to empty vec and calculated during export
+let data = Data::new(vec![vec![
+    (field1, value1),
+    (field2, value2),
+]]);
+```
 
 See `examples/manual_ipfix_creation.rs` for a complete example of creating IPFIX packets from scratch.
 
@@ -455,17 +468,13 @@ To run:
 
 ```cargo run --example netflow_udp_listener_multi_threaded```
 
-or 
-
 ```cargo run --example netflow_udp_listener_single_threaded```
-
-or
 
 ```cargo run --example netflow_udp_listener_tokio```
 
-or
-
 ```cargo run --example netflow_pcap```
+
+```cargo run --example manual_ipfix_creation```
 
 The pcap example also shows how to cache flows that have not yet discovered a template.
 

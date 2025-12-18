@@ -62,18 +62,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     // Create data flowset with actual flow records
-    let data = Data {
-        fields: vec![vec![
-            (
-                IPFixField::IANA(IANAIPFixField::SourceIpv4address),
-                FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
-            ),
-            (
-                IPFixField::IANA(IANAIPFixField::DestinationIpv4address),
-                FieldValue::Ip4Addr(Ipv4Addr::new(10, 0, 0, 1)),
-            ),
-        ]],
-    };
+    let data = Data::new(vec![vec![
+        (
+            IPFixField::IANA(IANAIPFixField::SourceIpv4address),
+            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 1, 1)),
+        ),
+        (
+            IPFixField::IANA(IANAIPFixField::DestinationIpv4address),
+            FieldValue::Ip4Addr(Ipv4Addr::new(10, 0, 0, 1)),
+        ),
+    ]]);
 
     // Data content: 2 fields * 4 bytes = 8 bytes (already aligned, no padding needed in this case)
     // If we had unaligned data, we could use calculate_padding() to determine padding bytes needed

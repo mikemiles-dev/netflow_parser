@@ -450,6 +450,18 @@ pub struct Data {
     pub padding: Vec<u8>,
 }
 
+impl Data {
+    /// Creates a new Data instance with the given fields.
+    /// The padding field is automatically set to an empty vector and will be
+    /// calculated during export for manually created packets.
+    pub fn new(fields: Vec<V9FlowRecord>) -> Self {
+        Self {
+            fields,
+            padding: vec![],
+        }
+    }
+}
+
 pub struct FlowSetParser;
 
 impl FlowSetParser {

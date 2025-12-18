@@ -370,6 +370,18 @@ pub struct Data {
     pub padding: Vec<u8>,
 }
 
+impl Data {
+    /// Creates a new Data instance with the given fields.
+    /// The padding field is automatically set to an empty vector and will be
+    /// calculated during export for manually created packets.
+    pub fn new(fields: Vec<IpFixFlowRecord>) -> Self {
+        Self {
+            fields,
+            padding: vec![],
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(template: &OptionsTemplate))]
 pub struct OptionsData {
@@ -380,6 +392,18 @@ pub struct OptionsData {
     pub fields: Vec<Vec<IPFixFieldPair>>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
+}
+
+impl OptionsData {
+    /// Creates a new OptionsData instance with the given fields.
+    /// The padding field is automatically set to an empty vector and will be
+    /// calculated during export for manually created packets.
+    pub fn new(fields: Vec<Vec<IPFixFieldPair>>) -> Self {
+        Self {
+            fields,
+            padding: vec![],
+        }
+    }
 }
 
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Nom)]

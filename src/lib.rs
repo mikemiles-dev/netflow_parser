@@ -422,17 +422,13 @@
 //!
 //! ```cargo run --example netflow_udp_listener_multi_threaded```
 //!
-//! or
-//!
 //! ```cargo run --example netflow_udp_listener_single_threaded```
-//!
-//! or
 //!
 //! ```cargo run --example netflow_udp_listener_tokio```
 //!
-//! or
-//!
 //! ```cargo run --example netflow_pcap```
+//!
+//! ```cargo run --example manual_ipfix_creation```
 //!
 //! The pcap example also shows how to cache flows that have not yet discovered a template.
 //!
