@@ -13,8 +13,9 @@ fn create_thread() -> Sender<Vec<u8>> {
     thread::spawn(move || {
         loop {
             if let Ok(data) = rx.recv() {
-                let result = parser.parse_bytes(data.as_slice());
-                println!("{:?}", result);
+                for packet in parser.iter_packets(data.as_slice()) {
+                    println!("{:?}", packet);
+                }
             }
         }
     });
