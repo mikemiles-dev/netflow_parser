@@ -1,3 +1,12 @@
+# 0.6.8
+  * Added LRU-based template caching for V9Parser and IPFixParser to prevent memory exhaustion
+  * Default template cache size: 1000 templates per parser (configurable)
+  * New `V9Parser::try_new(cache_size)` and `IPFixParser::try_new(cache_size)` constructors for custom cache sizes
+  * Added `V9ParserError` and `IPFixParserError` error types for proper error handling
+  * Template cache is automatically evicted using LRU policy when limit is reached
+  * Provides protection against DoS attacks via template flooding
+  * Removed `PartialEq`, `Clone`, and `Serialize` derives from parser structs (due to LruCache)
+
 # 0.6.7
 * Optimized NetflowCommon conversion with single-pass field lookups (reduced O(n*m) to O(n))
 * Added V5/V7/DataNumber capacity pre-allocation

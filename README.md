@@ -218,6 +218,51 @@ let parsed = parser.parse_bytes(&v5_packet);
 
 This code will return an empty Vec as version 5 is not allowed.
 
+## Template Cache Configuration
+
+V9 and IPFIX parsers use LRU (Least Recently Used) caching to store templates with a configurable size limit. This prevents memory exhaustion from template flooding attacks while maintaining good performance for legitimate traffic.
+
+### Default Behavior
+
+By default, parsers cache up to 1000 templates:
+
+```rust
+use netflow_parser::NetflowParser;
+
+// Uses default cache size of 1000 templates per parser
+let parser = NetflowParser::default();
+```
+
+### Custom Cache Size
+
+You can configure the template cache size when creating parsers:
+
+```rust
+use netflow_parser::{NetflowParser, variable_versions::v9::V9Parser, variable_versions::ipfix::IPFixParser};
+
+// Create V9 parser with custom cache size
+let v9_parser = V9Parser::try_new(5000)?;  // Cache up to 5000 templates
+
+// Create IPFix parser with custom cache size
+let ipfix_parser = IPFixParser::try_new(2000)?;  // Cache up to 2000 templates
+
+// Note: try_new() returns Result<Parser, Error> and will fail if cache_size is 0
+```
+
+### Cache Behavior
+
+- When the cache is full, the least recently used template is evicted
+- Templates are keyed by template ID (per source)
+- Each parser instance maintains its own template cache
+- For multi-source deployments, create separate parser instances per source
+
+### Recommended Cache Sizes
+
+- **Single source**: 100-1000 templates (most exporters use 1-10 templates)
+- **Multiple sources**: 1000-10000 templates per parser
+- **Memory-constrained**: 100-500 templates
+- **High-security environments**: 500-1000 templates (prevents DoS via template flooding)
+
 ## Error Handling Configuration
 
 To prevent memory exhaustion from malformed packets, the parser limits the size of error buffer samples. By default, only the first 256 bytes of unparseable data are stored in error messages. You can customize this limit for all parsers:
@@ -415,16 +460,26 @@ if let NetflowPacket::V5(v5) = NetflowParser::default()
 
 ## V9/IPFIX Notes
 
-Parse the data (`&[u8]`) like any other version. The parser (`NetflowParser`) caches parsed templates, so you can send header/data flowset combos and it will use the cached templates. To see cached templates, use the parser for the correct version (`v9_parser` for V9, `ipfix_parser` for IPFIX).
+Parse the data (`&[u8]`) like any other version. The parser (`NetflowParser`) caches parsed templates using LRU eviction, so you can send header/data flowset combos and it will use the cached templates. Templates are automatically cached and evicted when the cache limit is reached.
 
-**IPFIX Note:**  We only parse sequence number and domain id, it is up to you if you wish to validate it.
+**Template Cache Access:**
+Template caches use `LruCache` internally. You can inspect cached templates, but note that accessing them may affect LRU ordering:
 
 ```rust
 use netflow_parser::NetflowParser;
 let parser = NetflowParser::default();
-dbg!(parser.v9_parser.templates);
-dbg!(parser.v9_parser.options_templates);
+
+// Check if a template exists
+if parser.v9_parser.templates.contains(&template_id) {
+    // Template is cached
+}
+
+// Get cache stats
+println!("V9 template cache size: {}", parser.v9_parser.templates.len());
+println!("V9 max cache size: {}", parser.v9_parser.max_template_cache_size);
 ```
+
+**IPFIX Note:**  We only parse sequence number and domain id, it is up to you if you wish to validate it.
 
 To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attribute on the Parsed Record.  In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
 

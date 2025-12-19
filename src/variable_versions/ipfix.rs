@@ -25,10 +25,33 @@ use crate::variable_versions::v9::{
     Template as V9Template,
 };
 
-use std::collections::HashMap;
+use lru::LruCache;
+use std::num::NonZeroUsize;
 
 const DATA_TEMPLATE_IPFIX_ID: u16 = 2;
 const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
+
+/// Default maximum number of templates to cache per parser
+pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
+
+/// Error type for IPFixParser creation
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IPFixParserError {
+    /// Template cache size must be greater than 0
+    InvalidCacheSize,
+}
+
+impl std::fmt::Display for IPFixParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IPFixParserError::InvalidCacheSize => {
+                write!(f, "max_template_cache_size must be greater than 0")
+            }
+        }
+    }
+}
+
+impl std::error::Error for IPFixParserError {}
 
 type TemplateId = u16;
 pub type IPFixFieldPair = (IPFixField, FieldValue);
@@ -42,12 +65,14 @@ fn calculate_padding(content_size: usize) -> Vec<u8> {
     vec![0u8; padding_len]
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize)]
+#[derive(Debug)]
 pub struct IPFixParser {
-    pub templates: HashMap<TemplateId, Template>,
-    pub v9_templates: HashMap<TemplateId, V9Template>,
-    pub ipfix_options_templates: HashMap<TemplateId, OptionsTemplate>,
-    pub v9_options_templates: HashMap<TemplateId, V9OptionsTemplate>,
+    pub templates: LruCache<TemplateId, Template>,
+    pub v9_templates: LruCache<TemplateId, V9Template>,
+    pub ipfix_options_templates: LruCache<TemplateId, OptionsTemplate>,
+    pub v9_options_templates: LruCache<TemplateId, V9OptionsTemplate>,
+    /// Maximum number of templates to cache. Defaults to 1000.
+    pub max_template_cache_size: usize,
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
@@ -55,17 +80,33 @@ pub struct IPFixParser {
 
 impl Default for IPFixParser {
     fn default() -> Self {
-        Self {
-            templates: HashMap::default(),
-            v9_templates: HashMap::default(),
-            ipfix_options_templates: HashMap::default(),
-            v9_options_templates: HashMap::default(),
-            max_error_sample_size: 256,
-        }
+        // Safe to unwrap because DEFAULT_MAX_TEMPLATE_CACHE_SIZE is non-zero
+        Self::try_new(DEFAULT_MAX_TEMPLATE_CACHE_SIZE).unwrap()
     }
 }
 
 impl IPFixParser {
+    /// Create a new IPFixParser with a custom template cache size.
+    ///
+    /// # Arguments
+    /// * `max_template_cache_size` - Maximum number of templates to cache (must be > 0)
+    ///
+    /// # Errors
+    /// Returns `IPFixParserError::InvalidCacheSize` if `max_template_cache_size` is 0
+    pub fn try_new(max_template_cache_size: usize) -> Result<Self, IPFixParserError> {
+        let cache_size = NonZeroUsize::new(max_template_cache_size)
+            .ok_or(IPFixParserError::InvalidCacheSize)?;
+
+        Ok(Self {
+            templates: LruCache::new(cache_size),
+            v9_templates: LruCache::new(cache_size),
+            ipfix_options_templates: LruCache::new(cache_size),
+            v9_options_templates: LruCache::new(cache_size),
+            max_template_cache_size,
+            max_error_sample_size: 256,
+        })
+    }
+
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match IPFix::parse(packet, self) {
             Ok((remaining, ipfix)) => ParsedNetflow::Success {
@@ -93,26 +134,25 @@ impl IPFixParser {
     /// Add templates to the parser by cloning from slice.
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         for t in templates {
-            self.templates.insert(t.template_id, t.clone());
+            self.templates.put(t.template_id, t.clone());
         }
     }
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         for t in templates {
-            self.ipfix_options_templates
-                .insert(t.template_id, t.clone());
+            self.ipfix_options_templates.put(t.template_id, t.clone());
         }
     }
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         for t in templates {
-            self.v9_templates.insert(t.template_id, t.clone());
+            self.v9_templates.put(t.template_id, t.clone());
         }
     }
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         for t in templates {
-            self.v9_options_templates.insert(t.template_id, t.clone());
+            self.v9_options_templates.put(t.template_id, t.clone());
         }
     }
 }
