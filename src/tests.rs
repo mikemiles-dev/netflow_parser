@@ -265,7 +265,7 @@ mod base_tests {
             fields,
         };
         let mut parser = NetflowParser::default();
-        parser.v9_parser.templates.insert(258, template);
+        parser.v9_parser.templates.put(258, template);
         assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
 
@@ -352,7 +352,7 @@ mod base_tests {
             ..Default::default()
         };
         let mut parser = NetflowParser::default();
-        parser.ipfix_parser.templates.insert(258, template);
+        parser.ipfix_parser.templates.put(258, template);
         assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
 
@@ -367,7 +367,7 @@ mod base_tests {
             ..Default::default()
         };
         let mut parser = NetflowParser::default();
-        parser.ipfix_parser.templates.insert(258, template);
+        parser.ipfix_parser.templates.put(258, template);
         assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
 
@@ -382,7 +382,7 @@ mod base_tests {
             fields: vec![],
         };
         let mut parser = NetflowParser::default();
-        parser.v9_parser.templates.insert(258, template);
+        parser.v9_parser.templates.put(258, template);
         assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
 

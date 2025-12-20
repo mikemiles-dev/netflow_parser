@@ -17,10 +17,33 @@ use nom::multi::many0;
 use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
-use std::collections::HashMap;
+use lru::LruCache;
+use std::num::NonZeroUsize;
 
 pub const DATA_TEMPLATE_V9_ID: u16 = 0;
 pub const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
+
+/// Default maximum number of templates to cache per parser
+pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
+
+/// Error type for V9Parser creation
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum V9ParserError {
+    /// Template cache size must be greater than 0
+    InvalidCacheSize,
+}
+
+impl std::fmt::Display for V9ParserError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            V9ParserError::InvalidCacheSize => {
+                write!(f, "max_template_cache_size must be greater than 0")
+            }
+        }
+    }
+}
+
+impl std::error::Error for V9ParserError {}
 
 type TemplateId = u16;
 pub type V9FieldPair = (V9Field, FieldValue);
@@ -34,7 +57,44 @@ fn calculate_padding(content_size: usize) -> Vec<u8> {
     vec![0u8; padding_len]
 }
 
+#[derive(Debug)]
+pub struct V9Parser {
+    pub templates: LruCache<TemplateId, Template>,
+    pub options_templates: LruCache<TemplateId, OptionsTemplate>,
+    /// Maximum number of templates to cache. Defaults to 1000.
+    pub max_template_cache_size: usize,
+    /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
+    /// Defaults to 256 bytes.
+    pub max_error_sample_size: usize,
+}
+
+impl Default for V9Parser {
+    fn default() -> Self {
+        // Safe to unwrap because DEFAULT_MAX_TEMPLATE_CACHE_SIZE is non-zero
+        Self::try_new(DEFAULT_MAX_TEMPLATE_CACHE_SIZE).unwrap()
+    }
+}
+
 impl V9Parser {
+    /// Create a new V9Parser with a custom template cache size.
+    ///
+    /// # Arguments
+    /// * `max_template_cache_size` - Maximum number of templates to cache (must be > 0)
+    ///
+    /// # Errors
+    /// Returns `V9ParserError::InvalidCacheSize` if `max_template_cache_size` is 0
+    pub fn try_new(max_template_cache_size: usize) -> Result<Self, V9ParserError> {
+        let cache_size = NonZeroUsize::new(max_template_cache_size)
+            .ok_or(V9ParserError::InvalidCacheSize)?;
+
+        Ok(Self {
+            templates: LruCache::new(cache_size),
+            options_templates: LruCache::new(cache_size),
+            max_template_cache_size,
+            max_error_sample_size: 256,
+        })
+    }
+
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match V9::parse(packet, self) {
             Ok((remaining, v9)) => ParsedNetflow::Success {
@@ -56,25 +116,6 @@ impl V9Parser {
                     }),
                 }
             }
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct V9Parser {
-    pub templates: HashMap<TemplateId, Template>,
-    pub options_templates: HashMap<TemplateId, OptionsTemplate>,
-    /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
-    /// Defaults to 256 bytes.
-    pub max_error_sample_size: usize,
-}
-
-impl Default for V9Parser {
-    fn default() -> Self {
-        Self {
-            templates: HashMap::default(),
-            options_templates: HashMap::default(),
-            max_error_sample_size: 256,
         }
     }
 }
@@ -214,9 +255,7 @@ impl FlowSetBody {
                 let (i, templates) = Templates::parse(i)?;
                 // Store templates efficiently - clone only what we need to cache
                 for template in &templates.templates {
-                    parser
-                        .templates
-                        .insert(template.template_id, template.clone());
+                    parser.templates.put(template.template_id, template.clone());
                 }
                 Ok((i, FlowSetBody::Template(templates)))
             }
@@ -226,7 +265,7 @@ impl FlowSetBody {
                 for template in &options_templates.templates {
                     parser
                         .options_templates
-                        .insert(template.template_id, template.clone());
+                        .put(template.template_id, template.clone());
                 }
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
             }
