@@ -256,13 +256,6 @@ let ipfix_parser = IPFixParser::try_new(2000)?;  // Cache up to 2000 templates
 - Each parser instance maintains its own template cache
 - For multi-source deployments, create separate parser instances per source
 
-### Recommended Cache Sizes
-
-- **Single source**: 100-1000 templates (most exporters use 1-10 templates)
-- **Multiple sources**: 1000-10000 templates per parser
-- **Memory-constrained**: 100-500 templates
-- **High-security environments**: 500-1000 templates (prevents DoS via template flooding)
-
 ## Error Handling Configuration
 
 To prevent memory exhaustion from malformed packets, the parser limits the size of error buffer samples. By default, only the first 256 bytes of unparseable data are stored in error messages. You can customize this limit for all parsers:
