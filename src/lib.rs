@@ -416,6 +416,7 @@
 //! ```rust
 //! use netflow_parser::NetflowParser;
 //! let parser = NetflowParser::default();
+//! # let template_id = 256;
 //!
 //! // Check if a template exists
 //! if parser.v9_parser.templates.contains(&template_id) {
@@ -425,7 +426,6 @@
 //! // Get cache stats
 //! println!("V9 template cache size: {}", parser.v9_parser.templates.len());
 //! println!("V9 max cache size: {}", parser.v9_parser.max_template_cache_size);
-//! # let template_id = 256;
 //! ```
 //!
 //! **IPFIX Note:**  We only parse sequence number and domain id, it is up to you if you wish to validate it.
