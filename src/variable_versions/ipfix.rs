@@ -7,6 +7,9 @@
 //! - <https://www.iana.org/assignments/ipfix/ipfix.xhtml>
 
 use super::data_number::FieldValue;
+use super::ttl::{TemplateWithTtl, TtlConfig, TtlStrategy};
+use super::{Config, ParserConfig};
+use crate::variable_versions::ConfigError;
 use crate::variable_versions::ipfix_lookup::IPFixField;
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
@@ -34,25 +37,6 @@ const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
 /// Default maximum number of templates to cache per parser
 pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
 
-/// Error type for IPFixParser creation
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum IPFixParserError {
-    /// Template cache size must be greater than 0
-    InvalidCacheSize,
-}
-
-impl std::fmt::Display for IPFixParserError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            IPFixParserError::InvalidCacheSize => {
-                write!(f, "max_template_cache_size must be greater than 0")
-            }
-        }
-    }
-}
-
-impl std::error::Error for IPFixParserError {}
-
 type TemplateId = u16;
 pub type IPFixFieldPair = (IPFixField, FieldValue);
 pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
@@ -67,10 +51,14 @@ fn calculate_padding(content_size: usize) -> Vec<u8> {
 
 #[derive(Debug)]
 pub struct IPFixParser {
-    pub templates: LruCache<TemplateId, Template>,
-    pub v9_templates: LruCache<TemplateId, V9Template>,
-    pub ipfix_options_templates: LruCache<TemplateId, OptionsTemplate>,
-    pub v9_options_templates: LruCache<TemplateId, V9OptionsTemplate>,
+    pub templates: LruCache<TemplateId, TemplateWithTtl<Template>>,
+    pub v9_templates: LruCache<TemplateId, TemplateWithTtl<V9Template>>,
+    pub ipfix_options_templates: LruCache<TemplateId, TemplateWithTtl<OptionsTemplate>>,
+    pub v9_options_templates: LruCache<TemplateId, TemplateWithTtl<V9OptionsTemplate>>,
+    /// Optional TTL configuration for template expiration
+    pub ttl_config: Option<TtlConfig>,
+    /// Packet counter for packet-based TTL
+    pub packet_count: u64,
     /// Maximum number of templates to cache. Defaults to 1000.
     pub max_template_cache_size: usize,
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
@@ -81,33 +69,86 @@ pub struct IPFixParser {
 impl Default for IPFixParser {
     fn default() -> Self {
         // Safe to unwrap because DEFAULT_MAX_TEMPLATE_CACHE_SIZE is non-zero
-        Self::try_new(DEFAULT_MAX_TEMPLATE_CACHE_SIZE).unwrap()
+        let config = Config {
+            max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
+            ttl_config: None,
+        };
+
+        Self::try_new(config).unwrap()
     }
 }
 
 impl IPFixParser {
-    /// Create a new IPFixParser with a custom template cache size.
+    /// Create a new IPFixParser with a custom template cache size and optional TTL configuration.
     ///
     /// # Arguments
-    /// * `max_template_cache_size` - Maximum number of templates to cache (must be > 0)
+    /// * `config` - Configuration struct containing max_template_cache_size and optional ttl_config
     ///
     /// # Errors
-    /// Returns `IPFixParserError::InvalidCacheSize` if `max_template_cache_size` is 0
-    pub fn try_new(max_template_cache_size: usize) -> Result<Self, IPFixParserError> {
-        let cache_size = NonZeroUsize::new(max_template_cache_size)
-            .ok_or(IPFixParserError::InvalidCacheSize)?;
+    /// Returns `ConfigError` if `max_template_cache_size` is 0
+    pub fn try_new(config: Config) -> Result<Self, ConfigError> {
+        let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
+            ConfigError::InvalidCacheSize(config.max_template_cache_size),
+        )?;
 
         Ok(Self {
             templates: LruCache::new(cache_size),
             v9_templates: LruCache::new(cache_size),
             ipfix_options_templates: LruCache::new(cache_size),
             v9_options_templates: LruCache::new(cache_size),
-            max_template_cache_size,
+            ttl_config: config.ttl_config,
+            packet_count: 0,
+            max_template_cache_size: config.max_template_cache_size,
             max_error_sample_size: 256,
         })
     }
+}
 
+impl ParserConfig for IPFixParser {
+    /// Add or update the parser's configuration.
+    /// # Arguments
+    /// * `config` - Configuration struct containing max_template_cache_size and optional ttl_config
+    /// # Errors
+    /// Returns `ConfigError` if `max_template_cache_size` is 0
+    fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
+        self.max_template_cache_size = config.max_template_cache_size;
+        self.ttl_config = config.ttl_config;
+
+        let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
+            ConfigError::InvalidCacheSize(config.max_template_cache_size),
+        )?;
+
+        self.resize_template_caches(cache_size);
+        Ok(())
+    }
+
+    fn set_max_template_cache_size(&mut self, size: usize) -> Result<(), ConfigError> {
+        let cache_size = NonZeroUsize::new(size).ok_or(ConfigError::InvalidCacheSize(size))?;
+        self.max_template_cache_size = size;
+        self.resize_template_caches(cache_size);
+        Ok(())
+    }
+
+    fn set_ttl_strategy(&mut self, strategy: TtlStrategy) -> Result<(), ConfigError> {
+        self.ttl_config = TtlConfig { strategy }.into();
+        Ok(())
+    }
+
+    fn resize_template_caches(&mut self, cache_size: NonZeroUsize) {
+        self.templates.resize(cache_size);
+        self.v9_templates.resize(cache_size);
+        self.ipfix_options_templates.resize(cache_size);
+        self.v9_options_templates.resize(cache_size);
+    }
+}
+
+impl IPFixParser {
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+        // Increment packet count for packet-based TTL
+        if self.ttl_config.is_some() {
+            self.packet_count = self.packet_count.saturating_add(1);
+        }
+
         match IPFix::parse(packet, self) {
             Ok((remaining, ipfix)) => ParsedNetflow::Success {
                 packet: NetflowPacket::IPFix(ipfix),
@@ -134,25 +175,29 @@ impl IPFixParser {
     /// Add templates to the parser by cloning from slice.
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         for t in templates {
-            self.templates.put(t.template_id, t.clone());
+            let wrapped = TemplateWithTtl::new(t.clone(), self.packet_count);
+            self.templates.put(t.template_id, wrapped);
         }
     }
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         for t in templates {
-            self.ipfix_options_templates.put(t.template_id, t.clone());
+            let wrapped = TemplateWithTtl::new(t.clone(), self.packet_count);
+            self.ipfix_options_templates.put(t.template_id, wrapped);
         }
     }
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         for t in templates {
-            self.v9_templates.put(t.template_id, t.clone());
+            let wrapped = TemplateWithTtl::new(t.clone(), self.packet_count);
+            self.v9_templates.put(t.template_id, wrapped);
         }
     }
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         for t in templates {
-            self.v9_options_templates.put(t.template_id, t.clone());
+            let wrapped = TemplateWithTtl::new(t.clone(), self.packet_count);
+            self.v9_options_templates.put(t.template_id, wrapped);
         }
     }
 }
@@ -308,27 +353,78 @@ impl FlowSetBody {
             ),
             // Parse Data
             _ => {
-                if let Some(template) = parser.templates.get(&id) {
-                    if template.get_fields().is_empty() {
-                        Ok((i, FlowSetBody::Empty))
+                // Try IPFix templates
+                if let Some(wrapped_template) = parser.templates.get(&id) {
+                    // Check TTL if configured
+                    if let Some(ref config) = parser.ttl_config {
+                        if wrapped_template.is_expired(config, parser.packet_count) {
+                            parser.templates.pop(&id);
+                        } else if wrapped_template.template.get_fields().is_empty() {
+                            return Ok((i, FlowSetBody::Empty));
+                        } else {
+                            let (i, data) = Data::parse(i, &wrapped_template.template)?;
+                            return Ok((i, FlowSetBody::Data(data)));
+                        }
+                    } else if wrapped_template.template.get_fields().is_empty() {
+                        return Ok((i, FlowSetBody::Empty));
                     } else {
-                        let (i, data) = Data::parse(i, template)?;
-                        Ok((i, FlowSetBody::Data(data)))
+                        let (i, data) = Data::parse(i, &wrapped_template.template)?;
+                        return Ok((i, FlowSetBody::Data(data)));
                     }
-                } else if let Some(options_template) = parser.ipfix_options_templates.get(&id) {
-                    if options_template.get_fields().is_empty() {
-                        Ok((i, FlowSetBody::Empty))
+                }
+
+                // Try IPFix options templates
+                if let Some(wrapped_template) = parser.ipfix_options_templates.get(&id) {
+                    if let Some(ref config) = parser.ttl_config {
+                        if wrapped_template.is_expired(config, parser.packet_count) {
+                            parser.ipfix_options_templates.pop(&id);
+                        } else if wrapped_template.template.get_fields().is_empty() {
+                            return Ok((i, FlowSetBody::Empty));
+                        } else {
+                            let (i, data) = OptionsData::parse(i, &wrapped_template.template)?;
+                            return Ok((i, FlowSetBody::OptionsData(data)));
+                        }
+                    } else if wrapped_template.template.get_fields().is_empty() {
+                        return Ok((i, FlowSetBody::Empty));
                     } else {
-                        let (i, data) = OptionsData::parse(i, options_template)?;
-                        Ok((i, FlowSetBody::OptionsData(data)))
+                        let (i, data) = OptionsData::parse(i, &wrapped_template.template)?;
+                        return Ok((i, FlowSetBody::OptionsData(data)));
                     }
-                } else if let Some(v9_template) = parser.v9_templates.get(&id) {
-                    let (i, data) = V9Data::parse(i, v9_template)?;
-                    Ok((i, FlowSetBody::V9Data(data)))
-                } else if let Some(v9_options_template) = parser.v9_options_templates.get(&id) {
-                    let (i, data) = V9OptionsData::parse(i, v9_options_template)?;
-                    Ok((i, FlowSetBody::V9OptionsData(data)))
-                } else if id > 255 {
+                }
+
+                // Try V9 templates
+                if let Some(wrapped_template) = parser.v9_templates.get(&id) {
+                    if let Some(ref config) = parser.ttl_config {
+                        if wrapped_template.is_expired(config, parser.packet_count) {
+                            parser.v9_templates.pop(&id);
+                        } else {
+                            let (i, data) = V9Data::parse(i, &wrapped_template.template)?;
+                            return Ok((i, FlowSetBody::V9Data(data)));
+                        }
+                    } else {
+                        let (i, data) = V9Data::parse(i, &wrapped_template.template)?;
+                        return Ok((i, FlowSetBody::V9Data(data)));
+                    }
+                }
+
+                // Try V9 options templates
+                if let Some(wrapped_template) = parser.v9_options_templates.get(&id) {
+                    if let Some(ref config) = parser.ttl_config {
+                        if wrapped_template.is_expired(config, parser.packet_count) {
+                            parser.v9_options_templates.pop(&id);
+                        } else {
+                            let (i, data) =
+                                V9OptionsData::parse(i, &wrapped_template.template)?;
+                            return Ok((i, FlowSetBody::V9OptionsData(data)));
+                        }
+                    } else {
+                        let (i, data) = V9OptionsData::parse(i, &wrapped_template.template)?;
+                        return Ok((i, FlowSetBody::V9OptionsData(data)));
+                    }
+                }
+
+                // Template not found or expired
+                if id > 255 {
                     Ok((i, FlowSetBody::NoTemplate(i.to_vec())))
                 } else {
                     Err(nom::Err::Error(nom::error::Error::new(

@@ -5,6 +5,8 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use super::data_number::FieldValue;
+use super::ttl::{TemplateWithTtl, TtlConfig, TtlStrategy};
+use super::{Config, ConfigError, ParserConfig};
 use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
 
@@ -26,25 +28,6 @@ pub const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
 /// Default maximum number of templates to cache per parser
 pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
 
-/// Error type for V9Parser creation
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum V9ParserError {
-    /// Template cache size must be greater than 0
-    InvalidCacheSize,
-}
-
-impl std::fmt::Display for V9ParserError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            V9ParserError::InvalidCacheSize => {
-                write!(f, "max_template_cache_size must be greater than 0")
-            }
-        }
-    }
-}
-
-impl std::error::Error for V9ParserError {}
-
 type TemplateId = u16;
 pub type V9FieldPair = (V9Field, FieldValue);
 pub type V9FlowRecord = Vec<V9FieldPair>;
@@ -59,8 +42,12 @@ fn calculate_padding(content_size: usize) -> Vec<u8> {
 
 #[derive(Debug)]
 pub struct V9Parser {
-    pub templates: LruCache<TemplateId, Template>,
-    pub options_templates: LruCache<TemplateId, OptionsTemplate>,
+    pub templates: LruCache<TemplateId, TemplateWithTtl<Template>>,
+    pub options_templates: LruCache<TemplateId, TemplateWithTtl<OptionsTemplate>>,
+    /// Optional TTL configuration for template expiration
+    pub ttl_config: Option<TtlConfig>,
+    /// Packet counter for packet-based TTL
+    pub packet_count: u64,
     /// Maximum number of templates to cache. Defaults to 1000.
     pub max_template_cache_size: usize,
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
@@ -71,31 +58,82 @@ pub struct V9Parser {
 impl Default for V9Parser {
     fn default() -> Self {
         // Safe to unwrap because DEFAULT_MAX_TEMPLATE_CACHE_SIZE is non-zero
-        Self::try_new(DEFAULT_MAX_TEMPLATE_CACHE_SIZE).unwrap()
+        let config = Config {
+            max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
+            ttl_config: None,
+        };
+
+        Self::try_new(config).unwrap()
     }
 }
 
 impl V9Parser {
-    /// Create a new V9Parser with a custom template cache size.
+    /// Create a new V9 with a custom template cache size and optional TTL configuration.
     ///
     /// # Arguments
-    /// * `max_template_cache_size` - Maximum number of templates to cache (must be > 0)
+    /// * `config` - Configuration struct containing max_template_cache_size and optional ttl_config
     ///
     /// # Errors
-    /// Returns `V9ParserError::InvalidCacheSize` if `max_template_cache_size` is 0
-    pub fn try_new(max_template_cache_size: usize) -> Result<Self, V9ParserError> {
-        let cache_size = NonZeroUsize::new(max_template_cache_size)
-            .ok_or(V9ParserError::InvalidCacheSize)?;
+    /// Returns `ConfigError` if `max_template_cache_size` is 0
+    pub fn try_new(config: Config) -> Result<Self, ConfigError> {
+        let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
+            ConfigError::InvalidCacheSize(config.max_template_cache_size),
+        )?;
 
         Ok(Self {
             templates: LruCache::new(cache_size),
             options_templates: LruCache::new(cache_size),
-            max_template_cache_size,
+            ttl_config: config.ttl_config,
+            packet_count: 0,
+            max_template_cache_size: config.max_template_cache_size,
             max_error_sample_size: 256,
         })
     }
+}
 
+impl ParserConfig for V9Parser {
+    /// Add or update the parser's configuration.
+    /// # Arguments
+    /// * `config` - Configuration struct containing max_template_cache_size and optional ttl_config
+    /// # Errors
+    /// Returns `ConfigError` if `max_template_cache_size` is 0
+    fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
+        self.max_template_cache_size = config.max_template_cache_size;
+        self.ttl_config = config.ttl_config;
+
+        let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
+            ConfigError::InvalidCacheSize(config.max_template_cache_size),
+        )?;
+
+        self.resize_template_caches(cache_size);
+        Ok(())
+    }
+
+    fn set_max_template_cache_size(&mut self, size: usize) -> Result<(), ConfigError> {
+        let cache_size = NonZeroUsize::new(size).ok_or(ConfigError::InvalidCacheSize(size))?;
+        self.max_template_cache_size = size;
+        self.resize_template_caches(cache_size);
+        Ok(())
+    }
+
+    fn set_ttl_strategy(&mut self, strategy: TtlStrategy) -> Result<(), ConfigError> {
+        self.ttl_config = TtlConfig { strategy }.into();
+        Ok(())
+    }
+
+    fn resize_template_caches(&mut self, cache_size: NonZeroUsize) {
+        self.templates.resize(cache_size);
+        self.options_templates.resize(cache_size);
+    }
+}
+
+impl V9Parser {
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+        // Increment packet count for packet-based TTL
+        if self.ttl_config.is_some() {
+            self.packet_count = self.packet_count.saturating_add(1);
+        }
+
         match V9::parse(packet, self) {
             Ok((remaining, v9)) => ParsedNetflow::Success {
                 packet: NetflowPacket::V9(v9),
@@ -255,7 +293,8 @@ impl FlowSetBody {
                 let (i, templates) = Templates::parse(i)?;
                 // Store templates efficiently - clone only what we need to cache
                 for template in &templates.templates {
-                    parser.templates.put(template.template_id, template.clone());
+                    let wrapped = TemplateWithTtl::new(template.clone(), parser.packet_count);
+                    parser.templates.put(template.template_id, wrapped);
                 }
                 Ok((i, FlowSetBody::Template(templates)))
             }
@@ -263,25 +302,57 @@ impl FlowSetBody {
                 let (i, options_templates) = OptionsTemplates::parse(i)?;
                 // Store templates efficiently - clone only what we need to cache
                 for template in &options_templates.templates {
-                    parser
-                        .options_templates
-                        .put(template.template_id, template.clone());
+                    let wrapped = TemplateWithTtl::new(template.clone(), parser.packet_count);
+                    parser.options_templates.put(template.template_id, wrapped);
                 }
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
             }
             _ => {
-                if let Some(template) = parser.templates.get(&id) {
-                    let (i, data) = Data::parse(i, template)?;
-                    Ok((i, FlowSetBody::Data(data)))
-                } else if let Some(template) = parser.options_templates.get(&id) {
-                    let (i, options_data) = OptionsData::parse(i, template)?;
-                    Ok((i, FlowSetBody::OptionsData(options_data)))
-                } else {
-                    Err(nom::Err::Error(nom::error::Error::new(
-                        i,
-                        nom::error::ErrorKind::Verify,
-                    )))
+                // Try to get template from regular templates cache
+                if let Some(wrapped_template) = parser.templates.get(&id) {
+                    // Check TTL if configured
+                    if let Some(ref config) = parser.ttl_config {
+                        if wrapped_template.is_expired(config, parser.packet_count) {
+                            // Template expired, remove it and fall through to error
+                            parser.templates.pop(&id);
+                        } else {
+                            // Template valid, parse data
+                            let (i, data) = Data::parse(i, &wrapped_template.template)?;
+                            return Ok((i, FlowSetBody::Data(data)));
+                        }
+                    } else {
+                        // No TTL configured, use template directly
+                        let (i, data) = Data::parse(i, &wrapped_template.template)?;
+                        return Ok((i, FlowSetBody::Data(data)));
+                    }
                 }
+
+                // Try to get template from options templates cache
+                if let Some(wrapped_template) = parser.options_templates.get(&id) {
+                    // Check TTL if configured
+                    if let Some(ref config) = parser.ttl_config {
+                        if wrapped_template.is_expired(config, parser.packet_count) {
+                            // Template expired, remove it and fall through to error
+                            parser.options_templates.pop(&id);
+                        } else {
+                            // Template valid, parse options data
+                            let (i, options_data) =
+                                OptionsData::parse(i, &wrapped_template.template)?;
+                            return Ok((i, FlowSetBody::OptionsData(options_data)));
+                        }
+                    } else {
+                        // No TTL configured, use template directly
+                        let (i, options_data) =
+                            OptionsData::parse(i, &wrapped_template.template)?;
+                        return Ok((i, FlowSetBody::OptionsData(options_data)));
+                    }
+                }
+
+                // Template not found or expired
+                Err(nom::Err::Error(nom::error::Error::new(
+                    i,
+                    nom::error::ErrorKind::Verify,
+                )))
             }
         }
     }

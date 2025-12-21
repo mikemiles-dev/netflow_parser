@@ -1,3 +1,9 @@
+# 0.6.9
+  * Added Template Time Based / Packet Based TTL for V9/IPFix.
+  * Added `config_v9_parser`, `config_ipfix_parser`, `config_both`,
+    `config_v9_parser_ttl`, `config_ipfix_parser_ttl`
+    `config_v9_template_cache_size`, and `config_v9_template_cache_size` for NetflowParser.
+
 # 0.6.8
   * Added LRU-based template caching for V9Parser and IPFixParser to prevent memory exhaustion
   * Default template cache size: 1000 templates per parser (configurable)
