@@ -347,7 +347,20 @@
 //!
 //! **V9/IPFIX Padding Behavior:**
 //! - For **parsed packets**: Original padding is preserved exactly for byte-perfect round-trips
-//! - For **manually created packets**: Padding is automatically calculated to align FlowSets to 4-byte boundaries - simply leave the `padding` field empty (`vec![]`)
+//! - For **manually created packets**: Padding is automatically calculated to align FlowSets to 4-byte boundaries
+//!
+//! **Creating Data Structs:**
+//! For convenience, use `Data::new()` and `OptionsData::new()` to create data structures without manually specifying padding:
+//!
+//! ```rust,ignore
+//! use netflow_parser::variable_versions::ipfix::Data;
+//!
+//! // Padding is automatically set to empty vec and calculated during export
+//! let data = Data::new(vec![vec![
+//!     (field1, value1),
+//!     (field2, value2),
+//! ]]);
+//! ```
 //!
 //! See `examples/manual_ipfix_creation.rs` for a complete example of creating IPFIX packets from scratch.
 //!
@@ -372,6 +385,8 @@
 //!
 //! V9 and IPFIX parsers use LRU (Least Recently Used) caching to store templates with a configurable size limit. This prevents memory exhaustion from template flooding attacks while maintaining good performance for legitimate traffic.
 //!
+//! You can use either `config_v9_parser`, `config_ipfix_parser`, or `config_both` on a NetflowParser instance to configure this behavior.
+//!
 //! ### Default Behavior
 //!
 //! By default, parsers cache up to 1000 templates:
@@ -388,13 +403,17 @@
 //! You can configure the template cache size when creating parsers:
 //!
 //! ```rust,ignore
+//! use netflow_parser::NetflowParser;
 //! use netflow_parser::{NetflowParser, variable_versions::v9::V9Parser, variable_versions::ipfix::IPFixParser};
 //!
 //! // Create V9 parser with custom cache size
-//! let v9_parser = V9Parser::try_new(5000)?;  // Cache up to 5000 templates
+//! let newflow_parser = NetflowParser::default().config_v9_parser(1000, None).unwrap(); // Cache up to 1000 templates
 //!
 //! // Create IPFix parser with custom cache size
-//! let ipfix_parser = IPFixParser::try_new(2000)?;  // Cache up to 2000 templates
+//! let newflow_parser = NetflowParser::default().config_ipfix_parser(5000, None).unwrap(); // Cache up to 5000 templates
+//!
+//! // Create both V9 and IPFix parsers with custom cache sizes
+//! let newflow_parser = NetflowParser::default().config_both(2000, None).unwrap(); // Cache up to 2000 templates each
 //!
 //! // Note: try_new() returns Result<Parser, Error> and will fail if cache_size is 0
 //! ```
@@ -405,6 +424,90 @@
 //! - Templates are keyed by template ID (per source)
 //! - Each parser instance maintains its own template cache
 //! - For multi-source deployments, create separate parser instances per source
+//!
+//! ### Template TTL (Time-to-Live)
+//!
+//! Optionally configure templates to expire after a time duration or packet count. This is useful for:
+//! - Handling exporters that reuse template IDs with different schemas
+//! - Forcing periodic template refresh from exporters
+//! - Testing template re-learning behavior
+//!
+//! **Note:** TTL is disabled by default for backward compatibility. Templates persist until LRU eviction unless explicitly configured.
+//!
+//! #### Time-Based TTL
+//!
+//! Templates expire after a configured duration:
+//!
+//! ```rust
+//! use netflow_parser::NetflowParser;
+//! use netflow_parser::variable_versions::{v9::V9Parser, ttl::{TtlConfig, TtlStrategy}};
+//! use std::time::Duration;
+//!
+//! // Templates expire after 2 hours (default)
+//! let parser = NetflowParser::default().config_both(
+//!     1000,
+//!     Some(TtlConfig {  strategy: TtlStrategy::TimeBased { duration: Duration::from_secs(2 * 3600) } })
+//! ).unwrap();
+//!
+//! // Or use the default time-based config (2 hours)
+//! let parser = NetflowParser::default().config_both(
+//!     1000,
+//!     Some(TtlConfig::default_time_based()),
+//! ).unwrap();
+//! ```
+//!
+//! #### Packet-Based TTL
+//!
+//! Templates expire after processing N packets:
+//!
+//! ```rust
+//! use netflow_parser::NetflowParser;
+//! use netflow_parser::variable_versions::{v9::V9Parser, ttl::TtlConfig};
+//!
+//! // Templates expire after 100 packets (default)
+//! let parser = NetflowParser::default().config_v9_parser(
+//!     1000,
+//!     Some(TtlConfig::packet_based(100)),
+//! ).unwrap();
+//!
+//! // Or use the default packet-based config (100 packets)
+//! let parser = NetflowParser::default().config_v9_parser(
+//!     1000,
+//!     Some(TtlConfig::default_packet_based()),
+//! ).unwrap();
+//! ```
+//!
+//! #### Combined TTL
+//!
+//! Templates expire when either condition is met (whichever comes first):
+//!
+//! ```rust
+//! use netflow_parser::NetflowParser;
+//! use netflow_parser::variable_versions::{v9::V9Parser, ttl::TtlConfig};
+//! use std::time::Duration;
+//!
+//! // Expire after 1 hour OR 50 packets, whichever comes first
+//! let parser = NetflowParser::default().config_v9_parser(
+//!     1000,
+//!     Some(TtlConfig::combined(Duration::from_secs(3600), 50)),
+//! ).unwrap();
+//! ```
+//!
+//! #### Using TTL with NetflowParser
+//!
+//! Configure different TTL settings for V9 and IPFix parsers:
+//!
+//! ```rust
+//! use netflow_parser::NetflowParser;
+//! use netflow_parser::variable_versions::ttl::TtlStrategy;
+//! use std::time::Duration;
+//!
+//! // V9: 100 packets, IPFix: 2 hours
+//! let mut parser = NetflowParser::default();
+//! parser.config_v9_parser_ttl(TtlStrategy::PacketBased {packet_interval: 100}).unwrap();
+//! parser.config_ipfix_parser_ttl(TtlStrategy::TimeBased {duration: Duration::from_secs(2 * 3600)}).unwrap();
+//!
+//! ```
 //!
 //! ## V9/IPFIX Notes
 //!
@@ -468,6 +571,13 @@
 //!
 //! Examples have been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
 //!
+//! Examples that listen on a specific port use 9995 by default, however netflow can be configurated to use a variety of URP ports:
+//! * **2055**: The most widely recognized default for NetFlow.
+//! * **9995 / 9996**: Popular alternatives, especially with Cisco devices.
+//! * **9025, 9026**: Other recognized port options.
+//! * **6343**: The default for sFlow, often used alongside NetFlow.
+//! * **4739**: The default port for IPFIX (a NetFlow successor).
+//!
 //! To run:
 //!
 //! ```cargo run --example netflow_udp_listener_multi_threaded```
@@ -505,7 +615,9 @@ use static_versions::{
     v7::{V7, V7Parser},
 };
 use variable_versions::ipfix::{IPFix, IPFixParser};
+use variable_versions::ttl::{TtlConfig, TtlStrategy};
 use variable_versions::v9::{V9, V9Parser};
+use variable_versions::{Config, ParserConfig};
 
 use nom_derive::{Nom, Parse};
 use serde::Serialize;
@@ -815,6 +927,76 @@ impl NetflowParser {
                 error: NetflowParseError::Incomplete(e.to_string()),
             },
         }
+    }
+
+    /// Generic helper to configure a parser and convert ConfigError to String
+    fn configure_parser<P: variable_versions::ParserConfig>(
+        parser: &mut P,
+        f: impl FnOnce(&mut P) -> Result<(), variable_versions::ConfigError>,
+    ) -> Result<(), String> {
+        f(parser).map_err(|e| format!("{e}"))
+    }
+
+    pub fn config_both(
+        &mut self,
+        max_template_cache_size: usize,
+        ttl_config: Option<TtlConfig>,
+    ) -> Result<(), String> {
+        self.config_v9_parser(max_template_cache_size, ttl_config.clone())?;
+        self.config_ipfix_parser(max_template_cache_size, ttl_config)?;
+        Ok(())
+    }
+
+    pub fn config_v9_parser(
+        &mut self,
+        max_template_cache_size: usize,
+        ttl_config: Option<TtlConfig>,
+    ) -> Result<(), String> {
+        Self::configure_parser(&mut self.v9_parser, |p| {
+            p.add_config(Config {
+                max_template_cache_size,
+                ttl_config,
+            })
+        })
+    }
+
+    pub fn config_ipfix_parser(
+        &mut self,
+        max_template_cache_size: usize,
+        ttl_config: Option<TtlConfig>,
+    ) -> Result<(), String> {
+        Self::configure_parser(&mut self.ipfix_parser, |p| {
+            p.add_config(Config {
+                max_template_cache_size,
+                ttl_config,
+            })
+        })
+    }
+
+    pub fn config_v9_parser_ttl(&mut self, ttl_strategy: TtlStrategy) -> Result<(), String> {
+        Self::configure_parser(&mut self.v9_parser, |p| p.set_ttl_strategy(ttl_strategy))
+    }
+
+    pub fn config_ipfix_parser_ttl(&mut self, ttl_strategy: TtlStrategy) -> Result<(), String> {
+        Self::configure_parser(&mut self.ipfix_parser, |p| p.set_ttl_strategy(ttl_strategy))
+    }
+
+    pub fn config_v9_template_cache_size(
+        &mut self,
+        max_template_cache_size: usize,
+    ) -> Result<(), String> {
+        Self::configure_parser(&mut self.v9_parser, |p| {
+            p.set_max_template_cache_size(max_template_cache_size)
+        })
+    }
+
+    pub fn config_ipfix_template_cache_size(
+        &mut self,
+        max_template_cache_size: usize,
+    ) -> Result<(), String> {
+        Self::configure_parser(&mut self.ipfix_parser, |p| {
+            p.set_max_template_cache_size(max_template_cache_size)
+        })
     }
 
     /// Takes a Netflow packet slice and returns a vector of Parsed NetflowCommonFlowSet

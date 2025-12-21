@@ -12,7 +12,10 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 - [Error Handling Configuration](#error-handling-configuration)
 - [Netflow Common](#netflow-common)
 - [Re-Exporting Flows](#re-exporting-flows)
+- [Template Cache Configuration](#template-cache-configuration)
+  - [Template TTL (Time-to-Live)](#template-ttl-time-to-live)
 - [V9/IPFIX Notes](#v9ipfix-notes)
+- [Performance & Thread Safety](#performance--thread-safety)
 - [Features](#features)
 - [Included Examples](#included-examples)
 
@@ -218,44 +221,6 @@ let parsed = parser.parse_bytes(&v5_packet);
 
 This code will return an empty Vec as version 5 is not allowed.
 
-## Template Cache Configuration
-
-V9 and IPFIX parsers use LRU (Least Recently Used) caching to store templates with a configurable size limit. This prevents memory exhaustion from template flooding attacks while maintaining good performance for legitimate traffic.
-
-### Default Behavior
-
-By default, parsers cache up to 1000 templates:
-
-```rust
-use netflow_parser::NetflowParser;
-
-// Uses default cache size of 1000 templates per parser
-let parser = NetflowParser::default();
-```
-
-### Custom Cache Size
-
-You can configure the template cache size when creating parsers:
-
-```rust
-use netflow_parser::{NetflowParser, variable_versions::v9::V9Parser, variable_versions::ipfix::IPFixParser};
-
-// Create V9 parser with custom cache size
-let v9_parser = V9Parser::try_new(5000)?;  // Cache up to 5000 templates
-
-// Create IPFix parser with custom cache size
-let ipfix_parser = IPFixParser::try_new(2000)?;  // Cache up to 2000 templates
-
-// Note: try_new() returns Result<Parser, Error> and will fail if cache_size is 0
-```
-
-### Cache Behavior
-
-- When the cache is full, the least recently used template is evicted
-- Templates are keyed by template ID (per source)
-- Each parser instance maintains its own template cache
-- For multi-source deployments, create separate parser instances per source
-
 ## Error Handling Configuration
 
 To prevent memory exhaustion from malformed packets, the parser limits the size of error buffer samples. By default, only the first 256 bytes of unparseable data are stored in error messages. You can customize this limit for all parsers:
@@ -432,6 +397,7 @@ let data = Data::new(vec![vec![
 See `examples/manual_ipfix_creation.rs` for a complete example of creating IPFIX packets from scratch.
 
 ```rust
+use netflow_parser::{NetflowParser, NetflowPacket};
 // 0000   00 05 00 01 03 00 04 00 05 00 06 07 08 09 00 01   ................
 // 0010   02 03 04 05 06 07 08 09 00 01 02 03 04 05 06 07   ................
 // 0020   08 09 00 01 02 03 04 05 06 07 08 09 00 01 02 03   ................
@@ -449,6 +415,133 @@ if let NetflowPacket::V5(v5) = NetflowParser::default()
 {
     assert_eq!(v5.to_be_bytes(), packet);
 }
+```
+
+## Template Cache Configuration
+
+V9 and IPFIX parsers use LRU (Least Recently Used) caching to store templates with a configurable size limit. This prevents memory exhaustion from template flooding attacks while maintaining good performance for legitimate traffic.
+
+You can use either `config_v9_parser`, `config_ipfix_parser`, or `config_both` on a NetflowParser instance to configure this behavior.
+
+### Default Behavior
+
+By default, parsers cache up to 1000 templates:
+
+```rust
+use netflow_parser::NetflowParser;
+
+// Uses default cache size of 1000 templates per parser
+let parser = NetflowParser::default();
+```
+
+### Custom Cache Size
+
+You can configure the template cache size when creating parsers:
+
+```rust
+use netflow_parser::{NetflowParser, variable_versions::v9::V9Parser, variable_versions::ipfix::IPFixParser};
+
+// Create V9 parser with custom cache size
+let newflow_parser = NetflowParser::default().config_v9_parser(1000, None).unwrap(); // Cache up to 1000 templates
+
+// Create IPFix parser with custom cache size
+let newflow_parser = NetflowParser::default().config_ipfix_parser(5000, None).unwrap(); // Cache up to 5000 templates
+
+// Create both V9 and IPFix parsers with custom cache sizes
+let newflow_parser = NetflowParser::default().config_both(2000, None).unwrap(); // Cache up to 2000 templates each
+
+// Note: try_new() returns Result<Parser, Error> and will fail if cache_size is 0
+```
+
+### Cache Behavior
+
+- When the cache is full, the least recently used template is evicted
+- Templates are keyed by template ID (per source)
+- Each parser instance maintains its own template cache
+- For multi-source deployments, create separate parser instances per source
+
+### Template TTL (Time-to-Live)
+
+Optionally configure templates to expire after a time duration or packet count. This is useful for:
+- Handling exporters that reuse template IDs with different schemas
+- Forcing periodic template refresh from exporters
+- Testing template re-learning behavior
+
+**Note:** TTL is disabled by default for backward compatibility. Templates persist until LRU eviction unless explicitly configured.
+
+#### Time-Based TTL
+
+Templates expire after a configured duration:
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::{v9::V9Parser, ttl::{TtlConfig, TtlStrategy}};
+use std::time::Duration;
+
+// Templates expire after 2 hours (default)
+let parser = NetflowParser::default().config_both(
+    1000,
+    Some(TtlConfig {  strategy: TtlStrategy::TimeBased { duration: Duration::from_secs(2 * 3600) } })
+).unwrap();
+
+// Or use the default time-based config (2 hours)
+let parser = NetflowParser::default().config_both(
+    1000,
+    Some(TtlConfig::default_time_based()),
+).unwrap();
+```
+
+#### Packet-Based TTL
+
+Templates expire after processing N packets:
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::{v9::V9Parser, ttl::TtlConfig};
+
+// Templates expire after 100 packets (default)
+let parser = NetflowParser::default().config_v9_parser(
+    1000,
+    Some(TtlConfig::packet_based(100)),
+).unwrap();
+
+// Or use the default packet-based config (100 packets)
+let parser = NetflowParser::default().config_v9_parser(
+    1000,
+    Some(TtlConfig::default_packet_based()),
+).unwrap();
+```
+
+#### Combined TTL
+
+Templates expire when either condition is met (whichever comes first):
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::{v9::V9Parser, ttl::TtlConfig};
+use std::time::Duration;
+
+// Expire after 1 hour OR 50 packets, whichever comes first
+let parser = NetflowParser::default().config_v9_parser(
+    1000,
+    Some(TtlConfig::combined(Duration::from_secs(3600), 50)),
+).unwrap();
+```
+
+#### Using TTL with NetflowParser
+
+Configure different TTL settings for V9 and IPFix parsers:
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::ttl::TtlStrategy;
+use std::time::Duration;
+
+// V9: 100 packets, IPFix: 2 hours
+let mut parser = NetflowParser::default();
+parser.config_v9_parser_ttl(TtlStrategy::PacketBased {packet_interval: 100}).unwrap();
+parser.config_ipfix_parser_ttl(TtlStrategy::TimeBased {duration: Duration::from_secs(2 * 3600)}).unwrap();
+
 ```
 
 ## V9/IPFIX Notes
@@ -511,6 +604,13 @@ This library includes several performance optimizations:
 ## Included Examples
 
 Examples have been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
+
+Examples that listen on a specific port use 9995 by default, however netflow can be configurated to use a variety of URP ports:
+* **2055**: The most widely recognized default for NetFlow.
+* **9995 / 9996**: Popular alternatives, especially with Cisco devices.
+* **9025, 9026**: Other recognized port options.
+* **6343**: The default for sFlow, often used alongside NetFlow.
+* **4739**: The default port for IPFIX (a NetFlow successor). 
 
 To run:
 
