@@ -1,8 +1,21 @@
 # 0.6.9
   * Added Template Time Based / Packet Based TTL for V9/IPFix.
-  * Added `config_v9_parser`, `config_ipfix_parser`, `config_both`,
-    `config_v9_parser_ttl`, `config_ipfix_parser_ttl`
-    `config_v9_template_cache_size`, and `config_v9_template_cache_size` for NetflowParser.
+  * **Added Builder Pattern for NetflowParser:**
+    * New `NetflowParser::builder()` method returns `NetflowParserBuilder`
+    * Ergonomic configuration with chainable methods:
+      * `with_cache_size()` / `with_v9_cache_size()` / `with_ipfix_cache_size()`
+      * `with_ttl()` / `with_v9_ttl()` / `with_ipfix_ttl()`
+      * `with_v9_config()` / `with_ipfix_config()`
+      * `with_allowed_versions()` / `with_max_error_sample_size()`
+      * `build()` - Constructs configured parser
+  * **Added Template Cache Introspection API:**
+    * `v9_cache_stats()` / `ipfix_cache_stats()` - Get cache statistics
+    * `v9_template_ids()` / `ipfix_template_ids()` - List all cached template IDs
+    * `has_v9_template()` / `has_ipfix_template()` - Check if template exists (non-mutating)
+    * `clear_v9_templates()` / `clear_ipfix_templates()` - Clear all templates
+  * New `CacheStats` struct for cache statistics
+  * Added `Debug` and `Clone` derives to `Config` struct
+  * Comprehensive documentation updates with builder pattern examples
 
 # 0.6.8
   * Added LRU-based template caching for V9Parser and IPFixParser to prevent memory exhaustion
