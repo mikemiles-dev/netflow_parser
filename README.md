@@ -472,26 +472,6 @@ let parser = NetflowParser::builder()
     .expect("Failed to build parser");
 ```
 
-### Custom Cache Size - Using Config Methods
-
-You can also configure parsers after creation using config methods:
-
-```rust
-use netflow_parser::NetflowParser;
-
-// Create V9 parser with custom cache size
-let mut parser = NetflowParser::default();
-parser.config_v9_parser(1000, None).unwrap();
-
-// Create IPFix parser with custom cache size
-let mut parser = NetflowParser::default();
-parser.config_ipfix_parser(5000, None).unwrap();
-
-// Create both V9 and IPFix parsers with custom cache sizes
-let mut parser = NetflowParser::default();
-parser.config_both(2000, None).unwrap();
-```
-
 ### Cache Behavior
 
 - When the cache is full, the least recently used template is evicted
@@ -508,7 +488,7 @@ Optionally configure templates to expire after a time duration or packet count. 
 
 **Note:** TTL is disabled by default for backward compatibility. Templates persist until LRU eviction unless explicitly configured.
 
-#### Using Builder Pattern (Recommended)
+#### Configuration Examples
 
 ```rust
 use netflow_parser::NetflowParser;
@@ -542,23 +522,6 @@ let parser = NetflowParser::builder()
     .with_ipfix_ttl(TtlConfig::time_based(Duration::from_secs(2 * 3600)))
     .build()
     .unwrap();
-```
-
-#### Using Config Methods
-
-```rust
-use netflow_parser::NetflowParser;
-use netflow_parser::variable_versions::ttl::{TtlConfig, TtlStrategy};
-use std::time::Duration;
-
-// Configure both parsers
-let mut parser = NetflowParser::default();
-parser.config_both(1000, Some(TtlConfig::packet_based(100))).unwrap();
-
-// Configure V9 and IPFIX separately
-let mut parser = NetflowParser::default();
-parser.config_v9_parser_ttl(TtlStrategy::PacketBased { packet_interval: 100 }).unwrap();
-parser.config_ipfix_parser_ttl(TtlStrategy::TimeBased { duration: Duration::from_secs(2 * 3600) }).unwrap();
 ```
 
 ### Template Cache Introspection
