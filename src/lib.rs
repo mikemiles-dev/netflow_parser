@@ -2,9 +2,27 @@
 //!
 //! A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Supports chaining of multiple versions in the same stream.
 //!
-//! ## Example
+//! ## Quick Start
 //!
-//! ### V5
+//! ### Using the Builder Pattern (Recommended)
+//!
+//! ```rust
+//! use netflow_parser::NetflowParser;
+//! use netflow_parser::variable_versions::ttl::TtlConfig;
+//!
+//! // Create a parser with custom configuration
+//! let mut parser = NetflowParser::builder()
+//!     .with_cache_size(2000)
+//!     .with_ttl(TtlConfig::packet_based(100))
+//!     .build()
+//!     .expect("Failed to build parser");
+//!
+//! // Parse packets
+//! let buffer = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7];
+//! let packets = parser.parse_bytes(&buffer);
+//! ```
+//!
+//! ### Using Default Configuration
 //!
 //! ```rust
 //! use netflow_parser::{NetflowParser, NetflowPacket};
@@ -667,6 +685,27 @@ struct GenericNetflowHeader {
     version: u16,
 }
 
+/// Main parser for Netflow packets supporting V5, V7, V9, and IPFIX.
+///
+/// Use [`NetflowParser::builder()`] for ergonomic configuration with the builder pattern,
+/// or [`NetflowParser::default()`] for quick setup with defaults.
+///
+/// # Examples
+///
+/// ```rust
+/// use netflow_parser::NetflowParser;
+/// use netflow_parser::variable_versions::ttl::TtlConfig;
+///
+/// // Using builder pattern (recommended)
+/// let parser = NetflowParser::builder()
+///     .with_cache_size(2000)
+///     .with_ttl(TtlConfig::packet_based(100))
+///     .build()
+///     .expect("Failed to build parser");
+///
+/// // Using default
+/// let parser = NetflowParser::default();
+/// ```
 #[derive(Debug)]
 pub struct NetflowParser {
     pub v9_parser: V9Parser,
@@ -675,6 +714,225 @@ pub struct NetflowParser {
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
+}
+
+/// Statistics about template cache utilization.
+#[derive(Debug, Clone)]
+pub struct CacheStats {
+    /// Current number of cached templates
+    pub current_size: usize,
+    /// Maximum cache size before LRU eviction
+    pub max_size: usize,
+    /// TTL configuration (if enabled)
+    pub ttl_config: Option<variable_versions::ttl::TtlConfig>,
+}
+
+/// Builder for configuring and constructing a [`NetflowParser`].
+///
+/// # Examples
+///
+/// ```rust
+/// use netflow_parser::NetflowParser;
+/// use netflow_parser::variable_versions::ttl::TtlConfig;
+/// use std::collections::HashSet;
+///
+/// let parser = NetflowParser::builder()
+///     .with_cache_size(2000)
+///     .with_ttl(TtlConfig::packet_based(100))
+///     .with_allowed_versions([5, 9, 10].into())
+///     .with_max_error_sample_size(512)
+///     .build()
+///     .expect("Failed to build parser");
+/// ```
+#[derive(Debug, Clone)]
+pub struct NetflowParserBuilder {
+    v9_config: Config,
+    ipfix_config: Config,
+    allowed_versions: HashSet<u16>,
+    max_error_sample_size: usize,
+}
+
+impl Default for NetflowParserBuilder {
+    fn default() -> Self {
+        Self {
+            v9_config: Config::new(1000, None),
+            ipfix_config: Config::new(1000, None),
+            allowed_versions: [5, 7, 9, 10].iter().cloned().collect(),
+            max_error_sample_size: 256,
+        }
+    }
+}
+
+impl NetflowParserBuilder {
+    /// Sets the template cache size for both V9 and IPFIX parsers.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Maximum number of templates to cache (must be > 0)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .with_cache_size(2000)
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn with_cache_size(mut self, size: usize) -> Self {
+        self.v9_config.max_template_cache_size = size;
+        self.ipfix_config.max_template_cache_size = size;
+        self
+    }
+
+    /// Sets the V9 parser template cache size independently.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Maximum number of templates to cache (must be > 0)
+    pub fn with_v9_cache_size(mut self, size: usize) -> Self {
+        self.v9_config.max_template_cache_size = size;
+        self
+    }
+
+    /// Sets the IPFIX parser template cache size independently.
+    ///
+    /// * `size` - Maximum number of templates to cache (must be > 0)
+    pub fn with_ipfix_cache_size(mut self, size: usize) -> Self {
+        self.ipfix_config.max_template_cache_size = size;
+        self
+    }
+
+    /// Sets the TTL configuration for both V9 and IPFIX parsers.
+    ///
+    /// # Arguments
+    ///
+    /// * `ttl` - TTL configuration (time-based, packet-based, or combined)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    /// use netflow_parser::variable_versions::ttl::TtlConfig;
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .with_ttl(TtlConfig::packet_based(100))
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn with_ttl(mut self, ttl: variable_versions::ttl::TtlConfig) -> Self {
+        self.v9_config.ttl_config = Some(ttl.clone());
+        self.ipfix_config.ttl_config = Some(ttl);
+        self
+    }
+
+    /// Sets the TTL configuration for V9 parser independently.
+    pub fn with_v9_ttl(mut self, ttl: variable_versions::ttl::TtlConfig) -> Self {
+        self.v9_config.ttl_config = Some(ttl);
+        self
+    }
+
+    /// Sets the TTL configuration for IPFIX parser independently.
+    pub fn with_ipfix_ttl(mut self, ttl: variable_versions::ttl::TtlConfig) -> Self {
+        self.ipfix_config.ttl_config = Some(ttl);
+        self
+    }
+
+    /// Sets the complete V9 parser configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - V9 parser configuration
+    pub fn with_v9_config(mut self, config: Config) -> Self {
+        self.v9_config = config;
+        self
+    }
+
+    /// Sets the complete IPFIX parser configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - IPFIX parser configuration
+    pub fn with_ipfix_config(mut self, config: Config) -> Self {
+        self.ipfix_config = config;
+        self
+    }
+
+    /// Sets which Netflow versions are allowed to be parsed.
+    ///
+    /// # Arguments
+    ///
+    /// * `versions` - Set of allowed version numbers (5, 7, 9, 10)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// // Only parse V9 and IPFIX
+    /// let parser = NetflowParser::builder()
+    ///     .with_allowed_versions([9, 10].into())
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn with_allowed_versions(mut self, versions: HashSet<u16>) -> Self {
+        self.allowed_versions = versions;
+        self
+    }
+
+    /// Sets the maximum error sample size for error reporting.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Maximum bytes to include in error messages
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .with_max_error_sample_size(512)
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn with_max_error_sample_size(mut self, size: usize) -> Self {
+        self.max_error_sample_size = size;
+        self
+    }
+
+    /// Builds the configured [`NetflowParser`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Template cache size is 0
+    /// - Parser initialization fails
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .with_cache_size(2000)
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn build(self) -> Result<NetflowParser, String> {
+        let v9_parser =
+            V9Parser::try_new(self.v9_config).map_err(|e| format!("V9 parser error: {}", e))?;
+        let ipfix_parser = IPFixParser::try_new(self.ipfix_config)
+            .map_err(|e| format!("IPFIX parser error: {}", e))?;
+
+        Ok(NetflowParser {
+            v9_parser,
+            ipfix_parser,
+            allowed_versions: self.allowed_versions,
+            max_error_sample_size: self.max_error_sample_size,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -821,6 +1079,219 @@ impl Default for NetflowParser {
 }
 
 impl NetflowParser {
+    /// Creates a new builder for configuring a [`NetflowParser`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    /// use netflow_parser::variable_versions::ttl::TtlConfig;
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .with_cache_size(2000)
+    ///     .with_ttl(TtlConfig::packet_based(100))
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn builder() -> NetflowParserBuilder {
+        NetflowParserBuilder::default()
+    }
+
+    /// Gets statistics about the V9 template cache.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::default();
+    /// let stats = parser.v9_cache_stats();
+    /// println!("V9 cache: {}/{} templates", stats.current_size, stats.max_size);
+    /// ```
+    pub fn v9_cache_stats(&self) -> CacheStats {
+        CacheStats {
+            current_size: self.v9_parser.templates.len()
+                + self.v9_parser.options_templates.len(),
+            max_size: self.v9_parser.max_template_cache_size,
+            ttl_config: self.v9_parser.ttl_config.clone(),
+        }
+    }
+
+    /// Gets statistics about the IPFIX template cache.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::default();
+    /// let stats = parser.ipfix_cache_stats();
+    /// println!("IPFIX cache: {}/{} templates", stats.current_size, stats.max_size);
+    /// ```
+    pub fn ipfix_cache_stats(&self) -> CacheStats {
+        CacheStats {
+            current_size: self.ipfix_parser.templates.len()
+                + self.ipfix_parser.v9_templates.len()
+                + self.ipfix_parser.ipfix_options_templates.len()
+                + self.ipfix_parser.v9_options_templates.len(),
+            max_size: self.ipfix_parser.max_template_cache_size,
+            ttl_config: self.ipfix_parser.ttl_config.clone(),
+        }
+    }
+
+    /// Lists all cached V9 template IDs.
+    ///
+    /// Note: This returns template IDs from both regular and options templates.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::default();
+    /// let template_ids = parser.v9_template_ids();
+    /// println!("Cached V9 templates: {:?}", template_ids);
+    /// ```
+    pub fn v9_template_ids(&self) -> Vec<u16> {
+        let mut ids: Vec<u16> = self.v9_parser.templates.iter().map(|(id, _)| *id).collect();
+        ids.extend(self.v9_parser.options_templates.iter().map(|(id, _)| *id));
+        ids.sort_unstable();
+        ids
+    }
+
+    /// Lists all cached IPFIX template IDs.
+    ///
+    /// Note: This returns template IDs from both IPFIX and V9-format templates (IPFIX can contain both).
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::default();
+    /// let template_ids = parser.ipfix_template_ids();
+    /// println!("Cached IPFIX templates: {:?}", template_ids);
+    /// ```
+    pub fn ipfix_template_ids(&self) -> Vec<u16> {
+        let mut ids: Vec<u16> = self
+            .ipfix_parser
+            .templates
+            .iter()
+            .map(|(id, _)| *id)
+            .collect();
+        ids.extend(self.ipfix_parser.v9_templates.iter().map(|(id, _)| *id));
+        ids.extend(
+            self.ipfix_parser
+                .ipfix_options_templates
+                .iter()
+                .map(|(id, _)| *id),
+        );
+        ids.extend(
+            self.ipfix_parser
+                .v9_options_templates
+                .iter()
+                .map(|(id, _)| *id),
+        );
+        ids.sort_unstable();
+        ids
+    }
+
+    /// Checks if a V9 template with the given ID is cached.
+    ///
+    /// Note: This uses `peek()` which does not affect LRU ordering.
+    ///
+    /// # Arguments
+    ///
+    /// * `template_id` - The template ID to check
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::default();
+    /// if parser.has_v9_template(256) {
+    ///     println!("Template 256 is cached");
+    /// }
+    /// ```
+    pub fn has_v9_template(&self, template_id: u16) -> bool {
+        self.v9_parser.templates.peek(&template_id).is_some()
+            || self
+                .v9_parser
+                .options_templates
+                .peek(&template_id)
+                .is_some()
+    }
+
+    /// Checks if an IPFIX template with the given ID is cached.
+    ///
+    /// Note: This uses `peek()` which does not affect LRU ordering.
+    ///
+    /// # Arguments
+    ///
+    /// * `template_id` - The template ID to check
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::default();
+    /// if parser.has_ipfix_template(256) {
+    ///     println!("Template 256 is cached");
+    /// }
+    /// ```
+    pub fn has_ipfix_template(&self, template_id: u16) -> bool {
+        self.ipfix_parser.templates.peek(&template_id).is_some()
+            || self.ipfix_parser.v9_templates.peek(&template_id).is_some()
+            || self
+                .ipfix_parser
+                .ipfix_options_templates
+                .peek(&template_id)
+                .is_some()
+            || self
+                .ipfix_parser
+                .v9_options_templates
+                .peek(&template_id)
+                .is_some()
+    }
+
+    /// Clears all cached V9 templates.
+    ///
+    /// This is useful for testing or when you need to force template re-learning.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let mut parser = NetflowParser::default();
+    /// parser.clear_v9_templates();
+    /// ```
+    pub fn clear_v9_templates(&mut self) {
+        self.v9_parser.templates.clear();
+        self.v9_parser.options_templates.clear();
+    }
+
+    /// Clears all cached IPFIX templates.
+    ///
+    /// This is useful for testing or when you need to force template re-learning.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let mut parser = NetflowParser::default();
+    /// parser.clear_ipfix_templates();
+    /// ```
+    pub fn clear_ipfix_templates(&mut self) {
+        self.ipfix_parser.templates.clear();
+        self.ipfix_parser.v9_templates.clear();
+        self.ipfix_parser.ipfix_options_templates.clear();
+        self.ipfix_parser.v9_options_templates.clear();
+    }
+
     /// Takes a Netflow packet slice and returns a vector of Parsed Netflows.
     /// If we reach some parse error we return what items be have.
     ///
@@ -937,6 +1408,24 @@ impl NetflowParser {
         f(parser).map_err(|e| format!("{e}"))
     }
 
+    /// Configures both V9 and IPFIX parsers with the same settings.
+    ///
+    /// **Note:** Consider using [`NetflowParser::builder()`] for a more ergonomic configuration API.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_template_cache_size` - Maximum number of templates to cache
+    /// * `ttl_config` - Optional TTL configuration
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    /// use netflow_parser::variable_versions::ttl::TtlConfig;
+    ///
+    /// let mut parser = NetflowParser::default();
+    /// parser.config_both(2000, Some(TtlConfig::packet_based(100))).unwrap();
+    /// ```
     pub fn config_both(
         &mut self,
         max_template_cache_size: usize,
@@ -947,6 +1436,14 @@ impl NetflowParser {
         Ok(())
     }
 
+    /// Configures the V9 parser.
+    ///
+    /// **Note:** Consider using [`NetflowParser::builder()`] for a more ergonomic configuration API.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_template_cache_size` - Maximum number of templates to cache
+    /// * `ttl_config` - Optional TTL configuration
     pub fn config_v9_parser(
         &mut self,
         max_template_cache_size: usize,
@@ -960,6 +1457,14 @@ impl NetflowParser {
         })
     }
 
+    /// Configures the IPFIX parser.
+    ///
+    /// **Note:** Consider using [`NetflowParser::builder()`] for a more ergonomic configuration API.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_template_cache_size` - Maximum number of templates to cache
+    /// * `ttl_config` - Optional TTL configuration
     pub fn config_ipfix_parser(
         &mut self,
         max_template_cache_size: usize,
@@ -973,14 +1478,23 @@ impl NetflowParser {
         })
     }
 
+    /// Sets the TTL strategy for the V9 parser.
+    ///
+    /// **Note:** Consider using [`NetflowParser::builder()`] for a more ergonomic configuration API.
     pub fn config_v9_parser_ttl(&mut self, ttl_strategy: TtlStrategy) -> Result<(), String> {
         Self::configure_parser(&mut self.v9_parser, |p| p.set_ttl_strategy(ttl_strategy))
     }
 
+    /// Sets the TTL strategy for the IPFIX parser.
+    ///
+    /// **Note:** Consider using [`NetflowParser::builder()`] for a more ergonomic configuration API.
     pub fn config_ipfix_parser_ttl(&mut self, ttl_strategy: TtlStrategy) -> Result<(), String> {
         Self::configure_parser(&mut self.ipfix_parser, |p| p.set_ttl_strategy(ttl_strategy))
     }
 
+    /// Sets the V9 parser template cache size.
+    ///
+    /// **Note:** Consider using [`NetflowParser::builder()`] for a more ergonomic configuration API.
     pub fn config_v9_template_cache_size(
         &mut self,
         max_template_cache_size: usize,
@@ -990,6 +1504,9 @@ impl NetflowParser {
         })
     }
 
+    /// Sets the IPFIX parser template cache size.
+    ///
+    /// **Note:** Consider using [`NetflowParser::builder()`] for a more ergonomic configuration API.
     pub fn config_ipfix_template_cache_size(
         &mut self,
         max_template_cache_size: usize,
