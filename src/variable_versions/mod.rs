@@ -8,6 +8,7 @@ pub mod v9_lookup;
 use crate::variable_versions::ttl::{TtlConfig, TtlStrategy};
 use std::num::NonZeroUsize;
 
+#[derive(Debug, Clone)]
 pub struct Config {
     pub max_template_cache_size: usize,
     pub ttl_config: Option<TtlConfig>,

@@ -9,7 +9,17 @@ use netflow_parser::NetflowParser;
 // Create a channel, spawn thread, loop and listen for data, function returns sender
 fn create_thread() -> Sender<Vec<u8>> {
     let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
+
+    // Using default configuration. For custom configuration, use the builder pattern:
+    //
+    // use netflow_parser::variable_versions::ttl::TtlConfig;
+    // let mut parser = NetflowParser::builder()
+    //     .with_cache_size(2000)
+    //     .with_ttl(TtlConfig::packet_based(100))
+    //     .build()
+    //     .expect("Failed to build parser");
     let mut parser = NetflowParser::default();
+
     thread::spawn(move || {
         loop {
             if let Ok(data) = rx.recv() {
