@@ -801,26 +801,6 @@ impl NetflowParserBuilder {
         self
     }
 
-    /// Sets the complete V9 parser configuration.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - V9 parser configuration
-    pub fn with_v9_config(mut self, config: Config) -> Self {
-        self.v9_config = config;
-        self
-    }
-
-    /// Sets the complete IPFIX parser configuration.
-    ///
-    /// # Arguments
-    ///
-    /// * `config` - IPFIX parser configuration
-    pub fn with_ipfix_config(mut self, config: Config) -> Self {
-        self.ipfix_config = config;
-        self
-    }
-
     /// Sets which Netflow versions are allowed to be parsed.
     ///
     /// # Arguments
