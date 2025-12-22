@@ -5,7 +5,6 @@
     * Ergonomic configuration with chainable methods:
       * `with_cache_size()` / `with_v9_cache_size()` / `with_ipfix_cache_size()`
       * `with_ttl()` / `with_v9_ttl()` / `with_ipfix_ttl()`
-      * `with_v9_config()` / `with_ipfix_config()`
       * `with_allowed_versions()` / `with_max_error_sample_size()`
       * `build()` - Constructs configured parser
   * **Added Template Cache Introspection API:**
