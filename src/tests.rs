@@ -267,7 +267,7 @@ mod base_tests {
             fields,
         };
         let mut parser = NetflowParser::default();
-        let wrapped = TemplateWithTtl::new(template, parser.v9_parser.packet_count);
+        let wrapped = TemplateWithTtl::new(template);
         parser.v9_parser.templates.put(258, wrapped);
         assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
@@ -355,7 +355,7 @@ mod base_tests {
             ..Default::default()
         };
         let mut parser = NetflowParser::default();
-        let wrapped = TemplateWithTtl::new(template, parser.ipfix_parser.packet_count);
+        let wrapped = TemplateWithTtl::new(template);
         parser.ipfix_parser.templates.put(258, wrapped);
         assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
@@ -371,7 +371,7 @@ mod base_tests {
             ..Default::default()
         };
         let mut parser = NetflowParser::default();
-        let wrapped = TemplateWithTtl::new(template, parser.ipfix_parser.packet_count);
+        let wrapped = TemplateWithTtl::new(template);
         parser.ipfix_parser.templates.put(258, wrapped);
         assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
@@ -387,7 +387,7 @@ mod base_tests {
             fields: vec![],
         };
         let mut parser = NetflowParser::default();
-        let wrapped = TemplateWithTtl::new(template, parser.v9_parser.packet_count);
+        let wrapped = TemplateWithTtl::new(template);
         parser.v9_parser.templates.put(258, wrapped);
         assert_yaml_snapshot!(parser.parse_bytes(&packet));
     }
@@ -636,60 +636,6 @@ mod base_tests {
 
     // TTL Integration Tests
     #[test]
-    fn it_respects_v9_packet_based_ttl() {
-        use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
-        use crate::variable_versions::v9::V9Parser;
-
-        // Create parser with 3-packet TTL
-        let config = Config {
-            max_template_cache_size: 1000,
-            ttl_config: Some(TtlConfig::packet_based(3)),
-        };
-        let mut parser = V9Parser::try_new(config).unwrap();
-
-        // Manually insert a template for testing
-        let template = V9Template {
-            template_id: 258,
-            field_count: 2,
-            fields: vec![
-                V9TemplateField {
-                    field_type_number: 1,
-                    field_type: crate::variable_versions::v9_lookup::V9Field::InBytes,
-                    field_length: 4,
-                },
-                V9TemplateField {
-                    field_type_number: 8,
-                    field_type: crate::variable_versions::v9_lookup::V9Field::Ipv4SrcAddr,
-                    field_length: 4,
-                },
-            ],
-        };
-        let wrapped = TemplateWithTtl::new(template, parser.packet_count);
-        parser.templates.put(258, wrapped);
-
-        // Verify template is cached
-        assert!(parser.templates.contains(&258));
-
-        // Parse packet 1 - should work (template inserted at packet 0)
-        parser.packet_count = 1;
-        assert!(parser.templates.get(&258).is_some());
-
-        // Parse packet 2 - should still work
-        parser.packet_count = 2;
-        assert!(parser.templates.get(&258).is_some());
-
-        // Parse packet 3 - should expire (3 packets have passed)
-        parser.packet_count = 3;
-        // Check if expired manually
-        let is_expired = parser
-            .templates
-            .get(&258)
-            .unwrap()
-            .is_expired(parser.ttl_config.as_ref().unwrap(), parser.packet_count);
-        assert!(is_expired);
-    }
-
-    #[test]
     fn it_preserves_templates_without_ttl() {
         use crate::variable_versions::ttl::TemplateWithTtl;
         use crate::variable_versions::v9::V9Parser;
@@ -707,14 +653,11 @@ mod base_tests {
                 field_length: 4,
             }],
         };
-        let wrapped = TemplateWithTtl::new(template, parser.packet_count);
+        let wrapped = TemplateWithTtl::new(template);
         parser.templates.put(258, wrapped);
 
-        // Parse many times - template should persist
-        for i in 0..1000 {
-            parser.packet_count = i;
-            assert!(parser.templates.contains(&258));
-        }
+        // Template should persist without TTL configured
+        assert!(parser.templates.contains(&258));
     }
 
     #[test]
@@ -726,7 +669,7 @@ mod base_tests {
         // Create parser with very short TTL (50ms)
         let config = Config {
             max_template_cache_size: 1000,
-            ttl_config: Some(TtlConfig::time_based(Duration::from_millis(50))),
+            ttl_config: Some(TtlConfig::new(Duration::from_millis(50))),
         };
         let mut parser = V9Parser::try_new(config).unwrap();
 
@@ -740,22 +683,18 @@ mod base_tests {
                 field_length: 4,
             }],
         };
-        let wrapped = TemplateWithTtl::new(template, parser.packet_count);
+        let wrapped = TemplateWithTtl::new(template);
         parser.templates.put(258, wrapped);
 
         // Should be valid immediately
         let template_ref = parser.templates.get(&258).unwrap();
-        assert!(
-            !template_ref.is_expired(parser.ttl_config.as_ref().unwrap(), parser.packet_count)
-        );
+        assert!(!template_ref.is_expired(parser.ttl_config.as_ref().unwrap()));
 
         // Wait for expiration
         std::thread::sleep(Duration::from_millis(100));
 
         // Should be expired
         let template_ref = parser.templates.get(&258).unwrap();
-        assert!(
-            template_ref.is_expired(parser.ttl_config.as_ref().unwrap(), parser.packet_count)
-        );
+        assert!(template_ref.is_expired(parser.ttl_config.as_ref().unwrap()));
     }
 }

@@ -5,7 +5,7 @@ pub mod ttl;
 pub mod v9;
 pub mod v9_lookup;
 
-use crate::variable_versions::ttl::{TtlConfig, TtlStrategy};
+use crate::variable_versions::ttl::TtlConfig;
 use std::num::NonZeroUsize;
 
 #[derive(Debug, Clone)]
@@ -51,8 +51,8 @@ pub trait ParserConfig {
     /// Set the maximum template cache size
     fn set_max_template_cache_size(&mut self, size: usize) -> Result<(), ConfigError>;
 
-    /// Set the TTL strategy for templates
-    fn set_ttl_strategy(&mut self, strategy: TtlStrategy) -> Result<(), ConfigError>;
+    /// Set the TTL configuration for templates
+    fn set_ttl_config(&mut self, ttl_config: Option<TtlConfig>) -> Result<(), ConfigError>;
 
     /// Internal helper: resize all template caches to the given size
     fn resize_template_caches(&mut self, cache_size: NonZeroUsize);

@@ -1,3 +1,29 @@
+# 0.7.0
+
+**⚠️ BREAKING CHANGES**
+
+This release simplifies the Template TTL API by removing packet-based TTL support. Only time-based TTL is now supported.
+
+  * **Simplified TTL API:**
+    * Removed `TtlStrategy` enum entirely
+    * Removed packet-based TTL (`TtlConfig::packet_based()`)
+    * Removed combined TTL (`TtlConfig::combined()`)
+    * Simplified `TtlConfig` to only contain a `Duration` field
+    * New API: `TtlConfig::new(duration: Duration)`
+    * `TtlConfig::default()` returns 2-hour TTL
+  * **Removed packet counting from parsers:**
+    * Removed `packet_count` field from `V9Parser` and `IPFixParser`
+    * Templates now expire based on wall-clock time only
+  * **Updated trait methods:**
+    * `ParserConfig::set_ttl_strategy()` renamed to `set_ttl_config()`
+    * Now takes `Option<TtlConfig>` instead of `TtlStrategy`
+  * **Migration guide:**
+    * `TtlConfig::time_based(d)` → `TtlConfig::new(d)`
+    * `TtlConfig::packet_based(n)` → Use `TtlConfig::new(Duration::from_secs(...))` with appropriate time duration
+    * `TtlConfig::combined(d, n)` → Use `TtlConfig::new(d)` (time component only)
+    * `TtlConfig::default_time_based()` → `TtlConfig::default()`
+  * **Rationale:** Packet-based TTL using a global packet counter didn't correlate well with template staleness. Time-based TTL better reflects actual template expiration patterns as exporters typically refresh templates on time intervals.
+
 # 0.6.9
   * Added Template Time Based / Packet Based TTL for V9/IPFix.
   * **Added Builder Pattern for NetflowParser:**

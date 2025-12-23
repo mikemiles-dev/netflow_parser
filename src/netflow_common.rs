@@ -1007,6 +1007,7 @@ mod common_tests {
                             FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
                         ),
                     ])],
+                    padding: vec![],
                 }),
             }],
         };
@@ -1131,6 +1132,7 @@ mod common_tests {
                             FieldValue::DataNumber(DataNumber::U16(1234)),
                         ),
                     ])],
+                    padding: vec![],
                 }),
             }],
         };

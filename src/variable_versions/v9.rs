@@ -5,7 +5,7 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use super::data_number::FieldValue;
-use super::ttl::{TemplateWithTtl, TtlConfig, TtlStrategy};
+use super::ttl::{TemplateWithTtl, TtlConfig};
 use super::{Config, ConfigError, ParserConfig};
 use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
 use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
@@ -46,8 +46,6 @@ pub struct V9Parser {
     pub options_templates: LruCache<TemplateId, TemplateWithTtl<OptionsTemplate>>,
     /// Optional TTL configuration for template expiration
     pub ttl_config: Option<TtlConfig>,
-    /// Packet counter for packet-based TTL
-    pub packet_count: u64,
     /// Maximum number of templates to cache. Defaults to 1000.
     pub max_template_cache_size: usize,
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
@@ -84,7 +82,6 @@ impl V9Parser {
             templates: LruCache::new(cache_size),
             options_templates: LruCache::new(cache_size),
             ttl_config: config.ttl_config,
-            packet_count: 0,
             max_template_cache_size: config.max_template_cache_size,
             max_error_sample_size: 256,
         })
@@ -116,8 +113,8 @@ impl ParserConfig for V9Parser {
         Ok(())
     }
 
-    fn set_ttl_strategy(&mut self, strategy: TtlStrategy) -> Result<(), ConfigError> {
-        self.ttl_config = TtlConfig { strategy }.into();
+    fn set_ttl_config(&mut self, ttl_config: Option<TtlConfig>) -> Result<(), ConfigError> {
+        self.ttl_config = ttl_config;
         Ok(())
     }
 
@@ -129,11 +126,6 @@ impl ParserConfig for V9Parser {
 
 impl V9Parser {
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
-        // Increment packet count for packet-based TTL
-        if self.ttl_config.is_some() {
-            self.packet_count = self.packet_count.saturating_add(1);
-        }
-
         match V9::parse(packet, self) {
             Ok((remaining, v9)) => ParsedNetflow::Success {
                 packet: NetflowPacket::V9(v9),
@@ -293,7 +285,7 @@ impl FlowSetBody {
                 let (i, templates) = Templates::parse(i)?;
                 // Store templates efficiently - clone only what we need to cache
                 for template in &templates.templates {
-                    let wrapped = TemplateWithTtl::new(template.clone(), parser.packet_count);
+                    let wrapped = TemplateWithTtl::new(template.clone());
                     parser.templates.put(template.template_id, wrapped);
                 }
                 Ok((i, FlowSetBody::Template(templates)))
@@ -302,7 +294,7 @@ impl FlowSetBody {
                 let (i, options_templates) = OptionsTemplates::parse(i)?;
                 // Store templates efficiently - clone only what we need to cache
                 for template in &options_templates.templates {
-                    let wrapped = TemplateWithTtl::new(template.clone(), parser.packet_count);
+                    let wrapped = TemplateWithTtl::new(template.clone());
                     parser.options_templates.put(template.template_id, wrapped);
                 }
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
@@ -312,7 +304,7 @@ impl FlowSetBody {
                 if let Some(wrapped_template) = parser.templates.get(&id) {
                     // Check TTL if configured
                     if let Some(ref config) = parser.ttl_config {
-                        if wrapped_template.is_expired(config, parser.packet_count) {
+                        if wrapped_template.is_expired(config) {
                             // Template expired, remove it and fall through to error
                             parser.templates.pop(&id);
                         } else {
@@ -331,7 +323,7 @@ impl FlowSetBody {
                 if let Some(wrapped_template) = parser.options_templates.get(&id) {
                     // Check TTL if configured
                     if let Some(ref config) = parser.ttl_config {
-                        if wrapped_template.is_expired(config, parser.packet_count) {
+                        if wrapped_template.is_expired(config) {
                             // Template expired, remove it and fall through to error
                             parser.options_templates.pop(&id);
                         } else {
