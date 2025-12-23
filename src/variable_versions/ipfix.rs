@@ -7,7 +7,7 @@
 //! - <https://www.iana.org/assignments/ipfix/ipfix.xhtml>
 
 use super::data_number::FieldValue;
-use super::ttl::{TemplateWithTtl, TtlConfig, TtlStrategy};
+use super::ttl::{TemplateWithTtl, TtlConfig};
 use super::{Config, ParserConfig};
 use crate::variable_versions::ConfigError;
 use crate::variable_versions::ipfix_lookup::IPFixField;
@@ -57,8 +57,6 @@ pub struct IPFixParser {
     pub v9_options_templates: LruCache<TemplateId, TemplateWithTtl<V9OptionsTemplate>>,
     /// Optional TTL configuration for template expiration
     pub ttl_config: Option<TtlConfig>,
-    /// Packet counter for packet-based TTL
-    pub packet_count: u64,
     /// Maximum number of templates to cache. Defaults to 1000.
     pub max_template_cache_size: usize,
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
@@ -97,7 +95,6 @@ impl IPFixParser {
             ipfix_options_templates: LruCache::new(cache_size),
             v9_options_templates: LruCache::new(cache_size),
             ttl_config: config.ttl_config,
-            packet_count: 0,
             max_template_cache_size: config.max_template_cache_size,
             max_error_sample_size: 256,
         })
@@ -129,8 +126,8 @@ impl ParserConfig for IPFixParser {
         Ok(())
     }
 
-    fn set_ttl_strategy(&mut self, strategy: TtlStrategy) -> Result<(), ConfigError> {
-        self.ttl_config = TtlConfig { strategy }.into();
+    fn set_ttl_config(&mut self, ttl_config: Option<TtlConfig>) -> Result<(), ConfigError> {
+        self.ttl_config = ttl_config;
         Ok(())
     }
 
@@ -144,11 +141,6 @@ impl ParserConfig for IPFixParser {
 
 impl IPFixParser {
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
-        // Increment packet count for packet-based TTL
-        if self.ttl_config.is_some() {
-            self.packet_count = self.packet_count.saturating_add(1);
-        }
-
         match IPFix::parse(packet, self) {
             Ok((remaining, ipfix)) => ParsedNetflow::Success {
                 packet: NetflowPacket::IPFix(ipfix),
@@ -175,28 +167,28 @@ impl IPFixParser {
     /// Add templates to the parser by cloning from slice.
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         for t in templates {
-            let wrapped = TemplateWithTtl::new(t.clone(), self.packet_count);
+            let wrapped = TemplateWithTtl::new(t.clone());
             self.templates.put(t.template_id, wrapped);
         }
     }
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         for t in templates {
-            let wrapped = TemplateWithTtl::new(t.clone(), self.packet_count);
+            let wrapped = TemplateWithTtl::new(t.clone());
             self.ipfix_options_templates.put(t.template_id, wrapped);
         }
     }
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         for t in templates {
-            let wrapped = TemplateWithTtl::new(t.clone(), self.packet_count);
+            let wrapped = TemplateWithTtl::new(t.clone());
             self.v9_templates.put(t.template_id, wrapped);
         }
     }
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         for t in templates {
-            let wrapped = TemplateWithTtl::new(t.clone(), self.packet_count);
+            let wrapped = TemplateWithTtl::new(t.clone());
             self.v9_options_templates.put(t.template_id, wrapped);
         }
     }
@@ -357,7 +349,7 @@ impl FlowSetBody {
                 if let Some(wrapped_template) = parser.templates.get(&id) {
                     // Check TTL if configured
                     if let Some(ref config) = parser.ttl_config {
-                        if wrapped_template.is_expired(config, parser.packet_count) {
+                        if wrapped_template.is_expired(config) {
                             parser.templates.pop(&id);
                         } else if wrapped_template.template.get_fields().is_empty() {
                             return Ok((i, FlowSetBody::Empty));
@@ -376,7 +368,7 @@ impl FlowSetBody {
                 // Try IPFix options templates
                 if let Some(wrapped_template) = parser.ipfix_options_templates.get(&id) {
                     if let Some(ref config) = parser.ttl_config {
-                        if wrapped_template.is_expired(config, parser.packet_count) {
+                        if wrapped_template.is_expired(config) {
                             parser.ipfix_options_templates.pop(&id);
                         } else if wrapped_template.template.get_fields().is_empty() {
                             return Ok((i, FlowSetBody::Empty));
@@ -395,7 +387,7 @@ impl FlowSetBody {
                 // Try V9 templates
                 if let Some(wrapped_template) = parser.v9_templates.get(&id) {
                     if let Some(ref config) = parser.ttl_config {
-                        if wrapped_template.is_expired(config, parser.packet_count) {
+                        if wrapped_template.is_expired(config) {
                             parser.v9_templates.pop(&id);
                         } else {
                             let (i, data) = V9Data::parse(i, &wrapped_template.template)?;
@@ -410,7 +402,7 @@ impl FlowSetBody {
                 // Try V9 options templates
                 if let Some(wrapped_template) = parser.v9_options_templates.get(&id) {
                     if let Some(ref config) = parser.ttl_config {
-                        if wrapped_template.is_expired(config, parser.packet_count) {
+                        if wrapped_template.is_expired(config) {
                             parser.v9_options_templates.pop(&id);
                         } else {
                             let (i, data) =

@@ -481,12 +481,14 @@ let parser = NetflowParser::builder()
 
 ### Template TTL (Time-to-Live)
 
-Optionally configure templates to expire after a time duration or packet count. This is useful for:
+> **⚠️ Breaking Change in v0.7.0:** Packet-based and combined TTL modes have been removed. Only time-based TTL is now supported. See [RELEASES.md](RELEASES.md) for migration guide.
+
+Optionally configure templates to expire after a time duration. This is useful for:
 - Handling exporters that reuse template IDs with different schemas
 - Forcing periodic template refresh from exporters
 - Testing template re-learning behavior
 
-**Note:** TTL is disabled by default for backward compatibility. Templates persist until LRU eviction unless explicitly configured.
+**Note:** TTL is disabled by default. Templates persist until LRU eviction unless explicitly configured.
 
 #### Configuration Examples
 
@@ -495,31 +497,24 @@ use netflow_parser::NetflowParser;
 use netflow_parser::variable_versions::ttl::TtlConfig;
 use std::time::Duration;
 
-// Time-based: Templates expire after 2 hours
+// Templates expire after 2 hours
 let parser = NetflowParser::builder()
     .with_cache_size(1000)
-    .with_ttl(TtlConfig::time_based(Duration::from_secs(2 * 3600)))
+    .with_ttl(TtlConfig::new(Duration::from_secs(2 * 3600)))
     .build()
     .unwrap();
 
-// Packet-based: Templates expire after 100 packets
+// Using default TTL (2 hours)
 let parser = NetflowParser::builder()
     .with_cache_size(1000)
-    .with_ttl(TtlConfig::packet_based(100))
-    .build()
-    .unwrap();
-
-// Combined: Expire after 1 hour OR 50 packets (whichever comes first)
-let parser = NetflowParser::builder()
-    .with_cache_size(1000)
-    .with_ttl(TtlConfig::combined(Duration::from_secs(3600), 50))
+    .with_ttl(TtlConfig::default())
     .build()
     .unwrap();
 
 // Different TTL for V9 and IPFIX
 let parser = NetflowParser::builder()
-    .with_v9_ttl(TtlConfig::packet_based(100))
-    .with_ipfix_ttl(TtlConfig::time_based(Duration::from_secs(2 * 3600)))
+    .with_v9_ttl(TtlConfig::new(Duration::from_secs(3600)))
+    .with_ipfix_ttl(TtlConfig::new(Duration::from_secs(2 * 3600)))
     .build()
     .unwrap();
 ```
