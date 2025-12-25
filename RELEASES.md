@@ -1,3 +1,6 @@
+# 0.7.1
+  * Exclude examples directory from published crate to reduce package size
+
 # 0.7.0
 
 **⚠️ BREAKING CHANGES**
