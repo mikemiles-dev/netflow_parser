@@ -2,6 +2,12 @@
   * Exclude examples directory from published crate to reduce package size
   * Updated tokio example to display metrics every 5 seconds instead of printing individual packets
   * Tokio example now tracks successful and failed packet counts using atomic counters
+  * **Performance optimizations for tokio example:**
+    * Changed HashMap key from `String` to `SocketAddr` for faster lookups and reduced allocations
+    * Eliminated unnecessary buffer allocations in packet processing
+    * Implemented asynchronous packet processing using dedicated tasks per source address
+    * Main receive loop no longer blocks on packet parsing, preventing dropped packets under high load
+    * Each source address gets its own processing task with bounded channels (capacity: 100) for backpressure
 
 # 0.7.0
 
