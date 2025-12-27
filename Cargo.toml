@@ -31,7 +31,7 @@ tokio-macros = { version = "2.6.0" }
 hex = "0.4.3"
 serde_json = "1.0.100"
 pcap-parser = "0.17"
-etherparse = "0.14" 
+etherparse = "0.19" 
 
 [[bench]]
 name = "netflow_parser_bench"
