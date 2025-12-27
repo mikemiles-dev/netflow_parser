@@ -1,4 +1,5 @@
 # 0.7.1
+  * Updates to various dependencies
   * Exclude examples directory from published crate to reduce package size
   * Updated tokio example to display metrics every 5 seconds instead of printing individual packets
   * Tokio example now tracks successful and failed packet counts using atomic counters
