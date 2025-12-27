@@ -24,7 +24,7 @@ parse_unknown_fields = []
 netflow_common = []
 
 [dev-dependencies]
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 insta = { version = "1.30.0", features = ["yaml"] }
 tokio = { version = "1.38.0", features = ["full"] }
 tokio-macros = { version = "0.2.0-alpha.6" }
