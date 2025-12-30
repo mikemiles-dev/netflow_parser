@@ -1,3 +1,23 @@
+# 0.7.2
+
+  * **Custom Enterprise Fields for IPFIX:**
+    * Added runtime registration of custom enterprise-specific IPFIX fields
+    * New `EnterpriseFieldRegistry` for managing user-defined enterprise fields
+    * New `EnterpriseFieldDef` struct for defining custom fields with enterprise number, field number, name, and data type
+    * Builder API methods:
+      * `register_enterprise_field()` - Register a single enterprise field
+      * `register_enterprise_fields()` - Register multiple enterprise fields at once
+    * Custom enterprise fields are automatically parsed according to their registered data type
+    * Unregistered enterprise fields continue to parse as raw bytes (backward compatible)
+    * Enhanced `IPFixField::Enterprise` variant to store both enterprise number and field number
+    * Added `to_field_data_type()` method to `IPFixField` for registry-aware type resolution
+  * **New example:** `custom_enterprise_fields.rs` demonstrating enterprise field registration
+  * **Documentation updates:**
+    * Added comprehensive "Custom Enterprise Fields (IPFIX)" section to README
+    * Updated Table of Contents and Included Examples sections
+    * Added inline documentation for all new public APIs
+  * Re-added examples directory from published crate
+
 # 0.7.1
   * Updates to various dependencies
   * Exclude examples directory from published crate to reduce package size

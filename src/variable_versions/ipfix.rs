@@ -7,6 +7,7 @@
 //! - <https://www.iana.org/assignments/ipfix/ipfix.xhtml>
 
 use super::data_number::FieldValue;
+use super::enterprise_registry::EnterpriseFieldRegistry;
 use super::ttl::{TemplateWithTtl, TtlConfig};
 use super::{Config, ParserConfig};
 use crate::variable_versions::ConfigError;
@@ -62,6 +63,8 @@ pub struct IPFixParser {
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
+    /// Registry of custom enterprise field definitions
+    pub enterprise_registry: EnterpriseFieldRegistry,
 }
 
 impl Default for IPFixParser {
@@ -70,6 +73,7 @@ impl Default for IPFixParser {
         let config = Config {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
             ttl_config: None,
+            enterprise_registry: EnterpriseFieldRegistry::new(),
         };
 
         Self::try_new(config).unwrap()
@@ -97,6 +101,7 @@ impl IPFixParser {
             ttl_config: config.ttl_config,
             max_template_cache_size: config.max_template_cache_size,
             max_error_sample_size: 256,
+            enterprise_registry: config.enterprise_registry,
         })
     }
 }
@@ -354,13 +359,21 @@ impl FlowSetBody {
                         } else if wrapped_template.template.get_fields().is_empty() {
                             return Ok((i, FlowSetBody::Empty));
                         } else {
-                            let (i, data) = Data::parse(i, &wrapped_template.template)?;
+                            let (i, data) = Data::parse_with_registry(
+                                i,
+                                &wrapped_template.template,
+                                &parser.enterprise_registry,
+                            )?;
                             return Ok((i, FlowSetBody::Data(data)));
                         }
                     } else if wrapped_template.template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     } else {
-                        let (i, data) = Data::parse(i, &wrapped_template.template)?;
+                        let (i, data) = Data::parse_with_registry(
+                            i,
+                            &wrapped_template.template,
+                            &parser.enterprise_registry,
+                        )?;
                         return Ok((i, FlowSetBody::Data(data)));
                     }
                 }
@@ -373,13 +386,21 @@ impl FlowSetBody {
                         } else if wrapped_template.template.get_fields().is_empty() {
                             return Ok((i, FlowSetBody::Empty));
                         } else {
-                            let (i, data) = OptionsData::parse(i, &wrapped_template.template)?;
+                            let (i, data) = OptionsData::parse_with_registry(
+                                i,
+                                &wrapped_template.template,
+                                &parser.enterprise_registry,
+                            )?;
                             return Ok((i, FlowSetBody::OptionsData(data)));
                         }
                     } else if wrapped_template.template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     } else {
-                        let (i, data) = OptionsData::parse(i, &wrapped_template.template)?;
+                        let (i, data) = OptionsData::parse_with_registry(
+                            i,
+                            &wrapped_template.template,
+                            &parser.enterprise_registry,
+                        )?;
                         return Ok((i, FlowSetBody::OptionsData(data)));
                     }
                 }
@@ -508,6 +529,22 @@ impl Data {
             padding: vec![],
         }
     }
+
+    /// Parse Data using the enterprise registry to resolve custom enterprise fields
+    fn parse_with_registry<'a>(
+        i: &'a [u8],
+        template: &Template,
+        registry: &EnterpriseFieldRegistry,
+    ) -> IResult<&'a [u8], Self> {
+        let (i, fields) = FieldParser::parse_with_registry(i, template, registry)?;
+        Ok((
+            i,
+            Self {
+                fields,
+                padding: vec![],
+            },
+        ))
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -531,6 +568,22 @@ impl OptionsData {
             fields,
             padding: vec![],
         }
+    }
+
+    /// Parse OptionsData using the enterprise registry to resolve custom enterprise fields
+    fn parse_with_registry<'a>(
+        i: &'a [u8],
+        template: &OptionsTemplate,
+        registry: &EnterpriseFieldRegistry,
+    ) -> IResult<&'a [u8], Self> {
+        let (i, fields) = FieldParser::parse_with_registry(i, template, registry)?;
+        Ok((
+            i,
+            Self {
+                fields,
+                padding: vec![],
+            },
+        ))
     }
 }
 
@@ -635,6 +688,46 @@ impl<'a> FieldParser {
         }
         Ok((i, res))
     }
+
+    /// Same as parse but uses the enterprise registry to resolve custom enterprise fields
+    fn parse_with_registry<T: CommonTemplate>(
+        mut i: &'a [u8],
+        template: &T,
+        registry: &EnterpriseFieldRegistry,
+    ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
+        let template_fields = template.get_fields();
+        if template_fields.is_empty() {
+            return Ok((i, Vec::new()));
+        }
+
+        // Estimate capacity based on input size and template field count
+        let template_size: usize = template_fields
+            .iter()
+            .map(|f| usize::from(f.field_length))
+            .sum();
+        let estimated_records = if template_size > 0 {
+            i.len() / template_size
+        } else {
+            0
+        };
+        let mut res = Vec::with_capacity(estimated_records);
+
+        // Try to parse as much as we can, but if it fails, just return what we have so far.
+        while !i.is_empty() {
+            let mut vec = Vec::with_capacity(template_fields.len());
+            for field in template_fields.iter() {
+                let field_res = field.parse_as_field_value_with_registry(i, registry);
+                if field_res.is_err() {
+                    return Ok((i, res));
+                }
+                let (remaining, field_value) = field_res.unwrap();
+                vec.push((field.field_type, field_value));
+                i = remaining;
+            }
+            res.push(vec);
+        }
+        Ok((i, res))
+    }
 }
 
 impl TemplateField {
@@ -674,6 +767,16 @@ impl TemplateField {
     fn parse_as_field_value<'a>(&self, i: &'a [u8]) -> IResult<&'a [u8], FieldValue> {
         let (i, length) = self.parse_field_length(i)?;
         FieldValue::from_field_type(i, self.field_type.into(), length)
+    }
+
+    fn parse_as_field_value_with_registry<'a>(
+        &self,
+        i: &'a [u8],
+        registry: &EnterpriseFieldRegistry,
+    ) -> IResult<&'a [u8], FieldValue> {
+        let (i, length) = self.parse_field_length(i)?;
+        let field_type = self.field_type.to_field_data_type(registry);
+        FieldValue::from_field_type(i, field_type, length)
     }
 }
 

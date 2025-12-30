@@ -5,6 +5,7 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use super::data_number::FieldValue;
+use super::enterprise_registry::EnterpriseFieldRegistry;
 use super::ttl::{TemplateWithTtl, TtlConfig};
 use super::{Config, ConfigError, ParserConfig};
 use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
@@ -51,6 +52,8 @@ pub struct V9Parser {
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
+    /// Registry of custom enterprise field definitions
+    pub enterprise_registry: EnterpriseFieldRegistry,
 }
 
 impl Default for V9Parser {
@@ -59,6 +62,7 @@ impl Default for V9Parser {
         let config = Config {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
             ttl_config: None,
+            enterprise_registry: super::enterprise_registry::EnterpriseFieldRegistry::new(),
         };
 
         Self::try_new(config).unwrap()
@@ -84,6 +88,7 @@ impl V9Parser {
             ttl_config: config.ttl_config,
             max_template_cache_size: config.max_template_cache_size,
             max_error_sample_size: 256,
+            enterprise_registry: config.enterprise_registry,
         })
     }
 }

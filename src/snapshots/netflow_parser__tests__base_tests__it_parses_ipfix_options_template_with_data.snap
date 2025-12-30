@@ -23,7 +23,9 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 field_length: 4
                 enterprise_number: 2
                 field_type:
-                  Enterprise: 123
+                  Enterprise:
+                    enterprise_number: 2
+                    field_number: 123
               - field_type_number: 41
                 field_length: 2
                 field_type:
@@ -38,7 +40,9 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
         body:
           OptionsData:
             fields:
-              - - - Enterprise: 123
+              - - - Enterprise:
+                      enterprise_number: 2
+                      field_number: 123
                   - Vec:
                       - 0
                       - 0
@@ -48,7 +52,9 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                   - DataNumber: 276
                 - - IANA: ExportedFlowRecordTotalCount
                   - DataNumber: 5140
-              - - - Enterprise: 123
+              - - - Enterprise:
+                      enterprise_number: 2
+                      field_number: 123
                   - Vec:
                       - 0
                       - 0

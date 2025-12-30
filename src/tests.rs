@@ -2,6 +2,7 @@
 mod base_tests {
 
     use crate::variable_versions::Config;
+    use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
     use crate::variable_versions::ipfix::{
         Template as IPFixTemplate, TemplateField as IPFixTemplateField,
     };
@@ -670,6 +671,7 @@ mod base_tests {
         let config = Config {
             max_template_cache_size: 1000,
             ttl_config: Some(TtlConfig::new(Duration::from_millis(50))),
+            enterprise_registry: EnterpriseFieldRegistry::new(),
         };
         let mut parser = V9Parser::try_new(config).unwrap();
 
