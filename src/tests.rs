@@ -2,6 +2,7 @@
 mod base_tests {
 
     use crate::variable_versions::Config;
+    use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
     use crate::variable_versions::ipfix::{
         Template as IPFixTemplate, TemplateField as IPFixTemplateField,
     };
@@ -670,6 +671,7 @@ mod base_tests {
         let config = Config {
             max_template_cache_size: 1000,
             ttl_config: Some(TtlConfig::new(Duration::from_millis(50))),
+            enterprise_registry: EnterpriseFieldRegistry::new(),
         };
         let mut parser = V9Parser::try_new(config).unwrap();
 
@@ -696,5 +698,287 @@ mod base_tests {
         // Should be expired
         let template_ref = parser.templates.get(&258).unwrap();
         assert!(template_ref.is_expired(parser.ttl_config.as_ref().unwrap()));
+    }
+
+    #[test]
+    fn it_registers_and_parses_custom_enterprise_fields() {
+        use crate::NetflowParser;
+        use crate::variable_versions::data_number::FieldDataType;
+        use crate::variable_versions::enterprise_registry::EnterpriseFieldDef;
+
+        // Register custom enterprise fields
+        let parser = NetflowParser::builder()
+            .register_enterprise_field(EnterpriseFieldDef::new(
+                12345,
+                1,
+                "customMetric",
+                FieldDataType::UnsignedDataNumber,
+            ))
+            .register_enterprise_field(EnterpriseFieldDef::new(
+                12345,
+                2,
+                "customString",
+                FieldDataType::String,
+            ))
+            .build()
+            .expect("Failed to build parser");
+
+        // Verify registry has the fields
+        assert!(parser.ipfix_parser.enterprise_registry.contains(12345, 1));
+        assert!(parser.ipfix_parser.enterprise_registry.contains(12345, 2));
+        assert!(!parser.ipfix_parser.enterprise_registry.contains(12345, 3));
+
+        // Verify field definitions
+        let def1 = parser.ipfix_parser.enterprise_registry.get(12345, 1);
+        assert!(def1.is_some());
+        let def1 = def1.unwrap();
+        assert_eq!(def1.name, "customMetric");
+        assert_eq!(def1.data_type, FieldDataType::UnsignedDataNumber);
+
+        let def2 = parser.ipfix_parser.enterprise_registry.get(12345, 2);
+        assert!(def2.is_some());
+        let def2 = def2.unwrap();
+        assert_eq!(def2.name, "customString");
+        assert_eq!(def2.data_type, FieldDataType::String);
+    }
+
+    #[test]
+    fn it_registers_bulk_enterprise_fields() {
+        use crate::NetflowParser;
+        use crate::variable_versions::data_number::FieldDataType;
+        use crate::variable_versions::enterprise_registry::EnterpriseFieldDef;
+
+        let fields = vec![
+            EnterpriseFieldDef::new(99999, 1, "field1", FieldDataType::UnsignedDataNumber),
+            EnterpriseFieldDef::new(99999, 2, "field2", FieldDataType::String),
+            EnterpriseFieldDef::new(99999, 3, "field3", FieldDataType::Ip4Addr),
+            EnterpriseFieldDef::new(99999, 4, "field4", FieldDataType::DurationMillis),
+        ];
+
+        let parser = NetflowParser::builder()
+            .register_enterprise_fields(fields)
+            .build()
+            .expect("Failed to build parser");
+
+        // Verify all fields are registered
+        assert_eq!(parser.ipfix_parser.enterprise_registry.len(), 4);
+        assert!(parser.ipfix_parser.enterprise_registry.contains(99999, 1));
+        assert!(parser.ipfix_parser.enterprise_registry.contains(99999, 2));
+        assert!(parser.ipfix_parser.enterprise_registry.contains(99999, 3));
+        assert!(parser.ipfix_parser.enterprise_registry.contains(99999, 4));
+    }
+
+    #[test]
+    fn it_parses_ipfix_with_registered_enterprise_fields() {
+        use crate::NetflowParser;
+        use crate::variable_versions::data_number::{FieldDataType, FieldValue};
+        use crate::variable_versions::enterprise_registry::EnterpriseFieldDef;
+
+        // Create IPFIX packet with enterprise field
+        // This is a minimal IPFIX packet with template and data containing enterprise field
+        let packet = vec![
+            0x00, 0x0a, // Version 10 (IPFIX)
+            0x00, 0x30, // Length 48 bytes (16 header + 20 template + 12 data)
+            0x00, 0x00, 0x00, 0x01, // Export time
+            0x00, 0x00, 0x00, 0x01, // Sequence number
+            0x00, 0x00, 0x00, 0x01, // Observation domain ID
+            // Template FlowSet
+            0x00, 0x02, // FlowSet ID 2 (Template)
+            0x00,
+            0x14, // Length 20 bytes (4 header + 2 template ID + 2 field count + 4 field1 + 8 field2)
+            0x01, 0x00, // Template ID 256
+            0x00, 0x02, // Field count 2
+            // Field 1: sourceIPv4Address (field 8)
+            0x00, 0x08, // Field ID 8
+            0x00, 0x04, // Length 4
+            // Field 2: Enterprise field (enterprise bit set: 0x8000 | 1 = 0x8001)
+            0x80, 0x01, // Field ID with enterprise bit (field 1)
+            0x00, 0x04, // Length 4
+            0x00, 0x00, 0x30, 0x39, // Enterprise number 12345
+            // Data FlowSet
+            0x01, 0x00, // FlowSet ID 256 (matches template)
+            0x00, 0x0c, // Length 12 bytes (4 header + 8 data)
+            // Record 1
+            0xc0, 0xa8, 0x01, 0x01, // Source IP: 192.168.1.1
+            0x00, 0x00, 0x00, 0x64, // Enterprise field value: 100
+        ];
+
+        // Register the enterprise field
+        let mut parser = NetflowParser::builder()
+            .register_enterprise_field(EnterpriseFieldDef::new(
+                12345,
+                1,
+                "customCounter",
+                FieldDataType::UnsignedDataNumber,
+            ))
+            .build()
+            .expect("Failed to build parser");
+
+        let packets = parser.parse_bytes(&packet);
+        assert_eq!(packets.len(), 1);
+
+        if let NetflowPacket::IPFix(ipfix) = &packets[0] {
+            assert_eq!(ipfix.flowsets.len(), 2);
+
+            // First flowset should be template
+            assert!(matches!(
+                &ipfix.flowsets[0].body,
+                crate::variable_versions::ipfix::FlowSetBody::Template(_)
+            ));
+
+            // Second flowset should be data
+            if let crate::variable_versions::ipfix::FlowSetBody::Data(data) =
+                &ipfix.flowsets[1].body
+            {
+                assert_eq!(data.fields.len(), 1); // One record
+                assert_eq!(data.fields[0].len(), 2); // Two fields per record
+
+                // First field should be source IP
+                let (field_type, _value) = &data.fields[0][0];
+                assert!(matches!(
+                    field_type,
+                    IPFixField::IANA(IANAIPFixField::SourceIpv4address)
+                ));
+
+                // Second field should be enterprise field with correct type
+                let (field_type, value) = &data.fields[0][1];
+                assert!(matches!(
+                    field_type,
+                    IPFixField::Enterprise {
+                        enterprise_number: 12345,
+                        field_number: 1
+                    }
+                ));
+
+                // Value should be parsed as UnsignedDataNumber (not raw bytes)
+                assert!(
+                    matches!(value, FieldValue::DataNumber(_)),
+                    "Enterprise field should be parsed as DataNumber, got {:?}",
+                    value
+                );
+            } else {
+                panic!("Expected Data flowset");
+            }
+        } else {
+            panic!("Expected IPFIX packet");
+        }
+    }
+
+    #[test]
+    fn it_handles_unregistered_enterprise_fields_as_raw_bytes() {
+        use crate::NetflowParser;
+        use crate::variable_versions::data_number::FieldValue;
+
+        // Same packet as above but WITHOUT registering the enterprise field
+        let packet = vec![
+            0x00, 0x0a, // Version 10 (IPFIX)
+            0x00, 0x30, // Length 48 bytes (16 header + 20 template + 12 data)
+            0x00, 0x00, 0x00, 0x01, // Export time
+            0x00, 0x00, 0x00, 0x01, // Sequence number
+            0x00, 0x00, 0x00, 0x01, // Observation domain ID
+            // Template FlowSet
+            0x00, 0x02, // FlowSet ID 2 (Template)
+            0x00,
+            0x14, // Length 20 bytes (4 header + 2 template ID + 2 field count + 4 field1 + 8 field2)
+            0x01, 0x00, // Template ID 256
+            0x00, 0x02, // Field count 2
+            // Field 1: sourceIPv4Address
+            0x00, 0x08, // Field ID 8
+            0x00, 0x04, // Length 4
+            // Field 2: Enterprise field (unregistered)
+            0x80, 0x01, // Field ID with enterprise bit
+            0x00, 0x04, // Length 4
+            0x00, 0x00, 0x30, 0x39, // Enterprise number 12345
+            // Data FlowSet
+            0x01, 0x00, // FlowSet ID 256
+            0x00, 0x0c, // Length 12 bytes (4 header + 8 data)
+            // Record 1
+            0xc0, 0xa8, 0x01, 0x01, // Source IP
+            0x00, 0x00, 0x00, 0x64, // Enterprise field value: 100
+        ];
+
+        let mut parser = NetflowParser::default(); // No enterprise fields registered
+
+        let packets = parser.parse_bytes(&packet);
+        assert_eq!(packets.len(), 1);
+
+        if let NetflowPacket::IPFix(ipfix) = &packets[0] {
+            if let crate::variable_versions::ipfix::FlowSetBody::Data(data) =
+                &ipfix.flowsets[1].body
+            {
+                let (_field_type, value) = &data.fields[0][1];
+
+                // Unregistered enterprise field should be parsed as raw bytes (Vec or Unknown)
+                assert!(
+                    matches!(value, FieldValue::Vec(_) | FieldValue::Unknown(_)),
+                    "Unregistered enterprise field should be raw bytes, got {:?}",
+                    value
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn it_preserves_registry_across_v9_and_ipfix() {
+        use crate::NetflowParser;
+        use crate::variable_versions::data_number::FieldDataType;
+        use crate::variable_versions::enterprise_registry::EnterpriseFieldDef;
+
+        // When registering fields, both V9 and IPFIX parsers should get them
+        let parser = NetflowParser::builder()
+            .register_enterprise_field(EnterpriseFieldDef::new(
+                11111,
+                1,
+                "sharedField",
+                FieldDataType::UnsignedDataNumber,
+            ))
+            .build()
+            .expect("Failed to build parser");
+
+        // Both parsers should have the field
+        assert!(parser.v9_parser.enterprise_registry.contains(11111, 1));
+        assert!(parser.ipfix_parser.enterprise_registry.contains(11111, 1));
+
+        // Field definitions should be identical
+        let v9_def = parser.v9_parser.enterprise_registry.get(11111, 1).unwrap();
+        let ipfix_def = parser
+            .ipfix_parser
+            .enterprise_registry
+            .get(11111, 1)
+            .unwrap();
+
+        assert_eq!(v9_def.name, ipfix_def.name);
+        assert_eq!(v9_def.data_type, ipfix_def.data_type);
+    }
+
+    #[test]
+    fn it_tests_enterprise_field_to_field_data_type() {
+        use crate::variable_versions::data_number::FieldDataType;
+        use crate::variable_versions::enterprise_registry::{
+            EnterpriseFieldDef, EnterpriseFieldRegistry,
+        };
+        use crate::variable_versions::ipfix_lookup::IPFixField;
+
+        let mut registry = EnterpriseFieldRegistry::new();
+        registry.register(EnterpriseFieldDef::new(
+            12345,
+            1,
+            "test",
+            FieldDataType::String,
+        ));
+
+        // Test registered field returns correct type
+        let field = IPFixField::Enterprise {
+            enterprise_number: 12345,
+            field_number: 1,
+        };
+        assert_eq!(field.to_field_data_type(&registry), FieldDataType::String);
+
+        // Test unregistered field returns Unknown
+        let field = IPFixField::Enterprise {
+            enterprise_number: 99999,
+            field_number: 99,
+        };
+        assert_eq!(field.to_field_data_type(&registry), FieldDataType::Unknown);
     }
 }

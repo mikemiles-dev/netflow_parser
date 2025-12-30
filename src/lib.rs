@@ -845,6 +845,83 @@ impl NetflowParserBuilder {
         self
     }
 
+    /// Registers a custom enterprise field definition for both V9 and IPFIX parsers.
+    ///
+    /// This allows library users to define their own enterprise-specific fields without
+    /// modifying the library source code. Registered fields will be parsed according to
+    /// their specified data type instead of falling back to raw bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `def` - Enterprise field definition containing enterprise number, field number, name, and data type
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    /// use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
+    /// use netflow_parser::variable_versions::data_number::FieldDataType;
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .register_enterprise_field(EnterpriseFieldDef::new(
+    ///         12345,  // Enterprise number
+    ///         1,      // Field number
+    ///         "customMetric",
+    ///         FieldDataType::UnsignedDataNumber,
+    ///     ))
+    ///     .register_enterprise_field(EnterpriseFieldDef::new(
+    ///         12345,
+    ///         2,
+    ///         "customApplicationName",
+    ///         FieldDataType::String,
+    ///     ))
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn register_enterprise_field(
+        mut self,
+        def: variable_versions::enterprise_registry::EnterpriseFieldDef,
+    ) -> Self {
+        self.v9_config.enterprise_registry.register(def.clone());
+        self.ipfix_config.enterprise_registry.register(def);
+        self
+    }
+
+    /// Registers multiple custom enterprise field definitions at once.
+    ///
+    /// # Arguments
+    ///
+    /// * `defs` - Iterator of enterprise field definitions
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    /// use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
+    /// use netflow_parser::variable_versions::data_number::FieldDataType;
+    ///
+    /// let fields = vec![
+    ///     EnterpriseFieldDef::new(12345, 1, "field1", FieldDataType::UnsignedDataNumber),
+    ///     EnterpriseFieldDef::new(12345, 2, "field2", FieldDataType::String),
+    ///     EnterpriseFieldDef::new(12345, 3, "field3", FieldDataType::Ip4Addr),
+    /// ];
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .register_enterprise_fields(fields)
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn register_enterprise_fields(
+        mut self,
+        defs: impl IntoIterator<Item = variable_versions::enterprise_registry::EnterpriseFieldDef>,
+    ) -> Self {
+        for def in defs {
+            self.v9_config.enterprise_registry.register(def.clone());
+            self.ipfix_config.enterprise_registry.register(def);
+        }
+        self
+    }
+
     /// Builds the configured [`NetflowParser`].
     ///
     /// # Errors

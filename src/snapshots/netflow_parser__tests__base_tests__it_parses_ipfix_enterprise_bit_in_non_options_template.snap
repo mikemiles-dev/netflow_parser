@@ -22,9 +22,13 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 field_length: 65535
                 enterprise_number: 407732327
                 field_type:
-                  Enterprise: 103
+                  Enterprise:
+                    enterprise_number: 407732327
+                    field_number: 103
               - field_type_number: 32767
                 field_length: 0
                 enterprise_number: 407732544
                 field_type:
-                  Enterprise: 32767
+                  Enterprise:
+                    enterprise_number: 407732544
+                    field_number: 32767

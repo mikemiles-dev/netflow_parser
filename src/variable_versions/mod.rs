@@ -1,10 +1,12 @@
 pub mod data_number;
+pub mod enterprise_registry;
 pub mod ipfix;
 pub mod ipfix_lookup;
 pub mod ttl;
 pub mod v9;
 pub mod v9_lookup;
 
+use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::ttl::TtlConfig;
 use std::num::NonZeroUsize;
 
@@ -12,6 +14,7 @@ use std::num::NonZeroUsize;
 pub struct Config {
     pub max_template_cache_size: usize,
     pub ttl_config: Option<TtlConfig>,
+    pub enterprise_registry: EnterpriseFieldRegistry,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -39,6 +42,19 @@ impl Config {
         Self {
             max_template_cache_size,
             ttl_config,
+            enterprise_registry: EnterpriseFieldRegistry::new(),
+        }
+    }
+
+    pub fn with_enterprise_registry(
+        max_template_cache_size: usize,
+        ttl_config: Option<TtlConfig>,
+        enterprise_registry: EnterpriseFieldRegistry,
+    ) -> Self {
+        Self {
+            max_template_cache_size,
+            ttl_config,
+            enterprise_registry,
         }
     }
 }

@@ -23,7 +23,9 @@ expression: "NetflowParser::default().parse_bytes(&packet)"
                 field_length: 4
                 enterprise_number: 2
                 field_type:
-                  Enterprise: 123
+                  Enterprise:
+                    enterprise_number: 2
+                    field_number: 123
               - field_type_number: 41
                 field_length: 2
                 field_type:

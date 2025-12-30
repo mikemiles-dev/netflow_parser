@@ -14,6 +14,7 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 - [Re-Exporting Flows](#re-exporting-flows)
 - [Template Cache Configuration](#template-cache-configuration)
   - [Template TTL (Time-to-Live)](#template-ttl-time-to-live)
+- [Custom Enterprise Fields (IPFIX)](#custom-enterprise-fields-ipfix)
 - [V9/IPFIX Notes](#v9ipfix-notes)
 - [Performance & Thread Safety](#performance--thread-safety)
 - [Features](#features)
@@ -553,6 +554,97 @@ parser.clear_v9_templates();
 parser.clear_ipfix_templates();
 ```
 
+## Custom Enterprise Fields (IPFIX)
+
+IPFIX supports vendor-specific enterprise fields that extend the standard IANA field set. The library provides built-in support for several vendors (Cisco, VMWare, Netscaler, etc.), but you can also register your own custom enterprise fields without modifying the library source code.
+
+### Registering Custom Enterprise Fields
+
+Use the builder pattern to register enterprise field definitions with your parser:
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::data_number::FieldDataType;
+use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
+
+// Define custom enterprise fields for your vendor
+let parser = NetflowParser::builder()
+    .register_enterprise_field(EnterpriseFieldDef::new(
+        12345,  // Your enterprise number (assigned by IANA)
+        1,      // Field number within your enterprise
+        "customMetric",
+        FieldDataType::UnsignedDataNumber,
+    ))
+    .register_enterprise_field(EnterpriseFieldDef::new(
+        12345,
+        2,
+        "customApplicationName",
+        FieldDataType::String,
+    ))
+    .register_enterprise_field(EnterpriseFieldDef::new(
+        12345,
+        3,
+        "customSourceAddress",
+        FieldDataType::Ip4Addr,
+    ))
+    .build()
+    .expect("Failed to build parser");
+
+// Parse IPFIX packets - custom fields are automatically decoded!
+let packets = parser.parse_bytes(&buffer);
+```
+
+### Bulk Registration
+
+You can also register multiple fields at once:
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::data_number::FieldDataType;
+use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
+
+let custom_fields = vec![
+    EnterpriseFieldDef::new(12345, 1, "field1", FieldDataType::UnsignedDataNumber),
+    EnterpriseFieldDef::new(12345, 2, "field2", FieldDataType::String),
+    EnterpriseFieldDef::new(12345, 3, "field3", FieldDataType::Ip4Addr),
+    EnterpriseFieldDef::new(12345, 4, "field4", FieldDataType::DurationMillis),
+];
+
+let parser = NetflowParser::builder()
+    .register_enterprise_fields(custom_fields)
+    .build()
+    .expect("Failed to build parser");
+```
+
+### Available Data Types
+
+When registering enterprise fields, you can use any of the following built-in data types:
+
+- `FieldDataType::UnsignedDataNumber` - Unsigned integers (variable length)
+- `FieldDataType::SignedDataNumber` - Signed integers (variable length)
+- `FieldDataType::Float64` - 64-bit floating point
+- `FieldDataType::String` - UTF-8 strings
+- `FieldDataType::Ip4Addr` - IPv4 addresses
+- `FieldDataType::Ip6Addr` - IPv6 addresses
+- `FieldDataType::MacAddr` - MAC addresses
+- `FieldDataType::DurationSeconds` - Durations in seconds
+- `FieldDataType::DurationMillis` - Durations in milliseconds
+- `FieldDataType::DurationMicrosNTP` - NTP microsecond timestamps
+- `FieldDataType::DurationNanosNTP` - NTP nanosecond timestamps
+- `FieldDataType::ProtocolType` - Protocol numbers
+- `FieldDataType::Vec` - Raw byte arrays
+- `FieldDataType::ApplicationId` - Application identifiers
+
+### How It Works
+
+1. **Without registration**: Unknown enterprise fields are parsed as raw bytes (`FieldValue::Vec`)
+2. **With registration**: Registered enterprise fields are automatically parsed according to their specified data type
+3. **Field names**: The `name` parameter is used for debugging and can help identify fields in logs
+
+### Example
+
+See `examples/custom_enterprise_fields.rs` for a complete working example.
+
 ## V9/IPFIX Notes
 
 Parse the data (`&[u8]`) like any other version. The parser (`NetflowParser`) caches parsed templates using LRU eviction, so you can send header/data flowset combos and it will use the cached templates. Templates are automatically cached and evicted when the cache limit is reached.
@@ -637,7 +729,9 @@ To run:
 
 ```cargo run --example manual_ipfix_creation```
 
-The pcap example also shows how to cache flows that have not yet discovered a template.
+```cargo run --example custom_enterprise_fields```
+
+The pcap example also shows how to cache flows that have not yet discovered a template. The custom_enterprise_fields example demonstrates how to register vendor-specific IPFIX fields.
 
 ## Support My Work
 

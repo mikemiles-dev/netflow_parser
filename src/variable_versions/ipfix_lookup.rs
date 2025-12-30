@@ -20,7 +20,10 @@ pub enum IPFixField {
     Yaf(YafIPFixField),
     VMWare(VMWareIPFixField),
     ReverseInformationElement(ReverseInformationElement),
-    Enterprise(u16),
+    Enterprise {
+        enterprise_number: u32,
+        field_number: u16,
+    },
 }
 
 impl IPFixField {
@@ -44,7 +47,32 @@ impl IPFixField {
             REVERSE_INFO_ENTERPRISE_NUMBER => IPFixField::ReverseInformationElement(
                 ReverseInformationElement::from(field_type_number),
             ),
-            _ => IPFixField::Enterprise(field_type_number),
+            _ => IPFixField::Enterprise {
+                enterprise_number,
+                field_number: field_type_number,
+            },
+        }
+    }
+
+    /// Get the FieldDataType for this field, consulting the enterprise registry if applicable
+    pub fn to_field_data_type(
+        &self,
+        registry: &super::enterprise_registry::EnterpriseFieldRegistry,
+    ) -> FieldDataType {
+        match self {
+            IPFixField::Enterprise {
+                enterprise_number,
+                field_number,
+            } => {
+                // Check if this enterprise field is registered
+                if let Some(def) = registry.get(*enterprise_number, *field_number) {
+                    def.data_type.clone()
+                } else {
+                    FieldDataType::Unknown
+                }
+            }
+            // For all other variants, use the standard conversion
+            _ => (*self).into(),
         }
     }
 }
@@ -59,7 +87,7 @@ impl From<IPFixField> for FieldDataType {
             IPFixField::Yaf(field) => field.into(),
             IPFixField::VMWare(field) => field.into(),
             IPFixField::ReverseInformationElement(field) => field.into(),
-            IPFixField::Enterprise(_) => FieldDataType::Unknown,
+            IPFixField::Enterprise { .. } => FieldDataType::Unknown,
         }
     }
 }
