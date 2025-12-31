@@ -347,23 +347,88 @@ impl FieldValue {
     }
 }
 
-/// Helps the parser indent the data type to parse the field as
+/// Specifies the data type for IPFIX/NetFlow field values.
+///
+/// Each IPFIX field has an associated `FieldDataType` that determines how
+/// its raw bytes should be parsed and interpreted. This enum represents all
+/// supported data types in the parser.
+///
+/// # Type Categories
+///
+/// ## Network Types
+/// - [`Ip4Addr`](Self::Ip4Addr) - IPv4 address (4 bytes)
+/// - [`Ip6Addr`](Self::Ip6Addr) - IPv6 address (16 bytes)
+/// - [`MacAddr`](Self::MacAddr) - MAC address (6 bytes)
+///
+/// ## Numeric Types
+/// - [`UnsignedDataNumber`](Self::UnsignedDataNumber) - Unsigned integers (1-16 bytes)
+/// - [`SignedDataNumber`](Self::SignedDataNumber) - Signed integers (1-16 bytes)
+/// - [`Float64`](Self::Float64) - 64-bit floating point
+///
+/// ## Time/Duration Types
+/// - [`DurationSeconds`](Self::DurationSeconds) - Duration in seconds
+/// - [`DurationMillis`](Self::DurationMillis) - Duration in milliseconds
+/// - [`DurationMicrosNTP`](Self::DurationMicrosNTP) - Duration in microseconds (NTP format)
+/// - [`DurationNanosNTP`](Self::DurationNanosNTP) - Duration in nanoseconds (NTP format)
+///
+/// ## Text and Binary Types
+/// - [`String`](Self::String) - UTF-8 string data
+/// - [`Vec`](Self::Vec) - Raw byte vector
+///
+/// ## Special Types
+/// - [`ApplicationId`](Self::ApplicationId) - Application identifier field
+/// - [`ProtocolType`](Self::ProtocolType) - IP protocol number (maps to [`ProtocolTypes`])
+/// - [`Unknown`](Self::Unknown) - Unknown or unsupported type
+///
+/// # Examples
+///
+/// ```
+/// use netflow_parser::variable_versions::data_number::FieldDataType;
+/// use netflow_parser::variable_versions::ipfix_lookup::IANAIPFixField;
+///
+/// // Get the data type for a specific field
+/// let field = IANAIPFixField::SourceIpv4address;
+/// let data_type: FieldDataType = field.into();
+/// assert_eq!(data_type, FieldDataType::Ip4Addr);
+///
+/// // Different fields have different types
+/// let proto_field = IANAIPFixField::ProtocolIdentifier;
+/// let proto_type: FieldDataType = proto_field.into();
+/// assert_eq!(proto_type, FieldDataType::ProtocolType);
+/// ```
+///
+/// [`ProtocolTypes`]: crate::protocol::ProtocolTypes
 #[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub enum FieldDataType {
+    /// Application identifier field
     ApplicationId,
+    /// UTF-8 string data
     String,
+    /// Signed integer (can be i8, i16, i24, i32, i64, i128)
     SignedDataNumber,
+    /// Unsigned integer (can be u8, u16, u24, u32, u64, u128)
     UnsignedDataNumber,
+    /// 64-bit floating point number
     Float64,
+    /// Duration in seconds
     DurationSeconds,
+    /// Duration in milliseconds
     DurationMillis,
+    /// Duration in microseconds (NTP timestamp format)
     DurationMicrosNTP,
+    /// Duration in nanoseconds (NTP timestamp format)
     DurationNanosNTP,
+    /// IPv4 address (4 bytes)
     Ip4Addr,
+    /// IPv6 address (16 bytes)
     Ip6Addr,
+    /// MAC address (6 bytes)
     MacAddr,
+    /// Raw byte vector for variable-length fields
     Vec,
+    /// IP protocol number (see [`ProtocolTypes`])
     ProtocolType,
+    /// Unknown or unsupported field type
     Unknown,
 }
 

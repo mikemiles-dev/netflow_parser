@@ -104,8 +104,10 @@ macro_rules! ipfix_field_enum {
         $(#[$enum_meta])*
         $vis enum $enum_name {
             $(
+                #[doc = concat!("Field ID: ", stringify!($value), " | Data Type: ", stringify!($field_type))]
                 $variant = $value,
             )*
+            /// Unknown field type with the field ID stored in the variant
             Unknown(u16),
         }
 
@@ -130,6 +132,21 @@ macro_rules! ipfix_field_enum {
 }
 
 ipfix_field_enum! {
+    /// VMware-specific IPFIX Information Elements (Enterprise ID 6876).
+    ///
+    /// These fields are used for VMware NSX network virtualization and tenant isolation.
+    /// They provide visibility into virtual network overlays and tenant-specific traffic flows.
+    ///
+    /// # Field Format
+    ///
+    /// Each field is documented with:
+    /// - Field ID: The numeric identifier used in IPFIX templates
+    /// - Data Type: The [`FieldDataType`] that defines how to parse the value
+    ///
+    /// # Common Field Categories
+    ///
+    /// - **Tenant Network**: Protocol, source/destination IPv4/IPv6 addresses and ports
+    /// - **Virtual Infrastructure**: Interface attributes, VXLAN export role
     #[repr(u16)]
     #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
     pub enum VMWareIPFixField {
@@ -147,6 +164,30 @@ ipfix_field_enum! {
 }
 
 ipfix_field_enum! {
+/// YAF (Yet Another Flowmeter) IPFIX Information Elements (Enterprise ID 6871).
+///
+/// YAF provides deep packet inspection capabilities and application-level flow analysis.
+/// These fields capture detailed protocol-specific information for DNS, SSL/TLS, HTTP,
+/// RTP, MPTCP, and other protocols.
+///
+/// # Field Format
+///
+/// Each field is documented with:
+/// - Field ID: The numeric identifier used in IPFIX templates
+/// - Data Type: The [`FieldDataType`] that defines how to parse the value
+///
+/// # Field Categories
+///
+/// - **TCP Analysis**: Initial/union TCP flags, flow attributes
+/// - **DNS**: Query/response information, record types, TTL, domain names
+/// - **SSL/TLS**: Cipher information, certificate details, versions
+/// - **HTTP**: Headers, URIs, cookies, user agents
+/// - **RTP**: Media streaming statistics
+/// - **System**: OS fingerprinting, packet banners, payload entropy
+///
+/// # References
+///
+/// See [YAF Documentation](https://tools.netsa.cert.org/yaf/) for more details.
 #[repr(u16)]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
 pub enum YafIPFixField {
@@ -251,6 +292,24 @@ pub enum YafIPFixField {
 }
 
 ipfix_field_enum! {
+/// Citrix NetScaler IPFIX Information Elements (Enterprise ID 5951).
+///
+/// NetScaler fields provide application delivery controller (ADC) metrics and
+/// detailed application performance monitoring data.
+///
+/// # Field Format
+///
+/// Each field is documented with:
+/// - Field ID: The numeric identifier used in IPFIX templates
+/// - Data Type: The [`FieldDataType`] that defines how to parse the value
+///
+/// # Field Categories
+///
+/// - **Performance**: Round-trip time, transaction IDs, latency metrics
+/// - **HTTP**: URLs, domains, request/response details, cookies
+/// - **ICA (Citrix)**: Client/server bytes, latency, app names, launch mechanisms
+/// - **Database**: SQL queries, database protocols, transaction details
+/// - **AppFlow**: Application classification, cache policies, connection metrics
 #[repr(u16)]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
     pub enum NetscalerIPFixField {
@@ -557,6 +616,15 @@ ipfix_field_enum! {
 }
 
 ipfix_field_enum! {
+/// NAT (Network Address Translation) IPFIX Information Elements.
+///
+/// These fields provide information about NAT events and address translations.
+///
+/// # Field Format
+///
+/// Each field is documented with:
+/// - Field ID: The numeric identifier used in IPFIX templates
+/// - Data Type: The [`FieldDataType`] that defines how to parse the value
 #[repr(u16)]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
     pub enum NatIPFixField {
@@ -567,6 +635,25 @@ ipfix_field_enum! {
 }
 
 ipfix_field_enum! {
+/// Cisco Systems IPFIX Information Elements (Enterprise ID 9).
+///
+/// Cisco-specific fields for application visibility, network analysis, and
+/// security monitoring. These fields extend standard IPFIX with Cisco's
+/// Application Visibility and Control (AVC) and other features.
+///
+/// # Field Format
+///
+/// Each field is documented with:
+/// - Field ID: The numeric identifier used in IPFIX templates
+/// - Data Type: The [`FieldDataType`] that defines how to parse the value
+///
+/// # Field Categories
+///
+/// - **Application Classification**: AVC names, engine IDs, categories
+/// - **Business**: Business relevance, P2P technology indicators
+/// - **Network**: Server/client bytes, connection metrics, VPN identifiers
+/// - **Security**: SD-WAN indicators, traffic attribution
+/// - **Quality**: Network delay, server response times, jitter
 #[repr(u16)]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
     pub enum CiscoIPFixField {
@@ -588,6 +675,21 @@ ipfix_field_enum! {
 }
 
 ipfix_field_enum! {
+    /// Reverse Information Elements for bidirectional flow analysis.
+    ///
+    /// These fields represent the reverse direction of bidirectional flows,
+    /// allowing analysis of both directions of a conversation.
+    ///
+    /// # Field Format
+    ///
+    /// Each field is documented with:
+    /// - Field ID: The numeric identifier used in IPFIX templates
+    /// - Data Type: The [`FieldDataType`] that defines how to parse the value
+    ///
+    /// # Usage
+    ///
+    /// Reverse fields are typically used in conjunction with their forward
+    /// counterparts to provide complete bidirectional flow visibility.
     #[repr(u16)]
     #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
     pub enum ReverseInformationElement {
@@ -972,6 +1074,40 @@ ipfix_field_enum! {
 }
 
 ipfix_field_enum! {
+/// IANA-registered IPFIX Information Elements (Enterprise ID 0).
+///
+/// This enum contains all standard IPFIX fields as defined by IANA.
+/// Each variant represents a specific information element with its field ID
+/// and associated data type.
+///
+/// The data type for each field determines how the field value should be
+/// parsed and interpreted. See [`FieldDataType`] for available types.
+///
+/// # Field Format
+///
+/// Each field is documented with:
+/// - Field ID: The numeric identifier used in IPFIX templates
+/// - Data Type: The [`FieldDataType`] that defines how to parse the value
+///
+/// # Examples
+///
+/// ```
+/// use netflow_parser::variable_versions::ipfix_lookup::IANAIPFixField;
+/// use netflow_parser::variable_versions::data_number::FieldDataType;
+///
+/// // Convert from field ID
+/// let field = IANAIPFixField::from(8);
+/// assert_eq!(field, IANAIPFixField::SourceIpv4address);
+///
+/// // Get the data type for a field
+/// let data_type: FieldDataType = field.into();
+/// assert_eq!(data_type, FieldDataType::Ip4Addr);
+/// ```
+///
+/// # References
+///
+/// See [IANA IPFIX Information Elements](https://www.iana.org/assignments/ipfix/ipfix.xhtml)
+/// for the official registry.
 #[repr(u16)]
 #[derive(Debug, Hash, PartialEq, Eq, Clone, Ord, PartialOrd, Copy, Serialize)]
     pub enum IANAIPFixField {

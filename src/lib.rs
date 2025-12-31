@@ -594,6 +594,7 @@ use static_versions::{
     v7::{V7, V7Parser},
 };
 use variable_versions::Config;
+use variable_versions::enterprise_registry::EnterpriseFieldDef;
 use variable_versions::ipfix::{IPFix, IPFixParser};
 use variable_versions::v9::{V9, V9Parser};
 
@@ -878,10 +879,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
-    pub fn register_enterprise_field(
-        mut self,
-        def: variable_versions::enterprise_registry::EnterpriseFieldDef,
-    ) -> Self {
+    pub fn register_enterprise_field(mut self, def: EnterpriseFieldDef) -> Self {
         self.v9_config.enterprise_registry.register(def.clone());
         self.ipfix_config.enterprise_registry.register(def);
         self
@@ -913,7 +911,7 @@ impl NetflowParserBuilder {
     /// ```
     pub fn register_enterprise_fields(
         mut self,
-        defs: impl IntoIterator<Item = variable_versions::enterprise_registry::EnterpriseFieldDef>,
+        defs: impl IntoIterator<Item = EnterpriseFieldDef>,
     ) -> Self {
         for def in defs {
             self.v9_config.enterprise_registry.register(def.clone());

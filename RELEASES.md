@@ -1,3 +1,29 @@
+# 0.7.3
+
+  * **Comprehensive Documentation Improvements for docs.rs:**
+      * Modified `ipfix_field_enum!` macro to auto-generate doc comments showing data types
+      * Each field variant now displays: "Field ID: <number> | Data Type: <type>"
+      * Example: `SourceIpv4address` shows "Field ID: 8 | Data Type: FieldDataType::Ip4Addr"
+      * Affects 6 enums with 1,000+ total variants: `IANAIPFixField`, `CiscoIPFixField`, `YafIPFixField`, `VMWareIPFixField`, `NetscalerIPFixField`, `ReverseInformationElement`
+      * `IANAIPFixField`: Added comprehensive docs with examples, field categories, and IANA registry link
+      * `YafIPFixField`: Documented deep packet inspection categories (DNS, SSL/TLS, HTTP, RTP, MPTCP)
+      * `VMWareIPFixField`: Explained NSX virtualization and tenant isolation fields
+      * `CiscoIPFixField`: Documented AVC, business metrics, and security monitoring fields
+      * `NetscalerIPFixField`: Added ADC metrics, ICA, HTTP, and database monitoring categories
+      * `NatIPFixField` & `ReverseInformationElement`: Documented NAT and bidirectional flow fields
+      * `ProtocolTypes`: Added comprehensive docs with common protocol table and IANA reference
+      * Added extensive `variable_versions` module docs explaining V9 vs IPFIX architecture
+      * Documented template caching, enterprise field support, and TTL configuration
+      * Added comparison table showing key differences between V9 and IPFIX
+      * Included enterprise vendor table with IDs: Cisco (9), NetScaler (5951), YAF (6871), VMware (6876)
+      * `FieldDataType`: Categorized all data types (Network, Numeric, Time, Text, Special)
+      * Added examples showing type conversions and field data type lookups
+      * Documented byte sizes and usage for each data type variant
+      * Enhanced module docs with common enterprise number reference table
+      * Added complete usage example for custom field registration
+      * Documented integration with parser configuration
+      * Cross-references use proper rustdoc link syntax
+
 # 0.7.2
 
   * **Custom Enterprise Fields for IPFIX:**
