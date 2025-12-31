@@ -1,7 +1,45 @@
-//! Enterprise field registry for user-defined IPFIX enterprise fields
+//! Enterprise field registry for user-defined IPFIX enterprise fields.
 //!
 //! This module provides a mechanism for library users to register custom enterprise field
-//! definitions without modifying the library source code.
+//! definitions without modifying the library source code. The parser automatically recognizes
+//! built-in enterprise fields, but you can extend support for custom vendors.
+//!
+//! # Common Enterprise Numbers
+//!
+//! The following vendors have built-in support via dedicated enum types:
+//!
+//! | Vendor | Enterprise ID | Type |
+//! |--------|---------------|------|
+//! | IANA (Standard Fields) | 0 | [`IANAIPFixField`](super::ipfix_lookup::IANAIPFixField) |
+//! | Cisco Systems | 9 | [`CiscoIPFixField`](super::ipfix_lookup::CiscoIPFixField) |
+//! | Citrix NetScaler | 5951 | [`NetscalerIPFixField`](super::ipfix_lookup::NetscalerIPFixField) |
+//! | YAF (Yet Another Flowmeter) | 6871 | [`YafIPFixField`](super::ipfix_lookup::YafIPFixField) |
+//! | VMware | 6876 | [`VMWareIPFixField`](super::ipfix_lookup::VMWareIPFixField) |
+//! | Fortinet | 12356 | Built-in support |
+//!
+//! For enterprise fields from other vendors or custom implementations, use this registry.
+//!
+//! # Usage Example
+//!
+//! ```
+//! use netflow_parser::variable_versions::enterprise_registry::{EnterpriseFieldRegistry, EnterpriseFieldDef};
+//! use netflow_parser::variable_versions::data_number::FieldDataType;
+//! use netflow_parser::variable_versions::Config;
+//!
+//! // Create a registry
+//! let mut registry = EnterpriseFieldRegistry::new();
+//!
+//! // Register custom fields
+//! registry.register(EnterpriseFieldDef::new(
+//!     12345,  // Your enterprise ID
+//!     1,      // Field number
+//!     "myCustomField",
+//!     FieldDataType::UnsignedDataNumber,
+//! ));
+//!
+//! // Use with parser configuration
+//! let config = Config::with_enterprise_registry(10000, None, registry);
+//! ```
 
 use super::data_number::FieldDataType;
 use std::collections::HashMap;

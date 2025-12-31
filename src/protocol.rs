@@ -1,6 +1,45 @@
 use nom_derive::*;
 use serde::Serialize;
 
+/// IANA Protocol Numbers as defined in RFC 5237.
+///
+/// Maps protocol identifiers to their numeric values for IP packet headers.
+/// These protocol numbers are commonly used in NetFlow/IPFIX for the
+/// `protocolIdentifier` field to indicate the transport layer protocol.
+///
+/// # Common Protocols
+///
+/// | Protocol | Number | Description |
+/// |----------|--------|-------------|
+/// | ICMP | 1 | Internet Control Message Protocol |
+/// | TCP | 6 | Transmission Control Protocol |
+/// | UDP | 17 | User Datagram Protocol |
+/// | IPv6 | 41 | IPv6 Encapsulation |
+/// | ICMP6 | 58 | ICMP for IPv6 |
+/// | GRE | 47 | Generic Routing Encapsulation |
+/// | ESP | 50 | Encapsulating Security Payload |
+/// | AH | 51 | Authentication Header |
+/// | SCTP | 132 | Stream Control Transmission Protocol |
+///
+/// # Examples
+///
+/// ```
+/// use netflow_parser::protocol::ProtocolTypes;
+///
+/// // Common protocol numbers
+/// assert_eq!(ProtocolTypes::Tcp as u8, 6);
+/// assert_eq!(ProtocolTypes::Udp as u8, 17);
+/// assert_eq!(ProtocolTypes::Icmp as u8, 1);
+///
+/// // IPv6 protocols
+/// assert_eq!(ProtocolTypes::Ipv6 as u8, 41);
+/// assert_eq!(ProtocolTypes::Ipv6Icmp as u8, 58);
+/// ```
+///
+/// # References
+///
+/// See [IANA Protocol Numbers](https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)
+/// for the complete official registry.
 #[repr(u8)]
 #[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Serialize, Nom)]
 pub enum ProtocolTypes {

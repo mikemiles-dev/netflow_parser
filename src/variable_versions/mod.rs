@@ -1,3 +1,71 @@
+//! Variable-length NetFlow protocols (V9 and IPFIX).
+//!
+//! This module provides parsers and data structures for NetFlow V9 and IPFIX protocols,
+//! which use template-based field definitions for flexible flow record formats.
+//!
+//! # Architecture
+//!
+//! NetFlow V9 and IPFIX are template-based protocols where:
+//! 1. **Templates** define the structure of data records (field types and lengths)
+//! 2. **Data Records** contain the actual flow information
+//! 3. **Templates are cached** and reused across multiple data records
+//!
+//! ## Key Differences: V9 vs IPFIX
+//!
+//! | Feature | NetFlow V9 | IPFIX |
+//! |---------|-----------|-------|
+//! | Standard | Cisco proprietary | IETF standard (RFC 7011) |
+//! | Template IDs | 256-65535 | 256-65535 |
+//! | Enterprise Fields | Limited support | Full enterprise field support |
+//! | Variable Length | Fixed length only | Variable length fields supported |
+//!
+//! # Template Caching
+//!
+//! Both V9 and IPFIX parsers maintain an LRU cache of templates to avoid
+//! reprocessing template definitions. Configure cache size via [`Config`]:
+//!
+//! ```
+//! use netflow_parser::variable_versions::Config;
+//!
+//! let config = Config::new(10000, None);
+//! ```
+//!
+//! # Enterprise Fields
+//!
+//! IPFIX supports vendor-specific fields through enterprise IDs. Common vendors:
+//!
+//! | Vendor | Enterprise ID | Module |
+//! |--------|---------------|--------|
+//! | IANA (standard) | 0 | [`ipfix_lookup::IANAIPFixField`] |
+//! | Cisco | 9 | [`ipfix_lookup::CiscoIPFixField`] |
+//! | NetScaler | 5951 | [`ipfix_lookup::NetscalerIPFixField`] |
+//! | YAF | 6871 | [`ipfix_lookup::YafIPFixField`] |
+//! | VMware | 6876 | [`ipfix_lookup::VMWareIPFixField`] |
+//!
+//! Register custom enterprise fields using [`EnterpriseFieldRegistry`]:
+//!
+//! ```
+//! use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
+//!
+//! let mut registry = EnterpriseFieldRegistry::new();
+//! // Register your custom fields...
+//! ```
+//!
+//! # TTL (Template Expiration)
+//!
+//! Templates can be configured to expire after a certain time using [`TtlConfig`].
+//! This is useful for long-running parsers to avoid stale template issues.
+//!
+//! # Modules
+//!
+//! - [`v9`] - NetFlow V9 parser and data structures
+//! - [`ipfix`] - IPFIX parser and data structures
+//! - [`v9_lookup`] - V9 field type definitions
+//! - [`ipfix_lookup`] - IPFIX field type definitions (IANA and enterprise)
+//! - [`data_number`] - Field value types and parsing
+//! - [`enterprise_registry`] - Custom enterprise field registration
+//! - [`ttl`] - Template expiration configuration
+
 pub mod data_number;
 pub mod enterprise_registry;
 pub mod ipfix;
