@@ -582,6 +582,7 @@
 #[cfg(feature = "netflow_common")]
 pub mod netflow_common;
 pub mod protocol;
+pub mod scoped_parser;
 pub mod static_versions;
 mod tests;
 pub mod variable_versions;
@@ -602,6 +603,9 @@ use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
 use std::collections::HashSet;
+
+// Re-export scoped parser for convenience
+pub use scoped_parser::RouterScopedParser;
 
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
@@ -687,6 +691,8 @@ pub struct CacheStats {
     pub max_size: usize,
     /// TTL configuration (if enabled)
     pub ttl_config: Option<variable_versions::ttl::TtlConfig>,
+    /// Performance metrics snapshot
+    pub metrics: variable_versions::metrics::CacheMetricsSnapshot,
 }
 
 /// Builder for configuring and constructing a [`NetflowParser`].
@@ -1133,6 +1139,7 @@ impl NetflowParser {
                 + self.v9_parser.options_templates.len(),
             max_size: self.v9_parser.max_template_cache_size,
             ttl_config: self.v9_parser.ttl_config.clone(),
+            metrics: self.v9_parser.metrics.snapshot(),
         }
     }
 
@@ -1155,6 +1162,7 @@ impl NetflowParser {
                 + self.ipfix_parser.v9_options_templates.len(),
             max_size: self.ipfix_parser.max_template_cache_size,
             ttl_config: self.ipfix_parser.ttl_config.clone(),
+            metrics: self.ipfix_parser.metrics.snapshot(),
         }
     }
 

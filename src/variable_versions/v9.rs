@@ -6,6 +6,7 @@
 
 use super::data_number::FieldValue;
 use super::enterprise_registry::EnterpriseFieldRegistry;
+use super::metrics::CacheMetrics;
 use super::ttl::{TemplateWithTtl, TtlConfig};
 use super::{Config, ConfigError, ParserConfig};
 use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
@@ -54,6 +55,8 @@ pub struct V9Parser {
     pub max_error_sample_size: usize,
     /// Registry of custom enterprise field definitions
     pub enterprise_registry: EnterpriseFieldRegistry,
+    /// Cache performance metrics
+    pub metrics: CacheMetrics,
 }
 
 impl Default for V9Parser {
@@ -89,6 +92,7 @@ impl V9Parser {
             max_template_cache_size: config.max_template_cache_size,
             max_error_sample_size: 256,
             enterprise_registry: config.enterprise_registry,
+            metrics: CacheMetrics::new(),
         })
     }
 }
@@ -291,7 +295,16 @@ impl FlowSetBody {
                 // Store templates efficiently - clone only what we need to cache
                 for template in &templates.templates {
                     let wrapped = TemplateWithTtl::new(template.clone());
+                    // Check for collision (replacing existing template)
+                    if parser.templates.contains(&template.template_id) {
+                        parser.metrics.record_collision();
+                    }
+                    // Check if we're evicting an old template
+                    else if parser.templates.len() >= parser.max_template_cache_size {
+                        parser.metrics.record_eviction();
+                    }
                     parser.templates.put(template.template_id, wrapped);
+                    parser.metrics.record_insertion();
                 }
                 Ok((i, FlowSetBody::Template(templates)))
             }
@@ -300,18 +313,29 @@ impl FlowSetBody {
                 // Store templates efficiently - clone only what we need to cache
                 for template in &options_templates.templates {
                     let wrapped = TemplateWithTtl::new(template.clone());
+                    // Check for collision (replacing existing template)
+                    if parser.options_templates.contains(&template.template_id) {
+                        parser.metrics.record_collision();
+                    }
+                    // Check if we're evicting an old template
+                    else if parser.options_templates.len() >= parser.max_template_cache_size {
+                        parser.metrics.record_eviction();
+                    }
                     parser.options_templates.put(template.template_id, wrapped);
+                    parser.metrics.record_insertion();
                 }
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
             }
             _ => {
                 // Try to get template from regular templates cache
                 if let Some(wrapped_template) = parser.templates.get(&id) {
+                    parser.metrics.record_hit();
                     // Check TTL if configured
                     if let Some(ref config) = parser.ttl_config {
                         if wrapped_template.is_expired(config) {
                             // Template expired, remove it and fall through to error
                             parser.templates.pop(&id);
+                            parser.metrics.record_expiration();
                         } else {
                             // Template valid, parse data
                             let (i, data) = Data::parse(i, &wrapped_template.template)?;
@@ -326,11 +350,13 @@ impl FlowSetBody {
 
                 // Try to get template from options templates cache
                 if let Some(wrapped_template) = parser.options_templates.get(&id) {
+                    parser.metrics.record_hit();
                     // Check TTL if configured
                     if let Some(ref config) = parser.ttl_config {
                         if wrapped_template.is_expired(config) {
                             // Template expired, remove it and fall through to error
                             parser.options_templates.pop(&id);
+                            parser.metrics.record_expiration();
                         } else {
                             // Template valid, parse options data
                             let (i, options_data) =
@@ -346,6 +372,7 @@ impl FlowSetBody {
                 }
 
                 // Template not found or expired
+                parser.metrics.record_miss();
                 Err(nom::Err::Error(nom::error::Error::new(
                     i,
                     nom::error::ErrorKind::Verify,

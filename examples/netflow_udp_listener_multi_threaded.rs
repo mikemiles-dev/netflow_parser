@@ -1,51 +1,108 @@
-use std::collections::HashMap;
-use std::net::UdpSocket;
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
+use std::net::{SocketAddr, UdpSocket};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time::Duration;
 
-use netflow_parser::NetflowParser;
-
-// Create a channel, spawn thread, loop and listen for data, function returns sender
-fn create_thread() -> Sender<Vec<u8>> {
-    let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
-
-    // Using default configuration. For custom configuration, use the builder pattern:
-    //
-    // use netflow_parser::variable_versions::ttl::TtlConfig;
-    // let mut parser = NetflowParser::builder()
-    //     .with_cache_size(2000)
-    //     .with_ttl(TtlConfig::packet_based(100))
-    //     .build()
-    //     .expect("Failed to build parser");
-    let mut parser = NetflowParser::default();
-
-    thread::spawn(move || {
-        loop {
-            if let Ok(data) = rx.recv() {
-                for packet in parser.iter_packets(data.as_slice()) {
-                    println!("{:?}", packet);
-                }
-            }
-        }
-    });
-    tx
-}
+use netflow_parser::variable_versions::ttl::TtlConfig;
+use netflow_parser::{NetflowParser, RouterScopedParser};
 
 fn main() {
-    let mut senders = HashMap::new();
+    // Create a RouterScopedParser with custom configuration
+    // Wrapped in Arc<Mutex<>> for thread-safe sharing
+    let builder = NetflowParser::builder()
+        .with_cache_size(2000)
+        .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
+
+    let scoped_parser = Arc::new(Mutex::new(RouterScopedParser::<SocketAddr>::with_builder(
+        builder,
+    )));
+
+    // Metrics tracking
+    let packet_count = Arc::new(AtomicU64::new(0));
+
+    // Spawn metrics reporter thread
+    let parser_clone = scoped_parser.clone();
+    let packet_count_clone = packet_count.clone();
+    thread::spawn(move || {
+        loop {
+            thread::sleep(Duration::from_secs(5));
+
+            let total_packets = packet_count_clone.load(Ordering::Relaxed);
+            println!("\n=== Metrics Report ===");
+            println!("Total packets processed: {}", total_packets);
+
+            let parser = parser_clone.lock().unwrap();
+            println!("Active sources: {}", parser.source_count());
+
+            if parser.source_count() > 0 {
+                println!("\nPer-Source Template Cache Stats:");
+                for (source, v9_stats, ipfix_stats) in parser.all_stats() {
+                    println!("\n  Source: {}", source);
+
+                    // V9 stats
+                    println!(
+                        "    V9 Cache: {}/{} templates",
+                        v9_stats.current_size, v9_stats.max_size
+                    );
+                    let v9_metrics = &v9_stats.metrics;
+                    if let Some(hit_rate) = v9_metrics.hit_rate() {
+                        println!(
+                            "      Hit rate: {:.1}%, Hits: {}, Misses: {}",
+                            hit_rate * 100.0,
+                            v9_metrics.hits,
+                            v9_metrics.misses
+                        );
+                    }
+                    if v9_metrics.collisions > 0 {
+                        println!("      ⚠️  Collisions: {}", v9_metrics.collisions);
+                    }
+
+                    // IPFIX stats
+                    println!(
+                        "    IPFIX Cache: {}/{} templates",
+                        ipfix_stats.current_size, ipfix_stats.max_size
+                    );
+                    let ipfix_metrics = &ipfix_stats.metrics;
+                    if let Some(hit_rate) = ipfix_metrics.hit_rate() {
+                        println!(
+                            "      Hit rate: {:.1}%, Hits: {}, Misses: {}",
+                            hit_rate * 100.0,
+                            ipfix_metrics.hits,
+                            ipfix_metrics.misses
+                        );
+                    }
+                    if ipfix_metrics.collisions > 0 {
+                        println!("      ⚠️  Collisions: {}", ipfix_metrics.collisions);
+                    }
+                }
+            }
+            println!("======================\n");
+        }
+    });
+
+    println!("NetFlow UDP listener started on 127.0.0.1:9995");
+    println!("Using RouterScopedParser with multi-threaded processing\n");
+
+    let socket = UdpSocket::bind("127.0.0.1:9995").expect("couldn't bind to address");
+    let mut buf = [0; 65_535];
 
     loop {
-        // Read from Socket
-        let socket = UdpSocket::bind("127.0.0.1:9995").expect("couldn't bind to address");
-        let mut buf = [0; 65_535];
         let (number_of_bytes, src_addr) =
             socket.recv_from(&mut buf).expect("Didn't receive data");
-        let filled_buf = &mut buf[..number_of_bytes];
 
-        // Get or insert new sender based on src_addr (Router) key
-        senders.entry(src_addr).or_insert_with(create_thread);
+        let data = buf[..number_of_bytes].to_vec();
+        let parser_clone = scoped_parser.clone();
+        let packet_count_clone = packet_count.clone();
 
-        let _ = senders.get(&src_addr).unwrap().send(filled_buf.to_vec());
+        // Spawn thread to process packet without blocking receive loop
+        thread::spawn(move || {
+            let mut parser = parser_clone.lock().unwrap();
+            let count = parser.iter_packets_from_source(src_addr, &data).count() as u64;
+
+            if count > 0 {
+                packet_count_clone.fetch_add(count, Ordering::Relaxed);
+            }
+        });
     }
 }

@@ -8,6 +8,7 @@
 
 use super::data_number::FieldValue;
 use super::enterprise_registry::EnterpriseFieldRegistry;
+use super::metrics::CacheMetrics;
 use super::ttl::{TemplateWithTtl, TtlConfig};
 use super::{Config, ParserConfig};
 use crate::variable_versions::ConfigError;
@@ -65,6 +66,8 @@ pub struct IPFixParser {
     pub max_error_sample_size: usize,
     /// Registry of custom enterprise field definitions
     pub enterprise_registry: EnterpriseFieldRegistry,
+    /// Cache performance metrics
+    pub metrics: CacheMetrics,
 }
 
 impl Default for IPFixParser {
@@ -102,6 +105,7 @@ impl IPFixParser {
             max_template_cache_size: config.max_template_cache_size,
             max_error_sample_size: 256,
             enterprise_registry: config.enterprise_registry,
+            metrics: CacheMetrics::new(),
         })
     }
 }
@@ -173,28 +177,64 @@ impl IPFixParser {
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         for t in templates {
             let wrapped = TemplateWithTtl::new(t.clone());
+            // Check for collision (replacing existing template)
+            if self.templates.contains(&t.template_id) {
+                self.metrics.record_collision();
+            }
+            // Check if we're evicting an old template
+            else if self.templates.len() >= self.max_template_cache_size {
+                self.metrics.record_eviction();
+            }
             self.templates.put(t.template_id, wrapped);
+            self.metrics.record_insertion();
         }
     }
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         for t in templates {
             let wrapped = TemplateWithTtl::new(t.clone());
+            // Check for collision (replacing existing template)
+            if self.ipfix_options_templates.contains(&t.template_id) {
+                self.metrics.record_collision();
+            }
+            // Check if we're evicting an old template
+            else if self.ipfix_options_templates.len() >= self.max_template_cache_size {
+                self.metrics.record_eviction();
+            }
             self.ipfix_options_templates.put(t.template_id, wrapped);
+            self.metrics.record_insertion();
         }
     }
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         for t in templates {
             let wrapped = TemplateWithTtl::new(t.clone());
+            // Check for collision (replacing existing template)
+            if self.v9_templates.contains(&t.template_id) {
+                self.metrics.record_collision();
+            }
+            // Check if we're evicting an old template
+            else if self.v9_templates.len() >= self.max_template_cache_size {
+                self.metrics.record_eviction();
+            }
             self.v9_templates.put(t.template_id, wrapped);
+            self.metrics.record_insertion();
         }
     }
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         for t in templates {
             let wrapped = TemplateWithTtl::new(t.clone());
+            // Check for collision (replacing existing template)
+            if self.v9_options_templates.contains(&t.template_id) {
+                self.metrics.record_collision();
+            }
+            // Check if we're evicting an old template
+            else if self.v9_options_templates.len() >= self.max_template_cache_size {
+                self.metrics.record_eviction();
+            }
             self.v9_options_templates.put(t.template_id, wrapped);
+            self.metrics.record_insertion();
         }
     }
 }
@@ -217,6 +257,68 @@ pub struct IPFix {
     pub flowsets: Vec<FlowSet>,
 }
 
+/// Information about a data flowset that couldn't be parsed due to missing template.
+///
+/// This provides context to help diagnose template-related issues.
+#[derive(Debug, Clone, Serialize)]
+pub struct NoTemplateInfo {
+    /// The template ID that was requested but not found
+    pub template_id: u16,
+    /// List of currently available template IDs in the cache
+    pub available_templates: Vec<u16>,
+    /// The unparsed flowset data (for potential retry after template arrives)
+    pub raw_data: Vec<u8>,
+}
+
+impl NoTemplateInfo {
+    /// Create a new NoTemplateInfo with the given template ID and raw data
+    pub fn new(template_id: u16, raw_data: Vec<u8>) -> Self {
+        Self {
+            template_id,
+            available_templates: Vec::new(),
+            raw_data,
+        }
+    }
+
+    /// Create a NoTemplateInfo with available templates from the parser
+    pub fn with_available_templates(
+        template_id: u16,
+        raw_data: Vec<u8>,
+        parser: &IPFixParser,
+    ) -> Self {
+        let mut available = Vec::new();
+
+        // Collect all template IDs
+        for (id, _) in parser.templates.iter() {
+            available.push(*id);
+        }
+        for (id, _) in parser.v9_templates.iter() {
+            available.push(*id);
+        }
+        for (id, _) in parser.ipfix_options_templates.iter() {
+            available.push(*id);
+        }
+        for (id, _) in parser.v9_options_templates.iter() {
+            available.push(*id);
+        }
+
+        available.sort_unstable();
+        available.dedup();
+
+        Self {
+            template_id,
+            available_templates: available,
+            raw_data,
+        }
+    }
+}
+
+impl PartialEq for NoTemplateInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.template_id == other.template_id && self.raw_data == other.raw_data
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum FlowSetBody {
     Template(Template),
@@ -231,7 +333,7 @@ pub enum FlowSetBody {
     OptionsData(OptionsData),
     V9Data(V9Data),
     V9OptionsData(V9OptionsData),
-    NoTemplate(Vec<u8>),
+    NoTemplate(NoTemplateInfo),
     Empty,
 }
 
@@ -352,10 +454,12 @@ impl FlowSetBody {
             _ => {
                 // Try IPFix templates
                 if let Some(wrapped_template) = parser.templates.get(&id) {
+                    parser.metrics.record_hit();
                     // Check TTL if configured
                     if let Some(ref config) = parser.ttl_config {
                         if wrapped_template.is_expired(config) {
                             parser.templates.pop(&id);
+                            parser.metrics.record_expiration();
                         } else if wrapped_template.template.get_fields().is_empty() {
                             return Ok((i, FlowSetBody::Empty));
                         } else {
@@ -380,9 +484,11 @@ impl FlowSetBody {
 
                 // Try IPFix options templates
                 if let Some(wrapped_template) = parser.ipfix_options_templates.get(&id) {
+                    parser.metrics.record_hit();
                     if let Some(ref config) = parser.ttl_config {
                         if wrapped_template.is_expired(config) {
                             parser.ipfix_options_templates.pop(&id);
+                            parser.metrics.record_expiration();
                         } else if wrapped_template.template.get_fields().is_empty() {
                             return Ok((i, FlowSetBody::Empty));
                         } else {
@@ -407,9 +513,11 @@ impl FlowSetBody {
 
                 // Try V9 templates
                 if let Some(wrapped_template) = parser.v9_templates.get(&id) {
+                    parser.metrics.record_hit();
                     if let Some(ref config) = parser.ttl_config {
                         if wrapped_template.is_expired(config) {
                             parser.v9_templates.pop(&id);
+                            parser.metrics.record_expiration();
                         } else {
                             let (i, data) = V9Data::parse(i, &wrapped_template.template)?;
                             return Ok((i, FlowSetBody::V9Data(data)));
@@ -422,9 +530,11 @@ impl FlowSetBody {
 
                 // Try V9 options templates
                 if let Some(wrapped_template) = parser.v9_options_templates.get(&id) {
+                    parser.metrics.record_hit();
                     if let Some(ref config) = parser.ttl_config {
                         if wrapped_template.is_expired(config) {
                             parser.v9_options_templates.pop(&id);
+                            parser.metrics.record_expiration();
                         } else {
                             let (i, data) =
                                 V9OptionsData::parse(i, &wrapped_template.template)?;
@@ -437,8 +547,10 @@ impl FlowSetBody {
                 }
 
                 // Template not found or expired
+                parser.metrics.record_miss();
                 if id > 255 {
-                    Ok((i, FlowSetBody::NoTemplate(i.to_vec())))
+                    let info = NoTemplateInfo::with_available_templates(id, i.to_vec(), parser);
+                    Ok((i, FlowSetBody::NoTemplate(info)))
                 } else {
                     Err(nom::Err::Error(nom::error::Error::new(
                         i,

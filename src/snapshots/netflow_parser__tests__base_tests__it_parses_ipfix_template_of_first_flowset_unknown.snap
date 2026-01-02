@@ -15,31 +15,42 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap())"
           length: 29
         body:
           NoTemplate:
-            - 0
-            - 133
-            - 58
-            - 211
-            - 0
-            - 0
-            - 0
-            - 0
-            - 1
-            - 0
-            - 0
-            - 0
-            - 0
-            - 0
-            - 0
-            - 0
-            - 5
-            - 0
-            - 0
-            - 0
-            - 0
-            - 0
-            - 0
-            - 0
-            - 0
+            template_id: 277
+            available_templates:
+              - 256
+              - 257
+              - 258
+              - 259
+              - 260
+              - 261
+              - 262
+              - 263
+            raw_data:
+              - 0
+              - 133
+              - 58
+              - 211
+              - 0
+              - 0
+              - 0
+              - 0
+              - 1
+              - 0
+              - 0
+              - 0
+              - 0
+              - 0
+              - 0
+              - 0
+              - 5
+              - 0
+              - 0
+              - 0
+              - 0
+              - 0
+              - 0
+              - 0
+              - 0
       - header:
           header_id: 258
           length: 433

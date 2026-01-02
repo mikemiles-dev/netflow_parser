@@ -16,6 +16,13 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
   - [Template TTL (Time-to-Live)](#template-ttl-time-to-live)
 - [Custom Enterprise Fields (IPFIX)](#custom-enterprise-fields-ipfix)
 - [V9/IPFIX Notes](#v9ipfix-notes)
+- [Template Management Guide](#template-management-guide)
+  - [Template Cache Metrics](#template-cache-metrics)
+  - [Multi-Source Deployments](#multi-source-deployments)
+  - [Template Collision Detection](#template-collision-detection)
+  - [Handling Missing Templates](#handling-missing-templates)
+  - [Template Lifecycle Management](#template-lifecycle-management)
+  - [Best Practices](#best-practices)
 - [Performance & Thread Safety](#performance--thread-safety)
 - [Features](#features)
 - [Included Examples](#included-examples)
@@ -673,6 +680,225 @@ println!("Cached templates: {:?}", template_ids);
 **IPFIX Note:**  We only parse sequence number and domain id, it is up to you if you wish to validate it.
 
 To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attribute on the Parsed Record.  In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
+
+## Template Management Guide
+
+### Overview
+
+NetFlow V9 and IPFIX are template-based protocols where templates define the structure of flow records. This library provides comprehensive template management features to handle various deployment scenarios.
+
+### Template Cache Metrics
+
+Track template cache performance to understand your parser's behavior:
+
+```rust
+use netflow_parser::NetflowParser;
+
+let mut parser = NetflowParser::default();
+
+// Parse some packets...
+parser.parse_bytes(&data);
+
+// Get cache statistics
+let v9_stats = parser.v9_cache_stats();
+println!("V9 Cache: {}/{} templates", v9_stats.current_size, v9_stats.max_size);
+
+// Access performance metrics
+let metrics = &v9_stats.metrics;
+println!("Cache hits: {}", metrics.hits);
+println!("Cache misses: {}", metrics.misses);
+println!("Evictions: {}", metrics.evictions);
+println!("Collisions: {}", metrics.collisions);
+println!("Expired templates: {}", metrics.expired);
+
+// Calculate hit rate
+if let Some(hit_rate) = metrics.hit_rate() {
+    println!("Cache hit rate: {:.2}%", hit_rate * 100.0);
+}
+```
+
+**Metrics tracked:**
+- **Hits**: Successful template lookups
+- **Misses**: Failed template lookups (template not in cache)
+- **Evictions**: Templates removed due to LRU policy when cache is full
+- **Collisions**: Template ID reused (same ID, potentially different definition)
+- **Expired**: Templates removed due to TTL expiration
+
+### Multi-Source Deployments
+
+When parsing NetFlow from multiple routers/exporters, use `RouterScopedParser` to maintain separate template caches per source:
+
+```rust
+use netflow_parser::RouterScopedParser;
+use std::net::SocketAddr;
+
+let mut scoped_parser = RouterScopedParser::<SocketAddr>::new();
+
+// Parse from router 1
+let router1: SocketAddr = "192.168.1.1:2055".parse().unwrap();
+let packets1 = scoped_parser.parse_from_source(router1, &data1);
+
+// Parse from router 2 (separate template cache)
+let router2: SocketAddr = "192.168.1.2:2055".parse().unwrap();
+let packets2 = scoped_parser.parse_from_source(router2, &data2);
+
+// Get statistics per source
+if let Some((v9_stats, ipfix_stats)) = scoped_parser.get_source_stats(&router1) {
+    println!("Router 1 - V9: {}/{}", v9_stats.current_size, v9_stats.max_size);
+}
+
+// List all active sources
+println!("Active sources: {}", scoped_parser.source_count());
+```
+
+**Why per-source template isolation?**
+- Different routers may use the same template ID for different field definitions
+- Prevents template collisions between sources
+- Accurate cache metrics per source
+
+#### Custom Source Identifiers
+
+You can use any hashable type as a source identifier:
+
+```rust
+// Use observation domain ID
+let mut scoped = RouterScopedParser::<u32>::new();
+scoped.parse_from_source(12345u32, &data);
+
+// Use named sources
+let mut scoped = RouterScopedParser::<String>::new();
+scoped.parse_from_source("router-nyc-01".to_string(), &data);
+
+// Use custom types
+#[derive(Hash, Eq, PartialEq, Clone)]
+struct RouterId {
+    addr: SocketAddr,
+    domain_id: u32,
+}
+
+let mut scoped = RouterScopedParser::<RouterId>::new();
+```
+
+#### Custom Parser Configuration
+
+Configure parsers created by `RouterScopedParser`:
+
+```rust
+use netflow_parser::{RouterScopedParser, NetflowParser};
+use netflow_parser::variable_versions::ttl::TtlConfig;
+use std::time::Duration;
+use std::net::SocketAddr;
+
+let builder = NetflowParser::builder()
+    .with_cache_size(5000)
+    .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
+
+let mut scoped = RouterScopedParser::<SocketAddr>::with_builder(builder);
+```
+
+### Template Collision Detection
+
+Monitor when template IDs are reused:
+
+```rust
+let v9_stats = parser.v9_cache_stats();
+if v9_stats.metrics.collisions > 0 {
+    println!("Warning: {} template collisions detected", v9_stats.metrics.collisions);
+    println!("Consider using RouterScopedParser for multi-source deployments");
+}
+```
+
+### Handling Missing Templates
+
+When a data flowset arrives before its template (IPFIX):
+
+```rust
+use netflow_parser::{NetflowParser, NetflowPacket};
+use netflow_parser::variable_versions::ipfix::FlowSetBody;
+
+let mut parser = NetflowParser::default();
+let mut pending_data = Vec::new();
+
+for packet in parser.iter_packets(&data) {
+    if let NetflowPacket::IPFix(ipfix) = packet {
+        for flowset in &ipfix.flowsets {
+            if let FlowSetBody::NoTemplate(info) = &flowset.body {
+                println!("Missing template ID: {}", info.template_id);
+                println!("Available templates: {:?}", info.available_templates);
+
+                // Save for retry after template arrives
+                pending_data.push(info.raw_data.clone());
+            }
+        }
+    }
+}
+
+// Retry pending data after templates arrive
+for pending in &pending_data {
+    let _ = parser.parse_bytes(pending);
+}
+```
+
+### Template Lifecycle Management
+
+#### Checking Template Availability
+
+```rust
+if parser.has_v9_template(256) {
+    println!("Template 256 is available");
+}
+
+// List all cached template IDs
+let template_ids = parser.v9_template_ids();
+println!("Cached V9 templates: {:?}", template_ids);
+```
+
+#### Clearing Templates
+
+```rust
+// Clear all V9 templates
+parser.clear_v9_templates();
+
+// Clear all IPFIX templates
+parser.clear_ipfix_templates();
+
+// With RouterScopedParser - clear specific source
+scoped_parser.clear_source_templates(&source_addr);
+
+// Or clear all sources
+scoped_parser.clear_all_templates();
+```
+
+### Best Practices
+
+1. **Use RouterScopedParser for multi-source deployments**
+   - Prevents template ID collisions between sources
+   - Provides per-source metrics and management
+
+2. **Monitor cache metrics**
+   - High miss rates indicate templates arriving out of order
+   - High collision rates suggest need for per-source isolation
+   - High eviction rates indicate cache size should be increased
+
+3. **Configure appropriate cache size**
+   - Default: 1000 templates
+   - Increase for routers that define many templates
+   - Monitor `current_size` vs `max_size` to right-size
+
+4. **Use TTL for long-running parsers**
+   - Prevents stale templates in 24/7 collectors
+   - Recommended: 1-2 hours for typical deployments
+   - See [Template TTL](#template-ttl-time-to-live) section
+
+5. **Handle missing templates gracefully**
+   - Cache data flowsets that arrive before templates
+   - Retry after template packets are processed
+   - Use `NoTemplateInfo` to understand what's missing
+
+6. **Single-threaded per-source pattern**
+   - Create one parser per source
+   - Or use RouterScopedParser which does this automatically
+   - See [Thread Safety](#thread-safety) for details
 
 ## Performance & Thread Safety
 
