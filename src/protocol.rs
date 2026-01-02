@@ -349,7 +349,8 @@ impl From<ProtocolTypes> for u8 {
 impl From<u8> for ProtocolTypes {
     fn from(item: u8) -> Self {
         match item {
-            1 => ProtocolTypes::Hopopt,
+            0 => ProtocolTypes::Hopopt,
+            1 => ProtocolTypes::Icmp,
             2 => ProtocolTypes::Igmp,
             3 => ProtocolTypes::Ggp,
             4 => ProtocolTypes::Ipv4,
@@ -492,7 +493,8 @@ impl From<u8> for ProtocolTypes {
             141 => ProtocolTypes::Wesp,
             142 => ProtocolTypes::Rohc,
             143 => ProtocolTypes::Ethernet,
-            144 => ProtocolTypes::Reserved,
+            144 => ProtocolTypes::Aggfrag,
+            255 => ProtocolTypes::Reserved,
             _ => ProtocolTypes::Unknown,
         }
     }
