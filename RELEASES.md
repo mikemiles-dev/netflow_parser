@@ -1,3 +1,13 @@
+# 0.7.4
+
+  * **Fixed critical bug in protocol.rs:**
+    * Fixed `impl From<u8> for ProtocolTypes` mapping that was off-by-one
+    * Added missing case for `0` → `ProtocolTypes::Hopopt`
+    * Fixed case `1` from `Hopopt` to `Icmp` (correct mapping)
+    * Fixed case `144` from `Reserved` to `Aggfrag` (correct mapping)
+    * Added missing case for `255` → `ProtocolTypes::Reserved`
+    * All protocol number conversions now correctly match the enum definition
+
 # 0.7.3
 
   * **Comprehensive Documentation Improvements for docs.rs:**

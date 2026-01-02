@@ -2,8 +2,8 @@
 source: src/protocol.rs
 expression: protocols
 ---
-- Unknown
 - Hopopt
+- Icmp
 - Igmp
 - Ggp
 - Ipv4
@@ -146,4 +146,4 @@ expression: protocols
 - Wesp
 - Rohc
 - Ethernet
-- Reserved
+- Aggfrag
