@@ -8,13 +8,14 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 - [Serialization (JSON)](#want-serialization-such-as-json)
 - [Filtering for a Specific Version](#filtering-for-a-specific-version)
 - [Iterator API](#iterator-api)
-- [Parsing Out Unneeded Versions](#parsing-out-unneeded-versions)
-- [Error Handling Configuration](#error-handling-configuration)
+- [Parser Configuration](#parser-configuration)
+  - [Template Cache Size](#template-cache-size)
+  - [Template TTL (Time-to-Live)](#template-ttl-time-to-live)
+  - [Filtering Versions](#filtering-versions)
+  - [Error Handling Configuration](#error-handling-configuration)
+  - [Custom Enterprise Fields (IPFIX)](#custom-enterprise-fields-ipfix)
 - [Netflow Common](#netflow-common)
 - [Re-Exporting Flows](#re-exporting-flows)
-- [Template Cache Configuration](#template-cache-configuration)
-  - [Template TTL (Time-to-Live)](#template-ttl-time-to-live)
-- [Custom Enterprise Fields (IPFIX)](#custom-enterprise-fields-ipfix)
 - [V9/IPFIX Notes](#v9ipfix-notes)
 - [Template Management Guide](#template-management-guide)
   - [Template Cache Metrics](#template-cache-metrics)
@@ -211,47 +212,231 @@ if !iter.is_complete() {
 }
 ```
 
-## Parsing Out Unneeded Versions
-If you only care about a specific version or versions you can specify `allowed_versions`:
-```rust
-use netflow_parser::{NetflowParser, NetflowPacket};
+## Parser Configuration
 
-// 0000   00 05 00 01 03 00 04 00 05 00 06 07 08 09 00 01   ................
-// 0010   02 03 04 05 06 07 08 09 00 01 02 03 04 05 06 07   ................
-// 0020   08 09 00 01 02 03 04 05 06 07 08 09 00 01 02 03   ................
-// 0030   04 05 06 07 08 09 00 01 02 03 04 05 06 07 08 09   ................
-// 0040   00 01 02 03 04 05 06 07                           ........
-let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-let mut parser = NetflowParser::default();
-parser.allowed_versions = [7, 9].into();
-let parsed = parser.parse_bytes(&v5_packet);
-```
+The `NetflowParser` can be configured using the builder pattern to customize behavior for your specific use case.
 
-This code will return an empty Vec as version 5 is not allowed.
-
-## Error Handling Configuration
-
-To prevent memory exhaustion from malformed packets, the parser limits the size of error buffer samples. By default, only the first 256 bytes of unparseable data are stored in error messages. You can customize this limit for all parsers:
+### Basic Builder Usage
 
 ```rust
 use netflow_parser::NetflowParser;
 
+// Create parser with default settings
+let parser = NetflowParser::default();
+
+// Or use the builder for custom configuration
+let parser = NetflowParser::builder()
+    .build()
+    .expect("Failed to build parser");
+```
+
+### Template Cache Size
+
+V9 and IPFIX parsers use LRU (Least Recently Used) caching to store templates. Configure the cache size to prevent memory exhaustion while maintaining good performance:
+
+```rust
+use netflow_parser::NetflowParser;
+
+// Configure both V9 and IPFIX parsers with the same cache size
+let parser = NetflowParser::builder()
+    .with_cache_size(2000)  // Default is 1000
+    .build()
+    .expect("Failed to build parser");
+
+// Configure V9 and IPFIX independently
+let parser = NetflowParser::builder()
+    .with_v9_cache_size(1000)
+    .with_ipfix_cache_size(5000)
+    .build()
+    .expect("Failed to build parser");
+```
+
+**Cache Behavior:**
+- When the cache is full, the least recently used template is evicted
+- Templates are keyed by template ID (per source)
+- Each parser instance maintains its own template cache
+- For multi-source deployments, use `RouterScopedParser` (see Template Management section)
+
+### Template TTL (Time-to-Live)
+
+> **⚠️ Breaking Change in v0.7.0:** Packet-based and combined TTL modes have been removed. Only time-based TTL is now supported. See [RELEASES.md](RELEASES.md) for migration guide.
+
+Optionally configure templates to expire after a time duration. This is useful for:
+- Handling exporters that reuse template IDs with different schemas
+- Forcing periodic template refresh from exporters
+- Testing template re-learning behavior
+
+**Note:** TTL is disabled by default. Templates persist until LRU eviction unless explicitly configured.
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::ttl::TtlConfig;
+use std::time::Duration;
+
+// Templates expire after 2 hours
+let parser = NetflowParser::builder()
+    .with_cache_size(1000)
+    .with_ttl(TtlConfig::new(Duration::from_secs(2 * 3600)))
+    .build()
+    .unwrap();
+
+// Using default TTL (2 hours)
+let parser = NetflowParser::builder()
+    .with_cache_size(1000)
+    .with_ttl(TtlConfig::default())
+    .build()
+    .unwrap();
+
+// Different TTL for V9 and IPFIX
+let parser = NetflowParser::builder()
+    .with_v9_ttl(TtlConfig::new(Duration::from_secs(3600)))
+    .with_ipfix_ttl(TtlConfig::new(Duration::from_secs(2 * 3600)))
+    .build()
+    .unwrap();
+```
+
+### Filtering Versions
+
+If you only care about specific NetFlow versions, configure allowed versions:
+
+```rust
+use netflow_parser::NetflowParser;
+
+// Only parse V5 and V9 packets
+let parser = NetflowParser::builder()
+    .with_allowed_versions([5, 9].into())
+    .build()
+    .expect("Failed to build parser");
+
+// Or set directly on an existing parser
 let mut parser = NetflowParser::default();
+parser.allowed_versions = [7, 9].into();
+```
 
-// Configure maximum error buffer size for the main parser (default: 256 bytes)
-// This applies to generic parsing errors
+Packets with versions not in the allowed list will be ignored (returns empty Vec).
+
+### Error Handling Configuration
+
+To prevent memory exhaustion from malformed packets, the parser limits the size of error buffer samples. By default, only the first 256 bytes of unparseable data are stored in error messages:
+
+```rust
+use netflow_parser::NetflowParser;
+
+let parser = NetflowParser::builder()
+    .with_max_error_sample_size(512)  // Default is 256 bytes
+    .build()
+    .expect("Failed to build parser");
+
+// Or configure directly on an existing parser
+let mut parser = NetflowParser::default();
 parser.max_error_sample_size = 512;
-
-// Configure maximum error buffer size for V9 (default: 256 bytes)
 parser.v9_parser.max_error_sample_size = 512;
-
-// Configure maximum error buffer size for IPFIX (default: 256 bytes)
 parser.ipfix_parser.max_error_sample_size = 512;
-
-let parsed = parser.parse_bytes(&some_packet);
 ```
 
 This setting helps prevent memory exhaustion when processing malformed or malicious packets while still providing enough context for debugging.
+
+### Custom Enterprise Fields (IPFIX)
+
+IPFIX supports vendor-specific enterprise fields that extend the standard IANA field set. The library provides built-in support for several vendors (Cisco, VMWare, Netscaler, etc.), but you can also register your own custom enterprise fields:
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::data_number::FieldDataType;
+use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
+
+// Register custom enterprise fields for your vendor
+let parser = NetflowParser::builder()
+    .register_enterprise_field(EnterpriseFieldDef::new(
+        12345,  // Your enterprise number (assigned by IANA)
+        1,      // Field number within your enterprise
+        "customMetric",
+        FieldDataType::UnsignedDataNumber,
+    ))
+    .register_enterprise_field(EnterpriseFieldDef::new(
+        12345,
+        2,
+        "customApplicationName",
+        FieldDataType::String,
+    ))
+    .build()
+    .expect("Failed to build parser");
+
+// Parse IPFIX packets - custom fields are automatically decoded!
+let packets = parser.parse_bytes(&buffer);
+```
+
+#### Bulk Registration
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::data_number::FieldDataType;
+use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
+
+let custom_fields = vec![
+    EnterpriseFieldDef::new(12345, 1, "field1", FieldDataType::UnsignedDataNumber),
+    EnterpriseFieldDef::new(12345, 2, "field2", FieldDataType::String),
+    EnterpriseFieldDef::new(12345, 3, "field3", FieldDataType::Ip4Addr),
+    EnterpriseFieldDef::new(12345, 4, "field4", FieldDataType::DurationMillis),
+];
+
+let parser = NetflowParser::builder()
+    .register_enterprise_fields(custom_fields)
+    .build()
+    .expect("Failed to build parser");
+```
+
+#### Available Data Types
+
+When registering enterprise fields, you can use any of these built-in data types:
+
+- `FieldDataType::UnsignedDataNumber` - Unsigned integers (variable length)
+- `FieldDataType::SignedDataNumber` - Signed integers (variable length)
+- `FieldDataType::Float64` - 64-bit floating point
+- `FieldDataType::String` - UTF-8 strings
+- `FieldDataType::Ip4Addr` - IPv4 addresses
+- `FieldDataType::Ip6Addr` - IPv6 addresses
+- `FieldDataType::MacAddr` - MAC addresses
+- `FieldDataType::DurationSeconds` - Durations in seconds
+- `FieldDataType::DurationMillis` - Durations in milliseconds
+- `FieldDataType::DurationMicrosNTP` - NTP microsecond timestamps
+- `FieldDataType::DurationNanosNTP` - NTP nanosecond timestamps
+- `FieldDataType::ProtocolType` - Protocol numbers
+- `FieldDataType::Vec` - Raw byte arrays
+- `FieldDataType::ApplicationId` - Application identifiers
+
+**How It Works:**
+1. **Without registration**: Unknown enterprise fields are parsed as raw bytes (`FieldValue::Vec`)
+2. **With registration**: Registered enterprise fields are automatically parsed according to their specified data type
+3. **Field names**: The `name` parameter is used for debugging and can help identify fields in logs
+
+See `examples/custom_enterprise_fields.rs` for a complete working example.
+
+### Complete Configuration Example
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::ttl::TtlConfig;
+use netflow_parser::variable_versions::data_number::FieldDataType;
+use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
+use std::time::Duration;
+
+let parser = NetflowParser::builder()
+    .with_v9_cache_size(1000)
+    .with_ipfix_cache_size(2000)
+    .with_v9_ttl(TtlConfig::new(Duration::from_secs(3600)))
+    .with_ipfix_ttl(TtlConfig::new(Duration::from_secs(7200)))
+    .with_allowed_versions([5, 9, 10].into())
+    .with_max_error_sample_size(512)
+    .register_enterprise_field(EnterpriseFieldDef::new(
+        12345,
+        1,
+        "customField",
+        FieldDataType::UnsignedDataNumber,
+    ))
+    .build()
+    .expect("Failed to build parser");
+```
 
 ## Netflow Common
 
@@ -425,261 +610,15 @@ if let NetflowPacket::V5(v5) = NetflowParser::default()
 }
 ```
 
-## Template Cache Configuration
-
-V9 and IPFIX parsers use LRU (Least Recently Used) caching to store templates with a configurable size limit. This prevents memory exhaustion from template flooding attacks while maintaining good performance for legitimate traffic.
-
-### Default Behavior
-
-By default, parsers cache up to 1000 templates:
-
-```rust
-use netflow_parser::NetflowParser;
-
-// Uses default cache size of 1000 templates per parser
-let parser = NetflowParser::default();
-```
-
-### Custom Cache Size - Using Builder Pattern (Recommended)
-
-The builder pattern provides an ergonomic way to configure your parser:
-
-```rust
-use netflow_parser::NetflowParser;
-use netflow_parser::variable_versions::ttl::TtlConfig;
-
-// Configure both V9 and IPFIX parsers with the same settings
-let parser = NetflowParser::builder()
-    .with_cache_size(2000)
-    .build()
-    .expect("Failed to build parser");
-
-// Configure V9 and IPFIX independently
-let parser = NetflowParser::builder()
-    .with_v9_cache_size(1000)
-    .with_ipfix_cache_size(5000)
-    .build()
-    .expect("Failed to build parser");
-
-// Combine cache size with TTL configuration
-let parser = NetflowParser::builder()
-    .with_cache_size(2000)
-    .with_ttl(TtlConfig::packet_based(100))
-    .build()
-    .expect("Failed to build parser");
-
-// Full configuration example
-let parser = NetflowParser::builder()
-    .with_v9_cache_size(1000)
-    .with_ipfix_cache_size(2000)
-    .with_v9_ttl(TtlConfig::packet_based(100))
-    .with_ipfix_ttl(TtlConfig::time_based(std::time::Duration::from_secs(3600)))
-    .with_allowed_versions([5, 9, 10].into())
-    .with_max_error_sample_size(512)
-    .build()
-    .expect("Failed to build parser");
-```
-
-### Cache Behavior
-
-- When the cache is full, the least recently used template is evicted
-- Templates are keyed by template ID (per source)
-- Each parser instance maintains its own template cache
-- For multi-source deployments, create separate parser instances per source
-
-### Template TTL (Time-to-Live)
-
-> **⚠️ Breaking Change in v0.7.0:** Packet-based and combined TTL modes have been removed. Only time-based TTL is now supported. See [RELEASES.md](RELEASES.md) for migration guide.
-
-Optionally configure templates to expire after a time duration. This is useful for:
-- Handling exporters that reuse template IDs with different schemas
-- Forcing periodic template refresh from exporters
-- Testing template re-learning behavior
-
-**Note:** TTL is disabled by default. Templates persist until LRU eviction unless explicitly configured.
-
-#### Configuration Examples
-
-```rust
-use netflow_parser::NetflowParser;
-use netflow_parser::variable_versions::ttl::TtlConfig;
-use std::time::Duration;
-
-// Templates expire after 2 hours
-let parser = NetflowParser::builder()
-    .with_cache_size(1000)
-    .with_ttl(TtlConfig::new(Duration::from_secs(2 * 3600)))
-    .build()
-    .unwrap();
-
-// Using default TTL (2 hours)
-let parser = NetflowParser::builder()
-    .with_cache_size(1000)
-    .with_ttl(TtlConfig::default())
-    .build()
-    .unwrap();
-
-// Different TTL for V9 and IPFIX
-let parser = NetflowParser::builder()
-    .with_v9_ttl(TtlConfig::new(Duration::from_secs(3600)))
-    .with_ipfix_ttl(TtlConfig::new(Duration::from_secs(2 * 3600)))
-    .build()
-    .unwrap();
-```
-
-### Template Cache Introspection
-
-You can inspect the template cache state at runtime:
-
-```rust
-use netflow_parser::NetflowParser;
-
-let parser = NetflowParser::default();
-
-// Get cache statistics
-let v9_stats = parser.v9_cache_stats();
-println!("V9 cache: {}/{} templates", v9_stats.current_size, v9_stats.max_size);
-
-let ipfix_stats = parser.ipfix_cache_stats();
-println!("IPFIX cache: {}/{} templates", ipfix_stats.current_size, ipfix_stats.max_size);
-
-// List all cached template IDs
-let v9_templates = parser.v9_template_ids();
-println!("V9 template IDs: {:?}", v9_templates);
-
-let ipfix_templates = parser.ipfix_template_ids();
-println!("IPFIX template IDs: {:?}", ipfix_templates);
-
-// Check if a specific template exists (doesn't affect LRU ordering)
-if parser.has_v9_template(256) {
-    println!("Template 256 is cached");
-}
-
-// Clear all templates (useful for testing)
-let mut parser = NetflowParser::default();
-parser.clear_v9_templates();
-parser.clear_ipfix_templates();
-```
-
-## Custom Enterprise Fields (IPFIX)
-
-IPFIX supports vendor-specific enterprise fields that extend the standard IANA field set. The library provides built-in support for several vendors (Cisco, VMWare, Netscaler, etc.), but you can also register your own custom enterprise fields without modifying the library source code.
-
-### Registering Custom Enterprise Fields
-
-Use the builder pattern to register enterprise field definitions with your parser:
-
-```rust
-use netflow_parser::NetflowParser;
-use netflow_parser::variable_versions::data_number::FieldDataType;
-use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
-
-// Define custom enterprise fields for your vendor
-let parser = NetflowParser::builder()
-    .register_enterprise_field(EnterpriseFieldDef::new(
-        12345,  // Your enterprise number (assigned by IANA)
-        1,      // Field number within your enterprise
-        "customMetric",
-        FieldDataType::UnsignedDataNumber,
-    ))
-    .register_enterprise_field(EnterpriseFieldDef::new(
-        12345,
-        2,
-        "customApplicationName",
-        FieldDataType::String,
-    ))
-    .register_enterprise_field(EnterpriseFieldDef::new(
-        12345,
-        3,
-        "customSourceAddress",
-        FieldDataType::Ip4Addr,
-    ))
-    .build()
-    .expect("Failed to build parser");
-
-// Parse IPFIX packets - custom fields are automatically decoded!
-let packets = parser.parse_bytes(&buffer);
-```
-
-### Bulk Registration
-
-You can also register multiple fields at once:
-
-```rust
-use netflow_parser::NetflowParser;
-use netflow_parser::variable_versions::data_number::FieldDataType;
-use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
-
-let custom_fields = vec![
-    EnterpriseFieldDef::new(12345, 1, "field1", FieldDataType::UnsignedDataNumber),
-    EnterpriseFieldDef::new(12345, 2, "field2", FieldDataType::String),
-    EnterpriseFieldDef::new(12345, 3, "field3", FieldDataType::Ip4Addr),
-    EnterpriseFieldDef::new(12345, 4, "field4", FieldDataType::DurationMillis),
-];
-
-let parser = NetflowParser::builder()
-    .register_enterprise_fields(custom_fields)
-    .build()
-    .expect("Failed to build parser");
-```
-
-### Available Data Types
-
-When registering enterprise fields, you can use any of the following built-in data types:
-
-- `FieldDataType::UnsignedDataNumber` - Unsigned integers (variable length)
-- `FieldDataType::SignedDataNumber` - Signed integers (variable length)
-- `FieldDataType::Float64` - 64-bit floating point
-- `FieldDataType::String` - UTF-8 strings
-- `FieldDataType::Ip4Addr` - IPv4 addresses
-- `FieldDataType::Ip6Addr` - IPv6 addresses
-- `FieldDataType::MacAddr` - MAC addresses
-- `FieldDataType::DurationSeconds` - Durations in seconds
-- `FieldDataType::DurationMillis` - Durations in milliseconds
-- `FieldDataType::DurationMicrosNTP` - NTP microsecond timestamps
-- `FieldDataType::DurationNanosNTP` - NTP nanosecond timestamps
-- `FieldDataType::ProtocolType` - Protocol numbers
-- `FieldDataType::Vec` - Raw byte arrays
-- `FieldDataType::ApplicationId` - Application identifiers
-
-### How It Works
-
-1. **Without registration**: Unknown enterprise fields are parsed as raw bytes (`FieldValue::Vec`)
-2. **With registration**: Registered enterprise fields are automatically parsed according to their specified data type
-3. **Field names**: The `name` parameter is used for debugging and can help identify fields in logs
-
-### Example
-
-See `examples/custom_enterprise_fields.rs` for a complete working example.
-
 ## V9/IPFIX Notes
 
 Parse the data (`&[u8]`) like any other version. The parser (`NetflowParser`) caches parsed templates using LRU eviction, so you can send header/data flowset combos and it will use the cached templates. Templates are automatically cached and evicted when the cache limit is reached.
 
-**Template Cache Access:**
-Use the introspection methods to inspect template cache state without affecting LRU ordering:
+**Template Management:** For comprehensive information about template caching, introspection, multi-source deployments, and best practices, see the [Template Management Guide](#template-management-guide) section below.
 
-```rust
-use netflow_parser::NetflowParser;
-let parser = NetflowParser::default();
+**IPFIX Note:** We only parse sequence number and domain id, it is up to you if you wish to validate it.
 
-// Check if a template exists (doesn't affect LRU)
-if parser.has_v9_template(256) {
-    println!("Template 256 is cached");
-}
-
-// Get cache stats
-let stats = parser.v9_cache_stats();
-println!("V9 cache: {}/{} templates", stats.current_size, stats.max_size);
-
-// List all template IDs
-let template_ids = parser.v9_template_ids();
-println!("Cached templates: {:?}", template_ids);
-```
-
-**IPFIX Note:**  We only parse sequence number and domain id, it is up to you if you wish to validate it.
-
-To access templates flowset of a processed V9/IPFix flowset you can find the `flowsets` attribute on the Parsed Record.  In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
+**FlowSet Access:** To access templates flowset of a processed V9/IPFIX flowset you can find the `flowsets` attribute on the Parsed Record. In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
 
 ## Template Management Guide
 
@@ -841,16 +780,33 @@ for pending in &pending_data {
 
 ### Template Lifecycle Management
 
-#### Checking Template Availability
+#### Template Introspection
+
+Inspect the template cache state at runtime without affecting LRU ordering:
 
 ```rust
-if parser.has_v9_template(256) {
-    println!("Template 256 is available");
-}
+use netflow_parser::NetflowParser;
+
+let parser = NetflowParser::default();
+
+// Get cache statistics
+let v9_stats = parser.v9_cache_stats();
+println!("V9 cache: {}/{} templates", v9_stats.current_size, v9_stats.max_size);
+
+let ipfix_stats = parser.ipfix_cache_stats();
+println!("IPFIX cache: {}/{} templates", ipfix_stats.current_size, ipfix_stats.max_size);
 
 // List all cached template IDs
-let template_ids = parser.v9_template_ids();
-println!("Cached V9 templates: {:?}", template_ids);
+let v9_templates = parser.v9_template_ids();
+println!("V9 template IDs: {:?}", v9_templates);
+
+let ipfix_templates = parser.ipfix_template_ids();
+println!("IPFIX template IDs: {:?}", ipfix_templates);
+
+// Check if a specific template exists (doesn't affect LRU ordering)
+if parser.has_v9_template(256) {
+    println!("Template 256 is cached");
+}
 ```
 
 #### Clearing Templates
