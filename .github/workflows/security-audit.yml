@@ -1,0 +1,60 @@
+name: Security Audit
+
+on:
+  # Run daily at 00:00 UTC
+  schedule:
+    - cron: '0 0 * * *'
+  # Allow manual trigger
+  workflow_dispatch:
+  # Also run on push to main (defense in depth)
+  push:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  audit:
+    name: Security Vulnerability Audit
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    # Use official cargo-audit action (maintained by RustSec)
+    - name: Run cargo-audit
+      uses: rustsec/audit-check@v2
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+  dependency-review:
+    name: Dependency License and Security Review
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+
+    - name: Install cargo-deny
+      run: cargo install cargo-deny --locked
+
+    - name: Check advisories
+      run: cargo deny check advisories
+
+    - name: Check licenses
+      run: cargo deny check licenses
+
+    - name: Check bans
+      run: cargo deny check bans
+
+    - name: Check sources
+      run: cargo deny check sources
