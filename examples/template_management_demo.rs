@@ -48,7 +48,7 @@ fn demo_cache_metrics() {
 
     // Simulate parsing some packets (in real scenario, use actual NetFlow data)
     let dummy_data = vec![0u8; 100];
-    let _ = parser.parse_bytes(&dummy_data);
+    let _ = parser.parse_bytes(&dummy_data).unwrap_or_default();
 
     // Get cache statistics
     let v9_stats = parser.v9_cache_stats();
@@ -102,9 +102,15 @@ fn demo_multi_source() {
     let dummy_data = vec![0u8; 100];
 
     println!("\nParsing packets from multiple routers...");
-    let _ = scoped_parser.parse_from_source(router1, &dummy_data);
-    let _ = scoped_parser.parse_from_source(router2, &dummy_data);
-    let _ = scoped_parser.parse_from_source(router3, &dummy_data);
+    let _ = scoped_parser
+        .parse_from_source(router1, &dummy_data)
+        .unwrap_or_default();
+    let _ = scoped_parser
+        .parse_from_source(router2, &dummy_data)
+        .unwrap_or_default();
+    let _ = scoped_parser
+        .parse_from_source(router3, &dummy_data)
+        .unwrap_or_default();
 
     println!("Active sources: {}", scoped_parser.source_count());
     println!("\nRegistered routers:");
@@ -146,7 +152,7 @@ fn demo_collision_detection() {
     // from different sources would trigger collision detection
 
     let dummy_data = vec![0u8; 100];
-    let _ = parser.parse_bytes(&dummy_data);
+    let _ = parser.parse_bytes(&dummy_data).unwrap_or_default();
 
     let v9_stats = parser.v9_cache_stats();
 
@@ -179,16 +185,18 @@ fn demo_missing_templates() {
 
     println!("\nProcessing IPFIX packets...");
 
-    for packet in parser.iter_packets(&dummy_data) {
-        if let NetflowPacket::IPFix(ipfix) = packet {
-            for flowset in &ipfix.flowsets {
-                if let FlowSetBody::NoTemplate(info) = &flowset.body {
-                    println!("\n⚠️  Missing template ID: {}", info.template_id);
-                    println!("   Available templates: {:?}", info.available_templates);
-                    println!("   Data size: {} bytes", info.raw_data.len());
+    for result in parser.iter_packets(&dummy_data) {
+        if let Ok(packet) = result {
+            if let NetflowPacket::IPFix(ipfix) = packet {
+                for flowset in &ipfix.flowsets {
+                    if let FlowSetBody::NoTemplate(info) = &flowset.body {
+                        println!("\n⚠️  Missing template ID: {}", info.template_id);
+                        println!("   Available templates: {:?}", info.available_templates);
+                        println!("   Data size: {} bytes", info.raw_data.len());
 
-                    // Save for retry
-                    pending_data.push(info.raw_data.clone());
+                        // Save for retry
+                        pending_data.push(info.raw_data.clone());
+                    }
                 }
             }
         }
@@ -218,7 +226,7 @@ fn demo_template_lifecycle() {
 
     // Simulate some parsing
     let dummy_data = vec![0u8; 100];
-    let _ = parser.parse_bytes(&dummy_data);
+    let _ = parser.parse_bytes(&dummy_data).unwrap_or_default();
 
     println!("\nTemplate Cache Inspection:");
 

@@ -10,7 +10,7 @@ fn criterion_benchmark(c: &mut Criterion) {
                 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
                 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
             ];
-            NetflowParser::default().parse_bytes(black_box(&v5_packet));
+            let _ = NetflowParser::default().parse_bytes(black_box(&v5_packet));
         })
     });
 }

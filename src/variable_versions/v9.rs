@@ -153,7 +153,6 @@ impl V9Parser {
             Err(e) => ParsedNetflow::Error {
                 error: NetflowError::Partial {
                     message: format!("V9 parse error: {}", e),
-                    offset: 0,
                 },
             },
         }

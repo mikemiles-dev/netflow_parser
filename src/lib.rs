@@ -33,9 +33,8 @@
 //! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-//! match NetflowParser::default().parse_bytes(&v5_packet).first() {
+//! match NetflowParser::default().parse_bytes(&v5_packet).unwrap().first() {
 //!     Some(NetflowPacket::V5(v5)) => assert_eq!(v5.header.version, 5),
-//!     Some(NetflowPacket::Error(e)) => println!("{:?}", e),
 //!     _ => (),
 //! }
 //! ```
@@ -47,7 +46,7 @@
 //! use netflow_parser::NetflowParser;
 //!
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-//! println!("{}", json!(NetflowParser::default().parse_bytes(&v5_packet)).to_string());
+//! println!("{}", json!(NetflowParser::default().parse_bytes(&v5_packet).unwrap()).to_string());
 //! ```
 //!
 //! ```json
@@ -101,7 +100,7 @@
 //! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-//! let parsed = NetflowParser::default().parse_bytes(&v5_packet);
+//! let parsed = NetflowParser::default().parse_bytes(&v5_packet).unwrap();
 //!
 //! let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 //! ```
@@ -117,22 +116,22 @@
 //! let mut parser = NetflowParser::default();
 //!
 //! // Process packets without collecting into a Vec
-//! for packet in parser.iter_packets(&buffer) {
-//!     match packet {
-//!         NetflowPacket::V5(v5) => {
+//! for result in parser.iter_packets(&buffer) {
+//!     match result {
+//!         Ok(NetflowPacket::V5(v5)) => {
 //!             // Process V5 packet
 //!             println!("V5 packet from {}", v5.header.version);
 //!         }
-//!         NetflowPacket::V9(v9) => {
+//!         Ok(NetflowPacket::V9(v9)) => {
 //!             // Process V9 packet
 //!             for flowset in &v9.flowsets {
 //!                 // Handle flowsets
 //!             }
 //!         }
-//!         NetflowPacket::IPFix(ipfix) => {
+//!         Ok(NetflowPacket::IPFix(ipfix)) => {
 //!             // Process IPFIX packet
 //!         }
-//!         NetflowPacket::Error(e) => {
+//!         Err(e) => {
 //!             eprintln!("Parse error: {:?}", e);
 //!         }
 //!         _ => {}
@@ -149,9 +148,15 @@
 //! let mut parser = NetflowParser::default();
 //! let mut iter = parser.iter_packets(&buffer);
 //!
-//! while let Some(packet) = iter.next() {
-//!     // Process packet
-//! #   _ = packet;
+//! while let Some(result) = iter.next() {
+//!     match result {
+//!         Ok(_packet) => {
+//!             // Process packet
+//!         }
+//!         Err(_e) => {
+//!             // Handle error
+//!         }
+//!     }
 //! }
 //!
 //! // Check if all bytes were consumed
@@ -177,23 +182,29 @@
 //! # let mut parser = NetflowParser::default();
 //! // Count V5 packets without collecting
 //! let count = parser.iter_packets(&buffer)
-//!     .filter(|p| p.is_v5())
+//!     .filter(|r| r.as_ref().map(|p| p.is_v5()).unwrap_or(false))
 //!     .count();
 //!
 //! // Process only the first 10 packets
-//! for packet in parser.iter_packets(&buffer).take(10) {
-//!     // Handle packet
-//! #   _ = packet;
+//! for result in parser.iter_packets(&buffer).take(10) {
+//!     if let Ok(packet) = result {
+//!         // Handle packet
+//! #       _ = packet;
+//!     }
 //! }
 //!
 //! // Collect only if needed (equivalent to parse_bytes())
-//! let packets: Vec<_> = parser.iter_packets(&buffer).collect();
+//! let packets: Vec<_> = parser.iter_packets(&buffer)
+//!     .filter_map(Result::ok)
+//!     .collect();
 //!
 //! // Check unconsumed bytes (useful for mixed protocol streams)
 //! let mut iter = parser.iter_packets(&buffer);
-//! for packet in &mut iter {
-//!     // Process packet
-//! #   _ = packet;
+//! for result in &mut iter {
+//!     if let Ok(packet) = result {
+//!         // Process packet
+//! #       _ = packet;
+//!     }
 //! }
 //! if !iter.is_complete() {
 //!     let remaining = iter.remaining();
@@ -210,7 +221,7 @@
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
 //! let mut parser = NetflowParser::default();
 //! parser.allowed_versions = [7, 9].into();
-//! let parsed = parser.parse_bytes(&v5_packet);
+//! let parsed = parser.parse_bytes(&v5_packet).unwrap();
 //! ```
 //!
 //! This code will return an empty Vec as version 5 is not allowed.
@@ -397,6 +408,7 @@
 //! ];
 //! if let NetflowPacket::V5(v5) = NetflowParser::default()
 //!     .parse_bytes(&packet)
+//!     .unwrap()
 //!     .first()
 //!     .unwrap()
 //! {
@@ -625,8 +637,6 @@ pub enum NetflowPacket {
     V9(V9),
     /// IPFix
     IPFix(IPFix),
-    /// Parsing error with detailed context
-    Error(NetflowError),
 }
 
 impl NetflowPacket {
@@ -641,9 +651,6 @@ impl NetflowPacket {
     }
     pub fn is_ipfix(&self) -> bool {
         matches!(self, Self::IPFix(_v))
-    }
-    pub fn is_error(&self) -> bool {
-        matches!(self, Self::Error(_v))
     }
     #[cfg(feature = "netflow_common")]
     pub fn as_netflow_common(&self) -> Result<NetflowCommon, NetflowCommonError> {
@@ -1252,8 +1259,6 @@ pub enum NetflowError {
     Partial {
         /// Description of the partial parse result
         message: String,
-        /// Offset where the partial parse ended
-        offset: usize,
     },
 }
 
@@ -1307,8 +1312,8 @@ impl std::fmt::Display for NetflowError {
                     offset, context, kind
                 )
             }
-            NetflowError::Partial { message, offset } => {
-                write!(f, "Partial parse at offset {}: {}", offset, message)
+            NetflowError::Partial { message } => {
+                write!(f, "Partial parse error: {}", message)
             }
         }
     }
@@ -1392,7 +1397,7 @@ impl<'a> NetflowPacketIterator<'a> {
 }
 
 impl<'a> Iterator for NetflowPacketIterator<'a> {
-    type Item = NetflowPacket;
+    type Item = Result<NetflowPacket, NetflowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Stop if we've errored or no bytes remain
@@ -1406,7 +1411,7 @@ impl<'a> Iterator for NetflowPacketIterator<'a> {
                 remaining: new_remaining,
             } => {
                 self.remaining = new_remaining;
-                Some(packet)
+                Some(Ok(packet))
             }
             ParsedNetflow::UnallowedVersion => {
                 self.errored = true;
@@ -1414,8 +1419,7 @@ impl<'a> Iterator for NetflowPacketIterator<'a> {
             }
             ParsedNetflow::Error { error } => {
                 self.errored = true;
-                // Error already contains context, just pass it through
-                Some(NetflowPacket::Error(error))
+                Some(Err(error))
             }
         }
     }
@@ -1696,9 +1700,9 @@ impl NetflowParser {
     /// ```
     ///
     #[inline]
-    pub fn parse_bytes(&mut self, packet: &[u8]) -> Vec<NetflowPacket> {
+    pub fn parse_bytes(&mut self, packet: &[u8]) -> Result<Vec<NetflowPacket>, NetflowError> {
         if packet.is_empty() {
-            return vec![];
+            return Ok(vec![]);
         }
 
         let mut packets = Vec::new();
@@ -1717,14 +1721,13 @@ impl NetflowParser {
                     break;
                 }
                 ParsedNetflow::Error { error } => {
-                    // Error already contains context including remaining data sample
-                    packets.push(NetflowPacket::Error(error));
-                    break;
+                    // Return error - parsing stopped
+                    return Err(error);
                 }
             }
         }
 
-        packets
+        Ok(packets)
     }
 
     /// Returns an iterator that yields NetflowPacket items without allocating a Vec.
@@ -1738,10 +1741,10 @@ impl NetflowParser {
     /// let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
     /// let mut parser = NetflowParser::default();
     ///
-    /// for packet in parser.iter_packets(&v5_packet) {
-    ///     match packet {
-    ///         NetflowPacket::V5(v5) => println!("V5 packet: {:?}", v5.header.version),
-    ///         NetflowPacket::Error(e) => println!("Error: {:?}", e),
+    /// for result in parser.iter_packets(&v5_packet) {
+    ///     match result {
+    ///         Ok(NetflowPacket::V5(v5)) => println!("V5 packet: {:?}", v5.header.version),
+    ///         Err(e) => println!("Error: {:?}", e),
     ///         _ => (),
     ///     }
     /// }

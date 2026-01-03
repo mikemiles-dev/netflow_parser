@@ -133,7 +133,13 @@
     * New example: `examples/template_hooks.rs` - Comprehensive demonstration of hook system
     * Integration tests: 7 new tests in `tests/template_hooks.rs`
 
-  * **Enhanced Error Handling:**
+  * **Enhanced Error Handling (BREAKING CHANGES):**
+    * **BREAKING CHANGE:** `NetflowPacket::Error` variant removed - errors now returned via Result
+    * **BREAKING CHANGE:** `parse_bytes()` now returns `Result<Vec<NetflowPacket>, NetflowError>`
+    * **BREAKING CHANGE:** `iter_packets()` now yields `Result<NetflowPacket, NetflowError>`
+    * **BREAKING CHANGE:** `AutoScopedParser::parse_from_source()` returns `Result<Vec<NetflowPacket>, NetflowError>`
+    * **BREAKING CHANGE:** `RouterScopedParser::parse_from_source()` returns `Result<Vec<NetflowPacket>, NetflowError>`
+    * **BREAKING CHANGE:** Iterator methods yield `Result<NetflowPacket, NetflowError>`
     * **BREAKING CHANGE:** Replaced parsing library errors with custom `NetflowError` type
     * New `NetflowError` enum provides rich error context with these variants:
       * `Incomplete { available, context }` - Not enough data to parse packet
@@ -141,20 +147,19 @@
       * `FilteredVersion { version }` - Version filtered by allowed_versions config (internal use)
       * `MissingTemplate { template_id, protocol, available_templates, raw_data }` - Template not in cache
       * `ParseError { offset, context, kind, remaining }` - Generic parsing error with details
-      * `Partial { message, offset }` - Partial parse result from nom parser
+      * `Partial { message }` - Partial parse result from nom parser
     * All errors implement `Display` and `std::error::Error` traits for better debugging
     * `NetflowError` is serializable via serde for logging and storage
-    * **BREAKING CHANGE:** `ParsedNetflow::Error` field changed from `NetflowParseError` to `NetflowError`
-    * **BREAKING CHANGE:** `NetflowPacket::Error` variant changed from `Error(NetflowPacketError)` to `Error(NetflowError)`
+    * More idiomatic Rust API separating success and error paths
+    * Enables use of `?` operator for error propagation
     * Deprecated type aliases for backward compatibility:
       * `NetflowPacketError` → `NetflowError` (deprecated)
       * `NetflowParseError` → `NetflowError` (deprecated)
     * Error messages now include:
       * Specific context about what was being parsed
-      * Offset information where available
+      * Offset information where applicable (UnsupportedVersion, ParseError)
       * Sample of problematic data for debugging
       * Available templates when template is missing
-    * Filtered versions now return empty Vec instead of error packet (cleaner API)
 
   * **API and Developer Experience Improvements:**
     * Builder API: Added `.single_source()` and `.multi_source()` methods for clearer API discoverability
@@ -169,34 +174,66 @@
       * New: `NoTemplate(info)` where `info: NoTemplateInfo`
       * The raw data is now accessed via `info.raw_data`
       * Additional context available via `info.template_id` and `info.available_templates`
-    * **Breaking:** Error handling has changed:
-      * Old types `NetflowPacketError` and `NetflowParseError` are deprecated
-      * Update error matching to use `NetflowError` instead
-      * Old: `NetflowPacket::Error(NetflowPacketError::...)`
-      * New: `NetflowPacket::Error(NetflowError::...)`
-      * Error variants have changed - see `NetflowError` enum documentation
-      * Deprecated type aliases provided for temporary compatibility
-      * Update imports: `use netflow_parser::NetflowError;`
-      * Example migration:
+    * **Breaking:** Error handling has changed completely:
+      * `NetflowPacket::Error` variant has been **removed**
+      * `parse_bytes()` now returns `Result<Vec<NetflowPacket>, NetflowError>` instead of `Vec<NetflowPacket>`
+      * `iter_packets()` now yields `Result<NetflowPacket, NetflowError>` instead of `NetflowPacket`
+      * All scoped parser methods also return `Result`
+      * Example migration for `parse_bytes`:
         ```rust
-        // Old code
-        match packet {
-            NetflowPacket::Error(NetflowPacketError::Partial { version, error, .. }) => {
-                println!("Parse error for v{}: {}", version, error);
+        // Old code (0.7.x)
+        let packets = parser.parse_bytes(&data);
+        for packet in packets {
+            match packet {
+                NetflowPacket::V5(v5) => { /* process */ }
+                NetflowPacket::Error(e) => { /* handle error */ }
+                _ => {}
             }
-            _ => {}
         }
 
-        // New code
-        match packet {
-            NetflowPacket::Error(NetflowError::Partial { message, offset }) => {
-                println!("Parse error at offset {}: {}", offset, message);
+        // New code (0.8.0)
+        match parser.parse_bytes(&data) {
+            Ok(packets) => {
+                for packet in packets {
+                    match packet {
+                        NetflowPacket::V5(v5) => { /* process */ }
+                        _ => {}
+                    }
+                }
             }
-            NetflowPacket::Error(NetflowError::UnsupportedVersion { version, .. }) => {
-                println!("Unsupported version: {}", version);
+            Err(e) => {
+                eprintln!("Parse error: {}", e);
             }
-            _ => {}
         }
+
+        // Or use ? operator
+        let packets = parser.parse_bytes(&data)?;
+        ```
+      * Example migration for `iter_packets`:
+        ```rust
+        // Old code (0.7.x)
+        for packet in parser.iter_packets(&data) {
+            match packet {
+                NetflowPacket::V5(v5) => { /* process */ }
+                NetflowPacket::Error(e) => { /* handle error */ }
+                _ => {}
+            }
+        }
+
+        // New code (0.8.0)
+        for packet in parser.iter_packets(&data) {
+            match packet {
+                Ok(NetflowPacket::V5(v5)) => { /* process */ }
+                Ok(_) => { /* other versions */ }
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    break; // or continue
+                }
+            }
+        }
+
+        // Or collect with error handling
+        let packets: Result<Vec<_>, _> = parser.iter_packets(&data).collect();
         ```
     * Existing code using `v9_cache_stats()` or `ipfix_cache_stats()` will continue to work
     * The `CacheStats` struct now has an additional `metrics` field

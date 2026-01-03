@@ -21,7 +21,7 @@ fn test_auto_scoped_parser_with_source() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let packets = parser.parse_from_source(source, &v5_packet);
+    let packets = parser.parse_from_source(source, &v5_packet).unwrap();
     assert_eq!(packets.len(), 1);
 }
 
@@ -37,8 +37,8 @@ fn test_auto_scoped_parser_multiple_sources() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    parser.parse_from_source(source1, &v5_packet);
-    parser.parse_from_source(source2, &v5_packet);
+    let _ = parser.parse_from_source(source1, &v5_packet);
+    let _ = parser.parse_from_source(source2, &v5_packet);
 
     // V5 packets create sources
     assert!(parser.source_count() >= 2);
@@ -54,7 +54,9 @@ fn test_router_scoped_parser_string_key() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let packets = parser.parse_from_source("router-01".to_string(), &v5_packet);
+    let packets = parser
+        .parse_from_source("router-01".to_string(), &v5_packet)
+        .unwrap();
     assert_eq!(packets.len(), 1);
 }
 
@@ -68,11 +70,13 @@ fn test_router_scoped_parser_clear_source() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    parser.parse_from_source("router-01".to_string(), &v5_packet);
+    let _ = parser.parse_from_source("router-01".to_string(), &v5_packet);
     parser.clear_source_templates(&"router-01".to_string());
 
     // Should still be able to parse after clearing
-    let packets = parser.parse_from_source("router-01".to_string(), &v5_packet);
+    let packets = parser
+        .parse_from_source("router-01".to_string(), &v5_packet)
+        .unwrap();
     assert_eq!(packets.len(), 1);
 }
 
@@ -86,13 +90,15 @@ fn test_router_scoped_parser_clear_all() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    parser.parse_from_source("router-01".to_string(), &v5_packet);
-    parser.parse_from_source("router-02".to_string(), &v5_packet);
+    let _ = parser.parse_from_source("router-01".to_string(), &v5_packet);
+    let _ = parser.parse_from_source("router-02".to_string(), &v5_packet);
 
     parser.clear_all_templates();
 
     // Should still be able to parse after clearing all
-    let packets = parser.parse_from_source("router-01".to_string(), &v5_packet);
+    let packets = parser
+        .parse_from_source("router-01".to_string(), &v5_packet)
+        .unwrap();
     assert_eq!(packets.len(), 1);
 }
 
@@ -123,6 +129,8 @@ fn test_router_scoped_parser_with_builder() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let packets = parser.parse_from_source("router-01".to_string(), &v5_packet);
+    let packets = parser
+        .parse_from_source("router-01".to_string(), &v5_packet)
+        .unwrap();
     assert_eq!(packets.len(), 1);
 }

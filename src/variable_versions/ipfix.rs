@@ -168,7 +168,6 @@ impl IPFixParser {
             Err(e) => ParsedNetflow::Error {
                 error: NetflowError::Partial {
                     message: format!("IPFIX parse error: {}", e),
-                    offset: 0,
                 },
             },
         }

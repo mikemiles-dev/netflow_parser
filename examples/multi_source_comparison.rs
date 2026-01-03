@@ -38,7 +38,7 @@ fn demo_single_parser(sources: &[&str]) {
 
     for (i, source) in sources.iter().enumerate() {
         let packet = create_v5_packet();
-        parser.parse_bytes(&packet);
+        let _ = parser.parse_bytes(&packet);
         println!("  ✓ Parsed packet from router {} ({})", i + 1, source);
     }
 
@@ -75,7 +75,7 @@ fn demo_scoped_parser(sources: &[&str]) {
     for (i, source) in sources.iter().enumerate() {
         let addr: SocketAddr = source.parse().unwrap();
         let packet = create_v5_packet();
-        parser.parse_from_source(addr, &packet);
+        let _ = parser.parse_from_source(addr, &packet);
         println!("  ✓ Parsed packet from router {} ({})", i + 1, source);
     }
 

@@ -25,7 +25,6 @@ impl V7Parser {
             Err(e) => ParsedNetflow::Error {
                 error: NetflowError::Partial {
                     message: format!("V7 parse error: {}", e),
-                    offset: 0,
                 },
             },
         }

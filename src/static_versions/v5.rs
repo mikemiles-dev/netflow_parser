@@ -24,7 +24,6 @@ impl V5Parser {
             Err(e) => ParsedNetflow::Error {
                 error: NetflowError::Partial {
                     message: format!("V5 parse error: {}", e),
-                    offset: 0,
                 },
             },
         }

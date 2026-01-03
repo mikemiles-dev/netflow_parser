@@ -76,26 +76,32 @@ fn main() {
     for data in pcap_data.iter() {
         for result in parser.iter_packets(data) {
             match result {
-                NetflowPacket::V5(ref _v5) => parsed_packets.push(result),
-                NetflowPacket::V7(ref _v7) => parsed_packets.push(result),
-                NetflowPacket::V9(ref _v9) => parsed_packets.push(result),
-                NetflowPacket::IPFix(ref ipfix) => {
-                    let has_no_template = ipfix
-                        .flowsets
-                        .iter()
-                        .any(|flow| matches!(flow.body, FlowSetBody::NoTemplate(_)));
-                    if has_no_template {
-                        no_template_packets.push(data);
-                    } else {
-                        parsed_packets.push(result);
+                Ok(packet) => match packet {
+                    NetflowPacket::V5(ref _v5) => parsed_packets.push(packet),
+                    NetflowPacket::V7(ref _v7) => parsed_packets.push(packet),
+                    NetflowPacket::V9(ref _v9) => parsed_packets.push(packet),
+                    NetflowPacket::IPFix(ref ipfix) => {
+                        let has_no_template = ipfix
+                            .flowsets
+                            .iter()
+                            .any(|flow| matches!(flow.body, FlowSetBody::NoTemplate(_)));
+                        if has_no_template {
+                            no_template_packets.push(data);
+                        } else {
+                            parsed_packets.push(packet);
+                        }
                     }
-                }
-                NetflowPacket::Error(e) => println!("Error: {:?}", e),
+                },
+                Err(e) => println!("Error parsing packet: {:?}", e),
             }
         }
     }
     for item in no_template_packets.iter() {
-        parsed_packets.extend(parser.iter_packets(item));
+        for result in parser.iter_packets(item) {
+            if let Ok(packet) = result {
+                parsed_packets.push(packet);
+            }
+        }
     }
     for (i, p) in parsed_packets.iter().enumerate() {
         println!("Parsed {}: {:?}", i, p);

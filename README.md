@@ -351,43 +351,59 @@ Packets with versions not in the allowed list will be ignored (returns empty Vec
 
 ### Error Handling Configuration
 
-The parser provides rich error context through the `NetflowError` type. All parsing errors are returned as `NetflowPacket::Error(NetflowError)` variants:
+The parser uses idiomatic Rust error handling with `Result` types. All parsing methods return `Result<T, NetflowError>`:
 
 ```rust
 use netflow_parser::{NetflowParser, NetflowPacket, NetflowError};
 
 let mut parser = NetflowParser::default();
-let packets = parser.parse_bytes(&buffer);
 
-for packet in packets {
-    match packet {
-        NetflowPacket::V5(v5) => {
-            // Process V5 packet
-        }
-        NetflowPacket::Error(error) => {
-            // Handle different error types
-            match error {
-                NetflowError::Incomplete { available, context } => {
-                    eprintln!("Incomplete packet: {} bytes available - {}", available, context);
+// parse_bytes returns Result<Vec<NetflowPacket>, NetflowError>
+match parser.parse_bytes(&buffer) {
+    Ok(packets) => {
+        for packet in packets {
+            match packet {
+                NetflowPacket::V5(v5) => {
+                    // Process V5 packet
                 }
-                NetflowError::UnsupportedVersion { version, offset, sample } => {
-                    eprintln!("Unsupported version {} at offset {}", version, offset);
-                    eprintln!("Sample data: {:02x?}", &sample[..sample.len().min(16)]);
+                NetflowPacket::V9(v9) => {
+                    // Process V9 packet
                 }
-                NetflowError::Partial { message, offset } => {
-                    eprintln!("Parse error at offset {}: {}", offset, message);
-                }
-                NetflowError::MissingTemplate { template_id, protocol, available_templates, .. } => {
-                    eprintln!("Missing template {} for {:?}", template_id, protocol);
-                    eprintln!("Available templates: {:?}", available_templates);
-                }
-                _ => eprintln!("Other error: {}", error),
+                _ => {}
             }
         }
-        _ => {
-            // Process other packet types
+    }
+    Err(error) => {
+        // Handle different error types
+        match error {
+            NetflowError::Incomplete { available, context } => {
+                eprintln!("Incomplete packet: {} bytes available - {}", available, context);
+            }
+            NetflowError::UnsupportedVersion { version, offset, sample } => {
+                eprintln!("Unsupported version {} at offset {}", version, offset);
+                eprintln!("Sample data: {:02x?}", &sample[..sample.len().min(16)]);
+            }
+            NetflowError::Partial { message } => {
+                eprintln!("Parse error: {}", message);
+            }
+            NetflowError::MissingTemplate { template_id, protocol, available_templates, .. } => {
+                eprintln!("Missing template {} for {:?}", template_id, protocol);
+                eprintln!("Available templates: {:?}", available_templates);
+            }
+            _ => eprintln!("Other error: {}", error),
         }
     }
+}
+
+// Or use ? operator for error propagation
+fn process_netflow(data: &[u8]) -> Result<(), NetflowError> {
+    let mut parser = NetflowParser::default();
+    let packets = parser.parse_bytes(data)?;
+
+    for packet in packets {
+        // Process packets
+    }
+    Ok(())
 }
 ```
 
@@ -397,7 +413,7 @@ The `NetflowError` enum provides these variants:
 
 - **`Incomplete`** - Not enough data to parse packet (includes available bytes and context)
 - **`UnsupportedVersion`** - Unknown NetFlow version (includes version, offset, and data sample)
-- **`Partial`** - Parser encountered an error mid-parse (includes error message and offset)
+- **`Partial`** - Parser encountered an error mid-parse (includes error message)
 - **`MissingTemplate`** - Data packet references unknown template (includes template ID, protocol, available templates, and raw data for retry)
 - **`ParseError`** - Generic parsing error with full context (offset, kind, remaining data)
 - **`FilteredVersion`** - Version filtered by allowed_versions config (internal use only)
@@ -427,30 +443,41 @@ This setting helps prevent memory exhaustion when processing malformed or malici
 
 #### Migration from 0.7.x
 
-If you're upgrading from version 0.7.x, note that error handling has changed:
+If you're upgrading from version 0.7.x, error handling has changed significantly:
 
 ```rust
 // Old code (0.7.x)
-match packet {
-    NetflowPacket::Error(NetflowPacketError::Partial { version, error, .. }) => {
-        println!("Parse error for v{}: {}", version, error);
+let packets = parser.parse_bytes(&data);
+for packet in packets {
+    match packet {
+        NetflowPacket::V5(v5) => { /* process */ }
+        NetflowPacket::Error(e) => { /* handle error */ }
+        _ => {}
     }
-    _ => {}
 }
 
 // New code (0.8.0+)
-match packet {
-    NetflowPacket::Error(NetflowError::Partial { message, offset }) => {
-        println!("Parse error at offset {}: {}", offset, message);
+match parser.parse_bytes(&data) {
+    Ok(packets) => {
+        for packet in packets {
+            match packet {
+                NetflowPacket::V5(v5) => { /* process */ }
+                _ => {}
+            }
+        }
     }
-    NetflowPacket::Error(NetflowError::UnsupportedVersion { version, .. }) => {
-        println!("Unsupported version: {}", version);
-    }
-    _ => {}
+    Err(e) => eprintln!("Parse error: {}", e),
 }
+
+// Or with ? operator
+let packets = parser.parse_bytes(&data)?;
 ```
 
-The old `NetflowPacketError` and `NetflowParseError` types are deprecated but still available as type aliases for backward compatibility.
+**Key changes:**
+- `NetflowPacket::Error` variant **removed**
+- `parse_bytes()` returns `Result<Vec<NetflowPacket>, NetflowError>`
+- `iter_packets()` yields `Result<NetflowPacket, NetflowError>`
+- More idiomatic Rust error handling
 
 ### Custom Enterprise Fields (IPFIX)
 
