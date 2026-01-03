@@ -71,7 +71,7 @@ impl Default for V9Parser {
         // Safe to unwrap because DEFAULT_MAX_TEMPLATE_CACHE_SIZE is non-zero
         let config = Config {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
-            max_field_count: MAX_FIELD_COUNT as usize,
+            max_field_count: usize::from(MAX_FIELD_COUNT),
             ttl_config: None,
             enterprise_registry: super::enterprise_registry::EnterpriseFieldRegistry::new(),
         };
@@ -433,7 +433,7 @@ pub struct Template {
 impl Template {
     /// Validate the template against parser configuration
     pub fn is_valid(&self, parser: &V9Parser) -> bool {
-        self.field_count as usize <= parser.max_field_count
+        usize::from(self.field_count) <= parser.max_field_count
     }
 
     /// Returns the total size of the template, including the header and all fields.

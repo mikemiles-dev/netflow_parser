@@ -112,7 +112,7 @@ impl Config {
     pub fn new(max_template_cache_size: usize, ttl_config: Option<TtlConfig>) -> Self {
         Self {
             max_template_cache_size,
-            max_field_count: ipfix::MAX_FIELD_COUNT as usize,
+            max_field_count: usize::from(ipfix::MAX_FIELD_COUNT),
             ttl_config,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         }
@@ -125,7 +125,7 @@ impl Config {
     ) -> Self {
         Self {
             max_template_cache_size,
-            max_field_count: ipfix::MAX_FIELD_COUNT as usize,
+            max_field_count: usize::from(ipfix::MAX_FIELD_COUNT),
             ttl_config,
             enterprise_registry,
         }

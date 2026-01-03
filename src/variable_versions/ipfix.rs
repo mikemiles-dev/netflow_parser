@@ -82,7 +82,7 @@ impl Default for IPFixParser {
         // Safe to unwrap because DEFAULT_MAX_TEMPLATE_CACHE_SIZE is non-zero
         let config = Config {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
-            max_field_count: MAX_FIELD_COUNT as usize,
+            max_field_count: usize::from(MAX_FIELD_COUNT),
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
@@ -755,7 +755,7 @@ trait CommonTemplate {
 
     fn is_valid(&self, parser: &IPFixParser) -> bool {
         // Check field count doesn't exceed maximum
-        if self.get_field_count() as usize > parser.max_field_count {
+        if usize::from(self.get_field_count()) > parser.max_field_count {
             return false;
         }
         // Check scope field count if applicable
