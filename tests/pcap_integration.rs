@@ -24,9 +24,8 @@ fn test_pcap_file_parsing() {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
                             if let Some(transport) = eth.transport {
                                 if let TransportSlice::Udp(udp) = transport {
-                                    if let Ok(parsed) = parser.parse_bytes(udp.payload()) {
-                                        netflow_packets += parsed.len();
-                                    }
+                                    let parsed = parser.parse_bytes(udp.payload());
+                                    netflow_packets += parsed.packets.len();
                                 }
                             }
                         }
@@ -66,11 +65,10 @@ fn test_pcap_ipfix_parsing() {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
                             if let Some(transport) = eth.transport {
                                 if let TransportSlice::Udp(udp) = transport {
-                                    if let Ok(parsed) = parser.parse_bytes(udp.payload()) {
-                                        for pkt in parsed {
-                                            if pkt.is_ipfix() {
-                                                ipfix_count += 1;
-                                            }
+                                    let parsed = parser.parse_bytes(udp.payload());
+                                    for pkt in parsed.packets {
+                                        if pkt.is_ipfix() {
+                                            ipfix_count += 1;
                                         }
                                     }
                                 }

@@ -47,10 +47,14 @@ use netflow_parser::{NetflowParser, NetflowPacket};
 // 0030   04 05 06 07 08 09 00 01 02 03 04 05 06 07 08 09   ................
 // 0040   00 01 02 03 04 05 06 07                           ........
 let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-match NetflowParser::default().parse_bytes(&v5_packet).first() {
+let result = NetflowParser::default().parse_bytes(&v5_packet);
+match result.packets.first() {
     Some(NetflowPacket::V5(v5)) => assert_eq!(v5.header.version, 5),
-    Some(NetflowPacket::Error(e)) => println!("{:?}", e),
     _ => (),
+}
+// Check for errors
+if let Some(e) = result.error {
+    eprintln!("Parse error: {}", e);
 }
 ```
 
@@ -66,7 +70,8 @@ use netflow_parser::NetflowParser;
 // 0030   04 05 06 07 08 09 00 01 02 03 04 05 06 07 08 09   ................
 // 0040   00 01 02 03 04 05 06 07                           ........
 let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-println!("{}", json!(NetflowParser::default().parse_bytes(&v5_packet)).to_string());
+let result = NetflowParser::default().parse_bytes(&v5_packet);
+println!("{}", json!(result.packets).to_string());
 ```
 
 ```json
@@ -125,9 +130,9 @@ use netflow_parser::{NetflowParser, NetflowPacket};
 // 0030   04 05 06 07 08 09 00 01 02 03 04 05 06 07 08 09   ................
 // 0040   00 01 02 03 04 05 06 07                           ........
 let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-let parsed = NetflowParser::default().parse_bytes(&v5_packet);
+let result = NetflowParser::default().parse_bytes(&v5_packet);
 
-let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
+let v5_parsed: Vec<NetflowPacket> = result.packets.into_iter().filter(|p| p.is_v5()).collect();
 ```
 
 ## Iterator API
@@ -140,22 +145,22 @@ let buffer = /* your netflow data */;
 let mut parser = NetflowParser::default();
 
 // Process packets without collecting into a Vec
-for packet in parser.iter_packets(&buffer) {
-    match packet {
-        NetflowPacket::V5(v5) => {
+for packet_result in parser.iter_packets(&buffer) {
+    match packet_result {
+        Ok(NetflowPacket::V5(v5)) => {
             // Process V5 packet
             println!("V5 packet from {}", v5.header.version);
         }
-        NetflowPacket::V9(v9) => {
+        Ok(NetflowPacket::V9(v9)) => {
             // Process V9 packet
             for flowset in &v9.flowsets {
                 // Handle flowsets
             }
         }
-        NetflowPacket::IPFix(ipfix) => {
+        Ok(NetflowPacket::IPFix(ipfix)) => {
             // Process IPFIX packet
         }
-        NetflowPacket::Error(e) => {
+        Err(e) => {
             eprintln!("Parse error: {:?}", e);
         }
         _ => {}
@@ -349,76 +354,42 @@ parser.allowed_versions = [7, 9].into();
 
 Packets with versions not in the allowed list will be ignored (returns empty Vec).
 
-### Error Handling Configuration
+### Error Handling & ParseResult
 
-The parser uses idiomatic Rust error handling with `Result` types. All parsing methods return `Result<T, NetflowError>`:
+**parse_bytes()** returns `ParseResult` to preserve partially parsed packets when errors occur mid-stream:
 
 ```rust
-use netflow_parser::{NetflowParser, NetflowPacket, NetflowError};
+use netflow_parser::{NetflowParser, ParseResult};
 
-let mut parser = NetflowParser::default();
+let result = parser.parse_bytes(&buffer);
 
-// parse_bytes returns Result<Vec<NetflowPacket>, NetflowError>
-match parser.parse_bytes(&buffer) {
-    Ok(packets) => {
-        for packet in packets {
-            match packet {
-                NetflowPacket::V5(v5) => {
-                    // Process V5 packet
-                }
-                NetflowPacket::V9(v9) => {
-                    // Process V9 packet
-                }
-                _ => {}
-            }
-        }
-    }
-    Err(error) => {
-        // Handle different error types
-        match error {
-            NetflowError::Incomplete { available, context } => {
-                eprintln!("Incomplete packet: {} bytes available - {}", available, context);
-            }
-            NetflowError::UnsupportedVersion { version, offset, sample } => {
-                eprintln!("Unsupported version {} at offset {}", version, offset);
-                eprintln!("Sample data: {:02x?}", &sample[..sample.len().min(16)]);
-            }
-            NetflowError::Partial { message } => {
-                eprintln!("Parse error: {}", message);
-            }
-            NetflowError::MissingTemplate { template_id, protocol, available_templates, .. } => {
-                eprintln!("Missing template {} for {:?}", template_id, protocol);
-                eprintln!("Available templates: {:?}", available_templates);
-            }
-            _ => eprintln!("Other error: {}", error),
-        }
-    }
+// Always get successfully parsed packets, even if an error occurred later
+for packet in result.packets {
+    // Process packet
 }
 
-// Or use ? operator for error propagation
-fn process_netflow(data: &[u8]) -> Result<(), NetflowError> {
-    let mut parser = NetflowParser::default();
-    let packets = parser.parse_bytes(data)?;
-
-    for packet in packets {
-        // Process packets
-    }
-    Ok(())
+// Check for errors
+if let Some(e) = result.error {
+    eprintln!("Error after {} packets: {}", result.packets.len(), e);
 }
 ```
 
-#### Error Types
+**iter_packets()** yields `Result<NetflowPacket, NetflowError>` for per-packet error handling:
 
-The `NetflowError` enum provides these variants:
+```rust
+// Per-packet error handling
+for result in parser.iter_packets(&buffer) {
+    match result {
+        Ok(packet) => { /* process */ }
+        Err(e) => eprintln!("Error: {}", e),
+    }
+}
 
-- **`Incomplete`** - Not enough data to parse packet (includes available bytes and context)
-- **`UnsupportedVersion`** - Unknown NetFlow version (includes version, offset, and data sample)
-- **`Partial`** - Parser encountered an error mid-parse (includes error message)
-- **`MissingTemplate`** - Data packet references unknown template (includes template ID, protocol, available templates, and raw data for retry)
-- **`ParseError`** - Generic parsing error with full context (offset, kind, remaining data)
-- **`FilteredVersion`** - Version filtered by allowed_versions config (internal use only)
+// Fail-fast pattern (loses partial packets on error)
+let packets = parser.parse_bytes(&buffer).into_result()?;
+```
 
-All errors implement `Display` and `std::error::Error` for standard error handling, and are serializable via serde for logging.
+**Error types**: `Incomplete`, `UnsupportedVersion`, `Partial`, `MissingTemplate`, `ParseError`. All implement `Display` and `std::error::Error`.
 
 #### Error Sample Size Configuration
 
@@ -441,43 +412,21 @@ parser.ipfix_parser.max_error_sample_size = 512;
 
 This setting helps prevent memory exhaustion when processing malformed or malicious packets while still providing enough context for debugging.
 
-#### Migration from 0.7.x
+#### Migration Guide
 
-If you're upgrading from version 0.7.x, error handling has changed significantly:
-
+**0.8.x → 0.9.0+**: `parse_bytes()` now returns `ParseResult` instead of `Result`:
 ```rust
-// Old code (0.7.x)
-let packets = parser.parse_bytes(&data);
-for packet in packets {
-    match packet {
-        NetflowPacket::V5(v5) => { /* process */ }
-        NetflowPacket::Error(e) => { /* handle error */ }
-        _ => {}
-    }
-}
-
-// New code (0.8.0+)
-match parser.parse_bytes(&data) {
-    Ok(packets) => {
-        for packet in packets {
-            match packet {
-                NetflowPacket::V5(v5) => { /* process */ }
-                _ => {}
-            }
-        }
-    }
-    Err(e) => eprintln!("Parse error: {}", e),
-}
-
-// Or with ? operator
-let packets = parser.parse_bytes(&data)?;
+// Old: let packets = parser.parse_bytes(&data)?;
+// New: let result = parser.parse_bytes(&data);
+//      for packet in result.packets { /* ... */ }
+// Or:  let packets = parser.parse_bytes(&data).into_result()?;  // same as old
 ```
 
-**Key changes:**
-- `NetflowPacket::Error` variant **removed**
-- `parse_bytes()` returns `Result<Vec<NetflowPacket>, NetflowError>`
-- `iter_packets()` yields `Result<NetflowPacket, NetflowError>`
-- More idiomatic Rust error handling
+**0.7.x → 0.8.0+**: `NetflowPacket::Error` variant removed, use `iter_packets()` with `Result`:
+```rust
+// Old: NetflowPacket::Error(e) => { /* ... */ }
+// New: Err(e) => { /* ... */ }  // from iter_packets()
+```
 
 ### Custom Enterprise Fields (IPFIX)
 
@@ -627,8 +576,8 @@ use netflow_parser::{NetflowParser, NetflowPacket};
 let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
     4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
     2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7];
-let netflow_common = NetflowParser::default()
-                     .parse_bytes(&v5_packet)
+let result = NetflowParser::default().parse_bytes(&v5_packet);
+let netflow_common = result.packets
                      .first()
                      .unwrap()
                      .as_netflow_common()
@@ -744,11 +693,8 @@ let packet = [
     4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
     2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
 ];
-if let NetflowPacket::V5(v5) = NetflowParser::default()
-    .parse_bytes(&packet)
-    .first()
-    .unwrap()
-{
+let result = NetflowParser::default().parse_bytes(&packet);
+if let Some(NetflowPacket::V5(v5)) = result.packets.first() {
     assert_eq!(v5.to_be_bytes(), packet);
 }
 ```

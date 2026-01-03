@@ -8,7 +8,7 @@ fn test_parse_v5_packet() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let packets = NetflowParser::default().parse_bytes(&v5_packet).unwrap();
+    let packets = NetflowParser::default().parse_bytes(&v5_packet).packets;
     assert_eq!(packets.len(), 1);
 
     match packets.first().unwrap() {
@@ -34,7 +34,7 @@ fn test_parse_v5_with_version_filter() {
         .build()
         .expect("Failed to build parser");
 
-    let packets = parser.parse_bytes(&v5_packet).unwrap();
+    let packets = parser.parse_bytes(&v5_packet).packets;
     assert_eq!(packets.len(), 0); // Should be filtered out
 }
 
@@ -46,7 +46,7 @@ fn test_filter_v5_packets() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let parsed = NetflowParser::default().parse_bytes(&v5_packet).unwrap();
+    let parsed = NetflowParser::default().parse_bytes(&v5_packet).packets;
     let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 
     assert_eq!(v5_parsed.len(), 1);
@@ -63,7 +63,7 @@ fn test_v5_round_trip() {
 
     if let NetflowPacket::V5(v5) = NetflowParser::default()
         .parse_bytes(&packet)
-        .unwrap()
+        .packets
         .first()
         .unwrap()
     {
