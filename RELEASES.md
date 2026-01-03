@@ -35,30 +35,14 @@
     * No breaking API changes - all fixes are internal validation improvements
 
 
-  * **Template Cache Metrics:**
+  * **Template Cache Metrics and Collision Detection:**
     * Added comprehensive performance metrics tracking for V9 and IPFIX template caches
-    * New `CacheMetrics` struct with atomic counters for:
-      * `hits` - Successful template lookups
-      * `misses` - Failed template lookups (template not in cache)
-      * `evictions` - Templates removed due to LRU policy when cache is full
-      * `collisions` - Template ID reused (same ID, potentially different definition)
-      * `expired` - Templates removed due to TTL expiration
-      * `insertions` - Total template insertions
-    * `CacheMetricsSnapshot` provides point-in-time view with helper methods:
-      * `hit_rate()` - Calculate cache hit rate (0.0 to 1.0)
-      * `miss_rate()` - Calculate cache miss rate (0.0 to 1.0)
-      * `total_lookups()` - Total number of lookups (hits + misses)
-    * Metrics accessible via updated `CacheStats` struct returned by:
-      * `NetflowParser::v9_cache_stats()`
-      * `NetflowParser::ipfix_cache_stats()`
+    * New `CacheMetrics` struct with atomic counters: hits, misses, evictions, collisions, expired, insertions
+    * Automatic tracking when template IDs are reused (critical for multi-source deployments)
+    * `CacheMetricsSnapshot` provides point-in-time view with `hit_rate()`, `miss_rate()`, `total_lookups()` helpers
+    * Metrics accessible via `NetflowParser::v9_cache_stats()` and `NetflowParser::ipfix_cache_stats()`
     * All metrics use atomic operations for thread-safe reads
     * New module: `src/variable_versions/metrics.rs`
-
-  * **Template Collision Detection:**
-    * Automatic tracking when template IDs are reused with potentially different definitions
-    * Critical for multi-source deployments where different routers may use the same template ID
-    * Collision counter helps identify when `RouterScopedParser` should be used
-    * Integrated into V9 and IPFIX template insertion logic
 
   * **Enhanced NoTemplate Error Context:**
     * **BREAKING CHANGE:** `FlowSetBody::NoTemplate` variant changed from `Vec<u8>` to `NoTemplateInfo` struct
@@ -123,54 +107,23 @@
     * New module: `src/scoped_parser.rs`
     * Re-exported at crate root as `netflow_parser::RouterScopedParser`
 
-  * **Comprehensive Template Management Documentation:**
-    * New "Template Management Guide" section in README covering:
-      * Template cache metrics - How to track and interpret performance
-      * Multi-source deployments - RFC-compliant scoping with `AutoScopedParser` (recommended)
-      * Advanced custom scoping with `RouterScopedParser`
-      * Template collision detection - Identifying and resolving collisions
-      * Handling missing templates - Strategies for out-of-order packet arrival
-      * Template lifecycle management - Cache inspection and cleanup
-      * Best practices for V9/IPFIX template management
-    * RFC compliance documentation:
-      * NetFlow v9 (RFC 3954) scoping requirements explained
-      * IPFIX (RFC 7011) scoping requirements explained
-      * When composite keys `(addr, observation_domain_id)` are required
-    * Updated Table of Contents with new sections
-    * All features include detailed code examples
-    * Enhanced thread safety documentation linking to template isolation
+  * **Documentation and Examples:**
+    * New "Template Management Guide" section in README with detailed coverage of cache metrics, multi-source deployments, collision detection, missing templates, and best practices
+    * RFC compliance documentation for NetFlow v9 (RFC 3954) and IPFIX (RFC 7011) scoping requirements
+    * New examples:
+      * `examples/template_management_demo.rs` - Comprehensive demo of cache metrics, multi-source parsing, collision detection, and template lifecycle
+      * `examples/multi_source_comparison.rs` - Visual comparison showing why `AutoScopedParser` is needed for multi-router deployments
+    * Updated examples to use `AutoScopedParser` and `RouterScopedParser`:
+      * `netflow_udp_listener_tokio.rs` - Updated to `AutoScopedParser` (recommended for production)
+      * `netflow_udp_listener_single_threaded.rs` - Modernized with `RouterScopedParser` and metrics
+      * `netflow_udp_listener_multi_threaded.rs` - Modernized with `RouterScopedParser` and dedicated metrics thread
 
-  * **New Example:**
-    * `examples/template_management_demo.rs` - Comprehensive demonstration of:
-      * Cache metrics monitoring and interpretation
-      * Multi-source parsing with `RouterScopedParser`
-      * Template collision detection and warnings
-      * Missing template handling and retry strategies
-      * Template lifecycle management (inspection, clearing)
-    * Runnable example showing all new template management features
-
-  * **Updated Examples:**
-    * `examples/netflow_udp_listener_tokio.rs` - **Updated to use `AutoScopedParser` (RFC-compliant)**:
-      * Demonstrates RFC-compliant automatic scoping
-      * Shows IPFIX sources with `(addr, observation_domain_id)` scoping
-      * Shows NetFlow v9 sources with `(addr, source_id)` scoping
-      * Enhanced metrics reporting per protocol type (IPFIX, V9, Legacy)
-      * Displays observation domain IDs and source IDs in output
-      * Demonstrates async usage pattern with `Arc<Mutex<AutoScopedParser>>`
-      * Custom parser configuration with 2000 template cache and 1-hour TTL
-      * **Recommended example for production deployments**
-    * `examples/netflow_udp_listener_single_threaded.rs` - Modernized to use `RouterScopedParser`:
-      * Replaced manual HashMap management with `RouterScopedParser`
-      * Added periodic metrics reporting (every 5 seconds)
-      * Displays per-source template cache statistics and hit rates
-      * Socket created once for better performance
-      * Demonstrates simple single-threaded usage pattern
-    * `examples/netflow_udp_listener_multi_threaded.rs` - Modernized to use `RouterScopedParser`:
-      * Replaced per-source thread management with shared `Arc<Mutex<RouterScopedParser>>`
-      * Added dedicated metrics reporter thread
-      * Enhanced metrics showing per-source cache performance
-      * Spawns thread per packet to avoid blocking receive loop
-      * Demonstrates thread-safe multi-threaded usage pattern
+  * **API and Developer Experience Improvements:**
+    * Builder API: Added `.single_source()` and `.multi_source()` methods for clearer API discoverability
+    * Integration tests: Added 41 tests (761 lines) across 6 files covering parser configuration, multi-version parsing, template cache, scoped parsing, serialization, and PCAP integration
+    * Crate discoverability: Added keywords `["netflow", "ipfix", "parser", "network", "cisco"]` to Cargo.toml
+    * README badges: Added CI status, crates.io version, and docs.rs documentation badges
+    * Fuzzing: Configured to run 5 minutes on main branch, 60 seconds on other branches
 
   * **Migration Notes:**
     * **Breaking:** Code matching on `FlowSetBody::NoTemplate` must be updated:

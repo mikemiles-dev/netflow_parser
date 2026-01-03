@@ -6,6 +6,8 @@
 
 A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Supports chaining of multiple versions in the same stream.
 
+> **⚠️ Multi-Router Deployments**: Use [`AutoScopedParser`](#multi-source-deployments) instead of `NetflowParser` when parsing from multiple routers to prevent template cache collisions. See [Template Management Guide](#template-management-guide) for details.
+
 ## Table of Contents
 
 - [Example](#example)
@@ -697,9 +699,21 @@ if let Some(hit_rate) = metrics.hit_rate() {
 
 ### Multi-Source Deployments (RFC-Compliant)
 
-**Recommended:** Use `AutoScopedParser` for automatic RFC-compliant template scoping:
+**⚠️ IMPORTANT**: When parsing from multiple routers, template IDs **collide**. Different routers often use the same template ID (e.g., 256) with completely different schemas, causing cache thrashing and parsing failures.
 
+**The Problem:**
 ```rust
+// ❌ DON'T: Multiple sources sharing one parser
+let mut parser = NetflowParser::default();
+loop {
+    let (data, source_addr) = recv_from_network();
+    parser.parse_bytes(&data); // Router A's template 256 overwrites Router B's!
+}
+```
+
+**The Solution - Use `AutoScopedParser`:**
+```rust
+// ✅ DO: Each source gets isolated template cache (RFC-compliant)
 use netflow_parser::AutoScopedParser;
 use std::net::SocketAddr;
 
@@ -713,23 +727,17 @@ let mut parser = AutoScopedParser::new();
 let source: SocketAddr = "192.168.1.1:2055".parse().unwrap();
 let packets = parser.parse_from_source(source, &data);
 
-// Get statistics by protocol type
-println!("IPFIX sources: {}", parser.ipfix_source_count());
-println!("V9 sources: {}", parser.v9_source_count());
-println!("Total sources: {}", parser.source_count());
-
-// Get detailed stats per source
-for (key, v9_stats, ipfix_stats) in parser.ipfix_stats() {
-    println!("Source: {} Domain: {}", key.addr, key.observation_domain_id);
-    println!("  IPFIX templates: {}/{}", ipfix_stats.current_size, ipfix_stats.max_size);
+// Monitor cache health
+if parser.source_count() > 1 {
+    println!("Parsing from {} sources with isolated caches", parser.source_count());
 }
 ```
 
-**Why RFC-compliant scoping?**
-- **Prevents template collisions** when a single router uses multiple observation domains
-- **Follows RFC specifications** for NetFlow v9 (RFC 3954) and IPFIX (RFC 7011)
-- **Automatic** - no manual key management required
-- **Correct** - handles the case where different observation domains from the same router use the same template IDs
+**Why AutoScopedParser?**
+- **Prevents template collisions** - Each source has isolated cache
+- **RFC-compliant** - Follows NetFlow v9 (RFC 3954) and IPFIX (RFC 7011) scoping rules
+- **Automatic** - No manual key management required
+- **Better performance** - Higher cache hit rates, no thrashing
 
 #### Advanced: Custom Scoping with RouterScopedParser
 

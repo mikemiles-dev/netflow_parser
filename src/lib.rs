@@ -658,6 +658,44 @@ struct GenericNetflowHeader {
 /// Use [`NetflowParser::builder()`] for ergonomic configuration with the builder pattern,
 /// or [`NetflowParser::default()`] for quick setup with defaults.
 ///
+/// # ⚠️ Multi-Source Deployments
+///
+/// **IMPORTANT**: If you're parsing NetFlow from multiple routers or sources,
+/// use [`AutoScopedParser`](crate::AutoScopedParser) instead of `NetflowParser`
+/// to prevent template cache collisions.
+///
+/// Template IDs are **NOT unique across sources**. Different routers can (and often do)
+/// use the same template ID with completely different schemas. When multiple sources
+/// share a single `NetflowParser`, their templates collide in the cache, causing:
+///
+/// - Template thrashing (constant eviction and re-learning)
+/// - Parsing failures (data parsed with wrong template)
+/// - Performance degradation (high cache miss rate)
+///
+/// ## Single Source (✅ Use NetflowParser)
+///
+/// ```rust
+/// use netflow_parser::NetflowParser;
+///
+/// let mut parser = NetflowParser::default();
+/// let data = [0u8; 72]; // Example NetFlow data
+/// // Single router/source - no collisions possible
+/// let packets = parser.parse_bytes(&data);
+/// ```
+///
+/// ## Multiple Sources (✅ Use AutoScopedParser)
+///
+/// ```rust
+/// use netflow_parser::AutoScopedParser;
+/// use std::net::SocketAddr;
+///
+/// let mut parser = AutoScopedParser::new();
+/// let source: SocketAddr = "192.168.1.1:2055".parse().unwrap();
+/// let data = [0u8; 72]; // Example NetFlow data
+/// // Each source gets isolated template cache (RFC-compliant)
+/// let packets = parser.parse_from_source(source, &data);
+/// ```
+///
 /// # Examples
 ///
 /// ```rust
@@ -971,6 +1009,58 @@ impl NetflowParserBuilder {
             self.ipfix_config.enterprise_registry.register(def);
         }
         self
+    }
+
+    /// Hint for single-source deployments (documentation only).
+    ///
+    /// This method exists for clarity and returns `self` unchanged.
+    /// Use when parsing from a single router or source.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .single_source()  // Documents intent
+    ///     .with_cache_size(1000)
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn single_source(self) -> Self {
+        self
+    }
+
+    /// Creates an AutoScopedParser for multi-source deployments.
+    ///
+    /// **Recommended** for parsing NetFlow from multiple routers. Each source
+    /// gets an isolated template cache, preventing template ID collisions.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    /// use std::net::SocketAddr;
+    ///
+    /// // Multi-source deployment
+    /// let mut parser = NetflowParser::builder()
+    ///     .with_cache_size(2000)
+    ///     .multi_source();
+    ///
+    /// let source: SocketAddr = "192.168.1.1:2055".parse().unwrap();
+    /// let data = [0u8; 72]; // Example data
+    /// let packets = parser.parse_from_source(source, &data);
+    /// ```
+    ///
+    /// Equivalent to:
+    /// ```rust
+    /// use netflow_parser::{NetflowParser, AutoScopedParser};
+    ///
+    /// let builder = NetflowParser::builder().with_cache_size(2000);
+    /// let _parser = AutoScopedParser::with_builder(builder);
+    /// ```
+    pub fn multi_source(self) -> AutoScopedParser {
+        AutoScopedParser::with_builder(self)
     }
 
     /// Builds the configured [`NetflowParser`].
