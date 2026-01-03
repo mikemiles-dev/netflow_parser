@@ -257,6 +257,34 @@ let parser = NetflowParser::builder()
 - Each parser instance maintains its own template cache
 - For multi-source deployments, use `RouterScopedParser` (see Template Management section)
 
+### Maximum Field Count (Security)
+
+Configure the maximum number of fields allowed per template to prevent DoS attacks via malicious packets with excessive field counts:
+
+```rust
+use netflow_parser::NetflowParser;
+
+// Configure both V9 and IPFIX parsers with the same limit
+let parser = NetflowParser::builder()
+    .with_max_field_count(5000)  // Default is 10,000
+    .build()
+    .expect("Failed to build parser");
+
+// Configure V9 and IPFIX independently
+let parser = NetflowParser::builder()
+    .with_v9_max_field_count(5000)
+    .with_ipfix_max_field_count(15000)
+    .build()
+    .expect("Failed to build parser");
+```
+
+**Security Considerations:**
+- Default limit: 10,000 fields per template (accommodates legitimate use cases)
+- Malicious packets claiming 65,535 fields will be rejected
+- Templates exceeding the limit return a parse error
+- Lower limits provide stricter security but may reject valid templates
+- Higher limits are more permissive but increase DoS risk
+
 ### Template TTL (Time-to-Live)
 
 > **⚠️ Breaking Change in v0.7.0:** Packet-based and combined TTL modes have been removed. Only time-based TTL is now supported. See [RELEASES.md](RELEASES.md) for migration guide.

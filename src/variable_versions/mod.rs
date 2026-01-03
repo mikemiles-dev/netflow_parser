@@ -83,6 +83,7 @@ use std::num::NonZeroUsize;
 #[derive(Debug, Clone)]
 pub struct Config {
     pub max_template_cache_size: usize,
+    pub max_field_count: usize,
     pub ttl_config: Option<TtlConfig>,
     pub enterprise_registry: EnterpriseFieldRegistry,
 }
@@ -111,6 +112,7 @@ impl Config {
     pub fn new(max_template_cache_size: usize, ttl_config: Option<TtlConfig>) -> Self {
         Self {
             max_template_cache_size,
+            max_field_count: ipfix::MAX_FIELD_COUNT as usize,
             ttl_config,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         }
@@ -123,6 +125,7 @@ impl Config {
     ) -> Self {
         Self {
             max_template_cache_size,
+            max_field_count: ipfix::MAX_FIELD_COUNT as usize,
             ttl_config,
             enterprise_registry,
         }

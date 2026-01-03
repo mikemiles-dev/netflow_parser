@@ -1,13 +1,18 @@
 # 0.8.0
 
   * **Security Improvements:**
-    * **DoS Protection - Maximum Field Count Validation:**
-      * Added `MAX_FIELD_COUNT` constant (10,000 fields) to prevent memory exhaustion attacks
-      * IPFIX Template now validates `field_count <= MAX_FIELD_COUNT` before parsing
-      * V9 Template now validates `field_count <= MAX_FIELD_COUNT` before parsing
-      * V9 OptionsTemplate now validates calculated field counts against `MAX_FIELD_COUNT`
+    * **DoS Protection - Configurable Maximum Field Count Validation:**
+      * Added configurable `max_field_count` limit to prevent memory exhaustion attacks
+      * Default limit: 10,000 fields per template (configurable via builder)
+      * IPFIX Template validates `field_count <= max_field_count` before parsing
+      * V9 Template validates `field_count <= max_field_count` before parsing
+      * V9 OptionsTemplate validates calculated field counts against `max_field_count`
       * Malicious packets with excessive field counts (e.g., 65,535 fields) are now rejected
-      * Returns `nom::error::ErrorKind::Verify` or `ErrorKind::TooLarge` on validation failure
+      * Returns `nom::error::ErrorKind::Verify` on validation failure
+      * New builder methods:
+        * `.with_max_field_count(count)` - Sets limit for both V9 and IPFIX
+        * `.with_v9_max_field_count(count)` - Sets V9-specific limit
+        * `.with_ipfix_max_field_count(count)` - Sets IPFIX-specific limit
     * **Scope Field Validation in IPFIX Options Templates:**
       * Added validation that `scope_field_count <= field_count` in IPFIX OptionsTemplate
       * Prevents logic errors when scope field count exceeds total field count
@@ -15,7 +20,7 @@
     * **Variable-Length Field Size Limits:**
       * Variable-length fields in IPFIX are naturally bounded by u16 (max 65,535 bytes)
       * Enhanced `parse_field_length()` with improved buffer boundary validation
-      * Added documentation of `MAX_VARIABLE_FIELD_LENGTH` constant (65,535 bytes)
+      * Removed redundant `MAX_VARIABLE_FIELD_LENGTH` constant (replaced with u16::MAX)
       * Prevents unbounded reads beyond available buffer data
     * **Removed Unsafe Unwrap Operations:**
       * Replaced `unwrap()` calls in IPFIX field parsing with safe pattern matching
