@@ -1,35 +1,92 @@
-use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
+use std::time::{Duration, Instant};
 
-use netflow_parser::NetflowParser;
+use netflow_parser::variable_versions::ttl::TtlConfig;
+use netflow_parser::{NetflowParser, RouterScopedParser};
 
 fn main() {
-    // Map for Parsers
-    let mut parsers: HashMap<SocketAddr, NetflowParser> = HashMap::new();
+    // Create a RouterScopedParser with custom configuration
+    // This automatically manages separate template caches per source address
+    let builder = NetflowParser::builder()
+        .with_cache_size(2000)
+        .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
+
+    let mut scoped_parser = RouterScopedParser::<SocketAddr>::with_builder(builder);
+
+    // Metrics tracking
+    let mut packet_count = 0u64;
+    let mut last_report = Instant::now();
+    let report_interval = Duration::from_secs(5);
+
+    println!("NetFlow UDP listener started on 127.0.0.1:9995");
+    println!("Using RouterScopedParser for automatic per-source template isolation\n");
+
+    // Socket is created once outside the loop for better performance
+    let socket = UdpSocket::bind("127.0.0.1:9995").expect("couldn't bind to address");
+    let mut buf = [0; 65_535];
 
     loop {
-        // Read from Socket
-        let socket = UdpSocket::bind("127.0.0.1:9995").expect("couldn't bind to address");
-        let mut buf = [0; 65_535];
         let (number_of_bytes, src_addr) =
             socket.recv_from(&mut buf).expect("Didn't receive data");
-        let filled_buf = &mut buf[..number_of_bytes];
 
-        // Fetch Parser by src_addr or insert new parser for src_addr and process bytes
-        // Using default configuration. For custom configuration, use the builder pattern:
-        //
-        // use netflow_parser::variable_versions::ttl::TtlConfig;
-        // let parser = NetflowParser::builder()
-        //     .with_cache_size(2000)
-        //     .with_ttl(TtlConfig::packet_based(100))
-        //     .build()
-        //     .expect("Failed to build parser");
-        let parser = parsers
-            .entry(src_addr)
-            .or_insert_with(NetflowParser::default);
-
-        for packet in parser.iter_packets(filled_buf) {
+        // Parse packets from this source using RouterScopedParser
+        for packet in scoped_parser.iter_packets_from_source(src_addr, &buf[..number_of_bytes])
+        {
             println!("{:?}", packet);
+            packet_count += 1;
+        }
+
+        // Periodic metrics report
+        if last_report.elapsed() >= report_interval {
+            println!("\n=== Metrics Report ===");
+            println!("Total packets processed: {}", packet_count);
+            println!("Active sources: {}", scoped_parser.source_count());
+
+            if scoped_parser.source_count() > 0 {
+                println!("\nPer-Source Template Cache Stats:");
+                for (source, v9_stats, ipfix_stats) in scoped_parser.all_stats() {
+                    println!("\n  Source: {}", source);
+
+                    // V9 stats
+                    println!(
+                        "    V9 Cache: {}/{} templates",
+                        v9_stats.current_size, v9_stats.max_size
+                    );
+                    let v9_metrics = &v9_stats.metrics;
+                    if let Some(hit_rate) = v9_metrics.hit_rate() {
+                        println!(
+                            "      Hit rate: {:.1}%, Hits: {}, Misses: {}",
+                            hit_rate * 100.0,
+                            v9_metrics.hits,
+                            v9_metrics.misses
+                        );
+                    }
+                    if v9_metrics.collisions > 0 {
+                        println!("      ⚠️  Collisions: {}", v9_metrics.collisions);
+                    }
+
+                    // IPFIX stats
+                    println!(
+                        "    IPFIX Cache: {}/{} templates",
+                        ipfix_stats.current_size, ipfix_stats.max_size
+                    );
+                    let ipfix_metrics = &ipfix_stats.metrics;
+                    if let Some(hit_rate) = ipfix_metrics.hit_rate() {
+                        println!(
+                            "      Hit rate: {:.1}%, Hits: {}, Misses: {}",
+                            hit_rate * 100.0,
+                            ipfix_metrics.hits,
+                            ipfix_metrics.misses
+                        );
+                    }
+                    if ipfix_metrics.collisions > 0 {
+                        println!("      ⚠️  Collisions: {}", ipfix_metrics.collisions);
+                    }
+                }
+            }
+            println!("======================\n");
+
+            last_report = Instant::now();
         }
     }
 }

@@ -65,11 +65,13 @@
 //! - [`data_number`] - Field value types and parsing
 //! - [`enterprise_registry`] - Custom enterprise field registration
 //! - [`ttl`] - Template expiration configuration
+//! - [`metrics`] - Template cache performance metrics
 
 pub mod data_number;
 pub mod enterprise_registry;
 pub mod ipfix;
 pub mod ipfix_lookup;
+pub mod metrics;
 pub mod ttl;
 pub mod v9;
 pub mod v9_lookup;
