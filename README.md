@@ -514,20 +514,38 @@ use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
 use std::time::Duration;
 
 let parser = NetflowParser::builder()
+    // Cache configuration
     .with_v9_cache_size(1000)
     .with_ipfix_cache_size(2000)
+
+    // Security limits
+    .with_v9_max_field_count(5000)
+    .with_ipfix_max_field_count(10000)
+    .with_max_error_sample_size(512)
+
+    // Template TTL
     .with_v9_ttl(TtlConfig::new(Duration::from_secs(3600)))
     .with_ipfix_ttl(TtlConfig::new(Duration::from_secs(7200)))
+
+    // Version filtering
     .with_allowed_versions([5, 9, 10].into())
-    .with_max_error_sample_size(512)
-    .register_enterprise_field(EnterpriseFieldDef::new(
-        12345,
-        1,
-        "customField",
-        FieldDataType::UnsignedDataNumber,
-    ))
+
+    // Enterprise fields
+    .register_enterprise_fields(vec![
+        EnterpriseFieldDef::new(12345, 1, "field1", FieldDataType::UnsignedDataNumber),
+        EnterpriseFieldDef::new(12345, 2, "field2", FieldDataType::String),
+    ])
+
+    // Template lifecycle hooks
+    .on_template_event(|event| {
+        println!("Template event: {:?}", event);
+    })
+
     .build()
     .expect("Failed to build parser");
+
+// For multi-source deployments, use AutoScopedParser instead:
+// let scoped_parser = NetflowParser::builder()./* config */.multi_source();
 ```
 
 ## Netflow Common
