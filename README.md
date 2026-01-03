@@ -663,76 +663,90 @@ if let Some(hit_rate) = metrics.hit_rate() {
 - **Collisions**: Template ID reused (same ID, potentially different definition)
 - **Expired**: Templates removed due to TTL expiration
 
-### Multi-Source Deployments
+### Multi-Source Deployments (RFC-Compliant)
 
-When parsing NetFlow from multiple routers/exporters, use `RouterScopedParser` to maintain separate template caches per source:
+**Recommended:** Use `AutoScopedParser` for automatic RFC-compliant template scoping:
+
+```rust
+use netflow_parser::AutoScopedParser;
+use std::net::SocketAddr;
+
+let mut parser = AutoScopedParser::new();
+
+// Parser automatically handles RFC-compliant scoping:
+// - NetFlow v9: Uses (source_addr, source_id) per RFC 3954
+// - IPFIX: Uses (source_addr, observation_domain_id) per RFC 7011
+// - NetFlow v5/v7: Uses source_addr only
+
+let source: SocketAddr = "192.168.1.1:2055".parse().unwrap();
+let packets = parser.parse_from_source(source, &data);
+
+// Get statistics by protocol type
+println!("IPFIX sources: {}", parser.ipfix_source_count());
+println!("V9 sources: {}", parser.v9_source_count());
+println!("Total sources: {}", parser.source_count());
+
+// Get detailed stats per source
+for (key, v9_stats, ipfix_stats) in parser.ipfix_stats() {
+    println!("Source: {} Domain: {}", key.addr, key.observation_domain_id);
+    println!("  IPFIX templates: {}/{}", ipfix_stats.current_size, ipfix_stats.max_size);
+}
+```
+
+**Why RFC-compliant scoping?**
+- **Prevents template collisions** when a single router uses multiple observation domains
+- **Follows RFC specifications** for NetFlow v9 (RFC 3954) and IPFIX (RFC 7011)
+- **Automatic** - no manual key management required
+- **Correct** - handles the case where different observation domains from the same router use the same template IDs
+
+#### Advanced: Custom Scoping with RouterScopedParser
+
+For specialized requirements beyond automatic RFC-compliant scoping, use `RouterScopedParser` with custom key types:
 
 ```rust
 use netflow_parser::RouterScopedParser;
 use std::net::SocketAddr;
 
-let mut scoped_parser = RouterScopedParser::<SocketAddr>::new();
-
-// Parse from router 1
-let router1: SocketAddr = "192.168.1.1:2055".parse().unwrap();
-let packets1 = scoped_parser.parse_from_source(router1, &data1);
-
-// Parse from router 2 (separate template cache)
-let router2: SocketAddr = "192.168.1.2:2055".parse().unwrap();
-let packets2 = scoped_parser.parse_from_source(router2, &data2);
-
-// Get statistics per source
-if let Some((v9_stats, ipfix_stats)) = scoped_parser.get_source_stats(&router1) {
-    println!("Router 1 - V9: {}/{}", v9_stats.current_size, v9_stats.max_size);
-}
-
-// List all active sources
-println!("Active sources: {}", scoped_parser.source_count());
-```
-
-**Why per-source template isolation?**
-- Different routers may use the same template ID for different field definitions
-- Prevents template collisions between sources
-- Accurate cache metrics per source
-
-#### Custom Source Identifiers
-
-You can use any hashable type as a source identifier:
-
-```rust
-// Use observation domain ID
-let mut scoped = RouterScopedParser::<u32>::new();
-scoped.parse_from_source(12345u32, &data);
-
-// Use named sources
+// Example: Custom scoping for named sources
 let mut scoped = RouterScopedParser::<String>::new();
 scoped.parse_from_source("router-nyc-01".to_string(), &data);
 
-// Use custom types
+// Example: Manual composite key (not recommended - use AutoScopedParser instead)
 #[derive(Hash, Eq, PartialEq, Clone)]
-struct RouterId {
-    addr: SocketAddr,
-    domain_id: u32,
+struct CustomKey {
+    router_name: String,
+    region: String,
 }
 
-let mut scoped = RouterScopedParser::<RouterId>::new();
+let mut scoped = RouterScopedParser::<CustomKey>::new();
 ```
+
+**When to use `RouterScopedParser` instead of `AutoScopedParser`:**
+- You need custom scoping logic beyond protocol standards
+- You're using named identifiers for sources
+- You have application-specific grouping requirements
+
+**For standard NetFlow/IPFIX deployments, use `AutoScopedParser` instead.**
 
 #### Custom Parser Configuration
 
-Configure parsers created by `RouterScopedParser`:
+Configure parsers with custom settings:
 
 ```rust
-use netflow_parser::{RouterScopedParser, NetflowParser};
+use netflow_parser::{AutoScopedParser, NetflowParser};
 use netflow_parser::variable_versions::ttl::TtlConfig;
 use std::time::Duration;
-use std::net::SocketAddr;
 
+// Configure AutoScopedParser
 let builder = NetflowParser::builder()
     .with_cache_size(5000)
     .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
 
-let mut scoped = RouterScopedParser::<SocketAddr>::with_builder(builder);
+let mut parser = AutoScopedParser::with_builder(builder);
+
+// Or configure RouterScopedParser for custom scoping
+use netflow_parser::RouterScopedParser;
+let mut scoped = RouterScopedParser::<String>::with_builder(builder);
 ```
 
 ### Template Collision Detection
@@ -743,7 +757,7 @@ Monitor when template IDs are reused:
 let v9_stats = parser.v9_cache_stats();
 if v9_stats.metrics.collisions > 0 {
     println!("Warning: {} template collisions detected", v9_stats.metrics.collisions);
-    println!("Consider using RouterScopedParser for multi-source deployments");
+    println!("Use AutoScopedParser for RFC-compliant multi-source deployments");
 }
 ```
 
@@ -827,17 +841,19 @@ scoped_parser.clear_all_templates();
 
 ### Best Practices
 
-1. **Use RouterScopedParser for multi-source deployments**
-   - Prevents template ID collisions between sources
-   - Provides per-source metrics and management
+1. **Use AutoScopedParser for multi-source deployments** ⭐
+   - Automatically implements RFC-compliant scoping
+   - Prevents template ID collisions between sources and observation domains
+   - No manual key management required
+   - Correct for all NetFlow/IPFIX versions
 
 2. **Monitor cache metrics**
    - High miss rates indicate templates arriving out of order
-   - High collision rates suggest need for per-source isolation
+   - High collision rates suggest need for scoped parsing (if not using AutoScopedParser)
    - High eviction rates indicate cache size should be increased
 
 3. **Configure appropriate cache size**
-   - Default: 1000 templates
+   - Default: 1000 templates per source
    - Increase for routers that define many templates
    - Monitor `current_size` vs `max_size` to right-size
 
@@ -851,9 +867,9 @@ scoped_parser.clear_all_templates();
    - Retry after template packets are processed
    - Use `NoTemplateInfo` to understand what's missing
 
-6. **Single-threaded per-source pattern**
-   - Create one parser per source
-   - Or use RouterScopedParser which does this automatically
+6. **Thread safety with scoped parsers**
+   - `AutoScopedParser` and `RouterScopedParser` are not thread-safe
+   - Use `Arc<Mutex<AutoScopedParser>>` for multi-threaded applications
    - See [Thread Safety](#thread-safety) for details
 
 ## Performance & Thread Safety

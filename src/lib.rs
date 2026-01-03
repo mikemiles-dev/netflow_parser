@@ -604,8 +604,11 @@ use serde::Serialize;
 
 use std::collections::HashSet;
 
-// Re-export scoped parser for convenience
-pub use scoped_parser::RouterScopedParser;
+// Re-export scoped parser types for convenience
+pub use scoped_parser::{
+    AutoScopedParser, IpfixSourceKey, RouterScopedParser, ScopingInfo, V9SourceKey,
+    extract_scoping_info,
+};
 
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
