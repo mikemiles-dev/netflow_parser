@@ -414,18 +414,55 @@ This setting helps prevent memory exhaustion when processing malformed or malici
 
 #### Migration Guide
 
-**0.8.x → 0.9.0+**: `parse_bytes()` now returns `ParseResult` instead of `Result`:
+##### From 0.7.x to 0.8.0
+
+**What changed:** Two major improvements to error handling:
+
+1. **ParseResult** - `parse_bytes()` now returns `ParseResult` to preserve partial results on errors
+2. **Error Handling** - `NetflowPacket::Error` variant removed, errors now use `Result`
+
+**ParseResult (prevents data loss):**
+
 ```rust
-// Old: let packets = parser.parse_bytes(&data)?;
-// New: let result = parser.parse_bytes(&data);
-//      for packet in result.packets { /* ... */ }
-// Or:  let packets = parser.parse_bytes(&data).into_result()?;  // same as old
+// ❌ Old (0.7.x) - loses packets 1-4 if packet 5 errors
+match parser.parse_bytes(&data) {
+    Ok(packets) => { /* process all packets */ }
+    Err(e) => { /* all packets lost */ }
+}
+
+// ✅ New (0.8.0) - keep packets 1-4 even if packet 5 errors
+let result = parser.parse_bytes(&data);
+for packet in result.packets {
+    // Process successfully parsed packets
+}
+if let Some(e) = result.error {
+    eprintln!("Error: {}", e);  // But still got partial results!
+}
+
+// ✅ Or use .into_result() for old behavior
+let packets = parser.parse_bytes(&data).into_result()?;
 ```
 
-**0.7.x → 0.8.0+**: `NetflowPacket::Error` variant removed, use `iter_packets()` with `Result`:
+**Error Handling (use Result instead of Error variant):**
+
 ```rust
-// Old: NetflowPacket::Error(e) => { /* ... */ }
-// New: Err(e) => { /* ... */ }  // from iter_packets()
+// ❌ Old (0.7.x) - errors inline with packets
+for packet in parser.parse_bytes(&data) {
+    match packet {
+        NetflowPacket::V5(v5) => { /* process */ }
+        NetflowPacket::Error(e) => { /* error */ }
+        _ => {}
+    }
+}
+
+// ✅ New (0.8.0) - use iter_packets() for Result-based errors
+for result in parser.iter_packets(&data) {
+    match result {
+        Ok(NetflowPacket::V5(v5)) => { /* process */ }
+        Err(e) => { /* error */ }
+        _ => {}
+    }
+}
 ```
 
 ### Custom Enterprise Fields (IPFIX)
