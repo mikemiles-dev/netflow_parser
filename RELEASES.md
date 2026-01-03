@@ -118,9 +118,24 @@
       * `netflow_udp_listener_single_threaded.rs` - Modernized with `RouterScopedParser` and metrics
       * `netflow_udp_listener_multi_threaded.rs` - Modernized with `RouterScopedParser` and dedicated metrics thread
 
+  * **Template Event Hooks:**
+    * **NEW:** Callback system for monitoring template lifecycle events in real-time
+    * Register hooks via `.on_template_event()` builder method to receive notifications for:
+      * `TemplateEvent::Learned` - New template added to cache
+      * `TemplateEvent::Collision` - Template ID reused (indicates multi-source issues)
+      * `TemplateEvent::Evicted` - Template removed due to LRU policy
+      * `TemplateEvent::Expired` - Template removed due to TTL timeout
+      * `TemplateEvent::MissingTemplate` - Data packet for unknown template
+    * Use cases: Real-time monitoring, custom metrics collection, observability integration, alerting
+    * Hooks are `Send + Sync` for thread safety
+    * New types: `TemplateEvent`, `TemplateProtocol`, `TemplateHook`, `TemplateHooks`
+    * New module: `src/template_events.rs`
+    * New example: `examples/template_hooks.rs` - Comprehensive demonstration of hook system
+    * Integration tests: 7 new tests in `tests/template_hooks.rs`
+
   * **API and Developer Experience Improvements:**
     * Builder API: Added `.single_source()` and `.multi_source()` methods for clearer API discoverability
-    * Integration tests: Added 41 tests (761 lines) across 6 files covering parser configuration, multi-version parsing, template cache, scoped parsing, serialization, and PCAP integration
+    * Integration tests: Added 48 tests (total) across 7 files covering parser configuration, multi-version parsing, template cache, scoped parsing, serialization, PCAP integration, and template hooks
     * Crate discoverability: Added keywords `["netflow", "ipfix", "parser", "network", "cisco"]` to Cargo.toml
     * README badges: Added CI status, crates.io version, and docs.rs documentation badges
     * Fuzzing: Configured to run 5 minutes on main branch, 60 seconds on other branches

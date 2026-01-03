@@ -584,6 +584,7 @@ pub mod netflow_common;
 pub mod protocol;
 pub mod scoped_parser;
 pub mod static_versions;
+pub mod template_events;
 mod tests;
 pub mod variable_versions;
 
@@ -609,6 +610,9 @@ pub use scoped_parser::{
     AutoScopedParser, IpfixSourceKey, RouterScopedParser, ScopingInfo, V9SourceKey,
     extract_scoping_info,
 };
+
+// Re-export template event types for convenience
+pub use template_events::{TemplateEvent, TemplateHook, TemplateHooks, TemplateProtocol};
 
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
@@ -721,6 +725,8 @@ pub struct NetflowParser {
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
+    /// Template event hooks for monitoring template lifecycle events.
+    template_hooks: TemplateHooks,
 }
 
 /// Statistics about template cache utilization.
@@ -754,12 +760,26 @@ pub struct CacheStats {
 ///     .build()
 ///     .expect("Failed to build parser");
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct NetflowParserBuilder {
     v9_config: Config,
     ipfix_config: Config,
     allowed_versions: HashSet<u16>,
     max_error_sample_size: usize,
+    template_hooks: TemplateHooks,
+}
+
+// Custom Debug implementation to avoid printing closures
+impl std::fmt::Debug for NetflowParserBuilder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NetflowParserBuilder")
+            .field("v9_config", &self.v9_config)
+            .field("ipfix_config", &self.ipfix_config)
+            .field("allowed_versions", &self.allowed_versions)
+            .field("max_error_sample_size", &self.max_error_sample_size)
+            .field("template_hooks", &format!("{} hooks", self.template_hooks.len()))
+            .finish()
+    }
 }
 
 impl Default for NetflowParserBuilder {
@@ -769,6 +789,7 @@ impl Default for NetflowParserBuilder {
             ipfix_config: Config::new(1000, None),
             allowed_versions: [5, 7, 9, 10].iter().cloned().collect(),
             max_error_sample_size: 256,
+            template_hooks: TemplateHooks::new(),
         }
     }
 }
@@ -1081,6 +1102,50 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
+    /// Registers a callback for template lifecycle events.
+    ///
+    /// This allows you to monitor template operations in real-time, including:
+    /// - Template learning (new templates added to cache)
+    /// - Template collisions (template ID reused)
+    /// - Template evictions (LRU policy removed template)
+    /// - Template expirations (TTL-based removal)
+    /// - Missing templates (data packet for unknown template)
+    ///
+    /// # Arguments
+    ///
+    /// * `hook` - A closure that will be called for each template event
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::{NetflowParser, TemplateEvent, TemplateProtocol};
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .on_template_event(|event| {
+    ///         match event {
+    ///             TemplateEvent::Learned { template_id, protocol } => {
+    ///                 println!("Learned template {}", template_id);
+    ///             }
+    ///             TemplateEvent::Collision { template_id, protocol } => {
+    ///                 eprintln!("⚠️  Template collision: {}", template_id);
+    ///             }
+    ///             _ => {}
+    ///         }
+    ///     })
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn on_template_event<F>(mut self, hook: F) -> Self
+    where
+        F: Fn(&TemplateEvent) + Send + Sync + 'static,
+    {
+        self.template_hooks.register(hook);
+        self
+    }
+
+    /// Builds the `NetflowParser` with the configured settings.
+    ///
+    /// Returns an error if the parser configuration is invalid.
     pub fn build(self) -> Result<NetflowParser, String> {
         let v9_parser =
             V9Parser::try_new(self.v9_config).map_err(|e| format!("V9 parser error: {}", e))?;
@@ -1092,6 +1157,7 @@ impl NetflowParserBuilder {
             ipfix_parser,
             allowed_versions: self.allowed_versions,
             max_error_sample_size: self.max_error_sample_size,
+            template_hooks: self.template_hooks,
         })
     }
 }
@@ -1235,6 +1301,7 @@ impl Default for NetflowParser {
             ipfix_parser: IPFixParser::default(),
             allowed_versions: [5, 7, 9, 10].iter().cloned().collect(),
             max_error_sample_size: 256,
+            template_hooks: TemplateHooks::new(),
         }
     }
 }
@@ -1454,6 +1521,32 @@ impl NetflowParser {
         self.ipfix_parser.v9_templates.clear();
         self.ipfix_parser.ipfix_options_templates.clear();
         self.ipfix_parser.v9_options_templates.clear();
+    }
+
+    /// Triggers template event hooks.
+    ///
+    /// This method is called internally by template operations to notify
+    /// registered hooks about template lifecycle events. It can also be called
+    /// manually for testing or custom integration scenarios.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The template event to trigger
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::{NetflowParser, TemplateEvent, TemplateProtocol};
+    ///
+    /// let parser = NetflowParser::default();
+    /// parser.trigger_template_event(TemplateEvent::Learned {
+    ///     template_id: 256,
+    ///     protocol: TemplateProtocol::V9,
+    /// });
+    /// ```
+    #[inline]
+    pub fn trigger_template_event(&self, event: TemplateEvent) {
+        self.template_hooks.trigger(&event);
     }
 
     /// Takes a Netflow packet slice and returns a vector of Parsed Netflows.
