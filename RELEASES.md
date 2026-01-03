@@ -1,4 +1,4 @@
-# 0.9.0
+# 0.8.0
 
   * **ParseResult - Partial Success Handling (BREAKING CHANGE):**
     * **BREAKING CHANGE:** `parse_bytes()` now returns `ParseResult` instead of `Result<Vec<NetflowPacket>, NetflowError>`
@@ -12,21 +12,19 @@
       * `is_err()` - Check if an error occurred
       * `into_result()` - Convert to `Result` for backward compatibility (loses partial packets on error)
     * `iter_packets()` unchanged - still yields `Result<NetflowPacket, NetflowError>`
-    * **Migration from 0.8.x:**
+    * **Migration from 0.7.x:**
       ```rust
-      // Old (0.8.x):
+      // Old (0.7.x):
       let packets = parser.parse_bytes(&data)?;
 
-      // New (0.9.0) - Handle partial results:
+      // New (0.8.0) - Handle partial results:
       let result = parser.parse_bytes(&data);
       for packet in result.packets { /* process */ }
       if let Some(e) = result.error { /* handle */ }
 
-      // New (0.9.0) - Fail-fast (same as old):
+      // New (0.8.0) - Fail-fast (same as old):
       let packets = parser.parse_bytes(&data).into_result()?;
       ```
-
-# 0.8.0
 
   * **Security Improvements:**
     * **DoS Protection - Configurable Maximum Field Count Validation:**
