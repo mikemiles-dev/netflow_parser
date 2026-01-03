@@ -672,7 +672,7 @@ struct GenericNetflowHeader {
 /// # ⚠️ Multi-Source Deployments
 ///
 /// **IMPORTANT**: If you're parsing NetFlow from multiple routers or sources,
-/// use [`AutoScopedParser`](crate::AutoScopedParser) instead of `NetflowParser`
+/// use [`AutoScopedParser`] instead of `NetflowParser`
 /// to prevent template cache collisions.
 ///
 /// Template IDs are **NOT unique across sources**. Different routers can (and often do)
@@ -821,6 +821,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_cache_size(mut self, size: usize) -> Self {
         self.v9_config.max_template_cache_size = size;
         self.ipfix_config.max_template_cache_size = size;
@@ -832,6 +833,7 @@ impl NetflowParserBuilder {
     /// # Arguments
     ///
     /// * `size` - Maximum number of templates to cache (must be > 0)
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_v9_cache_size(mut self, size: usize) -> Self {
         self.v9_config.max_template_cache_size = size;
         self
@@ -840,6 +842,7 @@ impl NetflowParserBuilder {
     /// Sets the IPFIX parser template cache size independently.
     ///
     /// * `size` - Maximum number of templates to cache (must be > 0)
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_ipfix_cache_size(mut self, size: usize) -> Self {
         self.ipfix_config.max_template_cache_size = size;
         self
@@ -863,6 +866,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_max_field_count(mut self, count: usize) -> Self {
         self.v9_config.max_field_count = count;
         self.ipfix_config.max_field_count = count;
@@ -874,6 +878,7 @@ impl NetflowParserBuilder {
     /// # Arguments
     ///
     /// * `count` - Maximum number of fields per template
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_v9_max_field_count(mut self, count: usize) -> Self {
         self.v9_config.max_field_count = count;
         self
@@ -884,6 +889,7 @@ impl NetflowParserBuilder {
     /// # Arguments
     ///
     /// * `count` - Maximum number of fields per template
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_ipfix_max_field_count(mut self, count: usize) -> Self {
         self.ipfix_config.max_field_count = count;
         self
@@ -907,6 +913,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_ttl(mut self, ttl: variable_versions::ttl::TtlConfig) -> Self {
         self.v9_config.ttl_config = Some(ttl.clone());
         self.ipfix_config.ttl_config = Some(ttl);
@@ -914,12 +921,14 @@ impl NetflowParserBuilder {
     }
 
     /// Sets the TTL configuration for V9 parser independently.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_v9_ttl(mut self, ttl: variable_versions::ttl::TtlConfig) -> Self {
         self.v9_config.ttl_config = Some(ttl);
         self
     }
 
     /// Sets the TTL configuration for IPFIX parser independently.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_ipfix_ttl(mut self, ttl: variable_versions::ttl::TtlConfig) -> Self {
         self.ipfix_config.ttl_config = Some(ttl);
         self
@@ -942,6 +951,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_allowed_versions(mut self, versions: HashSet<u16>) -> Self {
         self.allowed_versions = versions;
         self
@@ -963,6 +973,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_max_error_sample_size(mut self, size: usize) -> Self {
         self.max_error_sample_size = size;
         self
@@ -1001,6 +1012,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn register_enterprise_field(mut self, def: EnterpriseFieldDef) -> Self {
         self.v9_config.enterprise_registry.register(def.clone());
         self.ipfix_config.enterprise_registry.register(def);
@@ -1031,6 +1043,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn register_enterprise_fields(
         mut self,
         defs: impl IntoIterator<Item = EnterpriseFieldDef>,
@@ -1058,6 +1071,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn single_source(self) -> Self {
         self
     }
@@ -1145,6 +1159,7 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .unwrap();
     /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn on_template_event<F>(mut self, hook: F) -> Self
     where
         F: Fn(&TemplateEvent) + Send + Sync + 'static,
