@@ -3,23 +3,6 @@ source: src/tests.rs
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
 - Error:
-    error:
-      Partial:
-        version: 5
-        remaining:
-          - 0
-          - 0
-          - 1
-          - 1
-          - 1
-          - 1
-        error: Parsing requires 4 bytes/chars
-    remaining:
-      - 0
-      - 5
-      - 0
-      - 0
-      - 1
-      - 1
-      - 1
-      - 1
+    Partial:
+      message: "V5 parse error: Parsing requires 4 bytes/chars"
+      offset: 0

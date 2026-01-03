@@ -623,10 +623,10 @@ pub enum NetflowPacket {
     V7(V7),
     /// Version 9
     V9(V9),
-    /// IPFix  
+    /// IPFix
     IPFix(IPFix),
-    /// Error
-    Error(NetflowPacketError),
+    /// Parsing error with detailed context
+    Error(NetflowError),
 }
 
 impl NetflowPacket {
@@ -777,7 +777,10 @@ impl std::fmt::Debug for NetflowParserBuilder {
             .field("ipfix_config", &self.ipfix_config)
             .field("allowed_versions", &self.allowed_versions)
             .field("max_error_sample_size", &self.max_error_sample_size)
-            .field("template_hooks", &format!("{} hooks", self.template_hooks.len()))
+            .field(
+                "template_hooks",
+                &format!("{} hooks", self.template_hooks.len()),
+            )
             .finish()
     }
 }
@@ -1169,23 +1172,156 @@ pub enum ParsedNetflow<'a> {
         remaining: &'a [u8],
     },
     Error {
-        error: NetflowParseError,
+        error: NetflowError,
     },
     UnallowedVersion,
 }
 
+/// Comprehensive error type for NetFlow parsing operations.
+///
+/// Provides rich context about parsing failures including offset, error kind,
+/// and relevant data for debugging.
 #[derive(Debug, Clone, Serialize)]
-pub struct NetflowPacketError {
-    pub error: NetflowParseError,
-    pub remaining: Vec<u8>,
+pub enum NetflowError {
+    /// Incomplete data - more bytes needed to parse a complete packet.
+    ///
+    /// Contains the number of bytes available and a description of what was expected.
+    Incomplete {
+        /// Number of bytes that were available
+        available: usize,
+        /// Description of what was being parsed
+        context: String,
+    },
+
+    /// Unknown or unsupported NetFlow version encountered.
+    ///
+    /// The version number found in the packet header doesn't match any known
+    /// NetFlow version (V5, V7, V9, IPFIX).
+    UnsupportedVersion {
+        /// The version number found in the packet
+        version: u16,
+        /// Offset in bytes where the version was found
+        offset: usize,
+        /// Sample of the packet data for debugging
+        sample: Vec<u8>,
+    },
+
+    /// Version is valid but filtered out by `allowed_versions` configuration.
+    ///
+    /// The parser was configured to only accept certain versions and this
+    /// version was explicitly excluded.
+    FilteredVersion {
+        /// The version number that was filtered
+        version: u16,
+    },
+
+    /// Template definition is required but not found in cache.
+    ///
+    /// For V9 and IPFIX, data packets reference template IDs that must be
+    /// learned from template packets. This error occurs when data arrives
+    /// before (or without) its corresponding template.
+    MissingTemplate {
+        /// The template ID that was not found
+        template_id: u16,
+        /// The protocol (V9 or IPFIX)
+        protocol: TemplateProtocol,
+        /// List of currently cached template IDs for this protocol
+        available_templates: Vec<u16>,
+        /// Raw packet data that couldn't be parsed
+        raw_data: Vec<u8>,
+    },
+
+    /// Parsing error with detailed context.
+    ///
+    /// Generic parsing failure with information about what failed and where.
+    ParseError {
+        /// Offset in bytes where the error occurred
+        offset: usize,
+        /// Description of what was being parsed
+        context: String,
+        /// The specific error kind
+        kind: String,
+        /// Sample of remaining data for debugging
+        remaining: Vec<u8>,
+    },
+
+    /// Partial parse - some data was parsed but errors occurred.
+    ///
+    /// Used when processing continues despite errors (e.g., some flowsets
+    /// parsed successfully but others failed).
+    Partial {
+        /// Description of the partial parse result
+        message: String,
+        /// Offset where the partial parse ended
+        offset: usize,
+    },
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub enum NetflowParseError {
-    Incomplete(String),
-    Partial(PartialParse),
-    UnknownVersion(Vec<u8>),
+impl std::fmt::Display for NetflowError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NetflowError::Incomplete { available, context } => {
+                write!(
+                    f,
+                    "Incomplete data: {} (only {} bytes available)",
+                    context, available
+                )
+            }
+            NetflowError::UnsupportedVersion {
+                version, offset, ..
+            } => {
+                write!(
+                    f,
+                    "Unsupported NetFlow version {} at offset {}",
+                    version, offset
+                )
+            }
+            NetflowError::FilteredVersion { version } => {
+                write!(
+                    f,
+                    "NetFlow version {} filtered out by allowed_versions configuration",
+                    version
+                )
+            }
+            NetflowError::MissingTemplate {
+                template_id,
+                protocol,
+                available_templates,
+                ..
+            } => {
+                write!(
+                    f,
+                    "Missing template {} for {:?} (available: {:?})",
+                    template_id, protocol, available_templates
+                )
+            }
+            NetflowError::ParseError {
+                offset,
+                context,
+                kind,
+                ..
+            } => {
+                write!(
+                    f,
+                    "Parse error at offset {}: {} ({})",
+                    offset, context, kind
+                )
+            }
+            NetflowError::Partial { message, offset } => {
+                write!(f, "Partial parse at offset {}: {}", offset, message)
+            }
+        }
+    }
 }
+
+impl std::error::Error for NetflowError {}
+
+// Legacy type alias for backwards compatibility during migration
+#[deprecated(since = "0.8.0", note = "Use NetflowError instead")]
+pub type NetflowPacketError = NetflowError;
+
+#[deprecated(since = "0.8.0", note = "Use NetflowError instead")]
+pub type NetflowParseError = NetflowError;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PartialParse {
@@ -1278,17 +1414,8 @@ impl<'a> Iterator for NetflowPacketIterator<'a> {
             }
             ParsedNetflow::Error { error } => {
                 self.errored = true;
-                // Only include first N bytes of remaining data in error to prevent memory exhaustion
-                let remaining_sample =
-                    if self.remaining.len() > self.parser.max_error_sample_size {
-                        self.remaining[..self.parser.max_error_sample_size].to_vec()
-                    } else {
-                        self.remaining.to_vec()
-                    };
-                Some(NetflowPacket::Error(NetflowPacketError {
-                    error,
-                    remaining: remaining_sample,
-                }))
+                // Error already contains context, just pass it through
+                Some(NetflowPacket::Error(error))
             }
         }
     }
@@ -1590,16 +1717,8 @@ impl NetflowParser {
                     break;
                 }
                 ParsedNetflow::Error { error } => {
-                    // Only include first N bytes of remaining data in error to prevent memory exhaustion
-                    let remaining_sample = if remaining.len() > self.max_error_sample_size {
-                        remaining[..self.max_error_sample_size].to_vec()
-                    } else {
-                        remaining.to_vec()
-                    };
-                    packets.push(NetflowPacket::Error(NetflowPacketError {
-                        error,
-                        remaining: remaining_sample,
-                    }));
+                    // Error already contains context including remaining data sample
+                    packets.push(NetflowPacket::Error(error));
                     break;
                 }
             }
@@ -1639,20 +1758,31 @@ impl NetflowParser {
     #[inline]
     fn parse_packet_by_version<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match GenericNetflowHeader::parse(packet) {
-            Ok((packet, header)) if self.allowed_versions.contains(&header.version) => {
+            Ok((remaining, header)) if self.allowed_versions.contains(&header.version) => {
                 match header.version {
-                    5 => V5Parser::parse(packet),
-                    7 => V7Parser::parse(packet),
-                    9 => self.v9_parser.parse(packet),
-                    10 => self.ipfix_parser.parse(packet),
+                    5 => V5Parser::parse(remaining),
+                    7 => V7Parser::parse(remaining),
+                    9 => self.v9_parser.parse(remaining),
+                    10 => self.ipfix_parser.parse(remaining),
                     _ => ParsedNetflow::Error {
-                        error: NetflowParseError::UnknownVersion(packet.to_vec()),
+                        error: NetflowError::UnsupportedVersion {
+                            version: header.version,
+                            offset: 0,
+                            sample: packet[..packet.len().min(self.max_error_sample_size)]
+                                .to_vec(),
+                        },
                     },
                 }
             }
-            Ok((_, _)) => ParsedNetflow::UnallowedVersion,
+            Ok(_) => {
+                // Version is valid but filtered by allowed_versions
+                ParsedNetflow::UnallowedVersion
+            }
             Err(e) => ParsedNetflow::Error {
-                error: NetflowParseError::Incomplete(e.to_string()),
+                error: NetflowError::Incomplete {
+                    available: packet.len(),
+                    context: format!("NetFlow header: {}", e),
+                },
             },
         }
     }

@@ -36,7 +36,7 @@
 use std::sync::Arc;
 
 /// Protocol type for template events.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum TemplateProtocol {
     /// NetFlow v9 template
     V9,
@@ -180,8 +180,8 @@ impl TemplateHooks {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
     fn test_hook_registration() {

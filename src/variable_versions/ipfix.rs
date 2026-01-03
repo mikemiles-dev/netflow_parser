@@ -13,7 +13,7 @@ use super::ttl::{TemplateWithTtl, TtlConfig};
 use super::{Config, ParserConfig};
 use crate::variable_versions::ConfigError;
 use crate::variable_versions::ipfix_lookup::IPFixField;
-use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
+use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
 use nom::IResult;
 use nom::bytes::complete::take;
@@ -165,21 +165,12 @@ impl IPFixParser {
                 packet: NetflowPacket::IPFix(ipfix),
                 remaining,
             },
-            Err(e) => {
-                // Only include first N bytes to prevent memory exhaustion
-                let remaining_sample = if packet.len() > self.max_error_sample_size {
-                    packet[..self.max_error_sample_size].to_vec()
-                } else {
-                    packet.to_vec()
-                };
-                ParsedNetflow::Error {
-                    error: NetflowParseError::Partial(PartialParse {
-                        version: 10,
-                        error: e.to_string(),
-                        remaining: remaining_sample,
-                    }),
-                }
-            }
+            Err(e) => ParsedNetflow::Error {
+                error: NetflowError::Partial {
+                    message: format!("IPFIX parse error: {}", e),
+                    offset: 0,
+                },
+            },
         }
     }
 

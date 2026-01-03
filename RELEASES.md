@@ -133,6 +133,29 @@
     * New example: `examples/template_hooks.rs` - Comprehensive demonstration of hook system
     * Integration tests: 7 new tests in `tests/template_hooks.rs`
 
+  * **Enhanced Error Handling:**
+    * **BREAKING CHANGE:** Replaced parsing library errors with custom `NetflowError` type
+    * New `NetflowError` enum provides rich error context with these variants:
+      * `Incomplete { available, context }` - Not enough data to parse packet
+      * `UnsupportedVersion { version, offset, sample }` - Unknown NetFlow version with sample data
+      * `FilteredVersion { version }` - Version filtered by allowed_versions config (internal use)
+      * `MissingTemplate { template_id, protocol, available_templates, raw_data }` - Template not in cache
+      * `ParseError { offset, context, kind, remaining }` - Generic parsing error with details
+      * `Partial { message, offset }` - Partial parse result from nom parser
+    * All errors implement `Display` and `std::error::Error` traits for better debugging
+    * `NetflowError` is serializable via serde for logging and storage
+    * **BREAKING CHANGE:** `ParsedNetflow::Error` field changed from `NetflowParseError` to `NetflowError`
+    * **BREAKING CHANGE:** `NetflowPacket::Error` variant changed from `Error(NetflowPacketError)` to `Error(NetflowError)`
+    * Deprecated type aliases for backward compatibility:
+      * `NetflowPacketError` → `NetflowError` (deprecated)
+      * `NetflowParseError` → `NetflowError` (deprecated)
+    * Error messages now include:
+      * Specific context about what was being parsed
+      * Offset information where available
+      * Sample of problematic data for debugging
+      * Available templates when template is missing
+    * Filtered versions now return empty Vec instead of error packet (cleaner API)
+
   * **API and Developer Experience Improvements:**
     * Builder API: Added `.single_source()` and `.multi_source()` methods for clearer API discoverability
     * Integration tests: Added 48 tests (total) across 7 files covering parser configuration, multi-version parsing, template cache, scoped parsing, serialization, PCAP integration, and template hooks
@@ -146,6 +169,35 @@
       * New: `NoTemplate(info)` where `info: NoTemplateInfo`
       * The raw data is now accessed via `info.raw_data`
       * Additional context available via `info.template_id` and `info.available_templates`
+    * **Breaking:** Error handling has changed:
+      * Old types `NetflowPacketError` and `NetflowParseError` are deprecated
+      * Update error matching to use `NetflowError` instead
+      * Old: `NetflowPacket::Error(NetflowPacketError::...)`
+      * New: `NetflowPacket::Error(NetflowError::...)`
+      * Error variants have changed - see `NetflowError` enum documentation
+      * Deprecated type aliases provided for temporary compatibility
+      * Update imports: `use netflow_parser::NetflowError;`
+      * Example migration:
+        ```rust
+        // Old code
+        match packet {
+            NetflowPacket::Error(NetflowPacketError::Partial { version, error, .. }) => {
+                println!("Parse error for v{}: {}", version, error);
+            }
+            _ => {}
+        }
+
+        // New code
+        match packet {
+            NetflowPacket::Error(NetflowError::Partial { message, offset }) => {
+                println!("Parse error at offset {}: {}", offset, message);
+            }
+            NetflowPacket::Error(NetflowError::UnsupportedVersion { version, .. }) => {
+                println!("Unsupported version: {}", version);
+            }
+            _ => {}
+        }
+        ```
     * Existing code using `v9_cache_stats()` or `ipfix_cache_stats()` will continue to work
     * The `CacheStats` struct now has an additional `metrics` field
 

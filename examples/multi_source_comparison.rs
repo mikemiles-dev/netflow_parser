@@ -46,7 +46,10 @@ fn demo_single_parser(sources: &[&str]) {
     let ipfix_stats = parser.ipfix_cache_stats();
 
     println!("\nCache Statistics:");
-    println!("  V9 Templates:    {}/{}", v9_stats.current_size, v9_stats.max_size);
+    println!(
+        "  V9 Templates:    {}/{}",
+        v9_stats.current_size, v9_stats.max_size
+    );
     println!(
         "  IPFIX Templates: {}/{}",
         ipfix_stats.current_size, ipfix_stats.max_size

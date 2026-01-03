@@ -1,6 +1,6 @@
 use netflow_parser::{NetflowParser, TemplateEvent, TemplateProtocol};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[test]
 fn test_hook_registration() {
@@ -29,16 +29,14 @@ fn test_multiple_hooks() {
     let ac = all_events_count.clone();
 
     let parser = NetflowParser::builder()
-        .on_template_event(move |event| {
-            match event {
-                TemplateEvent::Learned { .. } => {
-                    lc.fetch_add(1, Ordering::SeqCst);
-                }
-                TemplateEvent::Collision { .. } => {
-                    cc.fetch_add(1, Ordering::SeqCst);
-                }
-                _ => {}
+        .on_template_event(move |event| match event {
+            TemplateEvent::Learned { .. } => {
+                lc.fetch_add(1, Ordering::SeqCst);
             }
+            TemplateEvent::Collision { .. } => {
+                cc.fetch_add(1, Ordering::SeqCst);
+            }
+            _ => {}
         })
         .on_template_event(move |_event| {
             ac.fetch_add(1, Ordering::SeqCst);
