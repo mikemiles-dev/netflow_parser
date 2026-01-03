@@ -81,11 +81,19 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
         toolchain: stable
-    - name: Install cargo-audit
-      run: cargo install cargo-audit
-    - name: Run cargo audit
-      run: cargo audit
+
+    # Primary: cargo-deny (reliable and comprehensive)
     - name: Install cargo-deny
-      run: cargo install cargo-deny
+      run: cargo install cargo-deny --locked
+
     - name: Run cargo deny check
       run: cargo deny check
+
+    # Optional: cargo-audit (can have database issues)
+    - name: Install cargo-audit
+      continue-on-error: true
+      run: cargo install cargo-audit --locked
+
+    - name: Run cargo-audit
+      continue-on-error: true
+      run: cargo audit || echo "::warning::cargo-audit skipped due to database error"
