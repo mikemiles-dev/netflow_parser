@@ -9,7 +9,7 @@ fn test_v5_serialization() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let parsed = NetflowParser::default().parse_bytes(&v5_packet);
+    let parsed = NetflowParser::default().parse_bytes(&v5_packet).unwrap();
     let json = serde_json::to_string(&parsed).expect("Failed to serialize");
 
     assert!(json.contains("\"V5\""));
@@ -26,7 +26,7 @@ fn test_v5_round_trip_serialization() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let parsed = NetflowParser::default().parse_bytes(&v5_packet);
+    let parsed = NetflowParser::default().parse_bytes(&v5_packet).unwrap();
     let json = serde_json::to_string(&parsed).expect("Failed to serialize");
 
     // Verify JSON contains expected data
@@ -43,7 +43,7 @@ fn test_v5_json_pretty_print() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let parsed = NetflowParser::default().parse_bytes(&v5_packet);
+    let parsed = NetflowParser::default().parse_bytes(&v5_packet).unwrap();
     let json = serde_json::to_string_pretty(&parsed).expect("Failed to serialize");
 
     assert!(json.contains("\"V5\""));
@@ -58,7 +58,7 @@ fn test_v5_header_serialization() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let parsed = NetflowParser::default().parse_bytes(&v5_packet);
+    let parsed = NetflowParser::default().parse_bytes(&v5_packet).unwrap();
 
     if let NetflowPacket::V5(v5) = parsed.first().unwrap() {
         let header_json =
@@ -75,7 +75,9 @@ fn test_invalid_packet_handling() {
     // Invalid version number - parser returns empty vec for unknown versions
     let invalid_packet = [0, 99, 0, 0];
 
-    let parsed = NetflowParser::default().parse_bytes(&invalid_packet);
+    let parsed = NetflowParser::default()
+        .parse_bytes(&invalid_packet)
+        .unwrap();
 
     // Parser filters out unknown versions, so result should be empty
     assert_eq!(parsed.len(), 0);

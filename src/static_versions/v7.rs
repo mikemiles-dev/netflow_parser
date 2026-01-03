@@ -4,7 +4,7 @@
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
 use crate::protocol::ProtocolTypes;
-use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
+use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
 use Nom;
 use nom::number::complete::be_u32;
@@ -23,11 +23,9 @@ impl V7Parser {
                 remaining,
             },
             Err(e) => ParsedNetflow::Error {
-                error: NetflowParseError::Partial(PartialParse {
-                    version: 7,
-                    error: e.to_string(),
-                    remaining: packet.to_vec(),
-                }),
+                error: NetflowError::Partial {
+                    message: format!("V7 parse error: {}", e),
+                },
             },
         }
     }

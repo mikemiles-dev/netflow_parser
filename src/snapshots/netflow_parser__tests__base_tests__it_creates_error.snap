@@ -1,17 +1,8 @@
 ---
 source: src/tests.rs
+assertion_line: 94
 expression: "NetflowParser::default().parse_bytes(&packet)"
 ---
-- Error:
-    error:
-      Partial:
-        version: 9
-        remaining:
-          - 10
-          - 11
-        error: Parsing requires 4 bytes/chars
-    remaining:
-      - 0
-      - 9
-      - 10
-      - 11
+Err:
+  Partial:
+    message: "V9 parse error: Parsing requires 4 bytes/chars"

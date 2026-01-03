@@ -10,7 +10,7 @@ use super::metrics::CacheMetrics;
 use super::ttl::{TemplateWithTtl, TtlConfig};
 use super::{Config, ConfigError, ParserConfig};
 use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
-use crate::{NetflowPacket, NetflowParseError, ParsedNetflow, PartialParse};
+use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
 use nom::IResult;
 use nom::bytes::complete::take;
@@ -150,21 +150,11 @@ impl V9Parser {
                 packet: NetflowPacket::V9(v9),
                 remaining,
             },
-            Err(e) => {
-                // Only include first N bytes to prevent memory exhaustion
-                let remaining_sample = if packet.len() > self.max_error_sample_size {
-                    packet[..self.max_error_sample_size].to_vec()
-                } else {
-                    packet.to_vec()
-                };
-                ParsedNetflow::Error {
-                    error: NetflowParseError::Partial(PartialParse {
-                        version: 9,
-                        error: e.to_string(),
-                        remaining: remaining_sample,
-                    }),
-                }
-            }
+            Err(e) => ParsedNetflow::Error {
+                error: NetflowError::Partial {
+                    message: format!("V9 parse error: {}", e),
+                },
+            },
         }
     }
 }

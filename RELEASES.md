@@ -35,30 +35,14 @@
     * No breaking API changes - all fixes are internal validation improvements
 
 
-  * **Template Cache Metrics:**
+  * **Template Cache Metrics and Collision Detection:**
     * Added comprehensive performance metrics tracking for V9 and IPFIX template caches
-    * New `CacheMetrics` struct with atomic counters for:
-      * `hits` - Successful template lookups
-      * `misses` - Failed template lookups (template not in cache)
-      * `evictions` - Templates removed due to LRU policy when cache is full
-      * `collisions` - Template ID reused (same ID, potentially different definition)
-      * `expired` - Templates removed due to TTL expiration
-      * `insertions` - Total template insertions
-    * `CacheMetricsSnapshot` provides point-in-time view with helper methods:
-      * `hit_rate()` - Calculate cache hit rate (0.0 to 1.0)
-      * `miss_rate()` - Calculate cache miss rate (0.0 to 1.0)
-      * `total_lookups()` - Total number of lookups (hits + misses)
-    * Metrics accessible via updated `CacheStats` struct returned by:
-      * `NetflowParser::v9_cache_stats()`
-      * `NetflowParser::ipfix_cache_stats()`
+    * New `CacheMetrics` struct with atomic counters: hits, misses, evictions, collisions, expired, insertions
+    * Automatic tracking when template IDs are reused (critical for multi-source deployments)
+    * `CacheMetricsSnapshot` provides point-in-time view with `hit_rate()`, `miss_rate()`, `total_lookups()` helpers
+    * Metrics accessible via `NetflowParser::v9_cache_stats()` and `NetflowParser::ipfix_cache_stats()`
     * All metrics use atomic operations for thread-safe reads
     * New module: `src/variable_versions/metrics.rs`
-
-  * **Template Collision Detection:**
-    * Automatic tracking when template IDs are reused with potentially different definitions
-    * Critical for multi-source deployments where different routers may use the same template ID
-    * Collision counter helps identify when `RouterScopedParser` should be used
-    * Integrated into V9 and IPFIX template insertion logic
 
   * **Enhanced NoTemplate Error Context:**
     * **BREAKING CHANGE:** `FlowSetBody::NoTemplate` variant changed from `Vec<u8>` to `NoTemplateInfo` struct
@@ -123,54 +107,66 @@
     * New module: `src/scoped_parser.rs`
     * Re-exported at crate root as `netflow_parser::RouterScopedParser`
 
-  * **Comprehensive Template Management Documentation:**
-    * New "Template Management Guide" section in README covering:
-      * Template cache metrics - How to track and interpret performance
-      * Multi-source deployments - RFC-compliant scoping with `AutoScopedParser` (recommended)
-      * Advanced custom scoping with `RouterScopedParser`
-      * Template collision detection - Identifying and resolving collisions
-      * Handling missing templates - Strategies for out-of-order packet arrival
-      * Template lifecycle management - Cache inspection and cleanup
-      * Best practices for V9/IPFIX template management
-    * RFC compliance documentation:
-      * NetFlow v9 (RFC 3954) scoping requirements explained
-      * IPFIX (RFC 7011) scoping requirements explained
-      * When composite keys `(addr, observation_domain_id)` are required
-    * Updated Table of Contents with new sections
-    * All features include detailed code examples
-    * Enhanced thread safety documentation linking to template isolation
+  * **Documentation and Examples:**
+    * New "Template Management Guide" section in README with detailed coverage of cache metrics, multi-source deployments, collision detection, missing templates, and best practices
+    * RFC compliance documentation for NetFlow v9 (RFC 3954) and IPFIX (RFC 7011) scoping requirements
+    * New examples:
+      * `examples/template_management_demo.rs` - Comprehensive demo of cache metrics, multi-source parsing, collision detection, and template lifecycle
+      * `examples/multi_source_comparison.rs` - Visual comparison showing why `AutoScopedParser` is needed for multi-router deployments
+    * Updated examples to use `AutoScopedParser` and `RouterScopedParser`:
+      * `netflow_udp_listener_tokio.rs` - Updated to `AutoScopedParser` (recommended for production)
+      * `netflow_udp_listener_single_threaded.rs` - Modernized with `RouterScopedParser` and metrics
+      * `netflow_udp_listener_multi_threaded.rs` - Modernized with `RouterScopedParser` and dedicated metrics thread
 
-  * **New Example:**
-    * `examples/template_management_demo.rs` - Comprehensive demonstration of:
-      * Cache metrics monitoring and interpretation
-      * Multi-source parsing with `RouterScopedParser`
-      * Template collision detection and warnings
-      * Missing template handling and retry strategies
-      * Template lifecycle management (inspection, clearing)
-    * Runnable example showing all new template management features
+  * **Template Event Hooks:**
+    * **NEW:** Callback system for monitoring template lifecycle events in real-time
+    * Register hooks via `.on_template_event()` builder method to receive notifications for:
+      * `TemplateEvent::Learned` - New template added to cache
+      * `TemplateEvent::Collision` - Template ID reused (indicates multi-source issues)
+      * `TemplateEvent::Evicted` - Template removed due to LRU policy
+      * `TemplateEvent::Expired` - Template removed due to TTL timeout
+      * `TemplateEvent::MissingTemplate` - Data packet for unknown template
+    * Use cases: Real-time monitoring, custom metrics collection, observability integration, alerting
+    * Hooks are `Send + Sync` for thread safety
+    * New types: `TemplateEvent`, `TemplateProtocol`, `TemplateHook`, `TemplateHooks`
+    * New module: `src/template_events.rs`
+    * New example: `examples/template_hooks.rs` - Comprehensive demonstration of hook system
+    * Integration tests: 7 new tests in `tests/template_hooks.rs`
 
-  * **Updated Examples:**
-    * `examples/netflow_udp_listener_tokio.rs` - **Updated to use `AutoScopedParser` (RFC-compliant)**:
-      * Demonstrates RFC-compliant automatic scoping
-      * Shows IPFIX sources with `(addr, observation_domain_id)` scoping
-      * Shows NetFlow v9 sources with `(addr, source_id)` scoping
-      * Enhanced metrics reporting per protocol type (IPFIX, V9, Legacy)
-      * Displays observation domain IDs and source IDs in output
-      * Demonstrates async usage pattern with `Arc<Mutex<AutoScopedParser>>`
-      * Custom parser configuration with 2000 template cache and 1-hour TTL
-      * **Recommended example for production deployments**
-    * `examples/netflow_udp_listener_single_threaded.rs` - Modernized to use `RouterScopedParser`:
-      * Replaced manual HashMap management with `RouterScopedParser`
-      * Added periodic metrics reporting (every 5 seconds)
-      * Displays per-source template cache statistics and hit rates
-      * Socket created once for better performance
-      * Demonstrates simple single-threaded usage pattern
-    * `examples/netflow_udp_listener_multi_threaded.rs` - Modernized to use `RouterScopedParser`:
-      * Replaced per-source thread management with shared `Arc<Mutex<RouterScopedParser>>`
-      * Added dedicated metrics reporter thread
-      * Enhanced metrics showing per-source cache performance
-      * Spawns thread per packet to avoid blocking receive loop
-      * Demonstrates thread-safe multi-threaded usage pattern
+  * **Enhanced Error Handling (BREAKING CHANGES):**
+    * **BREAKING CHANGE:** `NetflowPacket::Error` variant removed - errors now returned via Result
+    * **BREAKING CHANGE:** `parse_bytes()` now returns `Result<Vec<NetflowPacket>, NetflowError>`
+    * **BREAKING CHANGE:** `iter_packets()` now yields `Result<NetflowPacket, NetflowError>`
+    * **BREAKING CHANGE:** `AutoScopedParser::parse_from_source()` returns `Result<Vec<NetflowPacket>, NetflowError>`
+    * **BREAKING CHANGE:** `RouterScopedParser::parse_from_source()` returns `Result<Vec<NetflowPacket>, NetflowError>`
+    * **BREAKING CHANGE:** Iterator methods yield `Result<NetflowPacket, NetflowError>`
+    * **BREAKING CHANGE:** Replaced parsing library errors with custom `NetflowError` type
+    * New `NetflowError` enum provides rich error context with these variants:
+      * `Incomplete { available, context }` - Not enough data to parse packet
+      * `UnsupportedVersion { version, offset, sample }` - Unknown NetFlow version with sample data
+      * `FilteredVersion { version }` - Version filtered by allowed_versions config (internal use)
+      * `MissingTemplate { template_id, protocol, available_templates, raw_data }` - Template not in cache
+      * `ParseError { offset, context, kind, remaining }` - Generic parsing error with details
+      * `Partial { message }` - Partial parse result from nom parser
+    * All errors implement `Display` and `std::error::Error` traits for better debugging
+    * `NetflowError` is serializable via serde for logging and storage
+    * More idiomatic Rust API separating success and error paths
+    * Enables use of `?` operator for error propagation
+    * Deprecated type aliases for backward compatibility:
+      * `NetflowPacketError` → `NetflowError` (deprecated)
+      * `NetflowParseError` → `NetflowError` (deprecated)
+    * Error messages now include:
+      * Specific context about what was being parsed
+      * Offset information where applicable (UnsupportedVersion, ParseError)
+      * Sample of problematic data for debugging
+      * Available templates when template is missing
+
+  * **API and Developer Experience Improvements:**
+    * Builder API: Added `.single_source()` and `.multi_source()` methods for clearer API discoverability
+    * Integration tests: Added 48 tests (total) across 7 files covering parser configuration, multi-version parsing, template cache, scoped parsing, serialization, PCAP integration, and template hooks
+    * Crate discoverability: Added keywords `["netflow", "ipfix", "parser", "network", "cisco"]` to Cargo.toml
+    * README badges: Added CI status, crates.io version, and docs.rs documentation badges
+    * Fuzzing: Configured to run 5 minutes on main branch, 60 seconds on other branches
 
   * **Migration Notes:**
     * **Breaking:** Code matching on `FlowSetBody::NoTemplate` must be updated:
@@ -178,6 +174,67 @@
       * New: `NoTemplate(info)` where `info: NoTemplateInfo`
       * The raw data is now accessed via `info.raw_data`
       * Additional context available via `info.template_id` and `info.available_templates`
+    * **Breaking:** Error handling has changed completely:
+      * `NetflowPacket::Error` variant has been **removed**
+      * `parse_bytes()` now returns `Result<Vec<NetflowPacket>, NetflowError>` instead of `Vec<NetflowPacket>`
+      * `iter_packets()` now yields `Result<NetflowPacket, NetflowError>` instead of `NetflowPacket`
+      * All scoped parser methods also return `Result`
+      * Example migration for `parse_bytes`:
+        ```rust
+        // Old code (0.7.x)
+        let packets = parser.parse_bytes(&data);
+        for packet in packets {
+            match packet {
+                NetflowPacket::V5(v5) => { /* process */ }
+                NetflowPacket::Error(e) => { /* handle error */ }
+                _ => {}
+            }
+        }
+
+        // New code (0.8.0)
+        match parser.parse_bytes(&data) {
+            Ok(packets) => {
+                for packet in packets {
+                    match packet {
+                        NetflowPacket::V5(v5) => { /* process */ }
+                        _ => {}
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Parse error: {}", e);
+            }
+        }
+
+        // Or use ? operator
+        let packets = parser.parse_bytes(&data)?;
+        ```
+      * Example migration for `iter_packets`:
+        ```rust
+        // Old code (0.7.x)
+        for packet in parser.iter_packets(&data) {
+            match packet {
+                NetflowPacket::V5(v5) => { /* process */ }
+                NetflowPacket::Error(e) => { /* handle error */ }
+                _ => {}
+            }
+        }
+
+        // New code (0.8.0)
+        for packet in parser.iter_packets(&data) {
+            match packet {
+                Ok(NetflowPacket::V5(v5)) => { /* process */ }
+                Ok(_) => { /* other versions */ }
+                Err(e) => {
+                    eprintln!("Error: {}", e);
+                    break; // or continue
+                }
+            }
+        }
+
+        // Or collect with error handling
+        let packets: Result<Vec<_>, _> = parser.iter_packets(&data).collect();
+        ```
     * Existing code using `v9_cache_stats()` or `ipfix_cache_stats()` will continue to work
     * The `CacheStats` struct now has an additional `metrics` field
 

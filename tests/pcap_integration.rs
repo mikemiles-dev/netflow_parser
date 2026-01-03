@@ -24,8 +24,9 @@ fn test_pcap_file_parsing() {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
                             if let Some(transport) = eth.transport {
                                 if let TransportSlice::Udp(udp) = transport {
-                                    let parsed = parser.parse_bytes(udp.payload());
-                                    netflow_packets += parsed.len();
+                                    if let Ok(parsed) = parser.parse_bytes(udp.payload()) {
+                                        netflow_packets += parsed.len();
+                                    }
                                 }
                             }
                         }
@@ -65,10 +66,11 @@ fn test_pcap_ipfix_parsing() {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
                             if let Some(transport) = eth.transport {
                                 if let TransportSlice::Udp(udp) = transport {
-                                    let parsed = parser.parse_bytes(udp.payload());
-                                    for pkt in parsed {
-                                        if pkt.is_ipfix() {
-                                            ipfix_count += 1;
+                                    if let Ok(parsed) = parser.parse_bytes(udp.payload()) {
+                                        for pkt in parsed {
+                                            if pkt.is_ipfix() {
+                                                ipfix_count += 1;
+                                            }
                                         }
                                     }
                                 }
@@ -108,7 +110,7 @@ fn test_pcap_template_caching() {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
                             if let Some(transport) = eth.transport {
                                 if let TransportSlice::Udp(udp) = transport {
-                                    parser.parse_bytes(udp.payload());
+                                    let _ = parser.parse_bytes(udp.payload());
                                 }
                             }
                         }
@@ -150,7 +152,7 @@ fn test_pcap_cache_metrics() {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
                             if let Some(transport) = eth.transport {
                                 if let TransportSlice::Udp(udp) = transport {
-                                    parser.parse_bytes(udp.payload());
+                                    let _ = parser.parse_bytes(udp.payload());
                                 }
                             }
                         }

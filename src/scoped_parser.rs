@@ -3,7 +3,7 @@
 //! This module provides a convenient wrapper for handling NetFlow data from multiple
 //! sources (routers/exporters), ensuring template isolation per source.
 
-use crate::{CacheStats, NetflowPacket, NetflowParser, NetflowParserBuilder};
+use crate::{CacheStats, NetflowError, NetflowPacket, NetflowParser, NetflowParserBuilder};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::net::SocketAddr;
@@ -118,7 +118,11 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     /// # Returns
     ///
     /// A vector of parsed NetFlow packets from the given data.
-    pub fn parse_from_source(&mut self, source: K, data: &[u8]) -> Vec<NetflowPacket>
+    pub fn parse_from_source(
+        &mut self,
+        source: K,
+        data: &[u8],
+    ) -> Result<Vec<NetflowPacket>, NetflowError>
     where
         K: Clone,
     {
@@ -153,7 +157,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         &'a mut self,
         source: K,
         data: &'a [u8],
-    ) -> impl Iterator<Item = NetflowPacket> + 'a
+    ) -> impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a
     where
         K: Clone,
     {
@@ -473,7 +477,11 @@ impl AutoScopedParser {
     ///
     /// let packets = parser.parse_from_source(source, &data);
     /// ```
-    pub fn parse_from_source(&mut self, source: SocketAddr, data: &[u8]) -> Vec<NetflowPacket> {
+    pub fn parse_from_source(
+        &mut self,
+        source: SocketAddr,
+        data: &[u8],
+    ) -> Result<Vec<NetflowPacket>, NetflowError> {
         match extract_scoping_info(data) {
             ScopingInfo::IPFix {
                 observation_domain_id,
@@ -510,7 +518,7 @@ impl AutoScopedParser {
                 parser.parse_bytes(data)
             }
             ScopingInfo::Unknown => {
-                // Still try to parse, might succeed or return error packet
+                // Still try to parse, might succeed or return error
                 let builder = self.parser_builder.clone();
                 let parser = self
                     .legacy_parsers
@@ -538,7 +546,7 @@ impl AutoScopedParser {
         &'a mut self,
         source: SocketAddr,
         data: &'a [u8],
-    ) -> impl Iterator<Item = NetflowPacket> + 'a {
+    ) -> impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a {
         match extract_scoping_info(data) {
             ScopingInfo::IPFix {
                 observation_domain_id,
