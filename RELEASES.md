@@ -1,3 +1,31 @@
+# 0.9.0
+
+  * **ParseResult - Partial Success Handling (BREAKING CHANGE):**
+    * **BREAKING CHANGE:** `parse_bytes()` now returns `ParseResult` instead of `Result<Vec<NetflowPacket>, NetflowError>`
+    * New `ParseResult` struct preserves successfully parsed packets even when errors occur mid-stream
+    * Prevents data loss when parsing multiple packets in a buffer (error in packet 5 doesn't lose packets 1-4)
+    * `ParseResult` fields:
+      * `packets: Vec<NetflowPacket>` - All successfully parsed packets
+      * `error: Option<NetflowError>` - Error if parsing stopped early
+    * Helper methods:
+      * `is_ok()` - Check if parsing completed without errors
+      * `is_err()` - Check if an error occurred
+      * `into_result()` - Convert to `Result` for backward compatibility (loses partial packets on error)
+    * `iter_packets()` unchanged - still yields `Result<NetflowPacket, NetflowError>`
+    * **Migration from 0.8.x:**
+      ```rust
+      // Old (0.8.x):
+      let packets = parser.parse_bytes(&data)?;
+
+      // New (0.9.0) - Handle partial results:
+      let result = parser.parse_bytes(&data);
+      for packet in result.packets { /* process */ }
+      if let Some(e) = result.error { /* handle */ }
+
+      // New (0.9.0) - Fail-fast (same as old):
+      let packets = parser.parse_bytes(&data).into_result()?;
+      ```
+
 # 0.8.0
 
   * **Security Improvements:**
@@ -332,295 +360,26 @@ This release simplifies the Template TTL API by removing packet-based TTL suppor
     * `TtlConfig::default_time_based()` → `TtlConfig::default()`
   * **Rationale:** Packet-based TTL using a global packet counter didn't correlate well with template staleness. Time-based TTL better reflects actual template expiration patterns as exporters typically refresh templates on time intervals.
 
-# 0.6.9
-  * Added Template Time Based / Packet Based TTL for V9/IPFix.
-  * **Added Builder Pattern for NetflowParser:**
-    * New `NetflowParser::builder()` method returns `NetflowParserBuilder`
-    * Ergonomic configuration with chainable methods:
-      * `with_cache_size()` / `with_v9_cache_size()` / `with_ipfix_cache_size()`
-      * `with_ttl()` / `with_v9_ttl()` / `with_ipfix_ttl()`
-      * `with_allowed_versions()` / `with_max_error_sample_size()`
-      * `build()` - Constructs configured parser
-  * **Added Template Cache Introspection API:**
-    * `v9_cache_stats()` / `ipfix_cache_stats()` - Get cache statistics
-    * `v9_template_ids()` / `ipfix_template_ids()` - List all cached template IDs
-    * `has_v9_template()` / `has_ipfix_template()` - Check if template exists (non-mutating)
-    * `clear_v9_templates()` / `clear_ipfix_templates()` - Clear all templates
-  * New `CacheStats` struct for cache statistics
-  * Added `Debug` and `Clone` derives to `Config` struct
-  * Comprehensive documentation updates with builder pattern examples
+# 0.6.x Series - Builder Pattern, LRU Caching, Performance
+  * **0.6.9**: Builder pattern, template cache introspection API, TTL support
+  * **0.6.8**: LRU-based template caching (default 1000 templates), DoS protection
+  * **0.6.7**: Performance optimizations, padding handling fixes, security fixes
+  * **0.6.6**: Configurable field mappings for NetflowCommon
+  * **0.6.5-0.6.0**: Performance optimizations, PCAP examples, string handling improvements
 
-# 0.6.8
-  * Added LRU-based template caching for V9Parser and IPFixParser to prevent memory exhaustion
-  * Default template cache size: 1000 templates per parser (configurable)
-  * New `V9Parser::try_new(cache_size)` and `IPFixParser::try_new(cache_size)` constructors for custom cache sizes
-  * Added `V9ParserError` and `IPFixParserError` error types for proper error handling
-  * Template cache is automatically evicted using LRU policy when limit is reached
-  * Provides protection against DoS attacks via template flooding
-  * Removed `PartialEq`, `Clone`, and `Serialize` derives from parser structs (due to LruCache)
+# 0.5.x Series - IPFIX Enhancements, Enterprise Fields
+  * **0.5.9**: Multiple templates per flow, enterprise field types (Netscaler, NAT, YAF, VMware)
+  * **0.5.8**: Cisco PEN fields, Application ID data type, protocol identifier fixes
+  * **0.5.7-0.5.0**: Parsing improvements, fuzzing support, benchmarking, code cleanup
 
-# 0.6.7
-* Optimized NetflowCommon conversion with single-pass field lookups (reduced O(n*m) to O(n))
-* Added V5/V7/DataNumber capacity pre-allocation
-* Faster string processing in hot paths
-* Fixed integer overflow in V9 options template field counting
-* Fixed unbounded buffer reads in IPFIX variable-length fields
-* Fixed memory exhaustion vulnerability in error handling
-* Enhanced validation for malformed packets
-* Improved IPFIX error handling - parse errors now properly propagate
-* Added thread safety documentation and performance tuning guide
-* **Fixed V9/IPFIX padding handling:**
-  * Fixed missing padding export for V9 Data FlowSets
-  * Added padding fields to IPFIX Data and OptionsData structures
-  * Auto-calculate padding for manually created packets (when padding field is empty)
-  * Preserve original padding for parsed packets (byte-perfect round-trips)
-  * Added `examples/manual_ipfix_creation.rs` demonstrating manual packet creation
+# 0.4.x Series - NetflowCommon, Type Improvements
+  * **0.4.1**: NetflowCommon structure for cross-version field access
+  * **0.4.4**: DataNumber downcasting to native types
+  * **0.4.0-0.4.9**: Various bug fixes and optimizations
 
-# 0.6.6
-* Added configurable field mappings for V9 and IPFIX in NetflowCommon.
-* New `V9FieldMappingConfig` and `IPFixFieldMappingConfig` structs allow customizing which fields map to `NetflowCommonFlowSet`.
-* New methods `NetflowCommon::from_v9_with_config()` and `NetflowCommon::from_ipfix_with_config()` for custom field extraction.
-* Each field mapping supports a primary field and an optional fallback (e.g., prefer IPv6, fall back to IPv4).
-* Default configurations maintain backward compatibility with existing behavior.
-* Netflow Common is now a feature.
-
-# 0.6.5
-* Several memory and performance optimizations.
-
-# 0.6.4
-* Removed uneeded DataNumber Parsing for Durations.
-* Renamed methods DurationMicros and DurationNanos into DurationMicrosNTP and DurationNanosNTP.
-* Minor Performance optimizations
-
-# 0.6.3
-* Ipfix dateTimeNanoseconds and dateTimeMicroseconds use the NTP 64 bit time format #15
-* Added NetEvent and ObservationTimeMilliseconds for V9.
-
-# 0.6.2
-* IPFix supports multiple V9 Options templates.
-* Found casting issues that could result in dataloss in the DataNumbers module.
-* Fixed incorrect datatypes for DataNumbers.
-* Added Reverse Information Element PEN fields.
-
-# 0.6.1
-* V9 Fields also now a Vec instead of BTreeMap.
-* IPFix Templates are now HashMap instead of BTreeMap.
-* Faster Data Parsing for V9/IPFix by removing inefficient contains_key lookup.
-* Fixed issue with certain ipfix lookup fields.
-
-# 0.6.0
-* Remove Control Characters and P4 starting chars from FieldDataType unicode strings.
-* Added PCAP example and how to cache IPFix flows without a packet for later parsing.
-
-# 0.5.9
-* IPFIX now supports multiple Templates in a flow
-* Fixed bug with parsing IPFix fields that would omit some data.
-* New IPFix FlowSetBody type added called NoTemplate and Empty.
-* NoTemplate returns data that allows you to cache flows that do not have a template for later parsing.
-* Correctly handling different Enterprise Field Types.
-* Added Netscaler PEN Types.
-* Added NAT PEN Types.
-* Added YAF PEN Types.
-* Added VMWARE PEN Types.
-* Re-added Enterprise Field Type for Unknown Enterprise Types.
-
-# 0.5.8
-* V9 Found and fixed divide by 0 issue.
-* IPFix Protocol Identifier now parsers as ProtocolIdentifier Field Type and not UnsignedDataNumber.
-* IPFix added Application ID Data Type.
-* Enterprise Fields are no longer classified as an "enterprise" field type.
-* IPFix now supports some Cisco PEN fields listed below:
-```
-    CiscoServerBytesNetwork = 8337,
-    CiscoClientBytesNetwork = 8338,
-    CiscoServicesWaasSegment = 9252,
-    CiscoServicesWaasPassthroughReason = 9253,
-    CiscoAppHttpUriStatistics = 9357,
-    CiscoAppCategoryName = 12232,
-    CiscoAppGroupName = 12234,
-    CiscoAppHttpHost = 12235,
-    CiscoClientIpv4Address = 12236,
-    CiscoServerIpv4Address = 12237,
-    CiscoClientL4Port = 12240,
-    CiscoServerL4Port = 12241,
-    CiscoConnectionId = 12242,
-    CiscoAppBusiness = 12244,
-```
-
-# 0.5.7
-* Fix Scope Data Parsing.
-
-# 0.5.6
-* Simplify V9/IPFix Parse function.
-* Added more cases for DataNumber Parsing.
-* IPFix now supports V9 Templates/Options Templates.
-
-# 0.5.5
-* More IPFIx/V9 Cleanup.
-* Reworked FlowSetBody for V9/IPFIX into an enum since a flowset can only contain a single type.
-* Fixed potential V9 parsing bug with a potential divide by 0.
-* DataNumber to_be_bytes to now a Result type return to handle failed u24 conversions.
-* FieldValue to_be_bytes now supports all data types.
-
-# 0.5.4
-* Reworked how padding is calculated for IPFIx.
-* Fixed Vecs not being exported for DataNumber.
-
-# 0.5.3
-* Fixed bug when calcualting the enteperise field.
-* Now properly parses variable length fields.
-* Cleanup ipfix code.
-* Rust 2024 Edition.
-
-# 0.5.2
-* Can now parse enterprise fields in non options templates for IPFIX.
-
-# 0.5.1
-* Reworked NetflowParseError.  Added a Partial Type.
-* Added ability to parse only `allowed_versions`.
-* V9, IPFix, Datanumber Code cleanup.
-* Added benchmarking
-
-# 0.5.0
-* Typos in documentation fixed.
-* Added cargo-fuzz for fuzzing.
-  * Uncovered area in V9 that could cause panic.
-
-# 0.4.9
-* Added FlowStartMilliseconds, FlowEndMilliseconds 
-
-# 0.4.8
-* Now Parsing IPFix Mac Addresses correctly.
-
-# 0.4.7
-* Added `src_mac` and `dst_mac` to NetflowCommonFlowSet to help identify devices on V9, IPFix.
-
-# 0.4.6
-* Added `NetflowParser` function `parse_bytes_as_netflow_common_flowsets`.  Will allow the caller
-  to gather all flowsets from all `NetflowPacket` into a single `Vec` of `NetflowCommonFlowSet`.
-
-# 0.4.5
- * Fixed bug with NetflowCommon V9 where Src and Dst IP where Ipv6 wasn't being checked.
-
-# 0.4.4
-* Fix Readme example packets.
-* Optimized IPFix, V9 NetflowCommon lookup.
-* DataNumbers can now be downcast into actual data types: (u8, u16, i32, u32, u64, u128).
-
-# 0.4.3
- * Fixed bug in NetflowCommon where ProtocolType was never set.
- * Minor Readme Changes.
-
-# 0.4.2
- * Increased coverage.
- * Reworked Readme.
-
-# 0.4.1
- * Added NetflowCommon structure.  This acts as a helper for common Netflow Fields (like src_ip, src_port, etc).
- * V5, V7 SysUpTime, First, Last times now u32 from Duration.
- * IPFix export time u32 from Duration.
-
-# 0.4.0
- * NetflowPacketResult now simply NetflowPacket.
- * General parser cleanup and removal of unneeded code.
- * Small performance optimization in lib parse_bytes.
-
-# 0.3.6
- * Added V9 Post NAT fields 225-228.
- * Added Tokio Async Example
-
-# 0.3.5
- * 3 Byte Data Numbers now correctly converts back to be_bytes.
-
-# 0.3.4
- * Added 3 byte DataNumber support.
-
-# 0.3.3
- * Renamed Sets to FlowSets for IPFIX for consistency.
- * Concrete error type for parsing
- * V5, V7, V9, IPFix now supports exporting back into bytes with `to_be_bytes`.
- * V9,IPFix field maps are now keyed by order.
- * Removed unix timestamp feature.  May re-implement in the future.
-
-# 0.3.2
- * Readme changes
-
-# 0.3.1
-  * Added 0 length check when parsing template lengths.
-
-# 0.3.0
-  * Reworked IPFIX + V9 Parsing.  Flowset length is now used.
-  * Flow data field Counts are now correctly calculated.
-  * Added `parse_unknown_fields` feature flag to attempt to parse unknown fields not supported by the library.
-  * `parse_unknown_fields` is enabled by default.
-
-# 0.2.9
-  * Fixed parsing issue with V9 flow and padding.
-
-# 0.2.8
-  * Removed body for V5, V7.  Only has Sets now.
-
-# 0.2.7
-  * Added support for multiple flowsets for V5, V7.
-
-# 0.2.6
-  * Re-added static and variable versions as public.
-
-# 0.2.5
-  * Now Parsing V9 Mac Addresses correctly.
-  * More code reorganization. (Moved tests to tests.rs and added parsing.rs for majority of parsing).
-  * Removed unneeded IPFIX Option Template Code.
-
-# 0.2.4
-  * Fixes for V9 parsing.  Now supports processing multiple templates.
-  * General code cleanup/Removal of unneeded code.
-
-# 0.2.3
-  * Small performance improvement by not parsing netflow version twice each packet.
-  * General Code cleanup for field_types and DataNumbers.
-
-# 0.2.2
-  * Optimizations in V9/IPFIX, removed some clone/cloned.
-  * Reworked Template Fields/Option Template Fields into single struct.
-    This avoids having to make an additional clone for each parse.
-
-# 0.2.1
-  * Fixed issue where v9/ipfix template fields can infinite loop.
-
-# 0.2.0
-  * Clippy updates for 1.76
-  * Removed dbg! macros for now for performance reason until we have a better solution.
-  * Fixed issue where bad IPFIX options template causes panic.
-
-# 0.1.9
-  * Fixed bug with flow counts in V9.
-
-# 0.1.8
-  * Introduced parse unix_timestamp feature. 
-
-# 0.1.7
-  * Renamed NetflowPacket to NetflowPacketResult.
-  * Created an Error Type on NetflowPacketResult.  Contains the error message and bytes that was trying to be parsed.
-
-# 0.1.6
-  * Fixed bug when parsing empty byte arrays or empty remaining slices.
-
-# 0.1.5
-  * Removed logging crate dependency 
-
-# 0.1.4
-  * Removed insta for non dev-dependency.
-
-# 0.1.3
-  * unix_secs and unix_nsecs for V5 are now pub.
-
-# 0.1.2
-  * Added Cisco to README.md
-  * Fixed some IPFIX Fields not being correctly mapped.
-  * Safer addition and subtraction in V9/IPFix
-
-# 0.1.1
-  * Removed serde import from filter example.
-  * Removed link to ipfix in V9 doc string.
-  * Added RELEASES.md
+# 0.3.x and Earlier - Foundation
+  * **0.3.3**: Re-export support (`to_be_bytes`), concrete error types
+  * **0.3.0**: Reworked IPFIX/V9 parsing, `parse_unknown_fields` feature
+  * **0.2.x**: Multi-flowset support, template processing improvements
+  * **0.1.x**: Initial releases, basic V5/V7/V9/IPFIX support
 

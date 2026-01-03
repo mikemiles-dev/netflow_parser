@@ -41,7 +41,7 @@ fn test_single_parser_multi_source() {
 
     // Parse multiple times (simulating different sources)
     for _ in 0..5 {
-        let packets = parser.parse_bytes(&v5_packet).unwrap();
+        let packets = parser.parse_bytes(&v5_packet).packets;
         assert_eq!(packets.len(), 1);
     }
 }

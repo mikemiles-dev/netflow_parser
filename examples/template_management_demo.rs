@@ -48,7 +48,7 @@ fn demo_cache_metrics() {
 
     // Simulate parsing some packets (in real scenario, use actual NetFlow data)
     let dummy_data = vec![0u8; 100];
-    let _ = parser.parse_bytes(&dummy_data).unwrap_or_default();
+    let _ = parser.parse_bytes(&dummy_data).packets;
 
     // Get cache statistics
     let v9_stats = parser.v9_cache_stats();
@@ -152,7 +152,7 @@ fn demo_collision_detection() {
     // from different sources would trigger collision detection
 
     let dummy_data = vec![0u8; 100];
-    let _ = parser.parse_bytes(&dummy_data).unwrap_or_default();
+    let _ = parser.parse_bytes(&dummy_data).packets;
 
     let v9_stats = parser.v9_cache_stats();
 
@@ -226,7 +226,7 @@ fn demo_template_lifecycle() {
 
     // Simulate some parsing
     let dummy_data = vec![0u8; 100];
-    let _ = parser.parse_bytes(&dummy_data).unwrap_or_default();
+    let _ = parser.parse_bytes(&dummy_data).packets;
 
     println!("\nTemplate Cache Inspection:");
 

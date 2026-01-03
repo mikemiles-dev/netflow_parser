@@ -33,7 +33,7 @@
 //! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-//! match NetflowParser::default().parse_bytes(&v5_packet).unwrap().first() {
+//! match NetflowParser::default().parse_bytes(&v5_packet).packets.first() {
 //!     Some(NetflowPacket::V5(v5)) => assert_eq!(v5.header.version, 5),
 //!     _ => (),
 //! }
@@ -46,7 +46,7 @@
 //! use netflow_parser::NetflowParser;
 //!
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-//! println!("{}", json!(NetflowParser::default().parse_bytes(&v5_packet).unwrap()).to_string());
+//! println!("{}", json!(NetflowParser::default().parse_bytes(&v5_packet).packets).to_string());
 //! ```
 //!
 //! ```json
@@ -100,7 +100,7 @@
 //! use netflow_parser::{NetflowParser, NetflowPacket};
 //!
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-//! let parsed = NetflowParser::default().parse_bytes(&v5_packet).unwrap();
+//! let parsed = NetflowParser::default().parse_bytes(&v5_packet).packets;
 //!
 //! let v5_parsed: Vec<NetflowPacket> = parsed.into_iter().filter(|p| p.is_v5()).collect();
 //! ```
@@ -221,7 +221,7 @@
 //! let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
 //! let mut parser = NetflowParser::default();
 //! parser.allowed_versions = [7, 9].into();
-//! let parsed = parser.parse_bytes(&v5_packet).unwrap();
+//! let parsed = parser.parse_bytes(&v5_packet).packets;
 //! ```
 //!
 //! This code will return an empty Vec as version 5 is not allowed.
@@ -408,7 +408,7 @@
 //! ];
 //! if let NetflowPacket::V5(v5) = NetflowParser::default()
 //!     .parse_bytes(&packet)
-//!     .unwrap()
+//!     .packets
 //!     .first()
 //!     .unwrap()
 //! {
@@ -655,6 +655,96 @@ impl NetflowPacket {
     #[cfg(feature = "netflow_common")]
     pub fn as_netflow_common(&self) -> Result<NetflowCommon, NetflowCommonError> {
         self.try_into()
+    }
+}
+
+/// Result of parsing NetFlow packets from a byte buffer.
+///
+/// This struct contains both successfully parsed packets and an optional error
+/// that stopped parsing. This ensures no data loss when parsing fails partway
+/// through a buffer.
+///
+/// # Examples
+///
+/// ```rust
+/// use netflow_parser::NetflowParser;
+///
+/// let mut parser = NetflowParser::default();
+/// let buffer = vec![/* netflow data */];
+///
+/// let result = parser.parse_bytes(&buffer);
+///
+/// // Process all successfully parsed packets
+/// for packet in result.packets {
+///     println!("Parsed packet");
+/// }
+///
+/// // Check if parsing stopped due to error
+/// if let Some(error) = result.error {
+///     eprintln!("Parsing stopped: {}", error);
+/// }
+/// ```
+#[derive(Debug, Clone, Serialize)]
+pub struct ParseResult {
+    /// Successfully parsed NetFlow packets.
+    /// This vec contains all packets that were successfully parsed before
+    /// any error occurred.
+    pub packets: Vec<NetflowPacket>,
+
+    /// Optional error that stopped parsing.
+    /// - `None` means all data was successfully parsed
+    /// - `Some(error)` means parsing stopped due to an error, but `packets`
+    ///   contains all successfully parsed packets up to that point
+    pub error: Option<NetflowError>,
+}
+
+impl ParseResult {
+    /// Returns true if parsing completed without errors.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let mut parser = NetflowParser::default();
+    /// let result = parser.parse_bytes(&[]);
+    /// assert!(result.is_ok());
+    /// ```
+    pub fn is_ok(&self) -> bool {
+        self.error.is_none()
+    }
+
+    /// Returns true if parsing stopped due to an error.
+    ///
+    /// Note: Even when this returns `true`, `packets` may contain
+    /// successfully parsed packets.
+    pub fn is_err(&self) -> bool {
+        self.error.is_some()
+    }
+
+    /// Returns the error if one occurred, otherwise returns the packets.
+    ///
+    /// This is useful when you want all-or-nothing semantics similar to
+    /// the old `parse_bytes()` behavior.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let mut parser = NetflowParser::default();
+    /// let result = parser.parse_bytes(&[]);
+    ///
+    /// match result.into_result() {
+    ///     Ok(packets) => println!("Got {} packets", packets.len()),
+    ///     Err(e) => eprintln!("Error: {}", e),
+    /// }
+    /// ```
+    pub fn into_result(self) -> Result<Vec<NetflowPacket>, NetflowError> {
+        match self.error {
+            Some(error) => Err(error),
+            None => Ok(self.packets),
+        }
     }
 }
 
@@ -1695,33 +1785,66 @@ impl NetflowParser {
         self.template_hooks.trigger(&event);
     }
 
-    /// Takes a Netflow packet slice and returns a vector of Parsed Netflows.
-    /// If we reach some parse error we return what items be have.
+    /// Parses NetFlow packets from a byte slice, preserving all successfully parsed packets.
+    ///
+    /// This function parses packets in sequence and returns a [`ParseResult`] containing both
+    /// successfully parsed packets and an optional error. **No data is lost** - if parsing fails
+    /// partway through, you still get all packets parsed before the error.
+    ///
+    /// # Arguments
+    ///
+    /// * `packet` - Byte slice containing NetFlow packet(s)
+    ///
+    /// # Returns
+    ///
+    /// [`ParseResult`] with:
+    /// * `packets` - All successfully parsed packets (even if error occurred)
+    /// * `error` - `None` if fully successful, `Some(error)` if parsing stopped
     ///
     /// # Examples
+    ///
+    /// ## Basic usage
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let v5_packet = [0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
+    /// let result = NetflowParser::default().parse_bytes(&v5_packet);
+    ///
+    /// // Process all packets
+    /// for packet in result.packets {
+    ///     println!("Parsed packet");
+    /// }
+    ///
+    /// // Check for errors
+    /// if let Some(e) = result.error {
+    ///     eprintln!("Error: {}", e);
+    /// }
+    /// ```
+    ///
+    /// ## With JSON serialization
     ///
     /// ```rust
     /// use serde_json::json;
     /// use netflow_parser::NetflowParser;
     ///
     /// let v5_packet = [0, 5, 2, 0, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
-    /// println!("{}", json!(NetflowParser::default().parse_bytes(&v5_packet)).to_string());
-    /// ```
-    ///
-    /// ## Output:
-    ///
-    /// ```json
-    /// [{"V5":{"header":{"count":1,"engine_id":7,"engine_type":6,"flow_sequence":33752069,"sampling_interval":2057,"sys_up_time":{"nanos":672000000,"secs":50332},"unix_nsecs":134807553,"unix_secs":83887623,"version":5},"sets":[{"d_octets":66051,"d_pkts":101124105,"dst_addr":"4.5.6.7","dst_as":515,"dst_mask":5,"dst_port":1029,"first":{"nanos":87000000,"secs":67438},"input":515,"last":{"nanos":553000000,"secs":134807},"next_hop":"8.9.0.1","output":1029,"pad1":6,"pad2":1543,"protocol_number":8,"protocol_type":"Egp","src_addr":"0.1.2.3","src_as":1,"src_mask":4,"src_port":515,"tcp_flags":7,"tos":9}]}}]
+    /// let result = NetflowParser::default().parse_bytes(&v5_packet);
+    /// println!("{}", json!(result.packets).to_string());
     /// ```
     ///
     #[inline]
-    pub fn parse_bytes(&mut self, packet: &[u8]) -> Result<Vec<NetflowPacket>, NetflowError> {
+    pub fn parse_bytes(&mut self, packet: &[u8]) -> ParseResult {
         if packet.is_empty() {
-            return Ok(vec![]);
+            return ParseResult {
+                packets: vec![],
+                error: None,
+            };
         }
 
         let mut packets = Vec::new();
         let mut remaining = packet;
+        let mut error = None;
 
         while !remaining.is_empty() {
             match self.parse_packet_by_version(remaining) {
@@ -1735,14 +1858,15 @@ impl NetflowParser {
                 ParsedNetflow::UnallowedVersion => {
                     break;
                 }
-                ParsedNetflow::Error { error } => {
-                    // Return error - parsing stopped
-                    return Err(error);
+                ParsedNetflow::Error { error: e } => {
+                    // Store error but keep successfully parsed packets
+                    error = Some(e);
+                    break;
                 }
             }
         }
 
-        Ok(packets)
+        ParseResult { packets, error }
     }
 
     /// Returns an iterator that yields NetflowPacket items without allocating a Vec.

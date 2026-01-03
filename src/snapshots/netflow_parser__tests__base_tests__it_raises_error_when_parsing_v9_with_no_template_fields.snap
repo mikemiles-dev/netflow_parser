@@ -1,8 +1,8 @@
 ---
 source: src/tests.rs
-assertion_line: 397
 expression: parser.parse_bytes(&packet)
 ---
-Err:
+packets: []
+error:
   Partial:
     message: "V9 parse error: Parsing Error: Error { input: [1, 1], code: MapRes }"
