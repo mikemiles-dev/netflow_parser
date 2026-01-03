@@ -1,7 +1,7 @@
+use etherparse::{SlicedPacket, TransportSlice};
 use netflow_parser::NetflowParser;
 use pcap_parser::traits::PcapReaderIterator;
 use pcap_parser::{LegacyPcapReader, PcapBlockOwned, PcapError};
-use etherparse::{SlicedPacket, TransportSlice};
 use std::fs::File;
 
 const PCAP_PATH: &str = "pcaps/IPFIX.pcap";
@@ -43,7 +43,10 @@ fn test_pcap_file_parsing() {
     }
 
     assert!(packet_count > 0, "Should have parsed some PCAP packets");
-    assert!(netflow_packets > 0, "Should have parsed some NetFlow packets");
+    assert!(
+        netflow_packets > 0,
+        "Should have parsed some NetFlow packets"
+    );
 }
 
 #[test]
@@ -84,7 +87,10 @@ fn test_pcap_ipfix_parsing() {
         }
     }
 
-    assert!(ipfix_count > 0, "Should have parsed IPFIX packets from PCAP");
+    assert!(
+        ipfix_count > 0,
+        "Should have parsed IPFIX packets from PCAP"
+    );
 }
 
 #[test]
@@ -168,7 +174,10 @@ fn test_pcap_cache_metrics() {
     // If we parsed templates and data, we should have some cache activity
     if ipfix_stats.current_size > 0 {
         let total_lookups = metrics.hits + metrics.misses;
-        assert!(total_lookups > 0 || metrics.hits == 0, "Should have some cache activity");
+        assert!(
+            total_lookups > 0 || metrics.hits == 0,
+            "Should have some cache activity"
+        );
     }
 }
 
@@ -208,5 +217,8 @@ fn test_pcap_iterator_api() {
         }
     }
 
-    assert!(netflow_count > 0, "Should have parsed NetFlow packets using iterator API");
+    assert!(
+        netflow_count > 0,
+        "Should have parsed NetFlow packets using iterator API"
+    );
 }

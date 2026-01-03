@@ -16,9 +16,9 @@ fn test_auto_scoped_parser_with_source() {
     let source: SocketAddr = "192.168.1.1:2055".parse().unwrap();
 
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     let packets = parser.parse_from_source(source, &v5_packet);
@@ -32,9 +32,9 @@ fn test_auto_scoped_parser_multiple_sources() {
     let source2: SocketAddr = "192.168.1.2:2055".parse().unwrap();
 
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     parser.parse_from_source(source1, &v5_packet);
@@ -49,9 +49,9 @@ fn test_router_scoped_parser_string_key() {
     let mut parser = RouterScopedParser::<String>::new();
 
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     let packets = parser.parse_from_source("router-01".to_string(), &v5_packet);
@@ -63,9 +63,9 @@ fn test_router_scoped_parser_clear_source() {
     let mut parser = RouterScopedParser::<String>::new();
 
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     parser.parse_from_source("router-01".to_string(), &v5_packet);
@@ -81,9 +81,9 @@ fn test_router_scoped_parser_clear_all() {
     let mut parser = RouterScopedParser::<String>::new();
 
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     parser.parse_from_source("router-01".to_string(), &v5_packet);
@@ -100,8 +100,7 @@ fn test_router_scoped_parser_clear_all() {
 fn test_auto_scoped_parser_with_builder() {
     use netflow_parser::NetflowParser;
 
-    let builder = NetflowParser::builder()
-        .with_cache_size(2000);
+    let builder = NetflowParser::builder().with_cache_size(2000);
 
     let parser = AutoScopedParser::with_builder(builder);
 
@@ -113,16 +112,15 @@ fn test_auto_scoped_parser_with_builder() {
 fn test_router_scoped_parser_with_builder() {
     use netflow_parser::NetflowParser;
 
-    let builder = NetflowParser::builder()
-        .with_cache_size(2000);
+    let builder = NetflowParser::builder().with_cache_size(2000);
 
     let mut parser = RouterScopedParser::<String>::with_builder(builder);
 
     // Verify parser was created
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     let packets = parser.parse_from_source("router-01".to_string(), &v5_packet);

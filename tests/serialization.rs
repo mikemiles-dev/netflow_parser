@@ -1,12 +1,12 @@
-use netflow_parser::{NetflowParser, NetflowPacket};
+use netflow_parser::{NetflowPacket, NetflowParser};
 use serde_json;
 
 #[test]
 fn test_v5_serialization() {
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     let parsed = NetflowParser::default().parse_bytes(&v5_packet);
@@ -21,9 +21,9 @@ fn test_v5_serialization() {
 #[test]
 fn test_v5_round_trip_serialization() {
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     let parsed = NetflowParser::default().parse_bytes(&v5_packet);
@@ -38,9 +38,9 @@ fn test_v5_round_trip_serialization() {
 #[test]
 fn test_v5_json_pretty_print() {
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     let parsed = NetflowParser::default().parse_bytes(&v5_packet);
@@ -53,15 +53,16 @@ fn test_v5_json_pretty_print() {
 #[test]
 fn test_v5_header_serialization() {
     let v5_packet = [
-        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-        2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+        0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
+        5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
+        4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
     let parsed = NetflowParser::default().parse_bytes(&v5_packet);
 
     if let NetflowPacket::V5(v5) = parsed.first().unwrap() {
-        let header_json = serde_json::to_string(&v5.header).expect("Failed to serialize header");
+        let header_json =
+            serde_json::to_string(&v5.header).expect("Failed to serialize header");
         assert!(header_json.contains("\"version\":5"));
         assert!(header_json.contains("\"count\":1"));
     } else {
