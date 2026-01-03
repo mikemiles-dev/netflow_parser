@@ -30,6 +30,10 @@ pub const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
 /// Default maximum number of templates to cache per parser
 pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
 
+/// Maximum number of fields allowed per template to prevent DoS attacks
+/// A reasonable limit that should accommodate legitimate use cases
+pub const MAX_FIELD_COUNT: u16 = 10000;
+
 type TemplateId = u16;
 pub type V9FieldPair = (V9Field, FieldValue);
 pub type V9FlowRecord = Vec<V9FieldPair>;
@@ -393,6 +397,7 @@ pub struct Template {
     /// This field gives the number of fields in this template record. Because a template
     /// FlowSet may contain multiple template records, this field allows the parser to
     /// determine the end of the current template record and the start of the next.
+    #[nom(Verify = "*field_count <= MAX_FIELD_COUNT")]
     pub field_count: u16,
     /// Template Fields.
     #[nom(Count = "field_count")]
@@ -417,10 +422,18 @@ pub struct OptionsTemplate {
     /// This field gives the length (in bytes) of any Options field definitions that are contained in this options template
     pub options_length: u16,
     /// Options Scope Fields
-    #[nom(Count = "usize::from(options_scope_length.checked_div(4).unwrap_or(0))")]
+    #[nom(
+        PreExec = "let scope_count = usize::from(options_scope_length.checked_div(4).unwrap_or(0)).min(MAX_FIELD_COUNT as usize);",
+        ErrorIf = "scope_count != usize::from(options_scope_length.checked_div(4).unwrap_or(0))",
+        Count = "scope_count"
+    )]
     pub scope_fields: Vec<OptionsTemplateScopeField>,
     /// Options Fields
-    #[nom(Count = "usize::from(options_length.checked_div(4).unwrap_or(0))")]
+    #[nom(
+        PreExec = "let option_count = usize::from(options_length.checked_div(4).unwrap_or(0)).min(MAX_FIELD_COUNT as usize);",
+        ErrorIf = "option_count != usize::from(options_length.checked_div(4).unwrap_or(0))",
+        Count = "option_count"
+    )]
     pub option_fields: Vec<TemplateField>,
 }
 

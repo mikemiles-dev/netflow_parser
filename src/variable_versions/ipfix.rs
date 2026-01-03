@@ -39,6 +39,14 @@ const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
 /// Default maximum number of templates to cache per parser
 pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
 
+/// Maximum number of fields allowed per template to prevent DoS attacks
+/// A reasonable limit that should accommodate legitimate use cases
+pub const MAX_FIELD_COUNT: u16 = 10000;
+
+/// Maximum length for a single variable-length field to prevent memory exhaustion
+/// This is the maximum size we'll allow for any individual field value
+pub const MAX_VARIABLE_FIELD_LENGTH: u16 = 65535;
+
 type TemplateId = u16;
 pub type IPFixFieldPair = (IPFixField, FieldValue);
 pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
@@ -702,11 +710,12 @@ impl OptionsData {
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct OptionsTemplate {
     pub template_id: u16,
+    #[nom(Verify = "*field_count <= MAX_FIELD_COUNT")]
     pub field_count: u16,
+    #[nom(Verify = "*scope_field_count <= field_count")]
     pub scope_field_count: u16,
     #[nom(
-        PreExec = "let combined_count = usize::from(scope_field_count.saturating_add(
-                       field_count.checked_sub(scope_field_count).unwrap_or(field_count)));",
+        PreExec = "let combined_count = usize::from(field_count);",
         Parse = "count(TemplateField::parse, combined_count)"
     )]
     pub fields: Vec<TemplateField>,
@@ -715,6 +724,7 @@ pub struct OptionsTemplate {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom, Default)]
 pub struct Template {
     pub template_id: u16,
+    #[nom(Verify = "*field_count <= MAX_FIELD_COUNT")]
     pub field_count: u16,
     #[nom(Count = "field_count")]
     pub fields: Vec<TemplateField>,
@@ -788,13 +798,15 @@ impl<'a> FieldParser {
         while !i.is_empty() {
             let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {
-                let field_res = field.parse_as_field_value(i);
-                if field_res.is_err() {
-                    return Ok((i, res));
+                match field.parse_as_field_value(i) {
+                    Ok((remaining, field_value)) => {
+                        vec.push((field.field_type, field_value));
+                        i = remaining;
+                    }
+                    Err(_) => {
+                        return Ok((i, res));
+                    }
                 }
-                let (remaining, field_value) = field_res.unwrap();
-                vec.push((field.field_type, field_value));
-                i = remaining;
             }
             res.push(vec);
         }
@@ -828,13 +840,15 @@ impl<'a> FieldParser {
         while !i.is_empty() {
             let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {
-                let field_res = field.parse_as_field_value_with_registry(i, registry);
-                if field_res.is_err() {
-                    return Ok((i, res));
+                match field.parse_as_field_value_with_registry(i, registry) {
+                    Ok((remaining, field_value)) => {
+                        vec.push((field.field_type, field_value));
+                        i = remaining;
+                    }
+                    Err(_) => {
+                        return Ok((i, res));
+                    }
                 }
-                let (remaining, field_value) = field_res.unwrap();
-                vec.push((field.field_type, field_value));
-                i = remaining;
             }
             res.push(vec);
         }
@@ -854,6 +868,7 @@ impl TemplateField {
                 if length == 255 {
                     let (i, full_length) = be_u16(i)?;
                     // Validate length doesn't exceed remaining buffer
+                    // Note: full_length is u16, so max is 65535 (MAX_VARIABLE_FIELD_LENGTH)
                     if (full_length as usize) > i.len() {
                         return Err(nom::Err::Error(nom::error::Error::new(
                             i,

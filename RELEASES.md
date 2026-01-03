@@ -1,5 +1,35 @@
 # 0.8.0
 
+  * **Security Improvements:**
+    * **DoS Protection - Maximum Field Count Validation:**
+      * Added `MAX_FIELD_COUNT` constant (10,000 fields) to prevent memory exhaustion attacks
+      * IPFIX Template now validates `field_count <= MAX_FIELD_COUNT` before parsing
+      * V9 Template now validates `field_count <= MAX_FIELD_COUNT` before parsing
+      * V9 OptionsTemplate now validates calculated field counts against `MAX_FIELD_COUNT`
+      * Malicious packets with excessive field counts (e.g., 65,535 fields) are now rejected
+      * Returns `nom::error::ErrorKind::Verify` or `ErrorKind::TooLarge` on validation failure
+    * **Scope Field Validation in IPFIX Options Templates:**
+      * Added validation that `scope_field_count <= field_count` in IPFIX OptionsTemplate
+      * Prevents logic errors when scope field count exceeds total field count
+      * Simplified field counting logic to use total `field_count` directly
+    * **Variable-Length Field Size Limits:**
+      * Variable-length fields in IPFIX are naturally bounded by u16 (max 65,535 bytes)
+      * Enhanced `parse_field_length()` with improved buffer boundary validation
+      * Added documentation of `MAX_VARIABLE_FIELD_LENGTH` constant (65,535 bytes)
+      * Prevents unbounded reads beyond available buffer data
+    * **Removed Unsafe Unwrap Operations:**
+      * Replaced `unwrap()` calls in IPFIX field parsing with safe pattern matching
+      * Changed `FieldParser::parse()` to use `match` instead of `is_err()` + `unwrap()` pattern
+      * Changed `FieldParser::parse_with_registry()` to use `match` for error handling
+      * Eliminates potential panic points that could cause DoS via malformed input
+      * Gracefully returns partial results when field parsing fails
+  * **Security Impact:**
+    * Prevents resource exhaustion DoS attacks via malicious template definitions
+    * Eliminates panic-based DoS attack vectors in field parsing
+    * Adds multiple layers of validation for untrusted network input
+    * No breaking API changes - all fixes are internal validation improvements
+
+
   * **Template Cache Metrics:**
     * Added comprehensive performance metrics tracking for V9 and IPFIX template caches
     * New `CacheMetrics` struct with atomic counters for:
