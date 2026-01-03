@@ -56,13 +56,20 @@ jobs:
         toolchain: nightly  # cargo-fuzz requires nightly
     - name: Install cargo-fuzz
       run: cargo install cargo-fuzz
-    - name: Run fuzzer (short duration for CI)
+    - name: Run fuzzer
       run: |
         cd fuzz
-        # Run each fuzz target for 60 seconds
+        # Run for 5 minutes on main branch, 60 seconds otherwise
+        if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+          FUZZ_TIME=300
+        else
+          FUZZ_TIME=60
+        fi
+        echo "Running fuzzer for ${FUZZ_TIME} seconds"
+        # Run each fuzz target
         for target in $(cargo fuzz list); do
           echo "Running fuzzer: $target"
-          cargo fuzz run $target -- -max_total_time=60 || true
+          cargo fuzz run $target -- -max_total_time=${FUZZ_TIME} || true
         done
 
   security:

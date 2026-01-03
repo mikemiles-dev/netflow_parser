@@ -1,5 +1,9 @@
 # netflow_parser
 
+[![CI](https://github.com/mikemiles-dev/netflow_parser/actions/workflows/rust.yml/badge.svg)](https://github.com/mikemiles-dev/netflow_parser/actions/workflows/rust.yml)
+[![Crates.io](https://img.shields.io/crates/v/netflow_parser.svg)](https://crates.io/crates/netflow_parser)
+[![Documentation](https://docs.rs/netflow_parser/badge.svg)](https://docs.rs/netflow_parser)
+
 A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Supports chaining of multiple versions in the same stream.
 
 ## Table of Contents
