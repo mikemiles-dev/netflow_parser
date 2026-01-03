@@ -30,6 +30,11 @@ pub const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
 /// Default maximum number of templates to cache per parser
 pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
 
+/// Default maximum number of fields allowed per template to prevent DoS attacks
+/// A reasonable limit that should accommodate legitimate use cases
+/// This can be configured per-parser via the Config struct
+pub const MAX_FIELD_COUNT: u16 = 10000;
+
 type TemplateId = u16;
 pub type V9FieldPair = (V9Field, FieldValue);
 pub type V9FlowRecord = Vec<V9FieldPair>;
@@ -50,6 +55,8 @@ pub struct V9Parser {
     pub ttl_config: Option<TtlConfig>,
     /// Maximum number of templates to cache. Defaults to 1000.
     pub max_template_cache_size: usize,
+    /// Maximum number of fields allowed per template. Defaults to 10000.
+    pub max_field_count: usize,
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
@@ -64,6 +71,7 @@ impl Default for V9Parser {
         // Safe to unwrap because DEFAULT_MAX_TEMPLATE_CACHE_SIZE is non-zero
         let config = Config {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
+            max_field_count: usize::from(MAX_FIELD_COUNT),
             ttl_config: None,
             enterprise_registry: super::enterprise_registry::EnterpriseFieldRegistry::new(),
         };
@@ -90,6 +98,7 @@ impl V9Parser {
             options_templates: LruCache::new(cache_size),
             ttl_config: config.ttl_config,
             max_template_cache_size: config.max_template_cache_size,
+            max_field_count: config.max_field_count,
             max_error_sample_size: 256,
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetrics::new(),
@@ -105,6 +114,7 @@ impl ParserConfig for V9Parser {
     /// Returns `ConfigError` if `max_template_cache_size` is 0
     fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
         self.max_template_cache_size = config.max_template_cache_size;
+        self.max_field_count = config.max_field_count;
         self.ttl_config = config.ttl_config;
 
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
@@ -292,6 +302,15 @@ impl FlowSetBody {
         match id {
             DATA_TEMPLATE_V9_ID => {
                 let (i, templates) = Templates::parse(i)?;
+                // Validate templates before storing
+                if templates.templates.is_empty()
+                    || templates.templates.iter().any(|t| !t.is_valid(parser))
+                {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )));
+                }
                 // Store templates efficiently - clone only what we need to cache
                 for template in &templates.templates {
                     let wrapped = TemplateWithTtl::new(template.clone());
@@ -310,6 +329,18 @@ impl FlowSetBody {
             }
             OPTIONS_TEMPLATE_V9_ID => {
                 let (i, options_templates) = OptionsTemplates::parse(i)?;
+                // Validate templates before storing
+                if options_templates.templates.is_empty()
+                    || options_templates
+                        .templates
+                        .iter()
+                        .any(|t| !t.is_valid(parser))
+                {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )));
+                }
                 // Store templates efficiently - clone only what we need to cache
                 for template in &options_templates.templates {
                     let wrapped = TemplateWithTtl::new(template.clone());
@@ -400,6 +431,11 @@ pub struct Template {
 }
 
 impl Template {
+    /// Validate the template against parser configuration
+    pub fn is_valid(&self, parser: &V9Parser) -> bool {
+        usize::from(self.field_count) <= parser.max_field_count
+    }
+
     /// Returns the total size of the template, including the header and all fields.
     pub fn get_total_size(&self) -> u16 {
         self.fields
@@ -422,6 +458,15 @@ pub struct OptionsTemplate {
     /// Options Fields
     #[nom(Count = "usize::from(options_length.checked_div(4).unwrap_or(0))")]
     pub option_fields: Vec<TemplateField>,
+}
+
+impl OptionsTemplate {
+    /// Validate the options template against parser configuration
+    pub fn is_valid(&self, parser: &V9Parser) -> bool {
+        let scope_count = usize::from(self.options_scope_length.checked_div(4).unwrap_or(0));
+        let option_count = usize::from(self.options_length.checked_div(4).unwrap_or(0));
+        scope_count <= parser.max_field_count && option_count <= parser.max_field_count
+    }
 }
 
 /// Options Scope Fields

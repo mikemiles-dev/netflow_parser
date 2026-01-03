@@ -776,6 +776,50 @@ impl NetflowParserBuilder {
         self
     }
 
+    /// Sets the maximum field count for both V9 and IPFIX parsers.
+    ///
+    /// This limits the number of fields allowed in a single template to prevent DoS attacks.
+    ///
+    /// # Arguments
+    ///
+    /// * `count` - Maximum number of fields per template (default: 10,000)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .with_max_field_count(5000)  // More restrictive limit
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    pub fn with_max_field_count(mut self, count: usize) -> Self {
+        self.v9_config.max_field_count = count;
+        self.ipfix_config.max_field_count = count;
+        self
+    }
+
+    /// Sets the V9 parser maximum field count independently.
+    ///
+    /// # Arguments
+    ///
+    /// * `count` - Maximum number of fields per template
+    pub fn with_v9_max_field_count(mut self, count: usize) -> Self {
+        self.v9_config.max_field_count = count;
+        self
+    }
+
+    /// Sets the IPFIX parser maximum field count independently.
+    ///
+    /// # Arguments
+    ///
+    /// * `count` - Maximum number of fields per template
+    pub fn with_ipfix_max_field_count(mut self, count: usize) -> Self {
+        self.ipfix_config.max_field_count = count;
+        self
+    }
+
     /// Sets the TTL configuration for both V9 and IPFIX parsers.
     ///
     /// # Arguments

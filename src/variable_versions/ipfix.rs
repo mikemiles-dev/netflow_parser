@@ -39,6 +39,11 @@ const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
 /// Default maximum number of templates to cache per parser
 pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
 
+/// Default maximum number of fields allowed per template to prevent DoS attacks
+/// A reasonable limit that should accommodate legitimate use cases
+/// This can be configured per-parser via the Config struct
+pub const MAX_FIELD_COUNT: u16 = 10000;
+
 type TemplateId = u16;
 pub type IPFixFieldPair = (IPFixField, FieldValue);
 pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
@@ -61,6 +66,8 @@ pub struct IPFixParser {
     pub ttl_config: Option<TtlConfig>,
     /// Maximum number of templates to cache. Defaults to 1000.
     pub max_template_cache_size: usize,
+    /// Maximum number of fields allowed per template. Defaults to 10000.
+    pub max_field_count: usize,
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
@@ -75,6 +82,7 @@ impl Default for IPFixParser {
         // Safe to unwrap because DEFAULT_MAX_TEMPLATE_CACHE_SIZE is non-zero
         let config = Config {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
+            max_field_count: usize::from(MAX_FIELD_COUNT),
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
@@ -103,6 +111,7 @@ impl IPFixParser {
             v9_options_templates: LruCache::new(cache_size),
             ttl_config: config.ttl_config,
             max_template_cache_size: config.max_template_cache_size,
+            max_field_count: config.max_field_count,
             max_error_sample_size: 256,
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetrics::new(),
@@ -118,6 +127,7 @@ impl ParserConfig for IPFixParser {
     /// Returns `ConfigError` if `max_template_cache_size` is 0
     fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
         self.max_template_cache_size = config.max_template_cache_size;
+        self.max_field_count = config.max_field_count;
         self.ttl_config = config.ttl_config;
 
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
@@ -377,7 +387,7 @@ impl FlowSetBody {
         parse_fn: F,
         single_variant: fn(T) -> FlowSetBody,
         multi_variant: fn(Vec<T>) -> FlowSetBody,
-        validate: fn(&T) -> bool,
+        validate: fn(&T, &IPFixParser) -> bool,
         add_templates: fn(&mut IPFixParser, &[T]),
     ) -> IResult<&'a [u8], FlowSetBody>
     where
@@ -385,7 +395,7 @@ impl FlowSetBody {
         F: Fn(&'a [u8]) -> IResult<&'a [u8], T>,
     {
         let (i, templates) = many0(complete(parse_fn))(i)?;
-        if templates.is_empty() || templates.iter().any(|t| !validate(t)) {
+        if templates.is_empty() || templates.iter().any(|t| !validate(t, parser)) {
             return Err(nom::Err::Error(nom::error::Error::new(
                 i,
                 nom::error::ErrorKind::Verify,
@@ -420,7 +430,7 @@ impl FlowSetBody {
                 Template::parse,
                 FlowSetBody::Template,
                 FlowSetBody::Templates,
-                |t: &Template| t.is_valid(),
+                |t: &Template, p: &IPFixParser| t.is_valid(p),
                 |parser, templates| parser.add_ipfix_templates(templates),
             ),
             DATA_TEMPLATE_V9_ID => Self::parse_templates(
@@ -429,7 +439,7 @@ impl FlowSetBody {
                 V9Template::parse,
                 FlowSetBody::V9Template,
                 FlowSetBody::V9Templates,
-                |_t: &V9Template| true,
+                |_t: &V9Template, _p: &IPFixParser| true,
                 |parser, templates| parser.add_v9_templates(templates),
             ),
             OPTIONS_TEMPLATE_V9_ID => Self::parse_templates(
@@ -438,7 +448,7 @@ impl FlowSetBody {
                 V9OptionsTemplate::parse,
                 FlowSetBody::V9OptionsTemplate,
                 FlowSetBody::V9OptionsTemplates,
-                |_t: &V9OptionsTemplate| true,
+                |_t: &V9OptionsTemplate, _p: &IPFixParser| true,
                 |parser, templates| parser.add_v9_options_templates(templates),
             ),
             OPTIONS_TEMPLATE_IPFIX_ID => Self::parse_templates(
@@ -447,7 +457,7 @@ impl FlowSetBody {
                 OptionsTemplate::parse,
                 FlowSetBody::OptionsTemplate,
                 FlowSetBody::OptionsTemplates,
-                |t: &OptionsTemplate| t.is_valid(),
+                |t: &OptionsTemplate, p: &IPFixParser| t.is_valid(p),
                 |parser, templates| parser.add_ipfix_options_templates(templates),
             ),
             // Parse Data
@@ -705,8 +715,7 @@ pub struct OptionsTemplate {
     pub field_count: u16,
     pub scope_field_count: u16,
     #[nom(
-        PreExec = "let combined_count = usize::from(scope_field_count.saturating_add(
-                       field_count.checked_sub(scope_field_count).unwrap_or(field_count)));",
+        PreExec = "let combined_count = usize::from(field_count);",
         Parse = "count(TemplateField::parse, combined_count)"
     )]
     pub fields: Vec<TemplateField>,
@@ -739,8 +748,23 @@ pub struct TemplateField {
 // Common trait for both templates.  Mainly for fetching fields.
 trait CommonTemplate {
     fn get_fields(&self) -> &Vec<TemplateField>;
+    fn get_field_count(&self) -> u16;
+    fn get_scope_field_count(&self) -> Option<u16> {
+        None
+    }
 
-    fn is_valid(&self) -> bool {
+    fn is_valid(&self, parser: &IPFixParser) -> bool {
+        // Check field count doesn't exceed maximum
+        if usize::from(self.get_field_count()) > parser.max_field_count {
+            return false;
+        }
+        // Check scope field count if applicable
+        if let Some(scope_count) = self.get_scope_field_count()
+            && scope_count > self.get_field_count()
+        {
+            return false;
+        }
+        // Check fields are not empty and have at least one non-zero length field
         !self.get_fields().is_empty() && self.get_fields().iter().any(|f| f.field_length > 0)
     }
 }
@@ -749,11 +773,23 @@ impl CommonTemplate for Template {
     fn get_fields(&self) -> &Vec<TemplateField> {
         &self.fields
     }
+
+    fn get_field_count(&self) -> u16 {
+        self.field_count
+    }
 }
 
 impl CommonTemplate for OptionsTemplate {
     fn get_fields(&self) -> &Vec<TemplateField> {
         &self.fields
+    }
+
+    fn get_field_count(&self) -> u16 {
+        self.field_count
+    }
+
+    fn get_scope_field_count(&self) -> Option<u16> {
+        Some(self.scope_field_count)
     }
 }
 
@@ -788,13 +824,15 @@ impl<'a> FieldParser {
         while !i.is_empty() {
             let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {
-                let field_res = field.parse_as_field_value(i);
-                if field_res.is_err() {
-                    return Ok((i, res));
+                match field.parse_as_field_value(i) {
+                    Ok((remaining, field_value)) => {
+                        vec.push((field.field_type, field_value));
+                        i = remaining;
+                    }
+                    Err(_) => {
+                        return Ok((i, res));
+                    }
                 }
-                let (remaining, field_value) = field_res.unwrap();
-                vec.push((field.field_type, field_value));
-                i = remaining;
             }
             res.push(vec);
         }
@@ -828,13 +866,15 @@ impl<'a> FieldParser {
         while !i.is_empty() {
             let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {
-                let field_res = field.parse_as_field_value_with_registry(i, registry);
-                if field_res.is_err() {
-                    return Ok((i, res));
+                match field.parse_as_field_value_with_registry(i, registry) {
+                    Ok((remaining, field_value)) => {
+                        vec.push((field.field_type, field_value));
+                        i = remaining;
+                    }
+                    Err(_) => {
+                        return Ok((i, res));
+                    }
                 }
-                let (remaining, field_value) = field_res.unwrap();
-                vec.push((field.field_type, field_value));
-                i = remaining;
             }
             res.push(vec);
         }
@@ -854,6 +894,7 @@ impl TemplateField {
                 if length == 255 {
                     let (i, full_length) = be_u16(i)?;
                     // Validate length doesn't exceed remaining buffer
+                    // Note: full_length is u16, so max is 65535 (u16::MAX)
                     if (full_length as usize) > i.len() {
                         return Err(nom::Err::Error(nom::error::Error::new(
                             i,

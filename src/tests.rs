@@ -670,6 +670,7 @@ mod base_tests {
         // Create parser with very short TTL (50ms)
         let config = Config {
             max_template_cache_size: 1000,
+            max_field_count: 10000,
             ttl_config: Some(TtlConfig::new(Duration::from_millis(50))),
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
