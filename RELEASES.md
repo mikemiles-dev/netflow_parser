@@ -1,5 +1,22 @@
 # 0.8.0
 
+  * **Testing Improvements:**
+    * Added comprehensive DoS and edge case test suite (`tests/dos_edge_cases.rs`)
+      * V9/IPFIX max field count validation tests
+      * Template cache eviction scenarios
+      * Error buffer size configuration tests
+      * Rapid template collision handling
+      * Cache metrics accuracy verification
+      * Template TTL expiration tests
+      * Zero-size cache rejection tests
+      * Malformed flowset length handling
+    * 9 new security-focused integration tests
+
+  * **Performance Optimizations:**
+    * Optimized clone usage in enterprise field registration
+    * Reduced unnecessary allocations when registering multiple enterprise fields
+    * Now collects iterator once and moves originals to second registry
+
   * **ParseResult - Partial Success Handling (BREAKING CHANGE):**
     * **BREAKING CHANGE:** `parse_bytes()` now returns `ParseResult` instead of `Result<Vec<NetflowPacket>, NetflowError>`
     * New `ParseResult` struct preserves successfully parsed packets even when errors occur mid-stream
