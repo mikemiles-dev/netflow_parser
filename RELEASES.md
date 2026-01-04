@@ -11,16 +11,16 @@
     * Improved buffer boundary validation
 
   * **Bug Fixes:**
-    * **CRITICAL:** Fixed compilation error in `parse_bytes_as_netflow_common_flowsets()`
+    * Fixed compilation error in `parse_bytes_as_netflow_common_flowsets()`
     * Fixed unreachable pattern warning in `NetflowCommon::try_from()`
-    * **FIXED:** `max_error_sample_size` configuration inconsistency
+    * Fixed max_error_sample_size` configuration inconsistency
       - Added `max_error_sample_size` field to `Config` struct
       - Now properly propagates from builder to V9Parser and IPFixParser
       - Previously, builder setting only affected main parser, not internal parsers
       - `with_max_error_sample_size()` now correctly updates all parser instances
 
   * **BREAKING CHANGES:**
-    * `parse_bytes()` now returns `ParseResult` instead of `Result<Vec<NetflowPacket>, NetflowError>`
+    * `parse_bytes()` now returns `ParseResult` instead of `Vec<NetflowPacket>`
       - Preserves successfully parsed packets even when errors occur mid-stream
       - Use `.into_result()` for backward compatibility (fail-fast behavior)
     * `FlowSetBody::NoTemplate` variant changed from `Vec<u8>` to `NoTemplateInfo` struct
