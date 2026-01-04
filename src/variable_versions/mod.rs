@@ -84,6 +84,10 @@ use std::num::NonZeroUsize;
 pub struct Config {
     pub max_template_cache_size: usize,
     pub max_field_count: usize,
+    /// Maximum total size (in bytes) of all fields in a template.
+    /// This prevents DoS attacks via templates with excessive total field lengths.
+    /// Default: u16::MAX
+    pub max_template_total_size: usize,
     pub ttl_config: Option<TtlConfig>,
     pub enterprise_registry: EnterpriseFieldRegistry,
 }
@@ -113,6 +117,7 @@ impl Config {
         Self {
             max_template_cache_size,
             max_field_count: usize::from(ipfix::MAX_FIELD_COUNT),
+            max_template_total_size: usize::from(u16::MAX),
             ttl_config,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         }
@@ -126,6 +131,7 @@ impl Config {
         Self {
             max_template_cache_size,
             max_field_count: usize::from(ipfix::MAX_FIELD_COUNT),
+            max_template_total_size: usize::from(u16::MAX),
             ttl_config,
             enterprise_registry,
         }

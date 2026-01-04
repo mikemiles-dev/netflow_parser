@@ -57,6 +57,8 @@ pub struct V9Parser {
     pub max_template_cache_size: usize,
     /// Maximum number of fields allowed per template. Defaults to 10000.
     pub max_field_count: usize,
+    /// Maximum total size (in bytes) of all fields in a template. Defaults to u16::MAX.
+    pub max_template_total_size: usize,
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
@@ -72,6 +74,7 @@ impl Default for V9Parser {
         let config = Config {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
             max_field_count: usize::from(MAX_FIELD_COUNT),
+            max_template_total_size: usize::from(u16::MAX),
             ttl_config: None,
             enterprise_registry: super::enterprise_registry::EnterpriseFieldRegistry::new(),
         };
@@ -99,6 +102,7 @@ impl V9Parser {
             ttl_config: config.ttl_config,
             max_template_cache_size: config.max_template_cache_size,
             max_field_count: config.max_field_count,
+            max_template_total_size: config.max_template_total_size,
             max_error_sample_size: 256,
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetrics::new(),
@@ -115,6 +119,7 @@ impl ParserConfig for V9Parser {
     fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
         self.max_template_cache_size = config.max_template_cache_size;
         self.max_field_count = config.max_field_count;
+        self.max_template_total_size = config.max_template_total_size;
         self.ttl_config = config.ttl_config;
 
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
@@ -423,7 +428,23 @@ pub struct Template {
 impl Template {
     /// Validate the template against parser configuration
     pub fn is_valid(&self, parser: &V9Parser) -> bool {
-        usize::from(self.field_count) <= parser.max_field_count
+        // Check field count limit
+        if usize::from(self.field_count) > parser.max_field_count {
+            return false;
+        }
+
+        // Check total size limit
+        let total_size = usize::from(self.get_total_size());
+        if total_size > parser.max_template_total_size {
+            return false;
+        }
+
+        // Check for duplicate field type numbers
+        if self.has_duplicate_fields() {
+            return false;
+        }
+
+        true
     }
 
     /// Returns the total size of the template, including the header and all fields.
@@ -431,6 +452,18 @@ impl Template {
         self.fields
             .iter()
             .fold(0, |acc, i| acc.saturating_add(i.field_length))
+    }
+
+    /// Check if the template has duplicate field type numbers
+    fn has_duplicate_fields(&self) -> bool {
+        use std::collections::HashSet;
+        let mut seen = HashSet::with_capacity(self.fields.len());
+        for field in &self.fields {
+            if !seen.insert(field.field_type_number) {
+                return true; // Found duplicate
+            }
+        }
+        false
     }
 }
 
@@ -455,7 +488,66 @@ impl OptionsTemplate {
     pub fn is_valid(&self, parser: &V9Parser) -> bool {
         let scope_count = usize::from(self.options_scope_length.checked_div(4).unwrap_or(0));
         let option_count = usize::from(self.options_length.checked_div(4).unwrap_or(0));
-        scope_count <= parser.max_field_count && option_count <= parser.max_field_count
+
+        // Check field count limits
+        if scope_count > parser.max_field_count || option_count > parser.max_field_count {
+            return false;
+        }
+
+        // Check total size limit
+        let total_size = usize::from(self.get_total_size());
+        if total_size > parser.max_template_total_size {
+            return false;
+        }
+
+        // Check for duplicate field type numbers in scope fields
+        if self.has_duplicate_scope_fields() {
+            return false;
+        }
+
+        // Check for duplicate field type numbers in option fields
+        if self.has_duplicate_option_fields() {
+            return false;
+        }
+
+        true
+    }
+
+    /// Returns the total size of all fields in the options template
+    fn get_total_size(&self) -> u16 {
+        let scope_size: u16 = self
+            .scope_fields
+            .iter()
+            .fold(0, |acc, f| acc.saturating_add(f.field_length));
+        let option_size: u16 = self
+            .option_fields
+            .iter()
+            .fold(0, |acc, f| acc.saturating_add(f.field_length));
+        scope_size.saturating_add(option_size)
+    }
+
+    /// Check if the template has duplicate scope field type numbers
+    fn has_duplicate_scope_fields(&self) -> bool {
+        use std::collections::HashSet;
+        let mut seen = HashSet::with_capacity(self.scope_fields.len());
+        for field in &self.scope_fields {
+            if !seen.insert(field.field_type_number) {
+                return true; // Found duplicate
+            }
+        }
+        false
+    }
+
+    /// Check if the template has duplicate option field type numbers
+    fn has_duplicate_option_fields(&self) -> bool {
+        use std::collections::HashSet;
+        let mut seen = HashSet::with_capacity(self.option_fields.len());
+        for field in &self.option_fields {
+            if !seen.insert(field.field_type_number) {
+                return true; // Found duplicate
+            }
+        }
+        false
     }
 }
 

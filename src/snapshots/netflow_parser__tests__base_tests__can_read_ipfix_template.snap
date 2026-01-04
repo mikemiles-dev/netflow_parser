@@ -1,0 +1,20 @@
+---
+source: src/tests.rs
+expression: ipfix.to_be_bytes().unwrap()
+---
+- 0
+- 10
+- 0
+- 48
+- 98
+- 160
+- 177
+- 185
+- 0
+- 0
+- 0
+- 8
+- 108
+- 106
+- 126
+- 17
