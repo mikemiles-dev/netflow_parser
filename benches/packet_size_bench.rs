@@ -1,7 +1,6 @@
-use criterion::{
-    BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main,
-};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use netflow_parser::NetflowParser;
+use std::hint::black_box;
 
 /// Helper to create V5 packet with N flow records
 fn create_v5_packet(flow_count: u16) -> Vec<u8> {

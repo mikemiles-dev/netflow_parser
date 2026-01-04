@@ -23,10 +23,11 @@ fn test_pcap_file_parsing() {
                         packet_count += 1;
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
                             && let Some(transport) = eth.transport
-                                && let TransportSlice::Udp(udp) = transport {
-                                    let parsed = parser.parse_bytes(udp.payload());
-                                    netflow_packets += parsed.packets.len();
-                                }
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            let parsed = parser.parse_bytes(udp.payload());
+                            netflow_packets += parsed.packets.len();
+                        }
                     }
                     PcapBlockOwned::NG(_) => {}
                 }
@@ -62,14 +63,15 @@ fn test_pcap_ipfix_parsing() {
                     PcapBlockOwned::Legacy(pcap_block) => {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
                             && let Some(transport) = eth.transport
-                                && let TransportSlice::Udp(udp) = transport {
-                                    let parsed = parser.parse_bytes(udp.payload());
-                                    for pkt in parsed.packets {
-                                        if pkt.is_ipfix() {
-                                            ipfix_count += 1;
-                                        }
-                                    }
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            let parsed = parser.parse_bytes(udp.payload());
+                            for pkt in parsed.packets {
+                                if pkt.is_ipfix() {
+                                    ipfix_count += 1;
                                 }
+                            }
+                        }
                     }
                     PcapBlockOwned::NG(_) => {}
                 }
@@ -103,9 +105,10 @@ fn test_pcap_template_caching() {
                     PcapBlockOwned::Legacy(pcap_block) => {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
                             && let Some(transport) = eth.transport
-                                && let TransportSlice::Udp(udp) = transport {
-                                    let _ = parser.parse_bytes(udp.payload());
-                                }
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            let _ = parser.parse_bytes(udp.payload());
+                        }
                     }
                     PcapBlockOwned::NG(_) => {}
                 }
@@ -143,9 +146,10 @@ fn test_pcap_cache_metrics() {
                     PcapBlockOwned::Legacy(pcap_block) => {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
                             && let Some(transport) = eth.transport
-                                && let TransportSlice::Udp(udp) = transport {
-                                    let _ = parser.parse_bytes(udp.payload());
-                                }
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            let _ = parser.parse_bytes(udp.payload());
+                        }
                     }
                     PcapBlockOwned::NG(_) => {}
                 }
@@ -188,12 +192,13 @@ fn test_pcap_iterator_api() {
                     PcapBlockOwned::Legacy(pcap_block) => {
                         if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
                             && let Some(transport) = eth.transport
-                                && let TransportSlice::Udp(udp) = transport {
-                                    // Use iterator API instead of parse_bytes
-                                    for _pkt in parser.iter_packets(udp.payload()) {
-                                        netflow_count += 1;
-                                    }
-                                }
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            // Use iterator API instead of parse_bytes
+                            for _pkt in parser.iter_packets(udp.payload()) {
+                                netflow_count += 1;
+                            }
+                        }
                     }
                     PcapBlockOwned::NG(_) => {}
                 }

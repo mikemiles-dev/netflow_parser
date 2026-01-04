@@ -24,9 +24,10 @@ impl PCAPParser {
                         pcap_parser::PcapBlockOwned::Legacy(pcap_block) => {
                             if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
                                 && let Some(transport) = eth.transport
-                                    && let TransportSlice::Udp(udp) = transport {
-                                        data.push(udp.payload().to_vec());
-                                    }
+                                && let TransportSlice::Udp(udp) = transport
+                            {
+                                data.push(udp.payload().to_vec());
+                            }
                         }
                         // This case should not occur for a valid .pcap file
                         pcap_parser::PcapBlockOwned::NG(_) => {
