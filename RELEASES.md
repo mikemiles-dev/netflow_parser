@@ -13,6 +13,11 @@
   * **Bug Fixes:**
     * **CRITICAL:** Fixed compilation error in `parse_bytes_as_netflow_common_flowsets()`
     * Fixed unreachable pattern warning in `NetflowCommon::try_from()`
+    * **FIXED:** `max_error_sample_size` configuration inconsistency
+      - Added `max_error_sample_size` field to `Config` struct
+      - Now properly propagates from builder to V9Parser and IPFixParser
+      - Previously, builder setting only affected main parser, not internal parsers
+      - `with_max_error_sample_size()` now correctly updates all parser instances
 
   * **BREAKING CHANGES:**
     * `parse_bytes()` now returns `ParseResult` instead of `Result<Vec<NetflowPacket>, NetflowError>`
@@ -32,15 +37,6 @@
       - Tracks hits, misses, evictions, collisions, expirations
     * **Template Event Hooks** - Callback system for monitoring template lifecycle
       - Events: Learned, Collision, Evicted, Expired, MissingTemplate
-
-  * **Testing & Benchmarks:**
-    * New comprehensive DoS/edge case test suite with 15+ security tests
-    * New packet size benchmark suite (V5/V9/IPFIX, various flow counts)
-    * Added CI job for `netflow_common` feature validation
-    * Added 48 integration tests across 7 test files
-
-  * **Performance:**
-    * Optimized enterprise field registration (reduced cloning)
 
   * **Documentation:**
     * New "Template Management Guide" in README covering multi-source deployments
