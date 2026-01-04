@@ -186,8 +186,8 @@ fn demo_missing_templates() {
     println!("\nProcessing IPFIX packets...");
 
     for result in parser.iter_packets(&dummy_data) {
-        if let Ok(packet) = result {
-            if let NetflowPacket::IPFix(ipfix) = packet {
+        if let Ok(packet) = result
+            && let NetflowPacket::IPFix(ipfix) = packet {
                 for flowset in &ipfix.flowsets {
                     if let FlowSetBody::NoTemplate(info) = &flowset.body {
                         println!("\n⚠️  Missing template ID: {}", info.template_id);
@@ -199,7 +199,6 @@ fn demo_missing_templates() {
                     }
                 }
             }
-        }
     }
 
     if pending_data.is_empty() {

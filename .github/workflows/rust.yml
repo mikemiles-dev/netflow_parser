@@ -47,7 +47,7 @@ jobs:
     - name: Test with netflow_common feature
       run: cargo test --features netflow_common --verbose
     - name: Run netflow_common benchmarks
-      run: cargo bench --bench netflow_common_bench --verbose
+      run: cargo bench --bench netflow_common_bench --features netflow_common --verbose
 
   benchmark:
     runs-on: ubuntu-latest

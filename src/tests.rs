@@ -632,10 +632,7 @@ mod base_tests {
 
         // Demonstrate zero-allocation usage pattern
         for packet in parser.iter_packets(&v5_packet) {
-            match packet.unwrap() {
-                NetflowPacket::V5(_) => count += 1,
-                _ => {}
-            }
+            if let NetflowPacket::V5(_) = packet.unwrap() { count += 1 }
         }
 
         assert_eq!(count, 1);
@@ -909,8 +906,8 @@ mod base_tests {
         let packets = parser.parse_bytes(&packet).packets;
         assert_eq!(packets.len(), 1);
 
-        if let NetflowPacket::IPFix(ipfix) = &packets[0] {
-            if let crate::variable_versions::ipfix::FlowSetBody::Data(data) =
+        if let NetflowPacket::IPFix(ipfix) = &packets[0]
+            && let crate::variable_versions::ipfix::FlowSetBody::Data(data) =
                 &ipfix.flowsets[1].body
             {
                 let (_field_type, value) = &data.fields[0][1];
@@ -922,7 +919,6 @@ mod base_tests {
                     value
                 );
             }
-        }
     }
 
     #[test]

@@ -76,7 +76,7 @@ fn create_v9_packet(flow_count: u16) -> Vec<u8> {
     ];
 
     // Data FlowSet header
-    let data_length = 4 + (flow_count as u16 * 12); // Header + (4+4+2+2)*N
+    let data_length = 4 + (flow_count * 12); // Header + (4+4+2+2)*N
     packet.extend_from_slice(&[
         0x01,
         0x00, // FlowSet ID = 256 (data)
@@ -109,7 +109,7 @@ fn create_v9_packet(flow_count: u16) -> Vec<u8> {
 fn create_ipfix_packet(flow_count: u16) -> Vec<u8> {
     let template_set_length = 20u16; // Header + 4 fields
     let data_record_size = 12u16; // 4+4+2+2
-    let data_set_length = 4 + (flow_count as u16 * data_record_size);
+    let data_set_length = 4 + (flow_count * data_record_size);
     let total_length = 16 + template_set_length + data_set_length;
 
     let mut packet = vec![

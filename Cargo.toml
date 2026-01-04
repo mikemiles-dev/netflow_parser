@@ -10,6 +10,10 @@ keywords = ["netflow", "ipfix", "parser", "network", "cisco"]
 readme = "README.md"
 repository = "https://github.com/mikemiles-dev/netflow_parser/"
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
 byteorder = "1.5.0"
 nom = "7.1.3"

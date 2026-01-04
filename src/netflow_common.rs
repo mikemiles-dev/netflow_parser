@@ -779,7 +779,7 @@ mod common_tests {
             }],
         };
 
-        let common: NetflowCommon = NetflowCommon::try_from(&v5).unwrap();
+        let common: NetflowCommon = NetflowCommon::from(&v5);
 
         assert_eq!(common.version, 5);
         assert_eq!(common.timestamp, 100);
@@ -842,7 +842,7 @@ mod common_tests {
             }],
         };
 
-        let common: NetflowCommon = NetflowCommon::try_from(&v7).unwrap();
+        let common: NetflowCommon = NetflowCommon::from(&v7);
 
         assert_eq!(common.version, 7);
         assert_eq!(common.timestamp, 100);
@@ -925,7 +925,7 @@ mod common_tests {
             }],
         };
 
-        let common: NetflowCommon = NetflowCommon::try_from(&v9).unwrap();
+        let common: NetflowCommon = NetflowCommon::from(&v9);
         assert_eq!(common.version, 9);
         assert_eq!(common.timestamp, 100);
         assert_eq!(common.flowsets.len(), 1);
@@ -1011,7 +1011,7 @@ mod common_tests {
             }],
         };
 
-        let common: NetflowCommon = NetflowCommon::try_from(&ipfix).unwrap();
+        let common: NetflowCommon = NetflowCommon::from(&ipfix);
         assert_eq!(common.version, 10);
         assert_eq!(common.timestamp, 100);
         assert_eq!(common.flowsets.len(), 1);

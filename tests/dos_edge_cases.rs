@@ -90,7 +90,7 @@ fn test_ipfix_max_field_count_handling() {
     // Update lengths
     let set_length = (4 + 100 * 4) as u16; // Header + fields
     packet[18..20].copy_from_slice(&set_length.to_be_bytes());
-    let total_length = (16 + set_length) as u16; // Message header + set
+    let total_length = 16 + set_length; // Message header + set
     packet[2..4].copy_from_slice(&total_length.to_be_bytes());
 
     let result = parser.parse_bytes(&packet);

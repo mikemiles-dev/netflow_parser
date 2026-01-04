@@ -1,5 +1,4 @@
 use netflow_parser::{NetflowPacket, NetflowParser};
-use serde_json;
 
 #[test]
 fn test_v5_serialization() {
