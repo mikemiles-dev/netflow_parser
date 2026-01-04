@@ -26,6 +26,7 @@
       - Use `.is_ok()` and `.is_err()` to check parsing status
     * `FlowSetBody::NoTemplate` variant changed from `Vec<u8>` to `NoTemplateInfo` struct
       - Provides template ID, available templates list, and raw data for debugging
+    * See README for detailed migration examples
 
   * **New Features:**
     * **AutoScopedParser** - RFC-compliant automatic template scoping
@@ -45,13 +46,6 @@
     * New examples: `template_management_demo.rs`, `multi_source_comparison.rs`, `template_hooks.rs`
     * Updated UDP listener examples to use AutoScopedParser/RouterScopedParser
     * Added CI status, crates.io version, and docs.rs badges to README
-
-  * **Migration Notes (from 0.7.x):**
-    * `parse_bytes()` now returns `ParseResult` - access packets via `.packets` field
-    * Check for errors using `.error` field or `.is_err()` method
-    * Update `FlowSetBody::NoTemplate` pattern matches to use `NoTemplateInfo` struct
-    * Consider migrating to `AutoScopedParser` for multi-router deployments
-    * See README for detailed migration examples
 
 # 0.7.4
 
