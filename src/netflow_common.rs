@@ -199,7 +199,6 @@ impl TryFrom<&NetflowPacket> for NetflowCommon {
             NetflowPacket::V7(v7) => Ok(v7.into()),
             NetflowPacket::V9(v9) => Ok(v9.into()),
             NetflowPacket::IPFix(ipfix) => Ok(ipfix.into()),
-            _ => Err(NetflowCommonError::UnknownVersion(value.clone())),
         }
     }
 }

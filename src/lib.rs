@@ -1947,6 +1947,7 @@ impl NetflowParser {
     ) -> Vec<NetflowCommonFlowSet> {
         let netflow_packets = self.parse_bytes(packet);
         netflow_packets
+            .packets
             .iter()
             .flat_map(|n| n.as_netflow_common().unwrap_or_default().flowsets)
             .collect()

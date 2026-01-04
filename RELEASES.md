@@ -1,5 +1,9 @@
 # 0.8.0
 
+  * **Bug Fixes:**
+    * **CRITICAL:** Fixed compilation error in `parse_bytes_as_netflow_common_flowsets()` where `ParseResult` was incorrectly accessed as an iterator (src/lib.rs:1950)
+    * Fixed unreachable pattern warning in `NetflowCommon::try_from()` - removed unnecessary catch-all pattern (src/netflow_common.rs:202)
+
   * **Testing Improvements:**
     * Added comprehensive DoS and edge case test suite (`tests/dos_edge_cases.rs`)
       * V9/IPFIX max field count validation tests
@@ -11,6 +15,14 @@
       * Zero-size cache rejection tests
       * Malformed flowset length handling
     * 9 new security-focused integration tests
+    * **NEW:** Added packet size benchmark suite (`benches/packet_size_bench.rs`)
+      * V5, V9, and IPFIX packet size benchmarks (1, 10, 30, 100 flows)
+      * Mixed stream benchmarks (10, 50, 100, 500 packets)
+      * Iterator vs collect performance comparison
+      * Throughput measurements for all scenarios
+    * **NEW:** Added CI job for `netflow_common` feature validation
+      * Ensures optional feature builds and tests correctly
+      * Runs feature-specific benchmarks
 
   * **Performance Optimizations:**
     * Optimized enterprise field registration to reduce unnecessary cloning
