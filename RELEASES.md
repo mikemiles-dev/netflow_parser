@@ -24,6 +24,13 @@
       - Preserves successfully parsed packets even when errors occur mid-stream
       - Access packets via `.packets` field and errors via `.error` field
       - Use `.is_ok()` and `.is_err()` to check parsing status
+    * `NetflowPacket::Error` variant removed from the enum
+      - Errors are no longer inline with successful packets
+      - Use `iter_packets()` which now yields `Result<NetflowPacket, NetflowError>`
+      - Or use `parse_bytes()` and check the `.error` field of `ParseResult`
+    * `iter_packets()` now yields `Result<NetflowPacket, NetflowError>` instead of `NetflowPacket`
+      - Change from: `for packet in iter { match packet { NetflowPacket::Error(e) => ... } }`
+      - Change to: `for result in iter { match result { Ok(packet) => ..., Err(e) => ... } }`
     * `FlowSetBody::NoTemplate` variant changed from `Vec<u8>` to `NoTemplateInfo` struct
       - Provides template ID, available templates list, and raw data for debugging
     * See README for detailed migration examples
