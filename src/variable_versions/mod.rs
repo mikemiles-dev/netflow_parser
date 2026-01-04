@@ -88,6 +88,9 @@ pub struct Config {
     /// This prevents DoS attacks via templates with excessive total field lengths.
     /// Default: u16::MAX
     pub max_template_total_size: usize,
+    /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
+    /// Defaults to 256 bytes.
+    pub max_error_sample_size: usize,
     pub ttl_config: Option<TtlConfig>,
     pub enterprise_registry: EnterpriseFieldRegistry,
 }
@@ -118,6 +121,7 @@ impl Config {
             max_template_cache_size,
             max_field_count: usize::from(ipfix::MAX_FIELD_COUNT),
             max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
             ttl_config,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         }
@@ -132,6 +136,7 @@ impl Config {
             max_template_cache_size,
             max_field_count: usize::from(ipfix::MAX_FIELD_COUNT),
             max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
             ttl_config,
             enterprise_registry,
         }
