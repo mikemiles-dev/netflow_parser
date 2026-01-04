@@ -22,12 +22,11 @@ impl PCAPParser {
                     match block {
                         pcap_parser::PcapBlockOwned::LegacyHeader(_header) => (),
                         pcap_parser::PcapBlockOwned::Legacy(pcap_block) => {
-                            if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
-                                if let Some(transport) = eth.transport {
-                                    if let TransportSlice::Udp(udp) = transport {
-                                        data.push(udp.payload().to_vec());
-                                    }
-                                }
+                            if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
+                                && let Some(transport) = eth.transport
+                                && let TransportSlice::Udp(udp) = transport
+                            {
+                                data.push(udp.payload().to_vec());
                             }
                         }
                         // This case should not occur for a valid .pcap file
@@ -97,10 +96,8 @@ fn main() {
         }
     }
     for item in no_template_packets.iter() {
-        for result in parser.iter_packets(item) {
-            if let Ok(packet) = result {
-                parsed_packets.push(packet);
-            }
+        for packet in parser.iter_packets(item).flatten() {
+            parsed_packets.push(packet);
         }
     }
     for (i, p) in parsed_packets.iter().enumerate() {

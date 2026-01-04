@@ -1138,10 +1138,19 @@ impl NetflowParserBuilder {
         mut self,
         defs: impl IntoIterator<Item = EnterpriseFieldDef>,
     ) -> Self {
-        for def in defs {
+        // Collect once to avoid unnecessary cloning
+        let defs: Vec<_> = defs.into_iter().collect();
+
+        // Register clones in V9 registry
+        for def in &defs {
             self.v9_config.enterprise_registry.register(def.clone());
+        }
+
+        // Move originals into IPFIX registry (no clone needed)
+        for def in defs {
             self.ipfix_config.enterprise_registry.register(def);
         }
+
         self
     }
 
@@ -1938,6 +1947,7 @@ impl NetflowParser {
     ) -> Vec<NetflowCommonFlowSet> {
         let netflow_packets = self.parse_bytes(packet);
         netflow_packets
+            .packets
             .iter()
             .flat_map(|n| n.as_netflow_common().unwrap_or_default().flowsets)
             .collect()

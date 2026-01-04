@@ -186,17 +186,17 @@ fn demo_missing_templates() {
     println!("\nProcessing IPFIX packets...");
 
     for result in parser.iter_packets(&dummy_data) {
-        if let Ok(packet) = result {
-            if let NetflowPacket::IPFix(ipfix) = packet {
-                for flowset in &ipfix.flowsets {
-                    if let FlowSetBody::NoTemplate(info) = &flowset.body {
-                        println!("\n⚠️  Missing template ID: {}", info.template_id);
-                        println!("   Available templates: {:?}", info.available_templates);
-                        println!("   Data size: {} bytes", info.raw_data.len());
+        if let Ok(packet) = result
+            && let NetflowPacket::IPFix(ipfix) = packet
+        {
+            for flowset in &ipfix.flowsets {
+                if let FlowSetBody::NoTemplate(info) = &flowset.body {
+                    println!("\n⚠️  Missing template ID: {}", info.template_id);
+                    println!("   Available templates: {:?}", info.available_templates);
+                    println!("   Data size: {} bytes", info.raw_data.len());
 
-                        // Save for retry
-                        pending_data.push(info.raw_data.clone());
-                    }
+                    // Save for retry
+                    pending_data.push(info.raw_data.clone());
                 }
             }
         }

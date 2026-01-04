@@ -147,8 +147,30 @@ cargo test test_name
 
 ### Benchmarks
 
+Run all benchmarks (excluding feature-gated benchmarks):
+
 ```bash
 cargo bench
+```
+
+Run all benchmarks including `netflow_common_bench` (requires `netflow_common` feature):
+
+```bash
+cargo bench --all-features
+```
+
+Run a specific benchmark:
+
+```bash
+# Standard benchmarks (no features required)
+cargo bench --bench netflow_parser_bench
+cargo bench --bench netflow_v5_bench
+cargo bench --bench netflow_v9_bench
+cargo bench --bench netflow_ipfix_bench
+cargo bench --bench packet_size_bench
+
+# Feature-gated benchmark (requires netflow_common feature)
+cargo bench --bench netflow_common_bench --features netflow_common
 ```
 
 ## Code Quality

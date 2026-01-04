@@ -33,6 +33,22 @@ jobs:
     - name: Check README sync
       run: chmod +x scripts/check-readme-sync.sh && ./scripts/check-readme-sync.sh
 
+  netflow_common:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+    - name: Setup Rust
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    - name: Build with netflow_common feature
+      run: cargo build --features netflow_common --verbose
+    - name: Test with netflow_common feature
+      run: cargo test --features netflow_common --verbose
+    - name: Run netflow_common benchmarks
+      run: cargo bench --bench netflow_common_bench --features netflow_common --verbose
+
   benchmark:
     runs-on: ubuntu-latest
 

@@ -21,13 +21,12 @@ fn test_pcap_file_parsing() {
                     PcapBlockOwned::LegacyHeader(_) => (),
                     PcapBlockOwned::Legacy(pcap_block) => {
                         packet_count += 1;
-                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
-                            if let Some(transport) = eth.transport {
-                                if let TransportSlice::Udp(udp) = transport {
-                                    let parsed = parser.parse_bytes(udp.payload());
-                                    netflow_packets += parsed.packets.len();
-                                }
-                            }
+                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
+                            && let Some(transport) = eth.transport
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            let parsed = parser.parse_bytes(udp.payload());
+                            netflow_packets += parsed.packets.len();
                         }
                     }
                     PcapBlockOwned::NG(_) => {}
@@ -62,15 +61,14 @@ fn test_pcap_ipfix_parsing() {
                 match block {
                     PcapBlockOwned::LegacyHeader(_) => (),
                     PcapBlockOwned::Legacy(pcap_block) => {
-                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
-                            if let Some(transport) = eth.transport {
-                                if let TransportSlice::Udp(udp) = transport {
-                                    let parsed = parser.parse_bytes(udp.payload());
-                                    for pkt in parsed.packets {
-                                        if pkt.is_ipfix() {
-                                            ipfix_count += 1;
-                                        }
-                                    }
+                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
+                            && let Some(transport) = eth.transport
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            let parsed = parser.parse_bytes(udp.payload());
+                            for pkt in parsed.packets {
+                                if pkt.is_ipfix() {
+                                    ipfix_count += 1;
                                 }
                             }
                         }
@@ -105,12 +103,11 @@ fn test_pcap_template_caching() {
                 match block {
                     PcapBlockOwned::LegacyHeader(_) => (),
                     PcapBlockOwned::Legacy(pcap_block) => {
-                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
-                            if let Some(transport) = eth.transport {
-                                if let TransportSlice::Udp(udp) = transport {
-                                    let _ = parser.parse_bytes(udp.payload());
-                                }
-                            }
+                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
+                            && let Some(transport) = eth.transport
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            let _ = parser.parse_bytes(udp.payload());
                         }
                     }
                     PcapBlockOwned::NG(_) => {}
@@ -131,7 +128,7 @@ fn test_pcap_template_caching() {
 
     // IPFIX.pcap should have templates
     if ipfix_stats.current_size > 0 {
-        assert!(template_ids.len() > 0, "Should have cached template IDs");
+        assert!(!template_ids.is_empty(), "Should have cached template IDs");
     }
 }
 
@@ -147,12 +144,11 @@ fn test_pcap_cache_metrics() {
                 match block {
                     PcapBlockOwned::LegacyHeader(_) => (),
                     PcapBlockOwned::Legacy(pcap_block) => {
-                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
-                            if let Some(transport) = eth.transport {
-                                if let TransportSlice::Udp(udp) = transport {
-                                    let _ = parser.parse_bytes(udp.payload());
-                                }
-                            }
+                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
+                            && let Some(transport) = eth.transport
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            let _ = parser.parse_bytes(udp.payload());
                         }
                     }
                     PcapBlockOwned::NG(_) => {}
@@ -194,14 +190,13 @@ fn test_pcap_iterator_api() {
                 match block {
                     PcapBlockOwned::LegacyHeader(_) => (),
                     PcapBlockOwned::Legacy(pcap_block) => {
-                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data) {
-                            if let Some(transport) = eth.transport {
-                                if let TransportSlice::Udp(udp) = transport {
-                                    // Use iterator API instead of parse_bytes
-                                    for _pkt in parser.iter_packets(udp.payload()) {
-                                        netflow_count += 1;
-                                    }
-                                }
+                        if let Ok(eth) = SlicedPacket::from_ethernet(pcap_block.data)
+                            && let Some(transport) = eth.transport
+                            && let TransportSlice::Udp(udp) = transport
+                        {
+                            // Use iterator API instead of parse_bytes
+                            for _pkt in parser.iter_packets(udp.payload()) {
+                                netflow_count += 1;
                             }
                         }
                     }
