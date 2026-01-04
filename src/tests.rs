@@ -59,8 +59,10 @@ mod base_tests {
             4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
             2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
-        let mut parser = NetflowParser::default();
-        parser.allowed_versions = HashSet::default();
+        let mut parser = NetflowParser {
+            allowed_versions: HashSet::default(),
+            ..Default::default()
+        };
         assert_yaml_snapshot!(parser.parse_bytes(&packet).packets);
     }
 
@@ -111,8 +113,10 @@ mod base_tests {
             4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
             2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
         ];
-        let mut parser = NetflowParser::default();
-        parser.allowed_versions = HashSet::default();
+        let mut parser = NetflowParser {
+            allowed_versions: HashSet::default(),
+            ..Default::default()
+        };
         assert_yaml_snapshot!(parser.parse_bytes(&packet).packets);
     }
 
@@ -149,8 +153,10 @@ mod base_tests {
             0, 9, 0, 2, 0, 0, 9, 9, 0, 1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 16, 1, 2, 0,
             2, 0, 1, 0, 4, 0, 8, 0, 4, 1, 2, 0, 12, 9, 2, 3, 4, 9, 9, 9, 8,
         ];
-        let mut parser = NetflowParser::default();
-        parser.allowed_versions = HashSet::default();
+        let mut parser = NetflowParser {
+            allowed_versions: HashSet::default(),
+            ..Default::default()
+        };
         assert_yaml_snapshot!(parser.parse_bytes(&packet).packets);
     }
 
@@ -293,8 +299,10 @@ mod base_tests {
             4, 0, 12, 0, 4, 0, 2, 0, 4, 1, 0, 0, 28, 1, 2, 3, 4, 1, 2, 3, 3, 1, 2, 3, 2, 0, 2,
             0, 2, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
-        let mut parser = NetflowParser::default();
-        parser.allowed_versions = HashSet::default();
+        let mut parser = NetflowParser {
+            allowed_versions: HashSet::default(),
+            ..Default::default()
+        };
         assert_yaml_snapshot!(parser.parse_bytes(&packet).packets);
     }
 
