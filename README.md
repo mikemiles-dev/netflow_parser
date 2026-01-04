@@ -396,9 +396,6 @@ for result in parser.iter_packets(&buffer) {
         Err(e) => eprintln!("Error: {}", e),
     }
 }
-
-// Fail-fast pattern (loses partial packets on error)
-let packets = parser.parse_bytes(&buffer).into_result()?;
 ```
 
 **Error types**: `Incomplete`, `UnsupportedVersion`, `Partial`, `MissingTemplate`, `ParseError`. All implement `Display` and `std::error::Error`.
@@ -438,22 +435,17 @@ This setting helps prevent memory exhaustion when processing malformed or malici
 
 ```rust
 // ❌ Old (0.7.x) - loses packets 1-4 if packet 5 errors
-match parser.parse_bytes(&data) {
-    Ok(packets) => { /* process all packets */ }
-    Err(e) => { /* all packets lost */ }
-}
+let packets = parser.parse_bytes(&data);  // Returns Vec<NetflowPacket>
+// Silent error: if parsing stopped at packet 5, you lost packets 1-4
 
 // ✅ New (0.8.0) - keep packets 1-4 even if packet 5 errors
-let result = parser.parse_bytes(&data);
+let result = parser.parse_bytes(&data);  // Returns ParseResult
 for packet in result.packets {
-    // Process successfully parsed packets
+    // Process successfully parsed packets 1-4
 }
 if let Some(e) = result.error {
-    eprintln!("Error: {}", e);  // But still got partial results!
+    eprintln!("Error at packet 5: {}", e);  // But still got partial results!
 }
-
-// ✅ Or use .into_result() for old behavior
-let packets = parser.parse_bytes(&data).into_result()?;
 ```
 
 **Error Handling (use Result instead of Error variant):**

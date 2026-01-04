@@ -137,7 +137,8 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             }
         });
 
-        parser.parse_bytes(data).into_result()
+        let result = parser.parse_bytes(data);
+        result.error.map_or(Ok(result.packets), Err)
     }
 
     /// Parse NetFlow data from a source using the iterator API.
@@ -495,7 +496,8 @@ impl AutoScopedParser {
                     .ipfix_parsers
                     .entry(key)
                     .or_insert_with(|| Self::build_parser(builder.as_ref()));
-                parser.parse_bytes(data).into_result()
+                let result = parser.parse_bytes(data);
+                result.error.map_or(Ok(result.packets), Err)
             }
             ScopingInfo::V9 { source_id } => {
                 let key = V9SourceKey {
@@ -507,7 +509,8 @@ impl AutoScopedParser {
                     .v9_parsers
                     .entry(key)
                     .or_insert_with(|| Self::build_parser(builder.as_ref()));
-                parser.parse_bytes(data).into_result()
+                let result = parser.parse_bytes(data);
+                result.error.map_or(Ok(result.packets), Err)
             }
             ScopingInfo::Legacy => {
                 let builder = self.parser_builder.clone();
@@ -515,7 +518,8 @@ impl AutoScopedParser {
                     .legacy_parsers
                     .entry(source)
                     .or_insert_with(|| Self::build_parser(builder.as_ref()));
-                parser.parse_bytes(data).into_result()
+                let result = parser.parse_bytes(data);
+                result.error.map_or(Ok(result.packets), Err)
             }
             ScopingInfo::Unknown => {
                 // Still try to parse, might succeed or return error
@@ -524,7 +528,8 @@ impl AutoScopedParser {
                     .legacy_parsers
                     .entry(source)
                     .or_insert_with(|| Self::build_parser(builder.as_ref()));
-                parser.parse_bytes(data).into_result()
+                let result = parser.parse_bytes(data);
+                result.error.map_or(Ok(result.packets), Err)
             }
         }
     }

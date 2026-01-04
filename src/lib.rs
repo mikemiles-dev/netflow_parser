@@ -721,31 +721,6 @@ impl ParseResult {
     pub fn is_err(&self) -> bool {
         self.error.is_some()
     }
-
-    /// Returns the error if one occurred, otherwise returns the packets.
-    ///
-    /// This is useful when you want all-or-nothing semantics similar to
-    /// the old `parse_bytes()` behavior.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use netflow_parser::NetflowParser;
-    ///
-    /// let mut parser = NetflowParser::default();
-    /// let result = parser.parse_bytes(&[]);
-    ///
-    /// match result.into_result() {
-    ///     Ok(packets) => println!("Got {} packets", packets.len()),
-    ///     Err(e) => eprintln!("Error: {}", e),
-    /// }
-    /// ```
-    pub fn into_result(self) -> Result<Vec<NetflowPacket>, NetflowError> {
-        match self.error {
-            Some(error) => Err(error),
-            None => Ok(self.packets),
-        }
-    }
 }
 
 #[derive(Nom)]

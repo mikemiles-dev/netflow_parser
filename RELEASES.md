@@ -13,7 +13,7 @@
   * **Bug Fixes:**
     * Fixed compilation error in `parse_bytes_as_netflow_common_flowsets()`
     * Fixed unreachable pattern warning in `NetflowCommon::try_from()`
-    * Fixed max_error_sample_size` configuration inconsistency
+    * Fixed `max_error_sample_size` configuration inconsistency
       - Added `max_error_sample_size` field to `Config` struct
       - Now properly propagates from builder to V9Parser and IPFixParser
       - Previously, builder setting only affected main parser, not internal parsers
@@ -22,7 +22,8 @@
   * **BREAKING CHANGES:**
     * `parse_bytes()` now returns `ParseResult` instead of `Vec<NetflowPacket>`
       - Preserves successfully parsed packets even when errors occur mid-stream
-      - Use `.into_result()` for backward compatibility (fail-fast behavior)
+      - Access packets via `.packets` field and errors via `.error` field
+      - Use `.is_ok()` and `.is_err()` to check parsing status
     * `FlowSetBody::NoTemplate` variant changed from `Vec<u8>` to `NoTemplateInfo` struct
       - Provides template ID, available templates list, and raw data for debugging
 
@@ -46,7 +47,8 @@
     * Added CI status, crates.io version, and docs.rs badges to README
 
   * **Migration Notes (from 0.7.x):**
-    * Use `.into_result()` on ParseResult for fail-fast behavior
+    * `parse_bytes()` now returns `ParseResult` - access packets via `.packets` field
+    * Check for errors using `.error` field or `.is_err()` method
     * Update `FlowSetBody::NoTemplate` pattern matches to use `NoTemplateInfo` struct
     * Consider migrating to `AutoScopedParser` for multi-router deployments
     * See README for detailed migration examples
