@@ -13,9 +13,10 @@
     * 9 new security-focused integration tests
 
   * **Performance Optimizations:**
-    * Optimized clone usage in enterprise field registration
-    * Reduced unnecessary allocations when registering multiple enterprise fields
-    * Now collects iterator once and moves originals to second registry
+    * Optimized enterprise field registration to reduce unnecessary cloning
+    * Collect iterator once and iterate over references for first registry
+    * Move originals to second registry without cloning
+    * Reduces allocations when registering multiple enterprise fields
 
   * **ParseResult - Partial Success Handling (BREAKING CHANGE):**
     * **BREAKING CHANGE:** `parse_bytes()` now returns `ParseResult` instead of `Result<Vec<NetflowPacket>, NetflowError>`
