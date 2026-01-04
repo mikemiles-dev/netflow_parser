@@ -1066,6 +1066,8 @@ impl NetflowParserBuilder {
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_max_error_sample_size(mut self, size: usize) -> Self {
         self.max_error_sample_size = size;
+        self.v9_config.max_error_sample_size = size;
+        self.ipfix_config.max_error_sample_size = size;
         self
     }
 

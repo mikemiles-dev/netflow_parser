@@ -75,6 +75,7 @@ impl Default for V9Parser {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
             max_field_count: usize::from(MAX_FIELD_COUNT),
             max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: super::enterprise_registry::EnterpriseFieldRegistry::new(),
         };
@@ -103,7 +104,7 @@ impl V9Parser {
             max_template_cache_size: config.max_template_cache_size,
             max_field_count: config.max_field_count,
             max_template_total_size: config.max_template_total_size,
-            max_error_sample_size: 256,
+            max_error_sample_size: config.max_error_sample_size,
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetrics::new(),
         })
@@ -120,6 +121,7 @@ impl ParserConfig for V9Parser {
         self.max_template_cache_size = config.max_template_cache_size;
         self.max_field_count = config.max_field_count;
         self.max_template_total_size = config.max_template_total_size;
+        self.max_error_sample_size = config.max_error_sample_size;
         self.ttl_config = config.ttl_config;
 
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(

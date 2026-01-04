@@ -382,6 +382,7 @@ mod base_tests {
             max_template_cache_size: 100,
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
@@ -400,6 +401,7 @@ mod base_tests {
             max_template_cache_size: 100,
             max_field_count: 2, // Very low limit for testing
             max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
@@ -441,6 +443,7 @@ mod base_tests {
             max_template_cache_size: 100,
             max_field_count: 10000,
             max_template_total_size: 10, // Very low limit for testing
+            max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
@@ -482,6 +485,7 @@ mod base_tests {
             max_template_cache_size: 100,
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
@@ -523,6 +527,7 @@ mod base_tests {
             max_template_cache_size: 100,
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
@@ -563,6 +568,7 @@ mod base_tests {
             max_template_cache_size: 100,
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
@@ -606,6 +612,7 @@ mod base_tests {
             max_template_cache_size: 100,
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
