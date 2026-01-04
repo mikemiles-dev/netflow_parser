@@ -68,6 +68,8 @@ pub struct IPFixParser {
     pub max_template_cache_size: usize,
     /// Maximum number of fields allowed per template. Defaults to 10000.
     pub max_field_count: usize,
+    /// Maximum total size (in bytes) of all fields in a template. Defaults to u16::MAX.
+    pub max_template_total_size: usize,
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
@@ -83,6 +85,7 @@ impl Default for IPFixParser {
         let config = Config {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
             max_field_count: usize::from(MAX_FIELD_COUNT),
+            max_template_total_size: usize::from(u16::MAX),
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
@@ -112,6 +115,7 @@ impl IPFixParser {
             ttl_config: config.ttl_config,
             max_template_cache_size: config.max_template_cache_size,
             max_field_count: config.max_field_count,
+            max_template_total_size: config.max_template_total_size,
             max_error_sample_size: 256,
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetrics::new(),
@@ -128,6 +132,7 @@ impl ParserConfig for IPFixParser {
     fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
         self.max_template_cache_size = config.max_template_cache_size;
         self.max_field_count = config.max_field_count;
+        self.max_template_total_size = config.max_template_total_size;
         self.ttl_config = config.ttl_config;
 
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
@@ -711,12 +716,26 @@ pub struct OptionsTemplate {
     pub fields: Vec<TemplateField>,
 }
 
+impl OptionsTemplate {
+    /// Validate the options template against parser configuration
+    pub fn is_valid(&self, parser: &IPFixParser) -> bool {
+        <Self as CommonTemplate>::is_valid(self, parser)
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom, Default)]
 pub struct Template {
     pub template_id: u16,
     pub field_count: u16,
     #[nom(Count = "field_count")]
     pub fields: Vec<TemplateField>,
+}
+
+impl Template {
+    /// Validate the template against parser configuration
+    pub fn is_valid(&self, parser: &IPFixParser) -> bool {
+        <Self as CommonTemplate>::is_valid(self, parser)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
@@ -736,7 +755,7 @@ pub struct TemplateField {
 }
 
 // Common trait for both templates.  Mainly for fetching fields.
-trait CommonTemplate {
+pub(crate) trait CommonTemplate {
     fn get_fields(&self) -> &Vec<TemplateField>;
     fn get_field_count(&self) -> u16;
     fn get_scope_field_count(&self) -> Option<u16> {
@@ -755,7 +774,32 @@ trait CommonTemplate {
             return false;
         }
         // Check fields are not empty and have at least one non-zero length field
-        !self.get_fields().is_empty() && self.get_fields().iter().any(|f| f.field_length > 0)
+        if self.get_fields().is_empty() || !self.get_fields().iter().any(|f| f.field_length > 0)
+        {
+            return false;
+        }
+
+        // Check total size limit
+        let total_size: usize = self
+            .get_fields()
+            .iter()
+            .fold(0, |acc, f| acc.saturating_add(usize::from(f.field_length)));
+        if total_size > parser.max_template_total_size {
+            return false;
+        }
+
+        // Check for duplicate field IDs
+        use std::collections::HashSet;
+        let mut seen = HashSet::with_capacity(self.get_fields().len());
+        for field in self.get_fields() {
+            // For IPFIX, we need to check the combination of field_type_number and enterprise_number
+            let key = (field.field_type_number, field.enterprise_number);
+            if !seen.insert(key) {
+                return false; // Found duplicate
+            }
+        }
+
+        true
     }
 }
 

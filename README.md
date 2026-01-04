@@ -298,6 +298,16 @@ let parser = NetflowParser::builder()
 - Lower limits provide stricter security but may reject valid templates
 - Higher limits are more permissive but increase DoS risk
 
+**Additional Security Validations:**
+The parser also automatically validates:
+- **Template Total Size**: Maximum sum of all field lengths per template (default: u16::MAX = 65,535 bytes)
+  - Prevents DoS attacks via templates with excessive total field lengths
+  - Configurable via `Config::max_template_total_size`
+- **Duplicate Field Detection**: Templates with duplicate field IDs are rejected
+  - For V9: Validates unique `field_type_number` values
+  - For IPFIX: Validates unique `(field_type_number, enterprise_number)` pairs
+  - Catches malformed or corrupted template definitions
+
 ### Template TTL (Time-to-Live)
 
 > **⚠️ Breaking Change in v0.7.0:** Packet-based and combined TTL modes have been removed. Only time-based TTL is now supported. See [RELEASES.md](RELEASES.md) for migration guide.
