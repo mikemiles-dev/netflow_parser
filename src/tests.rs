@@ -3,18 +3,10 @@ mod base_tests {
 
     use crate::variable_versions::Config;
     use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
-    use crate::variable_versions::ipfix::{
-        Template as IPFixTemplate, TemplateField as IPFixTemplateField,
-    };
-    use crate::variable_versions::ipfix_lookup::{IANAIPFixField, IPFixField};
-    use crate::variable_versions::ttl::TemplateWithTtl;
-    use crate::variable_versions::v9::{
-        Template as V9Template, TemplateField as V9TemplateField,
-    };
+    use crate::variable_versions::ipfix_lookup::IPFixField;
     use crate::{NetflowPacket, NetflowParser};
 
     use insta::assert_yaml_snapshot;
-    use std::collections::HashSet;
 
     #[test]
     fn it_parses_unix_timestamp_correctly() {
@@ -25,13 +17,13 @@ mod base_tests {
         let (remain, secs1) =
             be_u32::<&[u8], nom::error::Error<&[u8]>>(packet.as_slice()).unwrap();
         let (remain, nsecs1) = be_u32::<&[u8], nom::error::Error<&[u8]>>(remain).unwrap();
-        assert_eq!(remain, []);
+        assert_eq!(remain, &[] as &[u8]);
 
         let time1 = Duration::from_nanos(nsecs1 as u64) + Duration::from_secs(secs1 as u64);
 
         let (remain, secs_nsecs) =
             be_u64::<&[u8], nom::error::Error<&[u8]>>(packet.as_slice()).unwrap();
-        assert_eq!(remain, []);
+        assert_eq!(remain, &[] as &[u8]);
         let secs2 = (secs_nsecs >> 32) as u32 as u64;
         let nsecs2 = secs_nsecs as u32;
 
@@ -207,6 +199,7 @@ mod base_tests {
     #[test]
     fn options_in_struct() {
         #[derive(Debug, Clone, Default)]
+        #[allow(dead_code)]
         struct NetflowV9Container {
             pub src_addr: Option<u32>,
             pub dst_addr: Option<u32>,
@@ -311,7 +304,7 @@ mod base_tests {
 
         let hex_hex1 = "000900020000000663b32ef10000000200000001010000240a70090a0a70090b00000001000000010000000100000001000000030000000601000008192a80e3192a80e4";
 
-        let hex_hex2 = "000900020000000763b32ef10000000300000001010000240a700a050a700a0600000001000000010000000100000001000000030000000601000008192a80e3192a80e4";
+        let _hex_hex2 = "000900020000000763b32ef10000000300000001010000240a700a050a700a0600000001000000010000000100000001000000030000000601000008192a80e3192a80e4";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
@@ -393,7 +386,7 @@ mod base_tests {
             enterprise_registry: EnterpriseFieldRegistry::new(),
         };
 
-        let mut parser = V9Parser::try_new(config).unwrap();
+        let parser = V9Parser::try_new(config).unwrap();
         assert_eq!(parser.max_template_cache_size, 100);
         assert_eq!(parser.max_field_count, 10000);
     }
