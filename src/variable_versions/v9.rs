@@ -311,9 +311,12 @@ impl FlowSetBody {
                 // Store templates efficiently - clone only what we need to cache
                 for template in &templates.templates {
                     let wrapped = TemplateWithTtl::new(template.clone());
-                    // Check for collision (replacing existing template)
-                    if parser.templates.contains(&template.template_id) {
-                        parser.metrics.record_collision();
+                    // Check for collision (same ID, different definition)
+                    // Use peek() to avoid affecting LRU ordering
+                    if let Some(existing) = parser.templates.peek(&template.template_id) {
+                        if existing.template != *template {
+                            parser.metrics.record_collision();
+                        }
                     }
                     // Check if we're evicting an old template
                     else if parser.templates.len() >= parser.max_template_cache_size {
@@ -341,9 +344,13 @@ impl FlowSetBody {
                 // Store templates efficiently - clone only what we need to cache
                 for template in &options_templates.templates {
                     let wrapped = TemplateWithTtl::new(template.clone());
-                    // Check for collision (replacing existing template)
-                    if parser.options_templates.contains(&template.template_id) {
-                        parser.metrics.record_collision();
+                    // Check for collision (same ID, different definition)
+                    // Use peek() to avoid affecting LRU ordering
+                    if let Some(existing) = parser.options_templates.peek(&template.template_id)
+                    {
+                        if existing.template != *template {
+                            parser.metrics.record_collision();
+                        }
                     }
                     // Check if we're evicting an old template
                     else if parser.options_templates.len() >= parser.max_template_cache_size {
