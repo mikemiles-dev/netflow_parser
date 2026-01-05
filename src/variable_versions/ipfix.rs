@@ -184,9 +184,12 @@ impl IPFixParser {
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         for t in templates {
             let wrapped = TemplateWithTtl::new(t.clone());
-            // Check for collision (replacing existing template)
-            if self.templates.contains(&t.template_id) {
-                self.metrics.record_collision();
+            // Check for collision (same ID, different definition)
+            // Use peek() to avoid affecting LRU ordering
+            if let Some(existing) = self.templates.peek(&t.template_id) {
+                if existing.template != *t {
+                    self.metrics.record_collision();
+                }
             }
             // Check if we're evicting an old template
             else if self.templates.len() >= self.max_template_cache_size {
@@ -200,9 +203,12 @@ impl IPFixParser {
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         for t in templates {
             let wrapped = TemplateWithTtl::new(t.clone());
-            // Check for collision (replacing existing template)
-            if self.ipfix_options_templates.contains(&t.template_id) {
-                self.metrics.record_collision();
+            // Check for collision (same ID, different definition)
+            // Use peek() to avoid affecting LRU ordering
+            if let Some(existing) = self.ipfix_options_templates.peek(&t.template_id) {
+                if existing.template != *t {
+                    self.metrics.record_collision();
+                }
             }
             // Check if we're evicting an old template
             else if self.ipfix_options_templates.len() >= self.max_template_cache_size {
@@ -216,9 +222,12 @@ impl IPFixParser {
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         for t in templates {
             let wrapped = TemplateWithTtl::new(t.clone());
-            // Check for collision (replacing existing template)
-            if self.v9_templates.contains(&t.template_id) {
-                self.metrics.record_collision();
+            // Check for collision (same ID, different definition)
+            // Use peek() to avoid affecting LRU ordering
+            if let Some(existing) = self.v9_templates.peek(&t.template_id) {
+                if existing.template != *t {
+                    self.metrics.record_collision();
+                }
             }
             // Check if we're evicting an old template
             else if self.v9_templates.len() >= self.max_template_cache_size {
@@ -232,9 +241,12 @@ impl IPFixParser {
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         for t in templates {
             let wrapped = TemplateWithTtl::new(t.clone());
-            // Check for collision (replacing existing template)
-            if self.v9_options_templates.contains(&t.template_id) {
-                self.metrics.record_collision();
+            // Check for collision (same ID, different definition)
+            // Use peek() to avoid affecting LRU ordering
+            if let Some(existing) = self.v9_options_templates.peek(&t.template_id) {
+                if existing.template != *t {
+                    self.metrics.record_collision();
+                }
             }
             // Check if we're evicting an old template
             else if self.v9_options_templates.len() >= self.max_template_cache_size {

@@ -1,3 +1,15 @@
+# 0.8.1
+
+  * **Bug Fixes:**
+    * Fixed collision detection to only count true collisions (same template ID, different definition)
+      - Previously, any template retransmission was incorrectly counted as a collision
+      - RFC 7011 (IPFIX) and RFC 3954 (NetFlow v9) recommend sending templates multiple times at startup for reliability
+      - Retransmitting the same template (same ID, identical definition) is now correctly handled as a template refresh
+      - Only templates with the same ID but different definitions are now counted as collisions
+      - Uses `LruCache::peek()` to check existing templates without affecting LRU ordering
+    * **Impact:** Collision metrics will now accurately reflect actual template conflicts
+    * **Migration:** No code changes required - metrics will automatically be more accurate
+
 # 0.8.0
 
   * **Security Enhancements:**

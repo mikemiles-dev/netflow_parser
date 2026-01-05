@@ -809,7 +809,8 @@ if let Some(hit_rate) = metrics.hit_rate() {
 - **Hits**: Successful template lookups
 - **Misses**: Failed template lookups (template not in cache)
 - **Evictions**: Templates removed due to LRU policy when cache is full
-- **Collisions**: Template ID reused (same ID, potentially different definition)
+- **Collisions**: Template ID reused with a **different definition** (same ID, different schema)
+  - Note: RFC-compliant template retransmissions (same ID, same definition) are NOT counted as collisions
 - **Expired**: Templates removed due to TTL expiration
 
 ### Multi-Source Deployments (RFC-Compliant)
@@ -906,7 +907,7 @@ let mut scoped = RouterScopedParser::<String>::with_builder(builder);
 
 ### Template Collision Detection
 
-Monitor when template IDs are reused:
+Monitor when template IDs are reused with different definitions:
 
 ```rust
 let v9_stats = parser.v9_cache_stats();
@@ -915,6 +916,15 @@ if v9_stats.metrics.collisions > 0 {
     println!("Use AutoScopedParser for RFC-compliant multi-source deployments");
 }
 ```
+
+**What counts as a collision:**
+- Same template ID with a **different definition** (field structure changed)
+- This typically indicates multiple routers using the same template ID for different schemas
+
+**What does NOT count as a collision:**
+- Retransmitting the same template (same ID, identical definition)
+- RFC 7011 (IPFIX) and RFC 3954 (NetFlow v9) recommend periodic template retransmission for reliability
+- Template refreshes are normal and expected behavior
 
 ### Handling Missing Templates
 
