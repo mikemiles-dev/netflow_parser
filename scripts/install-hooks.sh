@@ -33,7 +33,12 @@ echo
 echo -e "${GREEN}✓ Git hooks installed successfully!${NC}"
 echo
 echo "Installed hooks:"
-echo "  • pre-commit - Checks doc tests and reminds about README sync"
+echo "  • pre-commit - Enforces README/lib.rs sync and doc tests"
+echo
+echo "The pre-commit hook will:"
+echo "  1. Run './scripts/check-readme-sync.sh' on doc file changes"
+echo "  2. Fail the commit if sync check fails"
+echo "  3. Show detailed output to help you fix issues"
 echo
 echo "To skip hooks for a commit (not recommended):"
 echo "  git commit --no-verify"
