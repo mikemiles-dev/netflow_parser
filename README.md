@@ -140,15 +140,15 @@ let v5_parsed: Vec<NetflowPacket> = result.packets.into_iter().filter(|p| p.is_v
 ## Iterator API
 You can use the iterator API to process packets one-by-one as they're parsed instead of returning `Vec`:
 
-```rust
+```rust,ignore
 use netflow_parser::{NetflowParser, NetflowPacket};
 
 let buffer = /* your netflow data */;
 let mut parser = NetflowParser::default();
 
 // Process packets without collecting into a Vec
-for packet_result in parser.iter_packets(&buffer) {
-    match packet_result {
+for result in parser.iter_packets(&buffer) {
+    match result {
         Ok(NetflowPacket::V5(v5)) => {
             // Process V5 packet
             println!("V5 packet from {}", v5.header.version);
@@ -172,7 +172,7 @@ for packet_result in parser.iter_packets(&buffer) {
 
 The iterator provides access to unconsumed bytes for advanced use cases:
 
-```rust
+```rust,ignore
 use netflow_parser::NetflowParser;
 
 let buffer = /* your netflow data */;
@@ -200,24 +200,30 @@ if !iter.is_complete() {
 
 ### Iterator Examples
 
-```rust
+```rust,ignore
 // Count V5 packets without collecting
 let count = parser.iter_packets(&buffer)
-    .filter(|p| p.is_v5())
+    .filter(|r| r.as_ref().map(|p| p.is_v5()).unwrap_or(false))
     .count();
 
 // Process only the first 10 packets
-for packet in parser.iter_packets(&buffer).take(10) {
-    // Handle packet
+for result in parser.iter_packets(&buffer).take(10) {
+    if let Ok(packet) = result {
+        // Handle packet
+    }
 }
 
 // Collect only if needed (equivalent to parse_bytes())
-let packets: Vec<_> = parser.iter_packets(&buffer).collect();
+let packets: Vec<_> = parser.iter_packets(&buffer)
+    .filter_map(Result::ok)
+    .collect();
 
 // Check unconsumed bytes (useful for mixed protocol streams)
 let mut iter = parser.iter_packets(&buffer);
-for packet in &mut iter {
-    // Process packet
+for result in &mut iter {
+    if let Ok(packet) = result {
+        // Process packet
+    }
 }
 if !iter.is_complete() {
     let remaining = iter.remaining();
@@ -370,7 +376,7 @@ Packets with versions not in the allowed list will be ignored (returns empty Vec
 
 **parse_bytes()** returns `ParseResult` to preserve partially parsed packets when errors occur mid-stream:
 
-```rust
+```rust,ignore
 use netflow_parser::{NetflowParser, ParseResult};
 
 let result = parser.parse_bytes(&buffer);
@@ -388,7 +394,7 @@ if let Some(e) = result.error {
 
 **iter_packets()** yields `Result<NetflowPacket, NetflowError>` for per-packet error handling:
 
-```rust
+```rust,ignore
 // Per-packet error handling
 for result in parser.iter_packets(&buffer) {
     match result {
@@ -433,7 +439,7 @@ This setting helps prevent memory exhaustion when processing malformed or malici
 
 **ParseResult (prevents data loss):**
 
-```rust
+```rust,ignore
 // ❌ Old (0.7.x) - loses packets 1-4 if packet 5 errors
 let packets = parser.parse_bytes(&data);  // Returns Vec<NetflowPacket>
 // Silent error: if parsing stopped at packet 5, you lost packets 1-4
@@ -450,7 +456,7 @@ if let Some(e) = result.error {
 
 **Error Handling (use Result instead of Error variant):**
 
-```rust
+```rust,ignore
 // ❌ Old (0.7.x) - errors inline with packets
 for packet in parser.parse_bytes(&data) {
     match packet {
@@ -474,7 +480,7 @@ for result in parser.iter_packets(&data) {
 
 IPFIX supports vendor-specific enterprise fields that extend the standard IANA field set. The library provides built-in support for several vendors (Cisco, VMWare, Netscaler, etc.), but you can also register your own custom enterprise fields:
 
-```rust
+```rust,ignore
 use netflow_parser::NetflowParser;
 use netflow_parser::variable_versions::data_number::FieldDataType;
 use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
@@ -625,7 +631,7 @@ struct NetflowCommonFlowSet {
 
 ### Converting NetflowPacket to NetflowCommon
 
-```rust
+```rust,ignore
 use netflow_parser::{NetflowParser, NetflowPacket};
 
 // 0000   00 05 00 01 03 00 04 00 05 00 06 07 08 09 00 01   ................
@@ -652,7 +658,7 @@ for common_flow in netflow_common.flowsets.iter() {
 
 To gather all flowsets from all packets into a flattened vector:
 
-```rust
+```rust,ignore
 use netflow_parser::NetflowParser;
 
 let flowsets = NetflowParser::default().parse_bytes_as_netflow_common_flowsets(&v5_packet);
@@ -668,7 +674,7 @@ By default, NetflowCommon maps standard IANA fields to the common structure. How
 
 #### V9 Custom Field Mapping
 
-```rust
+```rust,ignore
 use netflow_parser::netflow_common::{NetflowCommon, V9FieldMappingConfig};
 use netflow_parser::variable_versions::v9_lookup::V9Field;
 
@@ -685,7 +691,7 @@ config.dst_addr.fallback = Some(V9Field::Ipv4DstAddr);
 
 #### IPFIX Custom Field Mapping
 
-```rust
+```rust,ignore
 use netflow_parser::netflow_common::{NetflowCommon, IPFixFieldMappingConfig};
 use netflow_parser::variable_versions::ipfix_lookup::{IPFixField, IANAIPFixField};
 
@@ -729,7 +735,7 @@ Parsed V5, V7, V9, and IPFIX packets can be re-exported back into bytes.
 **Creating Data Structs:**
 For convenience, use `Data::new()` and `OptionsData::new()` to create data structures without manually specifying padding:
 
-```rust
+```rust,ignore
 use netflow_parser::variable_versions::ipfix::Data;
 
 // Padding is automatically set to empty vec and calculated during export
@@ -779,7 +785,7 @@ NetFlow V9 and IPFIX are template-based protocols where templates define the str
 
 Track template cache performance to understand your parser's behavior:
 
-```rust
+```rust,ignore
 use netflow_parser::NetflowParser;
 
 let mut parser = NetflowParser::default();
@@ -818,7 +824,7 @@ if let Some(hit_rate) = metrics.hit_rate() {
 **⚠️ IMPORTANT**: When parsing from multiple routers, template IDs **collide**. Different routers often use the same template ID (e.g., 256) with completely different schemas, causing cache thrashing and parsing failures.
 
 **The Problem:**
-```rust
+```rust,ignore
 // ❌ DON'T: Multiple sources sharing one parser
 let mut parser = NetflowParser::default();
 loop {
@@ -828,7 +834,7 @@ loop {
 ```
 
 **The Solution - Use `AutoScopedParser`:**
-```rust
+```rust,ignore
 // ✅ DO: Each source gets isolated template cache (RFC-compliant)
 use netflow_parser::AutoScopedParser;
 use std::net::SocketAddr;
@@ -859,7 +865,7 @@ if parser.source_count() > 1 {
 
 For specialized requirements beyond automatic RFC-compliant scoping, use `RouterScopedParser` with custom key types:
 
-```rust
+```rust,ignore
 use netflow_parser::RouterScopedParser;
 use std::net::SocketAddr;
 
@@ -888,7 +894,7 @@ let mut scoped = RouterScopedParser::<CustomKey>::new();
 
 Configure parsers with custom settings:
 
-```rust
+```rust,ignore
 use netflow_parser::{AutoScopedParser, NetflowParser};
 use netflow_parser::variable_versions::ttl::TtlConfig;
 use std::time::Duration;
@@ -909,7 +915,7 @@ let mut scoped = RouterScopedParser::<String>::with_builder(builder);
 
 Monitor when template IDs are reused with different definitions:
 
-```rust
+```rust,ignore
 let v9_stats = parser.v9_cache_stats();
 if v9_stats.metrics.collisions > 0 {
     println!("Warning: {} template collisions detected", v9_stats.metrics.collisions);
@@ -930,7 +936,7 @@ if v9_stats.metrics.collisions > 0 {
 
 When a data flowset arrives before its template (IPFIX):
 
-```rust
+```rust,ignore
 use netflow_parser::{NetflowParser, NetflowPacket};
 use netflow_parser::variable_versions::ipfix::FlowSetBody;
 
@@ -990,7 +996,7 @@ if parser.has_v9_template(256) {
 
 #### Clearing Templates
 
-```rust
+```rust,ignore
 // Clear all V9 templates
 parser.clear_v9_templates();
 
