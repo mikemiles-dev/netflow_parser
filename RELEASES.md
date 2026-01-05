@@ -1,3 +1,6 @@
+# 0.8.3
+ * Simplified docs.rs README updates.
+
 # 0.8.2
  * Update missing docs.rs information.
 
