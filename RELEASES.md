@@ -1,3 +1,6 @@
+# 0.8.2
+ * Update missing docs.rs information.
+
 # 0.8.1
 
   * **Bug Fixes:**
