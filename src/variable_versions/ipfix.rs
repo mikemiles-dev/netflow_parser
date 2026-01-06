@@ -33,6 +33,7 @@ use crate::variable_versions::v9::{
 use lru::LruCache;
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 const DATA_TEMPLATE_IPFIX_ID: u16 = 2;
 const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
@@ -59,10 +60,10 @@ fn calculate_padding(content_size: usize) -> Vec<u8> {
 
 #[derive(Debug)]
 pub struct IPFixParser {
-    pub templates: LruCache<TemplateId, TemplateWithTtl<Template>>,
-    pub v9_templates: LruCache<TemplateId, TemplateWithTtl<V9Template>>,
-    pub ipfix_options_templates: LruCache<TemplateId, TemplateWithTtl<OptionsTemplate>>,
-    pub v9_options_templates: LruCache<TemplateId, TemplateWithTtl<V9OptionsTemplate>>,
+    pub templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
+    pub v9_templates: LruCache<TemplateId, TemplateWithTtl<Arc<V9Template>>>,
+    pub ipfix_options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
+    pub v9_options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<V9OptionsTemplate>>>,
     /// Optional TTL configuration for template expiration
     pub ttl_config: Option<TtlConfig>,
     /// Maximum number of templates to cache. Defaults to 1000.
@@ -184,11 +185,12 @@ impl IPFixParser {
     /// Add templates to the parser by cloning from slice.
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         for t in templates {
-            let wrapped = TemplateWithTtl::new(t.clone());
+            let arc_template = Arc::new(t.clone());
+            let wrapped = TemplateWithTtl::new(arc_template.clone());
             // Check for collision (same ID, different definition)
             // Use peek() to avoid affecting LRU ordering
             if let Some(existing) = self.templates.peek(&t.template_id) {
-                if existing.template != *t {
+                if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
             }
@@ -203,11 +205,12 @@ impl IPFixParser {
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         for t in templates {
-            let wrapped = TemplateWithTtl::new(t.clone());
+            let arc_template = Arc::new(t.clone());
+            let wrapped = TemplateWithTtl::new(arc_template.clone());
             // Check for collision (same ID, different definition)
             // Use peek() to avoid affecting LRU ordering
             if let Some(existing) = self.ipfix_options_templates.peek(&t.template_id) {
-                if existing.template != *t {
+                if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
             }
@@ -222,11 +225,12 @@ impl IPFixParser {
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         for t in templates {
-            let wrapped = TemplateWithTtl::new(t.clone());
+            let arc_template = Arc::new(t.clone());
+            let wrapped = TemplateWithTtl::new(arc_template.clone());
             // Check for collision (same ID, different definition)
             // Use peek() to avoid affecting LRU ordering
             if let Some(existing) = self.v9_templates.peek(&t.template_id) {
-                if existing.template != *t {
+                if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
             }
@@ -241,11 +245,12 @@ impl IPFixParser {
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         for t in templates {
-            let wrapped = TemplateWithTtl::new(t.clone());
+            let arc_template = Arc::new(t.clone());
+            let wrapped = TemplateWithTtl::new(arc_template.clone());
             // Check for collision (same ID, different definition)
             // Use peek() to avoid affecting LRU ordering
             if let Some(existing) = self.v9_options_templates.peek(&t.template_id) {
-                if existing.template != *t {
+                if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
             }
@@ -260,12 +265,13 @@ impl IPFixParser {
 
     /// Helper method to get a valid template from cache, checking TTL if configured.
     /// Returns None if template doesn't exist or has expired.
+    #[inline]
     fn get_valid_template<T: Clone>(
-        cache: &mut LruCache<TemplateId, TemplateWithTtl<T>>,
+        cache: &mut LruCache<TemplateId, TemplateWithTtl<Arc<T>>>,
         id: &TemplateId,
         ttl_config: &Option<TtlConfig>,
         metrics: &mut CacheMetrics,
-    ) -> Option<T> {
+    ) -> Option<Arc<T>> {
         if let Some(wrapped) = cache.get(id) {
             metrics.record_hit();
             if let Some(config) = ttl_config
@@ -275,7 +281,7 @@ impl IPFixParser {
                 metrics.record_expiration();
                 return None;
             }
-            return Some(wrapped.template.clone());
+            return Some(Arc::clone(&wrapped.template));
         }
         None
     }

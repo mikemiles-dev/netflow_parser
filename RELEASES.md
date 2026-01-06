@@ -1,5 +1,6 @@
 # 0.8.4
  * General code cleanup
+ * Performance improvements: Optimized template caching using Arc for reduced cloning and added inlining hints for hot-path functions
 
 # 0.8.3
  * Simplified docs.rs README updates.

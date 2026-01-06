@@ -248,6 +248,7 @@ impl FieldValue {
         ))
     }
 
+    #[inline]
     pub fn from_field_type(
         remaining: &[u8],
         field_type: FieldDataType,
