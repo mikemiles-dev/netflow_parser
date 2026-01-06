@@ -22,6 +22,7 @@ use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
 use lru::LruCache;
+use std::collections::HashSet;
 use std::num::NonZeroUsize;
 
 pub const DATA_TEMPLATE_V9_ID: u16 = 0;
@@ -163,6 +164,28 @@ impl V9Parser {
                 },
             },
         }
+    }
+
+    /// Helper method to get a valid template from cache, checking TTL if configured.
+    /// Returns None if template doesn't exist or has expired.
+    fn get_valid_template<T: Clone>(
+        cache: &mut LruCache<TemplateId, TemplateWithTtl<T>>,
+        id: &TemplateId,
+        ttl_config: &Option<TtlConfig>,
+        metrics: &mut CacheMetrics,
+    ) -> Option<T> {
+        if let Some(wrapped) = cache.get(id) {
+            metrics.record_hit();
+            if let Some(config) = ttl_config {
+                if wrapped.is_expired(config) {
+                    cache.pop(id);
+                    metrics.record_expiration();
+                    return None;
+                }
+            }
+            return Some(wrapped.template.clone());
+        }
+        None
     }
 }
 
@@ -362,48 +385,26 @@ impl FlowSetBody {
                 Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
             }
             _ => {
-                // Try to get template from regular templates cache
-                if let Some(wrapped_template) = parser.templates.get(&id) {
-                    parser.metrics.record_hit();
-                    // Check TTL if configured
-                    if let Some(ref config) = parser.ttl_config {
-                        if wrapped_template.is_expired(config) {
-                            // Template expired, remove it and fall through to error
-                            parser.templates.pop(&id);
-                            parser.metrics.record_expiration();
-                        } else {
-                            // Template valid, parse data
-                            let (i, data) = Data::parse(i, &wrapped_template.template)?;
-                            return Ok((i, FlowSetBody::Data(data)));
-                        }
-                    } else {
-                        // No TTL configured, use template directly
-                        let (i, data) = Data::parse(i, &wrapped_template.template)?;
-                        return Ok((i, FlowSetBody::Data(data)));
-                    }
+                // Try regular templates
+                if let Some(template) = V9Parser::get_valid_template(
+                    &mut parser.templates,
+                    &id,
+                    &parser.ttl_config,
+                    &mut parser.metrics,
+                ) {
+                    let (i, data) = Data::parse(i, &template)?;
+                    return Ok((i, FlowSetBody::Data(data)));
                 }
 
-                // Try to get template from options templates cache
-                if let Some(wrapped_template) = parser.options_templates.get(&id) {
-                    parser.metrics.record_hit();
-                    // Check TTL if configured
-                    if let Some(ref config) = parser.ttl_config {
-                        if wrapped_template.is_expired(config) {
-                            // Template expired, remove it and fall through to error
-                            parser.options_templates.pop(&id);
-                            parser.metrics.record_expiration();
-                        } else {
-                            // Template valid, parse options data
-                            let (i, options_data) =
-                                OptionsData::parse(i, &wrapped_template.template)?;
-                            return Ok((i, FlowSetBody::OptionsData(options_data)));
-                        }
-                    } else {
-                        // No TTL configured, use template directly
-                        let (i, options_data) =
-                            OptionsData::parse(i, &wrapped_template.template)?;
-                        return Ok((i, FlowSetBody::OptionsData(options_data)));
-                    }
+                // Try options templates
+                if let Some(template) = V9Parser::get_valid_template(
+                    &mut parser.options_templates,
+                    &id,
+                    &parser.ttl_config,
+                    &mut parser.metrics,
+                ) {
+                    let (i, options_data) = OptionsData::parse(i, &template)?;
+                    return Ok((i, FlowSetBody::OptionsData(options_data)));
                 }
 
                 // Template not found or expired
@@ -465,7 +466,6 @@ impl Template {
 
     /// Check if the template has duplicate field type numbers
     fn has_duplicate_fields(&self) -> bool {
-        use std::collections::HashSet;
         let mut seen = HashSet::with_capacity(self.fields.len());
         for field in &self.fields {
             if !seen.insert(field.field_type_number) {
@@ -869,6 +869,117 @@ impl TemplateField {
 }
 
 impl V9 {
+    /// Serialize Template flowset body to bytes
+    fn serialize_template_body(templates: &Templates) -> Vec<u8> {
+        let mut template_content = Vec::new();
+        for template in templates.templates.iter() {
+            template_content.extend_from_slice(&template.template_id.to_be_bytes());
+            template_content.extend_from_slice(&template.field_count.to_be_bytes());
+            for field in template.fields.iter() {
+                template_content.extend_from_slice(&field.field_type_number.to_be_bytes());
+                template_content.extend_from_slice(&field.field_length.to_be_bytes());
+            }
+        }
+
+        let mut result = Vec::new();
+        result.extend_from_slice(&template_content);
+
+        // Auto-calculate padding if not provided (for manually created packets)
+        let padding = if templates.padding.is_empty() {
+            calculate_padding(template_content.len())
+        } else {
+            templates.padding.clone()
+        };
+        result.extend_from_slice(&padding);
+        result
+    }
+
+    /// Serialize OptionsTemplate flowset body to bytes
+    fn serialize_options_template_body(options_templates: &OptionsTemplates) -> Vec<u8> {
+        let mut options_content = Vec::new();
+        for template in options_templates.templates.iter() {
+            options_content.extend_from_slice(&template.template_id.to_be_bytes());
+            options_content.extend_from_slice(&template.options_scope_length.to_be_bytes());
+            options_content.extend_from_slice(&template.options_length.to_be_bytes());
+            for field in template.scope_fields.iter() {
+                options_content.extend_from_slice(&field.field_type_number.to_be_bytes());
+                options_content.extend_from_slice(&field.field_length.to_be_bytes());
+            }
+            for field in template.option_fields.iter() {
+                options_content.extend_from_slice(&field.field_type_number.to_be_bytes());
+                options_content.extend_from_slice(&field.field_length.to_be_bytes());
+            }
+        }
+
+        let mut result = Vec::new();
+        result.extend_from_slice(&options_content);
+
+        // Auto-calculate padding if not provided (for manually created packets)
+        let padding = if options_templates.padding.is_empty() {
+            calculate_padding(options_content.len())
+        } else {
+            options_templates.padding.clone()
+        };
+        result.extend_from_slice(&padding);
+        result
+    }
+
+    /// Serialize Data flowset body to bytes
+    fn serialize_data_body(data: &Data) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut data_content = Vec::new();
+        for data_field in data.fields.iter() {
+            for (_, field_value) in data_field.iter() {
+                data_content.extend_from_slice(&field_value.to_be_bytes()?);
+            }
+        }
+
+        let mut result = Vec::new();
+        result.extend_from_slice(&data_content);
+
+        // Auto-calculate padding if not provided (for manually created packets)
+        let padding = if data.padding.is_empty() {
+            calculate_padding(data_content.len())
+        } else {
+            data.padding.clone()
+        };
+        result.extend_from_slice(&padding);
+        Ok(result)
+    }
+
+    /// Serialize OptionsData flowset body to bytes
+    fn serialize_options_data_body(
+        options_data: &OptionsData,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut result = Vec::new();
+        for options_data_field in options_data.fields.iter() {
+            for field in options_data_field.scope_fields.iter() {
+                match field {
+                    ScopeDataField::System(value) => {
+                        result.extend_from_slice(value);
+                    }
+                    ScopeDataField::Interface(value) => {
+                        result.extend_from_slice(value);
+                    }
+                    ScopeDataField::LineCard(value) => {
+                        result.extend_from_slice(value);
+                    }
+                    ScopeDataField::NetFlowCache(value) => {
+                        result.extend_from_slice(value);
+                    }
+                    ScopeDataField::Template(value) => {
+                        result.extend_from_slice(value);
+                    }
+                }
+            }
+            for options_field in options_data_field.options_fields.iter() {
+                for (_field_type, field_value) in options_field.iter() {
+                    result.extend_from_slice(&field_value.to_be_bytes()?);
+                }
+            }
+        }
+        Ok(result)
+    }
+
     /// Convert the V9 struct to a `Vec<u8>` of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut result = Vec::new();
@@ -884,103 +995,13 @@ impl V9 {
             result.extend_from_slice(&set.header.flowset_id.to_be_bytes());
             result.extend_from_slice(&set.header.length.to_be_bytes());
 
-            if let FlowSetBody::Template(templates) = &set.body {
-                let mut template_content = Vec::new();
-                for template in templates.templates.iter() {
-                    template_content.extend_from_slice(&template.template_id.to_be_bytes());
-                    template_content.extend_from_slice(&template.field_count.to_be_bytes());
-                    for field in template.fields.iter() {
-                        template_content
-                            .extend_from_slice(&field.field_type_number.to_be_bytes());
-                        template_content.extend_from_slice(&field.field_length.to_be_bytes());
-                    }
-                }
-                result.extend_from_slice(&template_content);
-
-                // Auto-calculate padding if not provided (for manually created packets)
-                let padding = if templates.padding.is_empty() {
-                    calculate_padding(template_content.len())
-                } else {
-                    templates.padding.clone()
-                };
-                result.extend_from_slice(&padding);
-            }
-
-            if let FlowSetBody::OptionsTemplate(options_templates) = &set.body {
-                let mut options_content = Vec::new();
-                for template in options_templates.templates.iter() {
-                    options_content.extend_from_slice(&template.template_id.to_be_bytes());
-                    options_content
-                        .extend_from_slice(&template.options_scope_length.to_be_bytes());
-                    options_content.extend_from_slice(&template.options_length.to_be_bytes());
-                    for field in template.scope_fields.iter() {
-                        options_content
-                            .extend_from_slice(&field.field_type_number.to_be_bytes());
-                        options_content.extend_from_slice(&field.field_length.to_be_bytes());
-                    }
-                    for field in template.option_fields.iter() {
-                        options_content
-                            .extend_from_slice(&field.field_type_number.to_be_bytes());
-                        options_content.extend_from_slice(&field.field_length.to_be_bytes());
-                    }
-                }
-                result.extend_from_slice(&options_content);
-
-                // Auto-calculate padding if not provided (for manually created packets)
-                let padding = if options_templates.padding.is_empty() {
-                    calculate_padding(options_content.len())
-                } else {
-                    options_templates.padding.clone()
-                };
-                result.extend_from_slice(&padding);
-            }
-
-            if let FlowSetBody::Data(data) = &set.body {
-                let mut data_content = Vec::new();
-                for data_field in data.fields.iter() {
-                    for (_, field_value) in data_field.iter() {
-                        data_content.extend_from_slice(&field_value.to_be_bytes()?);
-                    }
-                }
-                result.extend_from_slice(&data_content);
-
-                // Auto-calculate padding if not provided (for manually created packets)
-                let padding = if data.padding.is_empty() {
-                    calculate_padding(data_content.len())
-                } else {
-                    data.padding.clone()
-                };
-                result.extend_from_slice(&padding);
-            }
-
-            if let FlowSetBody::OptionsData(options_data) = &set.body {
-                for options_data_field in options_data.fields.iter() {
-                    for field in options_data_field.scope_fields.iter() {
-                        match field {
-                            ScopeDataField::System(value) => {
-                                result.extend_from_slice(value);
-                            }
-                            ScopeDataField::Interface(value) => {
-                                result.extend_from_slice(value);
-                            }
-                            ScopeDataField::LineCard(value) => {
-                                result.extend_from_slice(value);
-                            }
-                            ScopeDataField::NetFlowCache(value) => {
-                                result.extend_from_slice(value);
-                            }
-                            ScopeDataField::Template(value) => {
-                                result.extend_from_slice(value);
-                            }
-                        }
-                    }
-                    for options_field in options_data_field.options_fields.iter() {
-                        for (_field_type, field_value) in options_field.iter() {
-                            result.extend_from_slice(&field_value.to_be_bytes()?);
-                        }
-                    }
-                }
-            }
+            let body_bytes = match &set.body {
+                FlowSetBody::Template(t) => Self::serialize_template_body(t),
+                FlowSetBody::OptionsTemplate(o) => Self::serialize_options_template_body(o),
+                FlowSetBody::Data(d) => Self::serialize_data_body(d)?,
+                FlowSetBody::OptionsData(o) => Self::serialize_options_data_body(o)?,
+            };
+            result.extend_from_slice(&body_bytes);
         }
 
         Ok(result)
