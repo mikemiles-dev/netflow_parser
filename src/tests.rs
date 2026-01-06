@@ -219,7 +219,6 @@ mod base_tests {
             pub tcp_flags: Option<u8>,
         }
         let _ = NetflowV9Container::default();
-        assert!(true);
     }
 
     #[test]
@@ -343,10 +342,8 @@ mod base_tests {
                 .unwrap();
 
             let packet = hex::decode(hex).unwrap();
-            for packet in parser.iter_packets(&packet) {
-                if let Ok(packet) = packet {
-                    if packet.is_v9() {}
-                }
+            for packet in parser.iter_packets(&packet).flatten() {
+                if packet.is_v9() {}
             }
         }
     }
@@ -364,12 +361,8 @@ mod base_tests {
                 .unwrap();
 
             let packet = hex::decode(hex).unwrap();
-            for packet in parser.iter_packets(&packet) {
-                if let Ok(packet) = packet {
-                    if packet.is_v5() {
-                        assert!(true);
-                    }
-                }
+            for packet in parser.iter_packets(&packet).flatten() {
+                if packet.is_v5() {}
             }
         }
     }

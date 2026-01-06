@@ -1,3 +1,6 @@
+# 0.8.4
+ * General code cleanup
+
 # 0.8.3
  * Simplified docs.rs README updates.
 
