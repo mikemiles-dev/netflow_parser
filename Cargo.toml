@@ -27,6 +27,11 @@ default = ["parse_unknown_fields"]
 parse_unknown_fields = []
 netflow_common = []
 
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
 [dev-dependencies]
 criterion = { version = "0.8", features = ["html_reports"] }
 insta = { version = "1.30.0", features = ["yaml"] }

@@ -24,6 +24,7 @@ use serde::Serialize;
 use lru::LruCache;
 use std::collections::HashSet;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 pub const DATA_TEMPLATE_V9_ID: u16 = 0;
 pub const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
@@ -50,8 +51,8 @@ fn calculate_padding(content_size: usize) -> Vec<u8> {
 
 #[derive(Debug)]
 pub struct V9Parser {
-    pub templates: LruCache<TemplateId, TemplateWithTtl<Template>>,
-    pub options_templates: LruCache<TemplateId, TemplateWithTtl<OptionsTemplate>>,
+    pub templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
+    pub options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
     /// Optional TTL configuration for template expiration
     pub ttl_config: Option<TtlConfig>,
     /// Maximum number of templates to cache. Defaults to 1000.
@@ -168,12 +169,13 @@ impl V9Parser {
 
     /// Helper method to get a valid template from cache, checking TTL if configured.
     /// Returns None if template doesn't exist or has expired.
+    #[inline]
     fn get_valid_template<T: Clone>(
-        cache: &mut LruCache<TemplateId, TemplateWithTtl<T>>,
+        cache: &mut LruCache<TemplateId, TemplateWithTtl<Arc<T>>>,
         id: &TemplateId,
         ttl_config: &Option<TtlConfig>,
         metrics: &mut CacheMetrics,
-    ) -> Option<T> {
+    ) -> Option<Arc<T>> {
         if let Some(wrapped) = cache.get(id) {
             metrics.record_hit();
             if let Some(config) = ttl_config
@@ -183,7 +185,7 @@ impl V9Parser {
                 metrics.record_expiration();
                 return None;
             }
-            return Some(wrapped.template.clone());
+            return Some(Arc::clone(&wrapped.template));
         }
         None
     }
@@ -331,13 +333,14 @@ impl FlowSetBody {
                         nom::error::ErrorKind::Verify,
                     )));
                 }
-                // Store templates efficiently - clone only what we need to cache
+                // Store templates efficiently using Arc for zero-cost sharing
                 for template in &templates.templates {
-                    let wrapped = TemplateWithTtl::new(template.clone());
+                    let arc_template = Arc::new(template.clone());
+                    let wrapped = TemplateWithTtl::new(arc_template.clone());
                     // Check for collision (same ID, different definition)
                     // Use peek() to avoid affecting LRU ordering
                     if let Some(existing) = parser.templates.peek(&template.template_id) {
-                        if existing.template != *template {
+                        if existing.template.as_ref() != template {
                             parser.metrics.record_collision();
                         }
                     }
@@ -364,14 +367,15 @@ impl FlowSetBody {
                         nom::error::ErrorKind::Verify,
                     )));
                 }
-                // Store templates efficiently - clone only what we need to cache
+                // Store templates efficiently using Arc for zero-cost sharing
                 for template in &options_templates.templates {
-                    let wrapped = TemplateWithTtl::new(template.clone());
+                    let arc_template = Arc::new(template.clone());
+                    let wrapped = TemplateWithTtl::new(arc_template.clone());
                     // Check for collision (same ID, different definition)
                     // Use peek() to avoid affecting LRU ordering
                     if let Some(existing) = parser.options_templates.peek(&template.template_id)
                     {
-                        if existing.template != *template {
+                        if existing.template.as_ref() != template {
                             parser.metrics.record_collision();
                         }
                     }
@@ -863,6 +867,7 @@ impl<'a> FieldParser {
 }
 
 impl TemplateField {
+    #[inline]
     pub fn parse_as_field_value<'a>(&self, input: &'a [u8]) -> IResult<&'a [u8], FieldValue> {
         FieldValue::from_field_type(input, self.field_type.into(), self.field_length)
     }
