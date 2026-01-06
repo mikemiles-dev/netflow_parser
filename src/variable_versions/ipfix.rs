@@ -519,8 +519,11 @@ impl FlowSetBody {
                     if template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     }
-                    let (i, data) =
-                        OptionsData::parse_with_registry(i, &template, &parser.enterprise_registry)?;
+                    let (i, data) = OptionsData::parse_with_registry(
+                        i,
+                        &template,
+                        &parser.enterprise_registry,
+                    )?;
                     return Ok((i, FlowSetBody::OptionsData(data)));
                 }
 
@@ -963,7 +966,9 @@ impl TemplateField {
 
 impl IPFix {
     /// Serialize FlowSetBody to bytes
-    fn serialize_flowset_body(body: &FlowSetBody) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    fn serialize_flowset_body(
+        body: &FlowSetBody,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         match body {
             FlowSetBody::Template(template) => {
                 let mut result = Vec::new();
@@ -1081,10 +1086,18 @@ impl IPFix {
                     for field in options_data_field.scope_fields.iter() {
                         match field {
                             V9ScopeDataField::System(value) => result.extend_from_slice(value),
-                            V9ScopeDataField::Interface(value) => result.extend_from_slice(value),
-                            V9ScopeDataField::LineCard(value) => result.extend_from_slice(value),
-                            V9ScopeDataField::NetFlowCache(value) => result.extend_from_slice(value),
-                            V9ScopeDataField::Template(value) => result.extend_from_slice(value),
+                            V9ScopeDataField::Interface(value) => {
+                                result.extend_from_slice(value)
+                            }
+                            V9ScopeDataField::LineCard(value) => {
+                                result.extend_from_slice(value)
+                            }
+                            V9ScopeDataField::NetFlowCache(value) => {
+                                result.extend_from_slice(value)
+                            }
+                            V9ScopeDataField::Template(value) => {
+                                result.extend_from_slice(value)
+                            }
                         }
                     }
                     for options_field in options_data_field.options_fields.iter() {
