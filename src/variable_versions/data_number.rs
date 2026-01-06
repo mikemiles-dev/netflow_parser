@@ -126,6 +126,28 @@ fn parse_unknown_fields(
     Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))
 }
 
+/// Helper function to parse duration fields that can be either 4 or 8 bytes
+fn parse_duration<F>(
+    remaining: &[u8],
+    field_length: u16,
+    from_fn: F,
+) -> IResult<&[u8], FieldValue>
+where
+    F: Fn(u64) -> Duration,
+{
+    match field_length {
+        4 => {
+            let (i, value) = u32::parse_be(remaining)?;
+            Ok((i, FieldValue::Duration(from_fn(value.into()))))
+        }
+        8 => {
+            let (i, value) = u64::parse_be(remaining)?;
+            Ok((i, FieldValue::Duration(from_fn(value))))
+        }
+        _ => Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail))),
+    }
+}
+
 /// Convert into usize, mainly for serialization purposes
 impl DataNumber {
     /// Parse bytes into DataNumber Type
@@ -282,40 +304,10 @@ impl FieldValue {
                 (i, FieldValue::MacAddr(mac_addr))
             }
             FieldDataType::DurationSeconds => {
-                let (i, value) = match field_length {
-                    4 => {
-                        let (i, seconds) = u32::parse_be(remaining)?;
-                        let dur = Duration::from_secs(seconds.into());
-                        (i, FieldValue::Duration(dur))
-                    }
-                    8 => {
-                        let (i, seconds) = u64::parse_be(remaining)?;
-                        let dur = Duration::from_secs(seconds);
-                        (i, FieldValue::Duration(dur))
-                    }
-                    _ => {
-                        return Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)));
-                    }
-                };
-                (i, value)
+                parse_duration(remaining, field_length, Duration::from_secs)?
             }
             FieldDataType::DurationMillis => {
-                let (i, value) = match field_length {
-                    4 => {
-                        let (i, seconds) = u32::parse_be(remaining)?;
-                        let dur = Duration::from_millis(u64::from(seconds));
-                        (i, FieldValue::Duration(dur))
-                    }
-                    8 => {
-                        let (i, seconds) = u64::parse_be(remaining)?;
-                        let dur = Duration::from_millis(seconds);
-                        (i, FieldValue::Duration(dur))
-                    }
-                    _ => {
-                        return Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)));
-                    }
-                };
-                (i, value)
+                parse_duration(remaining, field_length, Duration::from_millis)?
             }
             FieldDataType::DurationMicrosNTP => {
                 let (i, seconds) = u32::parse_be(remaining)?;
