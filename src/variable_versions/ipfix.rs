@@ -268,12 +268,12 @@ impl IPFixParser {
     ) -> Option<T> {
         if let Some(wrapped) = cache.get(id) {
             metrics.record_hit();
-            if let Some(config) = ttl_config {
-                if wrapped.is_expired(config) {
-                    cache.pop(id);
-                    metrics.record_expiration();
-                    return None;
-                }
+            if let Some(config) = ttl_config
+                && wrapped.is_expired(config)
+            {
+                cache.pop(id);
+                metrics.record_expiration();
+                return None;
             }
             return Some(wrapped.template.clone());
         }
