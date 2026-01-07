@@ -333,7 +333,6 @@ impl FlowSetBody {
                         nom::error::ErrorKind::Verify,
                     )));
                 }
-                // Store templates efficiently using Arc for zero-cost sharing
                 for template in &templates.templates {
                     let arc_template = Arc::new(template.clone());
                     let wrapped = TemplateWithTtl::new(arc_template.clone());
