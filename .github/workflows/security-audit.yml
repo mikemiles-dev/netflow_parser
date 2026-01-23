@@ -57,7 +57,7 @@ jobs:
           ${{ runner.os }}-cargo-deny
 
     - name: Install cargo-deny
-      run: cargo install cargo-deny --locked
+      run: cargo-deny --version || cargo install cargo-deny --locked
 
     # Critical security checks
     - name: Check advisories

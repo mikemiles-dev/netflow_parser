@@ -1,6 +1,7 @@
 # 0.8.4
  * General code cleanup
  * Performance improvements: Optimized template caching using Arc for reduced cloning and added inlining hints for hot-path functions
+ * Fixed CI workflow: cargo-deny/cargo-audit install now skips if binary already exists (prevents cache conflict errors)
 
 # 0.8.3
  * Simplified docs.rs README updates.
