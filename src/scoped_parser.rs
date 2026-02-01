@@ -3,7 +3,9 @@
 //! This module provides a convenient wrapper for handling NetFlow data from multiple
 //! sources (routers/exporters), ensuring template isolation per source.
 
-use crate::{CacheStats, NetflowError, NetflowPacket, NetflowParser, NetflowParserBuilder};
+use crate::{
+    NetflowError, NetflowPacket, NetflowParser, NetflowParserBuilder, ParserCacheStats,
+};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::net::SocketAddr;
@@ -179,10 +181,11 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     /// Get statistics for a specific source's template cache.
     ///
     /// Returns `None` if the source hasn't sent any packets yet.
-    pub fn get_source_stats(&self, source: &K) -> Option<(CacheStats, CacheStats)> {
-        self.parsers
-            .get(source)
-            .map(|parser| (parser.v9_cache_stats(), parser.ipfix_cache_stats()))
+    pub fn get_source_stats(&self, source: &K) -> Option<ParserCacheStats> {
+        self.parsers.get(source).map(|parser| ParserCacheStats {
+            v9: parser.v9_cache_stats(),
+            ipfix: parser.ipfix_cache_stats(),
+        })
     }
 
     /// Get the number of registered sources.
@@ -196,16 +199,20 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     }
 
     /// Get statistics for all sources.
-    ///
-    /// Returns a vector of tuples: (source, v9_stats, ipfix_stats)
-    pub fn all_stats(&self) -> Vec<(&K, CacheStats, CacheStats)>
+    pub fn all_stats(&self) -> Vec<(&K, ParserCacheStats)>
     where
         K: Clone,
     {
         self.parsers
             .iter()
             .map(|(source, parser)| {
-                (source, parser.v9_cache_stats(), parser.ipfix_cache_stats())
+                (
+                    source,
+                    ParserCacheStats {
+                        v9: parser.v9_cache_stats(),
+                        ipfix: parser.ipfix_cache_stats(),
+                    },
+                )
             })
             .collect()
     }
@@ -627,32 +634,50 @@ impl AutoScopedParser {
     }
 
     /// Get statistics for all IPFIX sources.
-    ///
-    /// Returns a vector of tuples: (source_key, v9_stats, ipfix_stats)
-    pub fn ipfix_stats(&self) -> Vec<(&IpfixSourceKey, CacheStats, CacheStats)> {
+    pub fn ipfix_stats(&self) -> Vec<(&IpfixSourceKey, ParserCacheStats)> {
         self.ipfix_parsers
             .iter()
-            .map(|(key, parser)| (key, parser.v9_cache_stats(), parser.ipfix_cache_stats()))
+            .map(|(key, parser)| {
+                (
+                    key,
+                    ParserCacheStats {
+                        v9: parser.v9_cache_stats(),
+                        ipfix: parser.ipfix_cache_stats(),
+                    },
+                )
+            })
             .collect()
     }
 
     /// Get statistics for all NetFlow v9 sources.
-    ///
-    /// Returns a vector of tuples: (source_key, v9_stats, ipfix_stats)
-    pub fn v9_stats(&self) -> Vec<(&V9SourceKey, CacheStats, CacheStats)> {
+    pub fn v9_stats(&self) -> Vec<(&V9SourceKey, ParserCacheStats)> {
         self.v9_parsers
             .iter()
-            .map(|(key, parser)| (key, parser.v9_cache_stats(), parser.ipfix_cache_stats()))
+            .map(|(key, parser)| {
+                (
+                    key,
+                    ParserCacheStats {
+                        v9: parser.v9_cache_stats(),
+                        ipfix: parser.ipfix_cache_stats(),
+                    },
+                )
+            })
             .collect()
     }
 
     /// Get statistics for all legacy sources.
-    ///
-    /// Returns a vector of tuples: (addr, v9_stats, ipfix_stats)
-    pub fn legacy_stats(&self) -> Vec<(&SocketAddr, CacheStats, CacheStats)> {
+    pub fn legacy_stats(&self) -> Vec<(&SocketAddr, ParserCacheStats)> {
         self.legacy_parsers
             .iter()
-            .map(|(addr, parser)| (addr, parser.v9_cache_stats(), parser.ipfix_cache_stats()))
+            .map(|(addr, parser)| {
+                (
+                    addr,
+                    ParserCacheStats {
+                        v9: parser.v9_cache_stats(),
+                        ipfix: parser.ipfix_cache_stats(),
+                    },
+                )
+            })
             .collect()
     }
 

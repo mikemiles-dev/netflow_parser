@@ -223,6 +223,18 @@ pub struct CacheStats {
     pub metrics: variable_versions::metrics::CacheMetricsSnapshot,
 }
 
+/// Combined cache statistics for both V9 and IPFIX template caches.
+///
+/// This struct provides named fields instead of positional tuples,
+/// making it clear which stats belong to V9 vs IPFIX.
+#[derive(Debug, Clone)]
+pub struct ParserCacheStats {
+    /// V9 template cache statistics
+    pub v9: CacheStats,
+    /// IPFIX template cache statistics
+    pub ipfix: CacheStats,
+}
+
 /// Builder for configuring and constructing a [`NetflowParser`].
 ///
 /// # Examples
