@@ -120,19 +120,19 @@ fn demo_multi_source() {
 
     // Get statistics per source
     println!("\nPer-Source Statistics:");
-    for (source, v9_stats, ipfix_stats) in scoped_parser.all_stats() {
+    for (source, stats) in scoped_parser.all_stats() {
         println!("\n  Router: {}", source);
         println!(
             "    V9 templates:    {}/{}",
-            v9_stats.current_size, v9_stats.max_size
+            stats.v9.current_size, stats.v9.max_size
         );
         println!(
             "    IPFIX templates: {}/{}",
-            ipfix_stats.current_size, ipfix_stats.max_size
+            stats.ipfix.current_size, stats.ipfix.max_size
         );
         println!(
             "    V9 hit rate:     {:.2}%",
-            v9_stats.metrics.hit_rate().unwrap_or(0.0) * 100.0
+            stats.v9.metrics.hit_rate().unwrap_or(0.0) * 100.0
         );
     }
 

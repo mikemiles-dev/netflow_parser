@@ -37,15 +37,15 @@ fn main() {
 
             if parser.source_count() > 0 {
                 println!("\nPer-Source Template Cache Stats:");
-                for (source, v9_stats, ipfix_stats) in parser.all_stats() {
+                for (source, stats) in parser.all_stats() {
                     println!("\n  Source: {}", source);
 
                     // V9 stats
                     println!(
                         "    V9 Cache: {}/{} templates",
-                        v9_stats.current_size, v9_stats.max_size
+                        stats.v9.current_size, stats.v9.max_size
                     );
-                    let v9_metrics = &v9_stats.metrics;
+                    let v9_metrics = &stats.v9.metrics;
                     if let Some(hit_rate) = v9_metrics.hit_rate() {
                         println!(
                             "      Hit rate: {:.1}%, Hits: {}, Misses: {}",
@@ -61,9 +61,9 @@ fn main() {
                     // IPFIX stats
                     println!(
                         "    IPFIX Cache: {}/{} templates",
-                        ipfix_stats.current_size, ipfix_stats.max_size
+                        stats.ipfix.current_size, stats.ipfix.max_size
                     );
-                    let ipfix_metrics = &ipfix_stats.metrics;
+                    let ipfix_metrics = &stats.ipfix.metrics;
                     if let Some(hit_rate) = ipfix_metrics.hit_rate() {
                         println!(
                             "      Hit rate: {:.1}%, Hits: {}, Misses: {}",

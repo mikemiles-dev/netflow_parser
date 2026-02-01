@@ -52,27 +52,27 @@ async fn main() -> io::Result<()> {
             let ipfix_sources = parser_lock.ipfix_stats();
             if !ipfix_sources.is_empty() {
                 println!("\nIPFIX Sources (RFC 7011 scoping):");
-                for (key, _v9_stats, ipfix_stats) in ipfix_sources {
+                for (key, stats) in ipfix_sources {
                     println!(
                         "\n  {}  [Domain ID: {}]",
                         key.addr, key.observation_domain_id
                     );
                     println!(
                         "    Templates: {}/{} | Evictions: {}",
-                        ipfix_stats.current_size,
-                        ipfix_stats.max_size,
-                        ipfix_stats.metrics.evictions
+                        stats.ipfix.current_size,
+                        stats.ipfix.max_size,
+                        stats.ipfix.metrics.evictions
                     );
-                    if let Some(hit_rate) = ipfix_stats.metrics.hit_rate() {
+                    if let Some(hit_rate) = stats.ipfix.metrics.hit_rate() {
                         println!(
                             "    Hit rate: {:.1}% (Hits: {}, Misses: {})",
                             hit_rate * 100.0,
-                            ipfix_stats.metrics.hits,
-                            ipfix_stats.metrics.misses
+                            stats.ipfix.metrics.hits,
+                            stats.ipfix.metrics.misses
                         );
                     }
-                    if ipfix_stats.metrics.collisions > 0 {
-                        println!("    ⚠️  Collisions: {}", ipfix_stats.metrics.collisions);
+                    if stats.ipfix.metrics.collisions > 0 {
+                        println!("    ⚠️  Collisions: {}", stats.ipfix.metrics.collisions);
                     }
                 }
             }
@@ -81,22 +81,22 @@ async fn main() -> io::Result<()> {
             let v9_sources = parser_lock.v9_stats();
             if !v9_sources.is_empty() {
                 println!("\nNetFlow v9 Sources (RFC 3954 scoping):");
-                for (key, v9_stats, _ipfix_stats) in v9_sources {
+                for (key, stats) in v9_sources {
                     println!("\n  {}  [Source ID: {}]", key.addr, key.source_id);
                     println!(
                         "    Templates: {}/{} | Evictions: {}",
-                        v9_stats.current_size, v9_stats.max_size, v9_stats.metrics.evictions
+                        stats.v9.current_size, stats.v9.max_size, stats.v9.metrics.evictions
                     );
-                    if let Some(hit_rate) = v9_stats.metrics.hit_rate() {
+                    if let Some(hit_rate) = stats.v9.metrics.hit_rate() {
                         println!(
                             "    Hit rate: {:.1}% (Hits: {}, Misses: {})",
                             hit_rate * 100.0,
-                            v9_stats.metrics.hits,
-                            v9_stats.metrics.misses
+                            stats.v9.metrics.hits,
+                            stats.v9.metrics.misses
                         );
                     }
-                    if v9_stats.metrics.collisions > 0 {
-                        println!("    ⚠️  Collisions: {}", v9_stats.metrics.collisions);
+                    if stats.v9.metrics.collisions > 0 {
+                        println!("    ⚠️  Collisions: {}", stats.v9.metrics.collisions);
                     }
                 }
             }
@@ -105,11 +105,11 @@ async fn main() -> io::Result<()> {
             let legacy_sources = parser_lock.legacy_stats();
             if !legacy_sources.is_empty() {
                 println!("\nLegacy Sources (NetFlow v5/v7):");
-                for (addr, v9_stats, _ipfix_stats) in legacy_sources {
+                for (addr, stats) in legacy_sources {
                     println!("\n  {}", addr);
                     println!(
                         "    Templates: {}/{}",
-                        v9_stats.current_size, v9_stats.max_size
+                        stats.v9.current_size, stats.v9.max_size
                     );
                 }
             }

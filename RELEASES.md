@@ -1,4 +1,8 @@
 # 0.8.4
+ * **BREAKING CHANGE:** Replaced tuple returns with named `ParserCacheStats` struct
+   - Functions `get_source_stats()`, `all_stats()`, `ipfix_stats()`, `v9_stats()`, and `legacy_stats()` now return `ParserCacheStats` with `.v9` and `.ipfix` fields instead of `(CacheStats, CacheStats)` tuples
+   - This eliminates ambiguity about which positional element is V9 vs IPFIX
+   - Migration: Replace `(key, v9_stats, ipfix_stats)` destructuring with `(key, stats)` and access `stats.v9` / `stats.ipfix`
  * General code cleanup
  * Performance improvements: Optimized template caching using Arc for reduced cloning and added inlining hints for hot-path functions
  * Fixed CI workflow: cargo-deny/cargo-audit install now skips if binary already exists (prevents cache conflict errors)
