@@ -1,4 +1,4 @@
-use netflow_parser::{NetflowError, NetflowParser};
+use netflow_parser::{NetflowError, NetflowPacket, NetflowParser};
 use std::time::Duration;
 
 /// Test that excessive field counts in V9 templates are rejected
@@ -165,21 +165,25 @@ fn test_template_cache_eviction() {
 
     let result = parser.parse_bytes(&data_packet);
 
-    // Should error because template 256 was evicted
-    assert!(result.error.is_some(), "Should error on missing template");
-
-    // Accept either MissingTemplate or Partial error (both indicate template issue)
-    match result.error {
-        Some(NetflowError::MissingTemplate { .. }) => {
-            println!("Got MissingTemplate error (expected)");
-        }
-        Some(NetflowError::Partial { .. }) => {
-            println!("Got Partial error (acceptable - template missing)");
-        }
-        Some(NetflowError::ParseError { .. }) => {
-            println!("Got ParseError (acceptable - template missing)");
-        }
-        other => println!("Got error: {:?}", other),
+    // Template 256 was evicted, so the data flowset should parse as NoTemplate
+    // (graceful handling instead of a hard error)
+    assert!(
+        result.error.is_none(),
+        "Should not error - missing templates are handled gracefully as NoTemplate"
+    );
+    assert_eq!(result.packets.len(), 1, "Should have one V9 packet");
+    if let NetflowPacket::V9(v9) = &result.packets[0] {
+        assert_eq!(v9.flowsets.len(), 1);
+        assert!(
+            matches!(
+                &v9.flowsets[0].body,
+                netflow_parser::variable_versions::v9::FlowSetBody::NoTemplate(_)
+            ),
+            "Expected NoTemplate for evicted template, got {:?}",
+            v9.flowsets[0].body
+        );
+    } else {
+        panic!("Expected V9 packet");
     }
 }
 
@@ -375,14 +379,28 @@ fn test_template_ttl_expiration() {
     // Wait for TTL to expire
     std::thread::sleep(Duration::from_millis(150));
 
-    // Try to use template again (should fail - expired)
+    // Try to use template again (should produce NoTemplate - expired)
     let result3 = parser.parse_bytes(&data);
 
-    // Should error due to expired template
+    // Expired template should result in NoTemplate (graceful handling)
     assert!(
-        result3.error.is_some(),
-        "Should error when template expired"
+        result3.error.is_none(),
+        "Should not error - expired templates are handled gracefully as NoTemplate"
     );
+    assert_eq!(result3.packets.len(), 1, "Should have one V9 packet");
+    if let NetflowPacket::V9(v9) = &result3.packets[0] {
+        assert_eq!(v9.flowsets.len(), 1);
+        assert!(
+            matches!(
+                &v9.flowsets[0].body,
+                netflow_parser::variable_versions::v9::FlowSetBody::NoTemplate(_)
+            ),
+            "Expected NoTemplate for expired template, got {:?}",
+            v9.flowsets[0].body
+        );
+    } else {
+        panic!("Expected V9 packet");
+    }
 }
 
 /// Test zero-size cache configuration is rejected

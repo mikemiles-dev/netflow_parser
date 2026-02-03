@@ -256,12 +256,59 @@ pub struct FlowSetHeader {
     pub length: u16,
 }
 
+/// Information about a data flowset that couldn't be parsed due to missing template.
+///
+/// This provides context to help diagnose template-related issues.
+#[derive(Debug, Clone, Serialize)]
+pub struct NoTemplateInfo {
+    /// The template ID that was requested but not found
+    pub template_id: u16,
+    /// List of currently available template IDs in the cache
+    pub available_templates: Vec<u16>,
+    /// The unparsed flowset data (for potential retry after template arrives)
+    pub raw_data: Vec<u8>,
+}
+
+impl NoTemplateInfo {
+    /// Create a NoTemplateInfo with available templates from the V9 parser
+    pub fn with_available_templates(
+        template_id: u16,
+        raw_data: Vec<u8>,
+        parser: &V9Parser,
+    ) -> Self {
+        let mut available = Vec::new();
+
+        for (id, _) in parser.templates.iter() {
+            available.push(*id);
+        }
+        for (id, _) in parser.options_templates.iter() {
+            available.push(*id);
+        }
+
+        available.sort_unstable();
+        available.dedup();
+
+        Self {
+            template_id,
+            available_templates: available,
+            raw_data,
+        }
+    }
+}
+
+impl PartialEq for NoTemplateInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.template_id == other.template_id && self.raw_data == other.raw_data
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum FlowSetBody {
     Template(Templates),
     OptionsTemplate(OptionsTemplates),
     Data(Data),
     OptionsData(OptionsData),
+    NoTemplate(NoTemplateInfo),
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -412,10 +459,15 @@ impl FlowSetBody {
 
                 // Template not found or expired
                 parser.metrics.record_miss();
-                Err(nom::Err::Error(nom::error::Error::new(
-                    i,
-                    nom::error::ErrorKind::Verify,
-                )))
+                if id > 255 {
+                    let info = NoTemplateInfo::with_available_templates(id, i.to_vec(), parser);
+                    Ok((i, FlowSetBody::NoTemplate(info)))
+                } else {
+                    Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )))
+                }
             }
         }
     }
@@ -1004,6 +1056,7 @@ impl V9 {
                 FlowSetBody::OptionsTemplate(o) => Self::serialize_options_template_body(o),
                 FlowSetBody::Data(d) => Self::serialize_data_body(d)?,
                 FlowSetBody::OptionsData(o) => Self::serialize_options_data_body(o)?,
+                FlowSetBody::NoTemplate(info) => info.raw_data.clone(),
             };
             result.extend_from_slice(&body_bytes);
         }

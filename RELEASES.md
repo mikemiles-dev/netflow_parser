@@ -1,3 +1,12 @@
+# 0.8.5
+ * **Bug Fix:** V9 data flowsets referencing uncached templates no longer discard the entire packet
+   - Added `NoTemplate(NoTemplateInfo)` variant to V9 `FlowSetBody`, mirroring the existing IPFIX pattern
+   - When a data flowset references a template not yet in cache (ID > 255), it returns `NoTemplate` with the template ID, available template IDs, and raw data preserved for potential retry
+   - Previously, a missing template caused `FlowSetBody::parse` to return `Err`, which propagated through `parse_flowsets`' `try_fold` and discarded all flowsets in the packet — including ones that parsed successfully
+   - Reserved flowset IDs (0–255) still return `Err` as before
+   - Added `NoTemplate` arm to V9 `to_be_bytes` serialization
+ * No breaking changes for existing code — `if let FlowSetBody::Data(data)` patterns naturally skip `NoTemplate`
+
 # 0.8.4
  * **BREAKING CHANGE:** Replaced tuple returns with named `ParserCacheStats` struct
    - Functions `get_source_stats()`, `all_stats()`, `ipfix_stats()`, `v9_stats()`, and `legacy_stats()` now return `ParserCacheStats` with `.v9` and `.ipfix` fields instead of `(CacheStats, CacheStats)` tuples

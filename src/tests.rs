@@ -554,6 +554,228 @@ mod base_tests {
     }
 
     #[test]
+    fn v9_missing_template_returns_no_template() {
+        use crate::variable_versions::v9::{FlowSetBody as V9FlowSetBody, V9Parser};
+
+        // V9 packet with 1 data flowset referencing template 256 (no template cached)
+        // V9Parser::parse receives bytes WITHOUT the 2-byte version prefix (already stripped
+        // by NetflowParser). Header fields parsed: count, sys_up_time, unix_secs, seq, source_id.
+        // Header (no version): count=1, sys_up_time=0, unix_secs=0, seq=1, source_id=1
+        // FlowSet: id=256 (0x0100), length=12 (header 4 + data 8)
+        // Data: 8 bytes of raw data (0x0102030405060708)
+        let hex = "0001000000000000000000000001000000010100000c0102030405060708";
+
+        let mut parser = V9Parser::default();
+        let packet = hex::decode(hex).unwrap();
+
+        let result = parser.parse(&packet);
+        match result {
+            crate::ParsedNetflow::Success { packet, .. } => {
+                if let crate::NetflowPacket::V9(v9) = packet {
+                    assert_eq!(v9.flowsets.len(), 1);
+                    match &v9.flowsets[0].body {
+                        V9FlowSetBody::NoTemplate(info) => {
+                            assert_eq!(info.template_id, 256);
+                            assert!(info.available_templates.is_empty());
+                            assert_eq!(info.raw_data, vec![1, 2, 3, 4, 5, 6, 7, 8]);
+                        }
+                        other => panic!("Expected NoTemplate, got {:?}", other),
+                    }
+                    // Verify cache miss was recorded
+                    assert_eq!(parser.metrics.snapshot().misses, 1);
+                } else {
+                    panic!("Expected V9 packet");
+                }
+            }
+            other => panic!("Expected Success, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn v9_mixed_flowsets_with_missing_template() {
+        use crate::variable_versions::v9::{FlowSetBody as V9FlowSetBody, V9Parser};
+
+        // V9Parser::parse receives bytes WITHOUT the 2-byte version prefix.
+        // Template flowset defining template 256 with 2 fields:
+        //   field 8 (Ipv4SrcAddr) length 4, field 12 (Ipv4DstAddr) length 4
+        // Plus data flowset for template 256 with known data
+        // Plus data flowset for template 257 (unknown)
+        //
+        // Header (no version): count=3, sys_up_time=0, unix_secs=0, seq=1, source_id=1
+        let v9_header = "000300000000000000000000000100000001";
+
+        // Template FlowSet: id=0, length=16 (4 header + 12 template content)
+        //   template_id=256, field_count=2
+        //   field 8 (Ipv4SrcAddr) len 4, field 12 (Ipv4DstAddr) len 4
+        let template_flowset = "000000100100000200080004000c0004";
+
+        // Data FlowSet for template 256: id=256, length=12 (4 header + 8 data)
+        //   src=192.168.1.1 (c0a80101), dst=192.168.1.2 (c0a80102)
+        let data_flowset_256 = "0100000cc0a80101c0a80102";
+
+        // Data FlowSet for template 257 (unknown): id=257, length=8 (4 header + 4 data)
+        let data_flowset_257 = "010100080a0b0c0d";
+
+        let hex = format!(
+            "{}{}{}{}",
+            v9_header, template_flowset, data_flowset_256, data_flowset_257
+        );
+
+        let mut parser = V9Parser::default();
+        let packet = hex::decode(hex).unwrap();
+
+        let result = parser.parse(&packet);
+        match result {
+            crate::ParsedNetflow::Success { packet, .. } => {
+                if let crate::NetflowPacket::V9(v9) = packet {
+                    assert_eq!(v9.flowsets.len(), 3);
+
+                    // First flowset: Template
+                    assert!(
+                        matches!(&v9.flowsets[0].body, V9FlowSetBody::Template(_)),
+                        "Expected Template, got {:?}",
+                        v9.flowsets[0].body
+                    );
+
+                    // Second flowset: Data (template 256 is known)
+                    assert!(
+                        matches!(&v9.flowsets[1].body, V9FlowSetBody::Data(_)),
+                        "Expected Data, got {:?}",
+                        v9.flowsets[1].body
+                    );
+
+                    // Third flowset: NoTemplate (template 257 is unknown)
+                    match &v9.flowsets[2].body {
+                        V9FlowSetBody::NoTemplate(info) => {
+                            assert_eq!(info.template_id, 257);
+                            assert_eq!(info.raw_data, vec![0x0a, 0x0b, 0x0c, 0x0d]);
+                            // Template 256 should be in available_templates
+                            assert!(info.available_templates.contains(&256));
+                        }
+                        other => panic!("Expected NoTemplate, got {:?}", other),
+                    }
+                } else {
+                    panic!("Expected V9 packet");
+                }
+            }
+            other => panic!("Expected Success, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn v9_template_arrives_after_data() {
+        use crate::variable_versions::v9::{FlowSetBody as V9FlowSetBody, V9Parser};
+
+        let mut parser = V9Parser::default();
+
+        // V9Parser::parse receives bytes WITHOUT the 2-byte version prefix.
+        // Packet 1: Data flowset referencing template 256 (not yet cached)
+        // Header (no version): count=1, sys_up_time=0, unix_secs=0, seq=1, source_id=1
+        // Flowset: id=256, len=12, data=8 bytes
+        let hex1 = [
+            "000100000000000000000000000100000001", // header
+            "0100000c",                             // flowset: id=256, len=12
+            "c0a80101c0a80102",                     // 8 bytes data
+        ]
+        .concat();
+
+        let packet1 = hex::decode(&hex1).unwrap();
+        let result1 = parser.parse(&packet1);
+        match result1 {
+            crate::ParsedNetflow::Success { packet, .. } => {
+                if let crate::NetflowPacket::V9(v9) = packet {
+                    assert_eq!(v9.flowsets.len(), 1);
+                    assert!(
+                        matches!(&v9.flowsets[0].body, V9FlowSetBody::NoTemplate(_)),
+                        "Expected NoTemplate, got {:?}",
+                        v9.flowsets[0].body
+                    );
+                } else {
+                    panic!("Expected V9 packet");
+                }
+            }
+            other => panic!("Expected Success, got {:?}", other),
+        }
+
+        // Packet 2: Template flowset defining template 256
+        // Header (no version): count=1, sys_up_time=0, unix_secs=0, seq=2, source_id=1
+        let hex2 = [
+            "000100000000000000000000000200000001", // header
+            "00000010",                             // flowset: id=0, len=16
+            "01000002",                             // template_id=256, field_count=2
+            "00080004",                             // field 8 (Ipv4SrcAddr), len 4
+            "000c0004",                             // field 12 (Ipv4DstAddr), len 4
+        ]
+        .concat();
+
+        let packet2 = hex::decode(&hex2).unwrap();
+        let _result2 = parser.parse(&packet2);
+
+        // Packet 3: Same data flowset, now should parse as Data
+        // Header (no version): count=1, sys_up_time=0, unix_secs=0, seq=3, source_id=1
+        let hex3 = [
+            "000100000000000000000000000300000001", // header
+            "0100000c",                             // flowset: id=256, len=12
+            "c0a80101c0a80102",                     // 8 bytes data
+        ]
+        .concat();
+
+        let packet3 = hex::decode(&hex3).unwrap();
+        let result3 = parser.parse(&packet3);
+        match result3 {
+            crate::ParsedNetflow::Success { packet, .. } => {
+                if let crate::NetflowPacket::V9(v9) = packet {
+                    assert_eq!(v9.flowsets.len(), 1);
+                    assert!(
+                        matches!(&v9.flowsets[0].body, V9FlowSetBody::Data(_)),
+                        "Expected Data, got {:?}",
+                        v9.flowsets[0].body
+                    );
+                } else {
+                    panic!("Expected V9 packet");
+                }
+            }
+            other => panic!("Expected Success, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn v9_no_template_info_equality() {
+        use crate::variable_versions::v9::NoTemplateInfo;
+
+        let info1 = NoTemplateInfo {
+            template_id: 256,
+            available_templates: vec![300, 400],
+            raw_data: vec![1, 2, 3, 4],
+        };
+
+        let info2 = NoTemplateInfo {
+            template_id: 256,
+            available_templates: vec![], // different available_templates
+            raw_data: vec![1, 2, 3, 4],
+        };
+
+        let info3 = NoTemplateInfo {
+            template_id: 257, // different template_id
+            available_templates: vec![300, 400],
+            raw_data: vec![1, 2, 3, 4],
+        };
+
+        let info4 = NoTemplateInfo {
+            template_id: 256,
+            available_templates: vec![300, 400],
+            raw_data: vec![5, 6, 7, 8], // different raw_data
+        };
+
+        // Custom PartialEq ignores available_templates
+        assert_eq!(info1, info2);
+        // Different template_id -> not equal
+        assert_ne!(info1, info3);
+        // Different raw_data -> not equal
+        assert_ne!(info1, info4);
+    }
+
+    #[test]
     fn test_ipfix_template_validation_duplicate_fields() {
         use crate::variable_versions::ipfix::{IPFixParser, Template, TemplateField};
 
