@@ -151,7 +151,10 @@ mod base_tests {
 
     #[test]
     fn can_read_ipfix_template() {
-        let hex = "000a003062a0b1b9000000086c6a7e110001002400030008000100040002000400090001000d00010004000400080004000c00040005000100060001";
+        // Valid IPFIX template packet: Set ID=2 (IPFIX Template), template_id=256,
+        // 3 fields: sourceIPv4Address(8) len 4, destinationIPv4Address(12) len 4,
+        // protocolIdentifier(4) len 1.
+        let hex = "000a002462a0b1b9000000086c6a7e11000200140100000300080004000c000400040001";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
@@ -161,9 +164,11 @@ mod base_tests {
         let packet = hex::decode(hex).unwrap();
         let ipfix = parser.parse_bytes(&packet).packets;
         if let Some(NetflowPacket::IPFix(ipfix_packet)) = ipfix.first() {
+            assert!(
+                !ipfix_packet.flowsets.is_empty(),
+                "Parsed IPFIX packet should contain at least one flowset"
+            );
             assert_yaml_snapshot!(ipfix_packet.to_be_bytes().unwrap());
-            // Just check that serialization works, don't assert equality
-            // as the bytes may differ slightly due to padding or field ordering
         } else {
             panic!("Packet is not IPFix");
         }
@@ -378,6 +383,7 @@ mod base_tests {
             max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
+            pending_flows_config: None,
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -397,6 +403,7 @@ mod base_tests {
             max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
+            pending_flows_config: None,
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -439,6 +446,7 @@ mod base_tests {
             max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
+            pending_flows_config: None,
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -481,6 +489,7 @@ mod base_tests {
             max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
+            pending_flows_config: None,
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -523,6 +532,7 @@ mod base_tests {
             max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
+            pending_flows_config: None,
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -564,6 +574,7 @@ mod base_tests {
             max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
+            pending_flows_config: None,
         };
 
         let parser = IPFixParser::try_new(config).unwrap();
@@ -608,6 +619,7 @@ mod base_tests {
             max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
+            pending_flows_config: None,
         };
 
         let parser = IPFixParser::try_new(config).unwrap();
