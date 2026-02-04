@@ -1,3 +1,31 @@
+# 0.9.0
+
+ * **New Feature: Pending Flow Caching**
+   - Flows arriving before their template are now cached and automatically replayed when the template arrives
+   - Configurable LRU cache with optional TTL expiration per pending entry
+   - Disabled by default; enable via builder: `with_pending_flows()`, `with_v9_pending_flows()`, or `with_ipfix_pending_flows()`
+   - New `PendingFlowsConfig` struct for controlling `max_pending_flows` (default 256), `max_entries_per_template` (default 1024), `max_entry_size_bytes` (default 65535), and `ttl`
+   - Pending flow metrics tracked: `pending_cached`, `pending_replayed`, `pending_dropped`, `pending_replay_failed`
+   - New methods: `clear_v9_pending_flows()`, `clear_ipfix_pending_flows()`
+   - When caching is enabled, successfully-cached `NoTemplate` flowsets are removed from the parsed output; entries dropped by the cache (size/cap/LRU limits) keep their `NoTemplate` flowset in the output for diagnostics
+   - Oversized flowset bodies (exceeding `max_entry_size_bytes`) are truncated to `max_error_sample_size` at parse time, avoiding a full allocation before the cache can reject them
+
+ * **Security:** `NoTemplate` raw_data is truncated to `max_error_sample_size` when pending flow caching is disabled
+   - Prevents large allocations from missing-template traffic when caching is not in use
+   - Full raw data is only retained when pending flow caching is enabled and the entry is within `max_entry_size_bytes`
+
+ * **Fix:** `to_be_bytes()` now recomputes header length/count from actually-serialized flowsets
+   - V9 `header.count` and IPFIX `header.length` are written based on emitted flowsets, not the struct field
+   - Previously, skipped `NoTemplate`/`Empty` flowsets caused a mismatch between the header and serialized body
+   - Returns an error if V9 flowset count or IPFIX message length exceeds `u16::MAX`, instead of silently truncating
+   - IPFIX `serialize_flowset_body()` now handles all `FlowSetBody` variants (`V9Templates`, `OptionsTemplates`, `V9OptionsTemplates`); previously these fell through to a catch-all that produced empty bodies
+
+ * **BREAKING CHANGES:**
+   - **V9 `FlowSetBody`** gains a `NoTemplate(NoTemplateInfo)` variant. V9 now continues parsing remaining flowsets when a template is missing, matching IPFIX behavior. Previously, a missing template would stop parsing the entire packet. Code with exhaustive `match` on `v9::FlowSetBody` must add a `NoTemplate(_)` arm.
+   - **`ConfigError`** gains an `InvalidPendingCacheSize(usize)` variant, returned when `PendingFlowsConfig::max_pending_flows` is 0. Exhaustive matches on `ConfigError` must add this arm.
+   - **`CacheStats`** gains a `pending_flow_count: usize` field. Code that destructures `CacheStats` must include the new field (or use `..`).
+   - **`CacheMetrics`** and **`CacheMetricsSnapshot`** gain four fields: `pending_cached`, `pending_replayed`, `pending_dropped`, `pending_replay_failed`. Code that destructures either struct must include the new fields (or use `..`).
+
 # 0.8.4
  * **BREAKING CHANGE:** Replaced tuple returns with named `ParserCacheStats` struct
    - Functions `get_source_stats()`, `all_stats()`, `ipfix_stats()`, `v9_stats()`, and `legacy_stats()` now return `ParserCacheStats` with `.v9` and `.ipfix` fields instead of `(CacheStats, CacheStats)` tuples

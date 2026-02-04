@@ -19,6 +19,7 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
 - [Parser Configuration](#parser-configuration)
   - [Template Cache Size](#template-cache-size)
   - [Template TTL (Time-to-Live)](#template-ttl-time-to-live)
+  - [Pending Flow Caching](#pending-flow-caching)
   - [Filtering Versions](#filtering-versions)
   - [Error Handling Configuration](#error-handling-configuration)
   - [Custom Enterprise Fields (IPFIX)](#custom-enterprise-fields-ipfix)
@@ -351,6 +352,87 @@ let parser = NetflowParser::builder()
     .build()
     .unwrap();
 ```
+
+### Pending Flow Caching
+
+When using template-based protocols (V9/IPFIX), data packets sometimes arrive before their corresponding template. By default these flows are reported as `NoTemplate` and lost. With pending flow caching enabled, these flows are automatically cached and replayed when the template arrives.
+
+**Disabled by default.** Enable via the builder pattern:
+
+```rust
+use netflow_parser::NetflowParser;
+use netflow_parser::PendingFlowsConfig;
+use std::time::Duration;
+
+// Enable for both V9 and IPFIX with defaults (256 template ID slots, no TTL)
+let parser = NetflowParser::builder()
+    .with_pending_flows(PendingFlowsConfig::default())
+    .build()
+    .unwrap();
+
+// Custom configuration with TTL
+let parser = NetflowParser::builder()
+    .with_pending_flows(PendingFlowsConfig::with_ttl(
+        512,                            // Max pending template IDs
+        Duration::from_secs(30),        // Pending flow TTL
+    ))
+    .build()
+    .unwrap();
+
+// Enable for V9 only or IPFIX only
+let parser = NetflowParser::builder()
+    .with_v9_pending_flows(PendingFlowsConfig::default())
+    .build()
+    .unwrap();
+```
+
+**How it works:**
+1. When a data flowset arrives without a matching template, its raw data is cached in an LRU cache keyed by template ID
+2. When a template packet arrives, any pending flows matching the new template are automatically re-parsed
+3. The replayed flows are appended to the output flowsets of the **same `parse_bytes()` call** that delivered the template
+
+```rust
+use netflow_parser::{NetflowParser, NetflowPacket, PendingFlowsConfig};
+
+let mut parser = NetflowParser::builder()
+    .with_pending_flows(PendingFlowsConfig::default())
+    .build()
+    .unwrap();
+
+// First call: data arrives before its template.
+// The raw bytes are cached; no data flowsets in the output.
+let data_packet: &[u8] = &[/* V9/IPFIX data referencing template 256 */];
+let result1 = parser.parse_bytes(data_packet);
+
+// Second call: the template arrives.
+// Pending flows are replayed and appear alongside the template
+// in this same result.
+let template_packet: &[u8] = &[/* V9/IPFIX template defining 256 */];
+let result2 = parser.parse_bytes(template_packet);
+for packet in &result2.packets {
+    match packet {
+        NetflowPacket::V9(v9) => {
+            // v9.flowsets contains the template AND the replayed data
+            println!("V9 flowsets: {}", v9.flowsets.len());
+        }
+        NetflowPacket::IPFix(ipfix) => {
+            // ipfix.flowsets contains the template AND the replayed data
+            println!("IPFIX flowsets: {}", ipfix.flowsets.len());
+        }
+        _ => {}
+    }
+}
+```
+
+**Configuration options:**
+- `max_pending_flows` - Maximum number of template IDs to track in the LRU cache (default: 256)
+- `max_entries_per_template` - Maximum number of pending flow entries per template ID, preventing unbounded memory growth (default: 1024)
+- `max_entry_size_bytes` - Maximum size in bytes of a single pending flow entry's raw data. Entries exceeding this limit are dropped to prevent memory exhaustion from oversized flowset bodies (default: 65535)
+- `ttl` - Optional TTL for pending flows. `None` means flows never expire (only evicted by LRU or per-template cap)
+
+**Notes:**
+- Scoped parsers (`AutoScopedParser`, `RouterScopedParser`) inherit the pending flows configuration from the builder
+- Pending flow metrics (`pending_cached`, `pending_replayed`, `pending_dropped`, `pending_replay_failed`) are available via `CacheStats`
 
 ### Filtering Versions
 

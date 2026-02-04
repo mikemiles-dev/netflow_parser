@@ -30,6 +30,14 @@ pub struct CacheMetrics {
     pub insertions: AtomicU64,
     /// Number of template ID collisions (same ID, different definition)
     pub collisions: AtomicU64,
+    /// Number of flows cached as pending (awaiting template)
+    pub pending_cached: AtomicU64,
+    /// Number of pending flows successfully replayed after template arrived
+    pub pending_replayed: AtomicU64,
+    /// Number of pending flows dropped (expired or evicted)
+    pub pending_dropped: AtomicU64,
+    /// Number of pending flows that failed to replay (parse error after template arrived)
+    pub pending_replay_failed: AtomicU64,
 }
 
 impl CacheMetrics {
@@ -74,6 +82,30 @@ impl CacheMetrics {
         self.collisions.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Record a flow cached as pending (awaiting template)
+    #[inline]
+    pub fn record_pending_cached(&self) {
+        self.pending_cached.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record a pending flow successfully replayed
+    #[inline]
+    pub fn record_pending_replayed(&self) {
+        self.pending_replayed.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record a pending flow dropped (expired or evicted)
+    #[inline]
+    pub fn record_pending_dropped(&self) {
+        self.pending_dropped.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record a pending flow that failed to replay (parse error)
+    #[inline]
+    pub fn record_pending_replay_failed(&self) {
+        self.pending_replay_failed.fetch_add(1, Ordering::Relaxed);
+    }
+
     /// Get a snapshot of current metrics
     pub fn snapshot(&self) -> CacheMetricsSnapshot {
         CacheMetricsSnapshot {
@@ -83,6 +115,10 @@ impl CacheMetrics {
             expired: self.expired.load(Ordering::Relaxed),
             insertions: self.insertions.load(Ordering::Relaxed),
             collisions: self.collisions.load(Ordering::Relaxed),
+            pending_cached: self.pending_cached.load(Ordering::Relaxed),
+            pending_replayed: self.pending_replayed.load(Ordering::Relaxed),
+            pending_dropped: self.pending_dropped.load(Ordering::Relaxed),
+            pending_replay_failed: self.pending_replay_failed.load(Ordering::Relaxed),
         }
     }
 
@@ -94,6 +130,10 @@ impl CacheMetrics {
         self.expired.store(0, Ordering::Relaxed);
         self.insertions.store(0, Ordering::Relaxed);
         self.collisions.store(0, Ordering::Relaxed);
+        self.pending_cached.store(0, Ordering::Relaxed);
+        self.pending_replayed.store(0, Ordering::Relaxed);
+        self.pending_dropped.store(0, Ordering::Relaxed);
+        self.pending_replay_failed.store(0, Ordering::Relaxed);
     }
 }
 
@@ -115,6 +155,14 @@ pub struct CacheMetricsSnapshot {
     pub insertions: u64,
     /// Number of template ID collisions (same ID, different definition)
     pub collisions: u64,
+    /// Number of flows cached as pending (awaiting template)
+    pub pending_cached: u64,
+    /// Number of pending flows successfully replayed after template arrived
+    pub pending_replayed: u64,
+    /// Number of pending flows dropped (expired or evicted)
+    pub pending_dropped: u64,
+    /// Number of pending flows that failed to replay (parse error after template arrived)
+    pub pending_replay_failed: u64,
 }
 
 impl CacheMetricsSnapshot {

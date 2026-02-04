@@ -10,7 +10,7 @@ use super::data_number::FieldValue;
 use super::enterprise_registry::EnterpriseFieldRegistry;
 use super::metrics::CacheMetrics;
 use super::ttl::{TemplateWithTtl, TtlConfig};
-use super::{Config, ParserConfig};
+use super::{Config, ParserConfig, PendingFlowCache, PendingFlowEntry, PendingFlowsConfig};
 use crate::variable_versions::ConfigError;
 use crate::variable_versions::ipfix_lookup::IPFixField;
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
@@ -79,6 +79,8 @@ pub struct IPFixParser {
     pub enterprise_registry: EnterpriseFieldRegistry,
     /// Cache performance metrics
     pub metrics: CacheMetrics,
+    /// Pending flow cache for flows awaiting their template
+    pub(crate) pending_flows: Option<PendingFlowCache>,
 }
 
 impl Default for IPFixParser {
@@ -91,6 +93,7 @@ impl Default for IPFixParser {
             max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
+            pending_flows_config: None,
         };
 
         Self::try_new(config).unwrap()
@@ -110,6 +113,11 @@ impl IPFixParser {
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
         )?;
 
+        let pending_flows = config
+            .pending_flows_config
+            .map(PendingFlowCache::new)
+            .transpose()?;
+
         Ok(Self {
             templates: LruCache::new(cache_size),
             v9_templates: LruCache::new(cache_size),
@@ -122,6 +130,7 @@ impl IPFixParser {
             max_error_sample_size: config.max_error_sample_size,
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetrics::new(),
+            pending_flows,
         })
     }
 }
@@ -138,6 +147,7 @@ impl ParserConfig for IPFixParser {
         self.max_template_total_size = config.max_template_total_size;
         self.max_error_sample_size = config.max_error_sample_size;
         self.ttl_config = config.ttl_config;
+        self.set_pending_flows_config(config.pending_flows_config)?;
 
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
@@ -159,6 +169,25 @@ impl ParserConfig for IPFixParser {
         Ok(())
     }
 
+    fn set_pending_flows_config(
+        &mut self,
+        config: Option<PendingFlowsConfig>,
+    ) -> Result<(), ConfigError> {
+        match config {
+            Some(pf_config) => {
+                if let Some(ref mut cache) = self.pending_flows {
+                    cache.resize(pf_config, &self.metrics)?;
+                } else {
+                    self.pending_flows = Some(PendingFlowCache::new(pf_config)?);
+                }
+            }
+            None => {
+                self.pending_flows = None;
+            }
+        }
+        Ok(())
+    }
+
     fn resize_template_caches(&mut self, cache_size: NonZeroUsize) {
         self.templates.resize(cache_size);
         self.v9_templates.resize(cache_size);
@@ -170,15 +199,252 @@ impl ParserConfig for IPFixParser {
 impl IPFixParser {
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match IPFix::parse(packet, self) {
-            Ok((remaining, ipfix)) => ParsedNetflow::Success {
-                packet: NetflowPacket::IPFix(ipfix),
-                remaining,
-            },
+            Ok((remaining, mut ipfix)) => {
+                self.process_pending_flows(&mut ipfix);
+                ParsedNetflow::Success {
+                    packet: NetflowPacket::IPFix(ipfix),
+                    remaining,
+                }
+            }
             Err(e) => ParsedNetflow::Error {
                 error: NetflowError::Partial {
                     message: format!("IPFIX parse error: {}", e),
                 },
             },
+        }
+    }
+
+    fn process_pending_flows(&mut self, ipfix: &mut IPFix) {
+        let Some(mut pending_cache) = self.pending_flows.take() else {
+            return;
+        };
+        let learned = Self::cache_notemplate_ipfix_flowsets(
+            ipfix,
+            &mut pending_cache,
+            &self.metrics,
+            self.max_error_sample_size,
+        );
+        self.replay_ipfix_pending_flows(ipfix, &mut pending_cache, &learned);
+        self.pending_flows = Some(pending_cache);
+    }
+
+    /// Single pass: cache NoTemplate raw data, collect learned template IDs,
+    /// remove successfully-cached flowsets, and adjust header.length.
+    fn cache_notemplate_ipfix_flowsets(
+        ipfix: &mut IPFix,
+        cache: &mut PendingFlowCache,
+        metrics: &CacheMetrics,
+        max_error_sample_size: usize,
+    ) -> Vec<u16> {
+        let mut learned_template_ids: Vec<u16> = Vec::new();
+        let mut remove_mask: Vec<bool> = vec![false; ipfix.flowsets.len()];
+        for (i, flowset) in ipfix.flowsets.iter_mut().enumerate() {
+            match &mut flowset.body {
+                FlowSetBody::NoTemplate(info) => {
+                    // If raw_data was truncated at parse time (oversized
+                    // entry), skip caching — the data can't be replayed.
+                    let body_len = (flowset.header.length as usize).saturating_sub(4);
+                    if info.raw_data.len() < body_len {
+                        metrics.record_pending_dropped();
+                        continue;
+                    }
+                    let raw_data = std::mem::take(&mut info.raw_data);
+                    if let Some(mut returned) = cache.cache(info.template_id, raw_data, metrics)
+                    {
+                        // Truncate rejected data to diagnostic size so
+                        // callers don't hold the full (potentially large)
+                        // buffer that was not cached.
+                        returned.truncate(max_error_sample_size);
+                        info.raw_data = returned;
+                    } else {
+                        remove_mask[i] = true;
+                    }
+                }
+                FlowSetBody::Template(t) => {
+                    learned_template_ids.push(t.template_id);
+                }
+                FlowSetBody::Templates(ts) => {
+                    for t in ts.iter() {
+                        learned_template_ids.push(t.template_id);
+                    }
+                }
+                FlowSetBody::V9Template(t) => {
+                    learned_template_ids.push(t.template_id);
+                }
+                FlowSetBody::V9Templates(ts) => {
+                    for t in ts.iter() {
+                        learned_template_ids.push(t.template_id);
+                    }
+                }
+                FlowSetBody::OptionsTemplate(t) => {
+                    learned_template_ids.push(t.template_id);
+                }
+                FlowSetBody::OptionsTemplates(ts) => {
+                    for t in ts.iter() {
+                        learned_template_ids.push(t.template_id);
+                    }
+                }
+                FlowSetBody::V9OptionsTemplate(t) => {
+                    learned_template_ids.push(t.template_id);
+                }
+                FlowSetBody::V9OptionsTemplates(ts) => {
+                    for t in ts.iter() {
+                        learned_template_ids.push(t.template_id);
+                    }
+                }
+                _ => {}
+            }
+        }
+        // Subtract lengths of cached flowsets from header, then remove them.
+        for (i, fs) in ipfix.flowsets.iter().enumerate() {
+            if remove_mask[i] {
+                ipfix.header.length = ipfix.header.length.saturating_sub(fs.header.length);
+            }
+        }
+        let mut mask_iter = remove_mask.into_iter();
+        ipfix
+            .flowsets
+            .retain(|_| !mask_iter.next().unwrap_or(false));
+        learned_template_ids
+    }
+
+    /// Replay pending flows for each newly learned template.
+    fn replay_ipfix_pending_flows(
+        &mut self,
+        ipfix: &mut IPFix,
+        cache: &mut PendingFlowCache,
+        learned: &[u16],
+    ) {
+        for &template_id in learned {
+            for entry in cache.drain(template_id, &self.metrics) {
+                let flowset_length =
+                    u16::try_from(entry.raw_data.len().saturating_add(4)).unwrap_or(u16::MAX);
+                let Some(new_header_length) = ipfix.header.length.checked_add(flowset_length)
+                else {
+                    self.metrics.record_pending_replay_failed();
+                    continue;
+                };
+                if self.try_replay_ipfix_flow(&mut ipfix.flowsets, template_id, &entry) {
+                    self.metrics.record_pending_replayed();
+                    ipfix.header.length = new_header_length;
+                } else {
+                    self.metrics.record_pending_replay_failed();
+                }
+            }
+        }
+    }
+
+    /// Try to replay a pending flow entry using available templates.
+    fn try_replay_ipfix_flow(
+        &mut self,
+        flowsets: &mut Vec<FlowSet>,
+        template_id: u16,
+        entry: &PendingFlowEntry,
+    ) -> bool {
+        // Try IPFIX templates
+        if let Some(template) = IPFixParser::get_valid_template(
+            &mut self.templates,
+            &template_id,
+            &self.ttl_config,
+            &mut self.metrics,
+        ) && let Ok((_, data)) =
+            Data::parse_with_registry(&entry.raw_data, &template, &self.enterprise_registry)
+        {
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    header_id: template_id,
+                    length: u16::try_from(entry.raw_data.len())
+                        .unwrap_or(u16::MAX)
+                        .saturating_add(4),
+                },
+                body: FlowSetBody::Data(data),
+            });
+            return true;
+        }
+
+        // Try IPFIX options templates
+        if let Some(template) = IPFixParser::get_valid_template(
+            &mut self.ipfix_options_templates,
+            &template_id,
+            &self.ttl_config,
+            &mut self.metrics,
+        ) && let Ok((_, data)) = OptionsData::parse_with_registry(
+            &entry.raw_data,
+            &template,
+            &self.enterprise_registry,
+        ) {
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    header_id: template_id,
+                    length: u16::try_from(entry.raw_data.len())
+                        .unwrap_or(u16::MAX)
+                        .saturating_add(4),
+                },
+                body: FlowSetBody::OptionsData(data),
+            });
+            return true;
+        }
+
+        // Try V9 templates
+        if let Some(template) = IPFixParser::get_valid_template(
+            &mut self.v9_templates,
+            &template_id,
+            &self.ttl_config,
+            &mut self.metrics,
+        ) && let Ok((_, data)) = V9Data::parse(&entry.raw_data, &template)
+        {
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    header_id: template_id,
+                    length: u16::try_from(entry.raw_data.len())
+                        .unwrap_or(u16::MAX)
+                        .saturating_add(4),
+                },
+                body: FlowSetBody::V9Data(data),
+            });
+            return true;
+        }
+
+        // Try V9 options templates
+        if let Some(template) = IPFixParser::get_valid_template(
+            &mut self.v9_options_templates,
+            &template_id,
+            &self.ttl_config,
+            &mut self.metrics,
+        ) && let Ok((_, data)) = V9OptionsData::parse(&entry.raw_data, &template)
+        {
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    header_id: template_id,
+                    length: u16::try_from(entry.raw_data.len())
+                        .unwrap_or(u16::MAX)
+                        .saturating_add(4),
+                },
+                body: FlowSetBody::V9OptionsData(data),
+            });
+            return true;
+        }
+
+        false
+    }
+
+    /// Returns whether pending flow caching is enabled.
+    pub fn pending_flows_enabled(&self) -> bool {
+        self.pending_flows.is_some()
+    }
+
+    /// Returns the total number of pending flow entries across all template IDs.
+    pub fn pending_flow_count(&self) -> usize {
+        self.pending_flows
+            .as_ref()
+            .map(|cache| cache.count())
+            .unwrap_or(0)
+    }
+
+    /// Clear all pending flows.
+    pub fn clear_pending_flows(&mut self) {
+        if let Some(ref mut cache) = self.pending_flows {
+            cache.clear();
         }
     }
 
@@ -558,7 +824,19 @@ impl FlowSetBody {
                 // Template not found or expired
                 parser.metrics.record_miss();
                 if id > 255 {
-                    let info = NoTemplateInfo::with_available_templates(id, i.to_vec(), parser);
+                    // Store full raw data only when the pending cache is
+                    // enabled, the entry fits the size limit, AND the
+                    // per-template cap has room.  Otherwise truncate to
+                    // max_error_sample_size to avoid large allocations
+                    // that would be immediately rejected.
+                    let raw_data = if parser.pending_flows.as_ref().is_some_and(|c| {
+                        i.len() <= c.max_entry_size_bytes() && c.would_accept(id)
+                    }) {
+                        i.to_vec()
+                    } else {
+                        i[..i.len().min(parser.max_error_sample_size)].to_vec()
+                    };
+                    let info = NoTemplateInfo::with_available_templates(id, raw_data, parser);
                     Ok((i, FlowSetBody::NoTemplate(info)))
                 } else {
                     Err(nom::Err::Error(nom::error::Error::new(
@@ -1043,6 +1321,51 @@ impl IPFix {
                 }
                 Ok(result)
             }
+            FlowSetBody::V9Templates(templates) => {
+                let mut result = Vec::new();
+                for template in templates.iter() {
+                    result.extend_from_slice(&template.template_id.to_be_bytes());
+                    result.extend_from_slice(&template.field_count.to_be_bytes());
+                    for field in template.fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                    }
+                }
+                Ok(result)
+            }
+            FlowSetBody::OptionsTemplates(templates) => {
+                let mut result = Vec::new();
+                for template in templates.iter() {
+                    result.extend_from_slice(&template.template_id.to_be_bytes());
+                    result.extend_from_slice(&template.field_count.to_be_bytes());
+                    result.extend_from_slice(&template.scope_field_count.to_be_bytes());
+                    for field in template.fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                        if let Some(enterprise) = field.enterprise_number {
+                            result.extend_from_slice(&enterprise.to_be_bytes());
+                        }
+                    }
+                }
+                Ok(result)
+            }
+            FlowSetBody::V9OptionsTemplates(templates) => {
+                let mut result = Vec::new();
+                for template in templates.iter() {
+                    result.extend_from_slice(&template.template_id.to_be_bytes());
+                    result.extend_from_slice(&template.options_scope_length.to_be_bytes());
+                    result.extend_from_slice(&template.options_length.to_be_bytes());
+                    for field in template.scope_fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                    }
+                    for field in template.option_fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                    }
+                }
+                Ok(result)
+            }
             FlowSetBody::Data(data) => {
                 let mut data_content = Vec::new();
                 for item in data.fields.iter() {
@@ -1078,63 +1401,105 @@ impl IPFix {
                 Ok(result)
             }
             FlowSetBody::V9Data(data) => {
-                let mut result = Vec::new();
+                let mut data_content = Vec::new();
                 for item in data.fields.iter() {
                     for (_, v) in item.iter() {
-                        result.extend_from_slice(&v.to_be_bytes()?);
+                        data_content.extend_from_slice(&v.to_be_bytes()?);
                     }
                 }
+                let mut result = Vec::new();
+                result.extend_from_slice(&data_content);
+                let padding = if data.padding.is_empty() {
+                    calculate_padding(data_content.len())
+                } else {
+                    data.padding.clone()
+                };
+                result.extend_from_slice(&padding);
                 Ok(result)
             }
             FlowSetBody::V9OptionsData(options_data) => {
-                let mut result = Vec::new();
+                let mut data_content = Vec::new();
                 for options_data_field in options_data.fields.iter() {
                     for field in options_data_field.scope_fields.iter() {
                         match field {
-                            V9ScopeDataField::System(value) => result.extend_from_slice(value),
+                            V9ScopeDataField::System(value) => {
+                                data_content.extend_from_slice(value)
+                            }
                             V9ScopeDataField::Interface(value) => {
-                                result.extend_from_slice(value)
+                                data_content.extend_from_slice(value)
                             }
                             V9ScopeDataField::LineCard(value) => {
-                                result.extend_from_slice(value)
+                                data_content.extend_from_slice(value)
                             }
                             V9ScopeDataField::NetFlowCache(value) => {
-                                result.extend_from_slice(value)
+                                data_content.extend_from_slice(value)
                             }
                             V9ScopeDataField::Template(value) => {
-                                result.extend_from_slice(value)
+                                data_content.extend_from_slice(value)
                             }
                         }
                     }
                     for options_field in options_data_field.options_fields.iter() {
                         for (_field_type, field_value) in options_field.iter() {
-                            result.extend_from_slice(&field_value.to_be_bytes()?);
+                            data_content.extend_from_slice(&field_value.to_be_bytes()?);
                         }
                     }
                 }
+                let mut result = Vec::new();
+                result.extend_from_slice(&data_content);
+                result.extend_from_slice(&calculate_padding(data_content.len()));
                 Ok(result)
             }
-            _ => Ok(Vec::new()),
+            FlowSetBody::NoTemplate(_) | FlowSetBody::Empty => {
+                Err("serialize_flowset_body called with NoTemplate or Empty variant".into())
+            }
         }
     }
 
-    /// Convert the IPFix to a `Vec<u8>` of bytes in big-endian order for exporting
+    /// Convert the IPFix to a `Vec<u8>` of bytes in big-endian order for exporting.
+    ///
+    /// `NoTemplate` and `Empty` flowsets are omitted from the output, and
+    /// `header.length` is recomputed to match the actual serialized size.
     pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut result = Vec::new();
 
+        // IPFIX header: version(2) + length(2) + export_time(4) + seq(4) + obs_domain(4) = 16 bytes
         result.extend_from_slice(&self.header.version.to_be_bytes());
-        result.extend_from_slice(&self.header.length.to_be_bytes());
+        result.extend_from_slice(&[0u8; 2]); // placeholder for length
         result.extend_from_slice(&self.header.export_time.to_be_bytes());
         result.extend_from_slice(&self.header.sequence_number.to_be_bytes());
         result.extend_from_slice(&self.header.observation_domain_id.to_be_bytes());
 
         for flow in &self.flowsets {
-            result.extend_from_slice(&flow.header.header_id.to_be_bytes());
-            result.extend_from_slice(&flow.header.length.to_be_bytes());
+            if matches!(&flow.body, FlowSetBody::NoTemplate(_) | FlowSetBody::Empty) {
+                continue;
+            }
 
             let flowset_bytes = Self::serialize_flowset_body(&flow.body)?;
+
+            // Compute set length from actual serialized body instead of
+            // trusting flow.header.length, which can be stale when
+            // padding was auto-calculated or the body was modified.
+            let set_length: u16 = (flowset_bytes.len() + 4).try_into().map_err(|_| {
+                format!(
+                    "IPFIX set body size {} exceeds u16::MAX - 4",
+                    flowset_bytes.len()
+                )
+            })?;
+            result.extend_from_slice(&flow.header.header_id.to_be_bytes());
+            result.extend_from_slice(&set_length.to_be_bytes());
             result.extend_from_slice(&flowset_bytes);
         }
+
+        // Patch header.length with actual serialized size
+        let total_length: u16 = result.len().try_into().map_err(|_| {
+            format!(
+                "IPFIX message size {} exceeds u16::MAX ({})",
+                result.len(),
+                u16::MAX
+            )
+        })?;
+        result[2..4].copy_from_slice(&total_length.to_be_bytes());
 
         Ok(result)
     }

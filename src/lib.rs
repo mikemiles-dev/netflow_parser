@@ -35,6 +35,9 @@ pub use scoped_parser::{
 // Re-export template event types for convenience
 pub use template_events::{TemplateEvent, TemplateHook, TemplateHooks, TemplateProtocol};
 
+// Re-export pending flows config for convenience
+pub use variable_versions::PendingFlowsConfig;
+
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
 pub enum NetflowPacket {
@@ -221,6 +224,8 @@ pub struct CacheStats {
     pub ttl_config: Option<variable_versions::ttl::TtlConfig>,
     /// Performance metrics snapshot
     pub metrics: variable_versions::metrics::CacheMetricsSnapshot,
+    /// Number of flows currently cached as pending (awaiting template)
+    pub pending_flow_count: usize,
 }
 
 /// Combined cache statistics for both V9 and IPFIX template caches.
@@ -549,6 +554,47 @@ impl NetflowParserBuilder {
             self.ipfix_config.enterprise_registry.register(def);
         }
 
+        self
+    }
+
+    /// Enables pending flow caching for both V9 and IPFIX parsers.
+    ///
+    /// When enabled, flows that arrive before their template are cached.
+    /// When the template later arrives, cached flows are automatically
+    /// re-parsed and included in the output.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Pending flows configuration (cache size and optional TTL)
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::{NetflowParser, PendingFlowsConfig};
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .with_pending_flows(PendingFlowsConfig::default())
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_pending_flows(mut self, config: PendingFlowsConfig) -> Self {
+        self.v9_config.pending_flows_config = Some(config.clone());
+        self.ipfix_config.pending_flows_config = Some(config);
+        self
+    }
+
+    /// Enables pending flow caching for the V9 parser only.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_v9_pending_flows(mut self, config: PendingFlowsConfig) -> Self {
+        self.v9_config.pending_flows_config = Some(config);
+        self
+    }
+
+    /// Enables pending flow caching for the IPFIX parser only.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_ipfix_pending_flows(mut self, config: PendingFlowsConfig) -> Self {
+        self.ipfix_config.pending_flows_config = Some(config);
         self
     }
 
@@ -987,6 +1033,7 @@ impl NetflowParser {
             max_size: self.v9_parser.max_template_cache_size,
             ttl_config: self.v9_parser.ttl_config.clone(),
             metrics: self.v9_parser.metrics.snapshot(),
+            pending_flow_count: self.v9_parser.pending_flow_count(),
         }
     }
 
@@ -1010,6 +1057,7 @@ impl NetflowParser {
             max_size: self.ipfix_parser.max_template_cache_size,
             ttl_config: self.ipfix_parser.ttl_config.clone(),
             metrics: self.ipfix_parser.metrics.snapshot(),
+            pending_flow_count: self.ipfix_parser.pending_flow_count(),
         }
     }
 
@@ -1164,6 +1212,16 @@ impl NetflowParser {
         self.ipfix_parser.v9_templates.clear();
         self.ipfix_parser.ipfix_options_templates.clear();
         self.ipfix_parser.v9_options_templates.clear();
+    }
+
+    /// Clears all pending V9 flows.
+    pub fn clear_v9_pending_flows(&mut self) {
+        self.v9_parser.clear_pending_flows();
+    }
+
+    /// Clears all pending IPFIX flows.
+    pub fn clear_ipfix_pending_flows(&mut self) {
+        self.ipfix_parser.clear_pending_flows();
     }
 
     /// Triggers template event hooks.
