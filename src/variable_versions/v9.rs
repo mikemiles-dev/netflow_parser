@@ -8,7 +8,9 @@ use super::data_number::FieldValue;
 use super::enterprise_registry::EnterpriseFieldRegistry;
 use super::metrics::CacheMetrics;
 use super::ttl::{TemplateWithTtl, TtlConfig};
-use super::{Config, ConfigError, ParserConfig};
+use super::{
+    Config, ConfigError, ParserConfig, PendingFlowCache, PendingFlowEntry, PendingFlowsConfig,
+};
 use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
@@ -68,6 +70,8 @@ pub struct V9Parser {
     pub enterprise_registry: EnterpriseFieldRegistry,
     /// Cache performance metrics
     pub metrics: CacheMetrics,
+    /// Pending flow cache for flows awaiting their template
+    pub(crate) pending_flows: Option<PendingFlowCache>,
 }
 
 impl Default for V9Parser {
@@ -80,6 +84,7 @@ impl Default for V9Parser {
             max_error_sample_size: 256,
             ttl_config: None,
             enterprise_registry: super::enterprise_registry::EnterpriseFieldRegistry::new(),
+            pending_flows_config: None,
         };
 
         Self::try_new(config).unwrap()
@@ -99,6 +104,11 @@ impl V9Parser {
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
         )?;
 
+        let pending_flows = config
+            .pending_flows_config
+            .map(PendingFlowCache::new)
+            .transpose()?;
+
         Ok(Self {
             templates: LruCache::new(cache_size),
             options_templates: LruCache::new(cache_size),
@@ -109,6 +119,7 @@ impl V9Parser {
             max_error_sample_size: config.max_error_sample_size,
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetrics::new(),
+            pending_flows,
         })
     }
 }
@@ -125,6 +136,7 @@ impl ParserConfig for V9Parser {
         self.max_template_total_size = config.max_template_total_size;
         self.max_error_sample_size = config.max_error_sample_size;
         self.ttl_config = config.ttl_config;
+        self.set_pending_flows_config(config.pending_flows_config)?;
 
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
@@ -146,6 +158,25 @@ impl ParserConfig for V9Parser {
         Ok(())
     }
 
+    fn set_pending_flows_config(
+        &mut self,
+        config: Option<PendingFlowsConfig>,
+    ) -> Result<(), ConfigError> {
+        match config {
+            Some(pf_config) => {
+                if let Some(ref mut cache) = self.pending_flows {
+                    cache.resize(pf_config, &self.metrics)?;
+                } else {
+                    self.pending_flows = Some(PendingFlowCache::new(pf_config)?);
+                }
+            }
+            None => {
+                self.pending_flows = None;
+            }
+        }
+        Ok(())
+    }
+
     fn resize_template_caches(&mut self, cache_size: NonZeroUsize) {
         self.templates.resize(cache_size);
         self.options_templates.resize(cache_size);
@@ -155,15 +186,169 @@ impl ParserConfig for V9Parser {
 impl V9Parser {
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match V9::parse(packet, self) {
-            Ok((remaining, v9)) => ParsedNetflow::Success {
-                packet: NetflowPacket::V9(v9),
-                remaining,
-            },
+            Ok((remaining, mut v9)) => {
+                self.process_pending_flows(&mut v9);
+                ParsedNetflow::Success {
+                    packet: NetflowPacket::V9(v9),
+                    remaining,
+                }
+            }
             Err(e) => ParsedNetflow::Error {
                 error: NetflowError::Partial {
                     message: format!("V9 parse error: {}", e),
                 },
             },
+        }
+    }
+
+    fn process_pending_flows(&mut self, v9: &mut V9) {
+        let Some(mut pending_cache) = self.pending_flows.take() else {
+            return;
+        };
+        let learned = Self::cache_notemplate_v9_flowsets(
+            v9,
+            &mut pending_cache,
+            &self.metrics,
+            self.max_error_sample_size,
+        );
+        self.replay_v9_pending_flows(v9, &mut pending_cache, &learned);
+        self.pending_flows = Some(pending_cache);
+    }
+
+    /// Single pass: cache NoTemplate raw data, collect learned template IDs,
+    /// and remove successfully-cached flowsets from the output.
+    fn cache_notemplate_v9_flowsets(
+        v9: &mut V9,
+        cache: &mut PendingFlowCache,
+        metrics: &CacheMetrics,
+        max_error_sample_size: usize,
+    ) -> Vec<u16> {
+        let mut learned_template_ids: Vec<u16> = Vec::new();
+        let mut remove_mask: Vec<bool> = vec![false; v9.flowsets.len()];
+        for (i, flowset) in v9.flowsets.iter_mut().enumerate() {
+            match &mut flowset.body {
+                FlowSetBody::NoTemplate(info) => {
+                    // If raw_data was truncated at parse time (oversized
+                    // entry), skip caching — the data can't be replayed.
+                    let body_len = (flowset.header.length as usize).saturating_sub(4);
+                    if info.raw_data.len() < body_len {
+                        metrics.record_pending_dropped();
+                        continue;
+                    }
+                    let raw_data = std::mem::take(&mut info.raw_data);
+                    if let Some(mut returned) = cache.cache(info.template_id, raw_data, metrics)
+                    {
+                        // Truncate rejected data to diagnostic size so
+                        // callers don't hold the full (potentially large)
+                        // buffer that was not cached.
+                        returned.truncate(max_error_sample_size);
+                        info.raw_data = returned;
+                    } else {
+                        remove_mask[i] = true;
+                    }
+                }
+                FlowSetBody::Template(templates) => {
+                    for t in &templates.templates {
+                        learned_template_ids.push(t.template_id);
+                    }
+                }
+                FlowSetBody::OptionsTemplate(templates) => {
+                    for t in &templates.templates {
+                        learned_template_ids.push(t.template_id);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut mask_iter = remove_mask.into_iter();
+        v9.flowsets.retain(|_| !mask_iter.next().unwrap_or(false));
+        learned_template_ids
+    }
+
+    /// Replay pending flows for each newly learned template.
+    fn replay_v9_pending_flows(
+        &mut self,
+        v9: &mut V9,
+        cache: &mut PendingFlowCache,
+        learned: &[u16],
+    ) {
+        for &template_id in learned {
+            for entry in cache.drain(template_id, &self.metrics) {
+                if v9.flowsets.len() >= u16::MAX as usize {
+                    self.metrics.record_pending_replay_failed();
+                    continue;
+                }
+                if self.try_replay_v9_flow(&mut v9.flowsets, template_id, &entry) {
+                    self.metrics.record_pending_replayed();
+                } else {
+                    self.metrics.record_pending_replay_failed();
+                }
+            }
+        }
+        v9.header.count = u16::try_from(v9.flowsets.len()).unwrap_or(u16::MAX);
+    }
+
+    /// Try to replay a pending flow entry using available templates.
+    fn try_replay_v9_flow(
+        &mut self,
+        flowsets: &mut Vec<FlowSet>,
+        template_id: u16,
+        entry: &PendingFlowEntry,
+    ) -> bool {
+        // Try regular template
+        if let Some(template) = V9Parser::get_valid_template(
+            &mut self.templates,
+            &template_id,
+            &self.ttl_config,
+            &mut self.metrics,
+        ) && let Ok((_, data)) = Data::parse(&entry.raw_data, &template)
+        {
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    flowset_id: template_id,
+                    length: (entry.raw_data.len() as u16).saturating_add(4),
+                },
+                body: FlowSetBody::Data(data),
+            });
+            return true;
+        }
+        // Try options template
+        if let Some(template) = V9Parser::get_valid_template(
+            &mut self.options_templates,
+            &template_id,
+            &self.ttl_config,
+            &mut self.metrics,
+        ) && let Ok((_, options_data)) = OptionsData::parse(&entry.raw_data, &template)
+        {
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    flowset_id: template_id,
+                    length: (entry.raw_data.len() as u16).saturating_add(4),
+                },
+                body: FlowSetBody::OptionsData(options_data),
+            });
+            return true;
+        }
+        false
+    }
+
+    /// Returns whether pending flow caching is enabled.
+    pub fn pending_flows_enabled(&self) -> bool {
+        self.pending_flows.is_some()
+    }
+
+    /// Returns the total number of pending flow entries across all template IDs.
+    pub fn pending_flow_count(&self) -> usize {
+        self.pending_flows
+            .as_ref()
+            .map(|cache| cache.count())
+            .unwrap_or(0)
+    }
+
+    /// Clear all pending flows.
+    pub fn clear_pending_flows(&mut self) {
+        if let Some(ref mut cache) = self.pending_flows {
+            cache.clear();
         }
     }
 
@@ -256,12 +441,30 @@ pub struct FlowSetHeader {
     pub length: u16,
 }
 
+/// Information about a data flowset that couldn't be parsed due to missing template.
+#[derive(Debug, Clone, Serialize)]
+pub struct NoTemplateInfo {
+    /// The template ID that was requested but not found
+    pub template_id: u16,
+    /// List of currently available template IDs in the cache
+    pub available_templates: Vec<u16>,
+    /// The unparsed flowset data (for potential retry after template arrives)
+    pub raw_data: Vec<u8>,
+}
+
+impl PartialEq for NoTemplateInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.template_id == other.template_id && self.raw_data == other.raw_data
+    }
+}
+
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum FlowSetBody {
     Template(Templates),
     OptionsTemplate(OptionsTemplates),
     Data(Data),
     OptionsData(OptionsData),
+    NoTemplate(NoTemplateInfo),
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
@@ -412,10 +615,42 @@ impl FlowSetBody {
 
                 // Template not found or expired
                 parser.metrics.record_miss();
-                Err(nom::Err::Error(nom::error::Error::new(
-                    i,
-                    nom::error::ErrorKind::Verify,
-                )))
+                if id > 255 {
+                    let mut available = Vec::new();
+                    for (tid, _) in parser.templates.iter() {
+                        available.push(*tid);
+                    }
+                    for (tid, _) in parser.options_templates.iter() {
+                        available.push(*tid);
+                    }
+                    available.sort_unstable();
+                    available.dedup();
+
+                    // Store full raw data only when the pending cache is
+                    // enabled, the entry fits the size limit, AND the
+                    // per-template cap has room.  Otherwise truncate to
+                    // max_error_sample_size to avoid large allocations
+                    // that would be immediately rejected.
+                    let raw_data = if parser.pending_flows.as_ref().is_some_and(|c| {
+                        i.len() <= c.max_entry_size_bytes() && c.would_accept(id)
+                    }) {
+                        i.to_vec()
+                    } else {
+                        i[..i.len().min(parser.max_error_sample_size)].to_vec()
+                    };
+
+                    let info = NoTemplateInfo {
+                        template_id: id,
+                        available_templates: available,
+                        raw_data,
+                    };
+                    Ok((&[] as &[u8], FlowSetBody::NoTemplate(info)))
+                } else {
+                    Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )))
+                }
             }
         }
     }
@@ -984,29 +1219,49 @@ impl V9 {
         Ok(result)
     }
 
-    /// Convert the V9 struct to a `Vec<u8>` of bytes in big-endian order for exporting
+    /// Convert the V9 struct to a `Vec<u8>` of bytes in big-endian order for exporting.
+    ///
+    /// `NoTemplate` flowsets are omitted from the output, and `header.count`
+    /// is recomputed to match the number of actually-serialized flowsets.
     pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut result = Vec::new();
 
+        // V9 header: version(2) + count(2) + sys_up_time(4) + unix_secs(4) + seq(4) + source_id(4) = 20 bytes
         result.extend_from_slice(&self.header.version.to_be_bytes());
-        result.extend_from_slice(&self.header.count.to_be_bytes());
+        result.extend_from_slice(&[0u8; 2]); // placeholder for count
         result.extend_from_slice(&self.header.sys_up_time.to_be_bytes());
         result.extend_from_slice(&self.header.unix_secs.to_be_bytes());
         result.extend_from_slice(&self.header.sequence_number.to_be_bytes());
         result.extend_from_slice(&self.header.source_id.to_be_bytes());
 
+        let mut emitted_count: u16 = 0;
         for set in self.flowsets.iter() {
-            result.extend_from_slice(&set.header.flowset_id.to_be_bytes());
-            result.extend_from_slice(&set.header.length.to_be_bytes());
-
             let body_bytes = match &set.body {
                 FlowSetBody::Template(t) => Self::serialize_template_body(t),
                 FlowSetBody::OptionsTemplate(o) => Self::serialize_options_template_body(o),
                 FlowSetBody::Data(d) => Self::serialize_data_body(d)?,
                 FlowSetBody::OptionsData(o) => Self::serialize_options_data_body(o)?,
+                FlowSetBody::NoTemplate(_) => continue,
             };
+            // Compute flowset length from actual serialized body instead
+            // of trusting set.header.length, which can be stale when
+            // padding was auto-calculated or the body was modified.
+            let flowset_length: u16 = (body_bytes.len() + 4).try_into().map_err(|_| {
+                format!(
+                    "V9 flowset body size {} exceeds u16::MAX - 4",
+                    body_bytes.len()
+                )
+            })?;
+            result.extend_from_slice(&set.header.flowset_id.to_be_bytes());
+            result.extend_from_slice(&flowset_length.to_be_bytes());
             result.extend_from_slice(&body_bytes);
+            emitted_count = emitted_count
+                .checked_add(1)
+                .ok_or_else(|| format!("V9 flowset count exceeds u16::MAX ({})", u16::MAX))?;
         }
+
+        // Patch header.count with actual number of serialized flowsets
+        result[2..4].copy_from_slice(&emitted_count.to_be_bytes());
 
         Ok(result)
     }
