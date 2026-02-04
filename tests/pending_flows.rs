@@ -1037,6 +1037,7 @@ fn test_v9_pending_replay_with_same_packet_data() {
 
     let result = parser.parse_bytes(&combined_packet);
     assert!(result.is_ok());
+    assert!(result.error.is_none(), "Parsing should complete without errors");
 
     // Count all Data flowsets - should have in-packet data + replayed pending data
     let data_count: usize = result
@@ -1057,9 +1058,9 @@ fn test_v9_pending_replay_with_same_packet_data() {
             )
         })
         .count();
-    assert!(
-        data_count >= 2,
-        "Should have in-packet data AND replayed pending data, got {}",
+    assert_eq!(
+        data_count, 2,
+        "Should have exactly 2 Data flowsets: 1 in-packet data + 1 replayed pending data, got {}",
         data_count
     );
 
