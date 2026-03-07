@@ -62,3 +62,7 @@ harness = false
 [[bench]]
 name = "packet_size_bench"
 harness = false
+
+[[bench]]
+name = "steady_state_bench"
+harness = false
