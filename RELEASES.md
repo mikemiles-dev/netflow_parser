@@ -1,3 +1,35 @@
+# 0.9.1
+
+ * **Performance: Hot-path allocation reduction**
+   - `FieldValue::MacAddr` now stores `[u8; 6]` instead of `String`, eliminating a heap allocation per MAC address field
+   - Added `DataNumber::write_be_bytes()` and `FieldValue::write_be_bytes()` methods that write directly into a caller-provided buffer, avoiding per-field `Vec<u8>` allocations
+   - `to_be_bytes()` methods on `DataNumber` and `FieldValue` are now deprecated in favor of `write_be_bytes()`
+   - `CacheMetrics` uses plain `u64` counters instead of `AtomicU64`, removing atomic overhead in the single-threaded parser
+   - `TemplateMetadata::inserted_at` is now `Option<Instant>`, skipping `Instant::now()` when TTL is disabled
+   - `allowed_versions` uses a `[bool; 11]` array lookup instead of `HashSet<u16>`, replacing hashing with a bounds-checked index
+   - `calculate_padding()` returns `&'static [u8]` instead of allocating a `Vec<u8>`
+   - `ScopeDataField` variants store `[u8; 4]` instead of `Vec<u8>`
+   - `OptionsFieldParser` returns a flat `Vec<V9FieldPair>` instead of `Vec<Vec<V9FieldPair>>`
+   - String parsing avoids a double allocation when stripping the `"P4"` prefix
+
+ * **Dependency removal**
+   - Removed `byteorder` crate — manual 3-byte big-endian serialization for u24/i24 types
+   - Removed `mac_address` crate — MAC addresses parsed directly from raw bytes
+
+ * **NoTemplateInfo hot-path optimization**
+   - Removed `available_templates` field from `NoTemplateInfo` to avoid collecting template IDs on every cache miss
+   - Added `V9Parser::available_template_ids()` and `IPFixParser::available_template_ids()` for on-demand querying
+
+ * **Scoped parser optimization**
+   - `AutoScopedParser::parse_from_source` and `iter_packets_from_source` no longer clone the parser builder on every call; builder is only cloned on cache miss
+
+ * **BREAKING CHANGES:**
+   - `FieldValue::MacAddr` now wraps `[u8; 6]` instead of `String`. Serialization output is unchanged (`"aa:bb:cc:dd:ee:ff"` format).
+   - `NoTemplateInfo` no longer has an `available_templates` field. Use `parser.v9_available_template_ids()` or `parser.ipfix_available_template_ids()` instead.
+   - `CacheMetrics` methods (`record_hit`, `record_miss`, etc.) now require `&mut self` instead of `&self`.
+   - `with_allowed_versions()` now takes `&[u16]` instead of `HashSet<u16>`. The `allowed_versions` field is now `[bool; 11]`.
+   - `DataNumber::to_be_bytes()` and `FieldValue::to_be_bytes()` are deprecated; use `write_be_bytes()` instead.
+
 # 0.9.0
 
  * **New Feature: Pending Flow Caching**

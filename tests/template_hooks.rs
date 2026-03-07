@@ -134,7 +134,7 @@ fn test_hook_builder_chaining() {
         .on_template_event(move |_| {
             c1.fetch_add(1, Ordering::SeqCst);
         })
-        .with_allowed_versions([5, 9, 10].into())
+        .with_allowed_versions(&[5, 9, 10])
         .on_template_event(move |_| {
             c2.fetch_add(10, Ordering::SeqCst);
         })

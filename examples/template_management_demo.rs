@@ -192,7 +192,6 @@ fn demo_missing_templates() {
             for flowset in &ipfix.flowsets {
                 if let FlowSetBody::NoTemplate(info) = &flowset.body {
                     println!("\n⚠️  Missing template ID: {}", info.template_id);
-                    println!("   Available templates: {:?}", info.available_templates);
                     println!("   Data size: {} bytes", info.raw_data.len());
 
                     // Save for retry

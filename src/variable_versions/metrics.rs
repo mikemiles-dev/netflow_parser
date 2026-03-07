@@ -1,7 +1,5 @@
 //! Template cache metrics for monitoring parser performance
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 /// Event type for template collision detection
 #[derive(Debug, Clone)]
 pub enum TemplateEvent {
@@ -14,30 +12,30 @@ pub enum TemplateEvent {
 
 /// Metrics for tracking template cache performance.
 ///
-/// All counters use atomic operations for thread-safe reads, though
-/// the parser itself is not thread-safe and should not be shared across threads.
-#[derive(Debug, Default)]
+/// All counters use plain u64 fields. The parser itself is not thread-safe
+/// and should not be shared across threads.
+#[derive(Debug, Default, Clone, Copy)]
 pub struct CacheMetrics {
     /// Number of successful template lookups (cache hits)
-    pub hits: AtomicU64,
+    pub hits: u64,
     /// Number of failed template lookups (cache misses)
-    pub misses: AtomicU64,
+    pub misses: u64,
     /// Number of templates evicted due to LRU policy
-    pub evictions: AtomicU64,
+    pub evictions: u64,
     /// Number of templates that expired due to TTL
-    pub expired: AtomicU64,
+    pub expired: u64,
     /// Number of template insertions (including replacements)
-    pub insertions: AtomicU64,
+    pub insertions: u64,
     /// Number of template ID collisions (same ID, different definition)
-    pub collisions: AtomicU64,
+    pub collisions: u64,
     /// Number of flows cached as pending (awaiting template)
-    pub pending_cached: AtomicU64,
+    pub pending_cached: u64,
     /// Number of pending flows successfully replayed after template arrived
-    pub pending_replayed: AtomicU64,
+    pub pending_replayed: u64,
     /// Number of pending flows dropped (expired or evicted)
-    pub pending_dropped: AtomicU64,
+    pub pending_dropped: u64,
     /// Number of pending flows that failed to replay (parse error after template arrived)
-    pub pending_replay_failed: AtomicU64,
+    pub pending_replay_failed: u64,
 }
 
 impl CacheMetrics {
@@ -48,92 +46,83 @@ impl CacheMetrics {
 
     /// Record a cache hit
     #[inline]
-    pub fn record_hit(&self) {
-        self.hits.fetch_add(1, Ordering::Relaxed);
+    pub fn record_hit(&mut self) {
+        self.hits += 1;
     }
 
     /// Record a cache miss
     #[inline]
-    pub fn record_miss(&self) {
-        self.misses.fetch_add(1, Ordering::Relaxed);
+    pub fn record_miss(&mut self) {
+        self.misses += 1;
     }
 
     /// Record a template eviction
     #[inline]
-    pub fn record_eviction(&self) {
-        self.evictions.fetch_add(1, Ordering::Relaxed);
+    pub fn record_eviction(&mut self) {
+        self.evictions += 1;
     }
 
     /// Record a template expiration
     #[inline]
-    pub fn record_expiration(&self) {
-        self.expired.fetch_add(1, Ordering::Relaxed);
+    pub fn record_expiration(&mut self) {
+        self.expired += 1;
     }
 
     /// Record a template insertion
     #[inline]
-    pub fn record_insertion(&self) {
-        self.insertions.fetch_add(1, Ordering::Relaxed);
+    pub fn record_insertion(&mut self) {
+        self.insertions += 1;
     }
 
     /// Record a template collision (same ID, different definition)
     #[inline]
-    pub fn record_collision(&self) {
-        self.collisions.fetch_add(1, Ordering::Relaxed);
+    pub fn record_collision(&mut self) {
+        self.collisions += 1;
     }
 
     /// Record a flow cached as pending (awaiting template)
     #[inline]
-    pub fn record_pending_cached(&self) {
-        self.pending_cached.fetch_add(1, Ordering::Relaxed);
+    pub fn record_pending_cached(&mut self) {
+        self.pending_cached += 1;
     }
 
     /// Record a pending flow successfully replayed
     #[inline]
-    pub fn record_pending_replayed(&self) {
-        self.pending_replayed.fetch_add(1, Ordering::Relaxed);
+    pub fn record_pending_replayed(&mut self) {
+        self.pending_replayed += 1;
     }
 
     /// Record a pending flow dropped (expired or evicted)
     #[inline]
-    pub fn record_pending_dropped(&self) {
-        self.pending_dropped.fetch_add(1, Ordering::Relaxed);
+    pub fn record_pending_dropped(&mut self) {
+        self.pending_dropped += 1;
     }
 
     /// Record a pending flow that failed to replay (parse error)
     #[inline]
-    pub fn record_pending_replay_failed(&self) {
-        self.pending_replay_failed.fetch_add(1, Ordering::Relaxed);
+    pub fn record_pending_replay_failed(&mut self) {
+        self.pending_replay_failed += 1;
     }
 
     /// Get a snapshot of current metrics
     pub fn snapshot(&self) -> CacheMetricsSnapshot {
         CacheMetricsSnapshot {
-            hits: self.hits.load(Ordering::Relaxed),
-            misses: self.misses.load(Ordering::Relaxed),
-            evictions: self.evictions.load(Ordering::Relaxed),
-            expired: self.expired.load(Ordering::Relaxed),
-            insertions: self.insertions.load(Ordering::Relaxed),
-            collisions: self.collisions.load(Ordering::Relaxed),
-            pending_cached: self.pending_cached.load(Ordering::Relaxed),
-            pending_replayed: self.pending_replayed.load(Ordering::Relaxed),
-            pending_dropped: self.pending_dropped.load(Ordering::Relaxed),
-            pending_replay_failed: self.pending_replay_failed.load(Ordering::Relaxed),
+            hits: self.hits,
+            misses: self.misses,
+            evictions: self.evictions,
+            expired: self.expired,
+            insertions: self.insertions,
+            collisions: self.collisions,
+            pending_cached: self.pending_cached,
+            pending_replayed: self.pending_replayed,
+            pending_dropped: self.pending_dropped,
+            pending_replay_failed: self.pending_replay_failed,
         }
     }
 
     /// Reset all metrics to zero
-    pub fn reset(&self) {
-        self.hits.store(0, Ordering::Relaxed);
-        self.misses.store(0, Ordering::Relaxed);
-        self.evictions.store(0, Ordering::Relaxed);
-        self.expired.store(0, Ordering::Relaxed);
-        self.insertions.store(0, Ordering::Relaxed);
-        self.collisions.store(0, Ordering::Relaxed);
-        self.pending_cached.store(0, Ordering::Relaxed);
-        self.pending_replayed.store(0, Ordering::Relaxed);
-        self.pending_dropped.store(0, Ordering::Relaxed);
-        self.pending_replay_failed.store(0, Ordering::Relaxed);
+    pub fn reset(&mut self) {
+        *self = Self::default();
     }
 }
 
@@ -197,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_metrics_recording() {
-        let metrics = CacheMetrics::new();
+        let mut metrics = CacheMetrics::new();
 
         metrics.record_hit();
         metrics.record_hit();
@@ -216,7 +205,7 @@ mod tests {
 
     #[test]
     fn test_hit_rate() {
-        let metrics = CacheMetrics::new();
+        let mut metrics = CacheMetrics::new();
 
         // No lookups yet
         let snapshot = metrics.snapshot();
@@ -236,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_reset() {
-        let metrics = CacheMetrics::new();
+        let mut metrics = CacheMetrics::new();
 
         metrics.record_hit();
         metrics.record_miss();

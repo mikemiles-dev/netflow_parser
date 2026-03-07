@@ -498,11 +498,11 @@ impl AutoScopedParser {
                     addr: source,
                     observation_domain_id,
                 };
-                let builder = self.parser_builder.clone();
-                let parser = self
-                    .ipfix_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder.as_ref()));
+                if !self.ipfix_parsers.contains_key(&key) {
+                    self.ipfix_parsers
+                        .insert(key, Self::build_parser(self.parser_builder.as_ref()));
+                }
+                let parser = self.ipfix_parsers.get_mut(&key).unwrap();
                 let result = parser.parse_bytes(data);
                 result.error.map_or(Ok(result.packets), Err)
             }
@@ -511,30 +511,20 @@ impl AutoScopedParser {
                     addr: source,
                     source_id,
                 };
-                let builder = self.parser_builder.clone();
-                let parser = self
-                    .v9_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder.as_ref()));
+                if !self.v9_parsers.contains_key(&key) {
+                    self.v9_parsers
+                        .insert(key, Self::build_parser(self.parser_builder.as_ref()));
+                }
+                let parser = self.v9_parsers.get_mut(&key).unwrap();
                 let result = parser.parse_bytes(data);
                 result.error.map_or(Ok(result.packets), Err)
             }
-            ScopingInfo::Legacy => {
-                let builder = self.parser_builder.clone();
-                let parser = self
-                    .legacy_parsers
-                    .entry(source)
-                    .or_insert_with(|| Self::build_parser(builder.as_ref()));
-                let result = parser.parse_bytes(data);
-                result.error.map_or(Ok(result.packets), Err)
-            }
-            ScopingInfo::Unknown => {
-                // Still try to parse, might succeed or return error
-                let builder = self.parser_builder.clone();
-                let parser = self
-                    .legacy_parsers
-                    .entry(source)
-                    .or_insert_with(|| Self::build_parser(builder.as_ref()));
+            ScopingInfo::Legacy | ScopingInfo::Unknown => {
+                if !self.legacy_parsers.contains_key(&source) {
+                    self.legacy_parsers
+                        .insert(source, Self::build_parser(self.parser_builder.as_ref()));
+                }
+                let parser = self.legacy_parsers.get_mut(&source).unwrap();
                 let result = parser.parse_bytes(data);
                 result.error.map_or(Ok(result.packets), Err)
             }
@@ -567,11 +557,11 @@ impl AutoScopedParser {
                     addr: source,
                     observation_domain_id,
                 };
-                let builder = self.parser_builder.clone();
-                let parser = self
-                    .ipfix_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder.as_ref()));
+                if !self.ipfix_parsers.contains_key(&key) {
+                    self.ipfix_parsers
+                        .insert(key, Self::build_parser(self.parser_builder.as_ref()));
+                }
+                let parser = self.ipfix_parsers.get_mut(&key).unwrap();
                 parser.iter_packets(data)
             }
             ScopingInfo::V9 { source_id } => {
@@ -579,19 +569,19 @@ impl AutoScopedParser {
                     addr: source,
                     source_id,
                 };
-                let builder = self.parser_builder.clone();
-                let parser = self
-                    .v9_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder.as_ref()));
+                if !self.v9_parsers.contains_key(&key) {
+                    self.v9_parsers
+                        .insert(key, Self::build_parser(self.parser_builder.as_ref()));
+                }
+                let parser = self.v9_parsers.get_mut(&key).unwrap();
                 parser.iter_packets(data)
             }
             ScopingInfo::Legacy | ScopingInfo::Unknown => {
-                let builder = self.parser_builder.clone();
-                let parser = self
-                    .legacy_parsers
-                    .entry(source)
-                    .or_insert_with(|| Self::build_parser(builder.as_ref()));
+                if !self.legacy_parsers.contains_key(&source) {
+                    self.legacy_parsers
+                        .insert(source, Self::build_parser(self.parser_builder.as_ref()));
+                }
+                let parser = self.legacy_parsers.get_mut(&source).unwrap();
                 parser.iter_packets(data)
             }
         }

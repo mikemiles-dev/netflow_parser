@@ -443,13 +443,15 @@ use netflow_parser::NetflowParser;
 
 // Only parse V5 and V9 packets
 let parser = NetflowParser::builder()
-    .with_allowed_versions([5, 9].into())
+    .with_allowed_versions(&[5, 9])
     .build()
     .expect("Failed to build parser");
 
 // Or set directly on an existing parser
 let mut parser = NetflowParser::default();
-parser.allowed_versions = [7, 9].into();
+parser.allowed_versions = [false; 11];
+parser.allowed_versions[7] = true;
+parser.allowed_versions[9] = true;
 ```
 
 Packets with versions not in the allowed list will be ignored (returns empty Vec).
@@ -658,7 +660,7 @@ let parser = NetflowParser::builder()
     .with_ipfix_ttl(TtlConfig::new(Duration::from_secs(7200)))
 
     // Version filtering
-    .with_allowed_versions([5, 9, 10].into())
+    .with_allowed_versions(&[5, 9, 10])
 
     // Enterprise fields
     .register_enterprise_fields(vec![
@@ -1030,7 +1032,6 @@ for packet in parser.iter_packets(&data) {
         for flowset in &ipfix.flowsets {
             if let FlowSetBody::NoTemplate(info) = &flowset.body {
                 println!("Missing template ID: {}", info.template_id);
-                println!("Available templates: {:?}", info.available_templates);
 
                 // Save for retry after template arrives
                 pending_data.push(info.raw_data.clone());

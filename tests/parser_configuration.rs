@@ -6,11 +6,11 @@ use std::time::Duration;
 fn test_default_parser_creation() {
     let parser = NetflowParser::default();
     // Default allows versions 5, 7, 9, 10
-    assert_eq!(parser.allowed_versions.len(), 4);
-    assert!(parser.allowed_versions.contains(&5));
-    assert!(parser.allowed_versions.contains(&7));
-    assert!(parser.allowed_versions.contains(&9));
-    assert!(parser.allowed_versions.contains(&10));
+    assert!(parser.allowed_versions[5]);
+    assert!(parser.allowed_versions[7]);
+    assert!(parser.allowed_versions[9]);
+    assert!(parser.allowed_versions[10]);
+    assert!(!parser.allowed_versions[0]);
 }
 
 #[test]
@@ -50,19 +50,20 @@ fn test_parser_builder_with_ttl() {
         .expect("Failed to build parser");
 
     // Parser should be created successfully with default allowed versions
-    assert_eq!(parser.allowed_versions.len(), 4);
+    assert!(parser.allowed_versions[5]);
+    assert!(parser.allowed_versions[9]);
 }
 
 #[test]
 fn test_parser_builder_with_allowed_versions() {
     let parser = NetflowParser::builder()
-        .with_allowed_versions([5, 9].into())
+        .with_allowed_versions(&[5, 9])
         .build()
         .expect("Failed to build parser");
 
-    assert!(parser.allowed_versions.contains(&5));
-    assert!(parser.allowed_versions.contains(&9));
-    assert!(!parser.allowed_versions.contains(&7));
+    assert!(parser.allowed_versions[5]);
+    assert!(parser.allowed_versions[9]);
+    assert!(!parser.allowed_versions[7]);
 }
 
 #[test]
@@ -83,7 +84,8 @@ fn test_parser_builder_with_field_count_limits() {
         .expect("Failed to build parser");
 
     // Parser should be created successfully with field limits and default allowed versions
-    assert_eq!(parser.allowed_versions.len(), 4);
+    assert!(parser.allowed_versions[5]);
+    assert!(parser.allowed_versions[9]);
 }
 
 #[test]
@@ -93,7 +95,7 @@ fn test_parser_builder_comprehensive() {
         .with_ipfix_cache_size(2500)
         .with_v9_ttl(TtlConfig::new(Duration::from_secs(1800)))
         .with_ipfix_ttl(TtlConfig::new(Duration::from_secs(3600)))
-        .with_allowed_versions([5, 9, 10].into())
+        .with_allowed_versions(&[5, 9, 10])
         .with_max_error_sample_size(512)
         .with_v9_max_field_count(8000)
         .with_ipfix_max_field_count(10000)
@@ -106,9 +108,9 @@ fn test_parser_builder_comprehensive() {
     let ipfix_stats = parser.ipfix_cache_stats();
     assert_eq!(ipfix_stats.max_size, 2500);
 
-    assert!(parser.allowed_versions.contains(&5));
-    assert!(parser.allowed_versions.contains(&9));
-    assert!(parser.allowed_versions.contains(&10));
+    assert!(parser.allowed_versions[5]);
+    assert!(parser.allowed_versions[9]);
+    assert!(parser.allowed_versions[10]);
 
     assert_eq!(parser.max_error_sample_size, 512);
 }

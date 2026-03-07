@@ -1,5 +1,4 @@
 use crate::protocol::ProtocolTypes;
-use byteorder::{BigEndian, WriteBytesExt};
 use nom::{
     Err as NomErr, IResult,
     bytes::complete::take,
@@ -8,6 +7,7 @@ use nom::{
 };
 use nom_derive::Parse;
 use serde::Serialize;
+use serde::ser::Serializer;
 use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     time::Duration,
@@ -93,10 +93,18 @@ impl TryFrom<&FieldValue> for String {
     fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
         match value {
             FieldValue::String(s) => Ok(s.clone()),
-            FieldValue::MacAddr(s) => Ok(s.to_string()),
+            FieldValue::MacAddr(bytes) => Ok(format_mac_addr(bytes)),
             _ => Err(FieldValueError::InvalidDataType),
         }
     }
+}
+
+/// Format a 6-byte MAC address as "aa:bb:cc:dd:ee:ff" (lowercase hex, colon-separated)
+fn format_mac_addr(bytes: &[u8; 6]) -> String {
+    format!(
+        "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+        bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5]
+    )
 }
 
 impl TryFrom<&FieldValue> for IpAddr {
@@ -169,29 +177,38 @@ impl DataNumber {
         }
     }
 
-    fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+    /// Write big-endian bytes into a caller-provided buffer.
+    pub fn write_be_bytes(&self, buf: &mut Vec<u8>) -> Result<(), std::io::Error> {
         match self {
-            DataNumber::U8(n) => Ok(vec![*n]),
-            DataNumber::I8(n) => Ok(vec![u8::try_from(*n).map_err(std::io::Error::other)?]),
-            DataNumber::U16(n) => Ok(n.to_be_bytes().to_vec()),
-            DataNumber::I16(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::U8(n) => buf.push(*n),
+            DataNumber::I8(n) => buf.push(*n as u8),
+            DataNumber::U16(n) => buf.extend_from_slice(&n.to_be_bytes()),
+            DataNumber::I16(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::U24(n) => {
-                let mut wtr = Vec::with_capacity(3);
-                wtr.write_u24::<BigEndian>(*n)?;
-                Ok(wtr)
+                buf.push((*n >> 16) as u8);
+                buf.push((*n >> 8) as u8);
+                buf.push(*n as u8);
             }
             DataNumber::I24(n) => {
-                let mut wtr = Vec::with_capacity(3);
-                wtr.write_i24::<BigEndian>(*n)?;
-                Ok(wtr)
+                buf.push((*n >> 16) as u8);
+                buf.push((*n >> 8) as u8);
+                buf.push(*n as u8);
             }
-            DataNumber::U32(n) => Ok(n.to_be_bytes().to_vec()),
-            DataNumber::U64(n) => Ok(n.to_be_bytes().to_vec()),
-            DataNumber::I64(n) => Ok(n.to_be_bytes().to_vec()),
-            DataNumber::U128(n) => Ok(n.to_be_bytes().to_vec()),
-            DataNumber::I32(n) => Ok(n.to_be_bytes().to_vec()),
-            DataNumber::I128(n) => Ok(n.to_be_bytes().to_vec()),
+            DataNumber::U32(n) => buf.extend_from_slice(&n.to_be_bytes()),
+            DataNumber::U64(n) => buf.extend_from_slice(&n.to_be_bytes()),
+            DataNumber::I64(n) => buf.extend_from_slice(&n.to_be_bytes()),
+            DataNumber::U128(n) => buf.extend_from_slice(&n.to_be_bytes()),
+            DataNumber::I32(n) => buf.extend_from_slice(&n.to_be_bytes()),
+            DataNumber::I128(n) => buf.extend_from_slice(&n.to_be_bytes()),
         }
+        Ok(())
+    }
+
+    #[deprecated(note = "Use write_be_bytes(&self, buf) instead")]
+    pub fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+        let mut buf = Vec::new();
+        self.write_be_bytes(&mut buf)?;
+        Ok(buf)
     }
 }
 
@@ -202,7 +219,7 @@ pub struct ApplicationId {
 }
 
 /// Holds the post parsed field with its relevant datatype
-#[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum FieldValue {
     ApplicationId(ApplicationId),
     String(String),
@@ -211,35 +228,88 @@ pub enum FieldValue {
     Duration(Duration),
     Ip4Addr(Ipv4Addr),
     Ip6Addr(Ipv6Addr),
-    MacAddr(String),
+    MacAddr([u8; 6]),
     Vec(Vec<u8>),
     ProtocolType(ProtocolTypes),
     Unknown(Vec<u8>),
 }
 
+impl Serialize for FieldValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match self {
+            FieldValue::ApplicationId(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 0, "ApplicationId", v)
+            }
+            FieldValue::String(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 1, "String", v)
+            }
+            FieldValue::DataNumber(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 2, "DataNumber", v)
+            }
+            FieldValue::Float64(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 3, "Float64", v)
+            }
+            FieldValue::Duration(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 4, "Duration", v)
+            }
+            FieldValue::Ip4Addr(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 5, "Ip4Addr", v)
+            }
+            FieldValue::Ip6Addr(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 6, "Ip6Addr", v)
+            }
+            FieldValue::MacAddr(bytes) => {
+                let formatted = format_mac_addr(bytes);
+                serializer.serialize_newtype_variant("FieldValue", 7, "MacAddr", &formatted)
+            }
+            FieldValue::Vec(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 8, "Vec", v)
+            }
+            FieldValue::ProtocolType(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 9, "ProtocolType", v)
+            }
+            FieldValue::Unknown(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 10, "Unknown", v)
+            }
+        }
+    }
+}
+
 impl FieldValue {
-    pub fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+    /// Write big-endian bytes into a caller-provided buffer.
+    pub fn write_be_bytes(&self, buf: &mut Vec<u8>) -> Result<(), std::io::Error> {
         match self {
             FieldValue::ApplicationId(app_id) => {
-                let mut wtr = Vec::new();
-                wtr.write_u8(app_id.classification_engine_id)?;
-                wtr.extend(app_id.selector_id.to_be_bytes()?);
-                Ok(wtr)
+                buf.push(app_id.classification_engine_id);
+                #[allow(deprecated)]
+                app_id.selector_id.write_be_bytes(buf)?;
             }
-            FieldValue::String(s) => Ok(s.as_bytes().to_vec()),
-            FieldValue::DataNumber(d) => d.to_be_bytes(),
-            FieldValue::Float64(f) => Ok(f.to_be_bytes().to_vec()),
-            FieldValue::Duration(d) => Ok((u32::try_from(d.as_secs())
-                .map_err(std::io::Error::other)?)
-            .to_be_bytes()
-            .to_vec()),
-            FieldValue::Ip4Addr(ip) => Ok(ip.octets().to_vec()),
-            FieldValue::Ip6Addr(ip) => Ok(ip.octets().to_vec()),
-            FieldValue::MacAddr(mac) => Ok(mac.as_bytes().to_vec()),
-            FieldValue::ProtocolType(p) => Ok(u8::from(*p).to_be_bytes().to_vec()),
-            FieldValue::Vec(v) => Ok(v.clone()),
-            FieldValue::Unknown(v) => Ok(v.clone()),
+            FieldValue::String(s) => buf.extend_from_slice(s.as_bytes()),
+            #[allow(deprecated)]
+            FieldValue::DataNumber(d) => d.write_be_bytes(buf)?,
+            FieldValue::Float64(f) => buf.extend_from_slice(&f.to_be_bytes()),
+            FieldValue::Duration(d) => {
+                let secs = u32::try_from(d.as_secs()).map_err(std::io::Error::other)?;
+                buf.extend_from_slice(&secs.to_be_bytes());
+            }
+            FieldValue::Ip4Addr(ip) => buf.extend_from_slice(&ip.octets()),
+            FieldValue::Ip6Addr(ip) => buf.extend_from_slice(&ip.octets()),
+            FieldValue::MacAddr(mac) => buf.extend_from_slice(mac),
+            FieldValue::ProtocolType(p) => buf.push(u8::from(*p)),
+            FieldValue::Vec(v) => buf.extend_from_slice(v),
+            FieldValue::Unknown(v) => buf.extend_from_slice(v),
         }
+        Ok(())
+    }
+
+    #[deprecated(note = "Use write_be_bytes(&self, buf) instead")]
+    pub fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
+        let mut buf = Vec::new();
+        self.write_be_bytes(&mut buf)?;
+        Ok(buf)
     }
 
     fn make_ntp_time_with_unit(seconds: u32, fraction: u32, unit: u64) -> Duration {
@@ -277,12 +347,15 @@ impl FieldValue {
             }
             FieldDataType::String => {
                 let (i, taken) = take(field_length)(remaining)?;
-                // Filter control chars first, then strip P4 prefix (original logic)
                 let s: String = String::from_utf8_lossy(taken)
                     .chars()
                     .filter(|&c| !c.is_control())
                     .collect();
-                let s = s.strip_prefix("P4").unwrap_or(&s).to_string();
+                let s = if let Some(stripped) = s.strip_prefix("P4") {
+                    stripped.to_owned()
+                } else {
+                    s
+                };
                 (i, FieldValue::String(s))
             }
             FieldDataType::Ip4Addr => {
@@ -300,9 +373,7 @@ impl FieldValue {
                 let taken: &[u8; 6] = taken
                     .try_into()
                     .map_err(|_| NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))?;
-
-                let mac_addr = mac_address::MacAddress::from(*taken).to_string();
-                (i, FieldValue::MacAddr(mac_addr))
+                (i, FieldValue::MacAddr(*taken))
             }
             FieldDataType::DurationSeconds => {
                 parse_duration(remaining, field_length, Duration::from_secs)?
@@ -434,51 +505,67 @@ mod data_number_tests {
     #[test]
     fn it_tests_3_byte_data_number_exports() {
         let data = DataNumber::parse(&[1, 246, 118], 3, false).unwrap().1;
-        assert_eq!(data.to_be_bytes().unwrap(), vec![1, 246, 118]);
+        let mut buf = Vec::new();
+        data.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, vec![1, 246, 118]);
     }
 
     #[test]
     fn it_tests_field_value_to_be_bytes() {
+        let mut buf = Vec::new();
+
         let field_value = FieldValue::String("test".to_string());
-        assert_eq!(field_value.to_be_bytes().unwrap(), vec![116, 101, 115, 116]);
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, vec![116, 101, 115, 116]);
 
         let field_value = FieldValue::DataNumber(DataNumber::U16(12345));
-        assert_eq!(field_value.to_be_bytes().unwrap(), vec![48, 57]);
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, vec![48, 57]);
 
         let field_value = FieldValue::Float64(123.456);
-        assert_eq!(
-            field_value.to_be_bytes().unwrap(),
-            123.456f64.to_be_bytes().to_vec()
-        );
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, 123.456f64.to_be_bytes().to_vec());
 
         let field_value = FieldValue::Duration(Duration::from_secs(12345));
-        assert_eq!(field_value.to_be_bytes().unwrap(), vec![0, 0, 48, 57]);
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, vec![0, 0, 48, 57]);
 
         let field_value = FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 0, 1));
-        assert_eq!(field_value.to_be_bytes().unwrap(), vec![192, 168, 0, 1]);
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, vec![192, 168, 0, 1]);
 
         let field_value = FieldValue::Ip6Addr(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1));
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
         assert_eq!(
-            field_value.to_be_bytes().unwrap(),
+            buf,
             vec![32, 1, 13, 184, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
         );
 
-        let field_value = FieldValue::MacAddr("00:1B:44:11:3A:B7".to_string());
-        assert_eq!(
-            field_value.to_be_bytes().unwrap(),
-            vec![
-                48, 48, 58, 49, 66, 58, 52, 52, 58, 49, 49, 58, 51, 65, 58, 66, 55
-            ]
-        );
+        let field_value = FieldValue::MacAddr([0x00, 0x1B, 0x44, 0x11, 0x3A, 0xB7]);
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, vec![0x00, 0x1B, 0x44, 0x11, 0x3A, 0xB7]);
 
         let field_value = FieldValue::ProtocolType(ProtocolTypes::Tcp);
-        assert_eq!(field_value.to_be_bytes().unwrap(), vec![6]);
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, vec![6]);
 
         let field_value = FieldValue::Vec(vec![1, 2, 3, 4]);
-        assert_eq!(field_value.to_be_bytes().unwrap(), vec![1, 2, 3, 4]);
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, vec![1, 2, 3, 4]);
 
         let field_value = FieldValue::Unknown(vec![255, 254, 253]);
-        assert_eq!(field_value.to_be_bytes().unwrap(), vec![255, 254, 253]);
+        buf.clear();
+        field_value.write_be_bytes(&mut buf).unwrap();
+        assert_eq!(buf, vec![255, 254, 253]);
     }
 
     #[test]

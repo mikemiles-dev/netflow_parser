@@ -24,7 +24,6 @@ use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
 use lru::LruCache;
-use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -44,11 +43,12 @@ pub type V9FieldPair = (V9Field, FieldValue);
 pub type V9FlowRecord = Vec<V9FieldPair>;
 
 /// Calculate padding needed to align to 4-byte boundary.
-/// Returns a Vec of zero bytes with the appropriate length.
-fn calculate_padding(content_size: usize) -> Vec<u8> {
+/// Returns a static slice of zero bytes with the appropriate length.
+fn calculate_padding(content_size: usize) -> &'static [u8] {
+    const PADDING: [u8; 3] = [0u8; 3];
     const PADDING_SIZES: [usize; 4] = [0, 3, 2, 1];
     let padding_len = PADDING_SIZES[content_size % 4];
-    vec![0u8; padding_len]
+    &PADDING[..padding_len]
 }
 
 #[derive(Debug)]
@@ -165,7 +165,7 @@ impl ParserConfig for V9Parser {
         match config {
             Some(pf_config) => {
                 if let Some(ref mut cache) = self.pending_flows {
-                    cache.resize(pf_config, &self.metrics)?;
+                    cache.resize(pf_config, &mut self.metrics)?;
                 } else {
                     self.pending_flows = Some(PendingFlowCache::new(pf_config)?);
                 }
@@ -208,7 +208,7 @@ impl V9Parser {
         let learned = Self::cache_notemplate_v9_flowsets(
             v9,
             &mut pending_cache,
-            &self.metrics,
+            &mut self.metrics,
             self.max_error_sample_size,
         );
         self.replay_v9_pending_flows(v9, &mut pending_cache, &learned);
@@ -220,7 +220,7 @@ impl V9Parser {
     fn cache_notemplate_v9_flowsets(
         v9: &mut V9,
         cache: &mut PendingFlowCache,
-        metrics: &CacheMetrics,
+        metrics: &mut CacheMetrics,
         max_error_sample_size: usize,
     ) -> Vec<u16> {
         let mut learned_template_ids: Vec<u16> = Vec::new();
@@ -273,7 +273,7 @@ impl V9Parser {
         learned: &[u16],
     ) {
         for &template_id in learned {
-            for entry in cache.drain(template_id, &self.metrics) {
+            for entry in cache.drain(template_id, &mut self.metrics) {
                 if v9.flowsets.len() >= u16::MAX as usize {
                     self.metrics.record_pending_replay_failed();
                     continue;
@@ -354,6 +354,19 @@ impl V9Parser {
         if let Some(ref mut cache) = self.pending_flows {
             cache.clear();
         }
+    }
+
+    /// Returns a sorted, deduplicated list of all available template IDs.
+    pub fn available_template_ids(&self) -> Vec<u16> {
+        let mut ids: Vec<u16> = self
+            .templates
+            .iter()
+            .map(|(&id, _)| id)
+            .chain(self.options_templates.iter().map(|(&id, _)| id))
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
     }
 
     /// Helper method to get a valid template from cache, checking TTL if configured.
@@ -450,8 +463,6 @@ pub struct FlowSetHeader {
 pub struct NoTemplateInfo {
     /// The template ID that was requested but not found
     pub template_id: u16,
-    /// List of currently available template IDs in the cache
-    pub available_templates: Vec<u16>,
     /// The unparsed flowset data (for potential retry after template arrives)
     pub raw_data: Vec<u8>,
 }
@@ -540,9 +551,10 @@ impl FlowSetBody {
                         nom::error::ErrorKind::Verify,
                     )));
                 }
+                let ttl_enabled = parser.ttl_config.is_some();
                 for template in &templates.templates {
                     let arc_template = Arc::new(template.clone());
-                    let wrapped = TemplateWithTtl::new(arc_template.clone());
+                    let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
                     // Check for collision (same ID, different definition)
                     // Use peek() to avoid affecting LRU ordering
                     if let Some(existing) = parser.templates.peek(&template.template_id) {
@@ -574,9 +586,10 @@ impl FlowSetBody {
                     )));
                 }
                 // Store templates efficiently using Arc for zero-cost sharing
+                let ttl_enabled = parser.ttl_config.is_some();
                 for template in &options_templates.templates {
                     let arc_template = Arc::new(template.clone());
-                    let wrapped = TemplateWithTtl::new(arc_template.clone());
+                    let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
                     // Check for collision (same ID, different definition)
                     // Use peek() to avoid affecting LRU ordering
                     if let Some(existing) = parser.options_templates.peek(&template.template_id)
@@ -620,16 +633,6 @@ impl FlowSetBody {
                 // Template not found or expired
                 parser.metrics.record_miss();
                 if id > 255 {
-                    let mut available = Vec::new();
-                    for (tid, _) in parser.templates.iter() {
-                        available.push(*tid);
-                    }
-                    for (tid, _) in parser.options_templates.iter() {
-                        available.push(*tid);
-                    }
-                    available.sort_unstable();
-                    available.dedup();
-
                     // Store full raw data only when the pending cache is
                     // enabled, the entry fits the size limit, AND the
                     // per-template cap has room.  Otherwise truncate to
@@ -645,7 +648,6 @@ impl FlowSetBody {
 
                     let info = NoTemplateInfo {
                         template_id: id,
-                        available_templates: available,
                         raw_data,
                     };
                     Ok((&[] as &[u8], FlowSetBody::NoTemplate(info)))
@@ -708,7 +710,7 @@ impl Template {
 
     /// Check if the template has duplicate field type numbers
     fn has_duplicate_fields(&self) -> bool {
-        let mut seen = HashSet::with_capacity(self.fields.len());
+        let mut seen = std::collections::HashSet::with_capacity(self.fields.len());
         for field in &self.fields {
             if !seen.insert(field.field_type_number) {
                 return true; // Found duplicate
@@ -859,13 +861,13 @@ impl<'a> OptionsFieldParser {
     fn parse(
         input: &'a [u8],
         template: &OptionsTemplate,
-    ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
+    ) -> IResult<&'a [u8], Vec<V9FieldPair>> {
         let mut result = Vec::with_capacity(template.option_fields.len());
         let mut remaining = input;
         for template_field in template.option_fields.iter() {
             let (i, field_value) = template_field.parse_as_field_value(remaining)?;
             remaining = i;
-            result.push(vec![(template_field.field_type, field_value)]);
+            result.push((template_field.field_type, field_value));
         }
         Ok((remaining, result))
     }
@@ -879,16 +881,16 @@ pub struct OptionsDataFields {
     pub scope_fields: Vec<ScopeDataField>,
     // Options Data Fields
     #[nom(Parse = "{ |i| OptionsFieldParser::parse(i, template) }")]
-    pub options_fields: Vec<Vec<V9FieldPair>>,
+    pub options_fields: Vec<V9FieldPair>,
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum ScopeDataField {
-    System(Vec<u8>),
-    Interface(Vec<u8>),
-    LineCard(Vec<u8>),
-    NetFlowCache(Vec<u8>),
-    Template(Vec<u8>),
+    System([u8; 4]),
+    Interface([u8; 4]),
+    LineCard([u8; 4]),
+    NetFlowCache([u8; 4]),
+    Template([u8; 4]),
 }
 
 /// Parses a scope data field from the provided input slice using the given template field information.
@@ -926,24 +928,16 @@ impl ScopeDataField {
         template_field: &OptionsTemplateScopeField,
     ) -> IResult<&'a [u8], ScopeDataField> {
         let (new_input, field_value) = take(template_field.field_length)(input)?;
+        let mut buf = [0u8; 4];
+        let len = field_value.len().min(4);
+        buf[..len].copy_from_slice(&field_value[..len]);
 
         match template_field.field_type {
-            ScopeFieldType::System => {
-                Ok((new_input, ScopeDataField::System(field_value.to_vec())))
-            }
-            ScopeFieldType::Interface => {
-                Ok((new_input, ScopeDataField::Interface(field_value.to_vec())))
-            }
-            ScopeFieldType::LineCard => {
-                Ok((new_input, ScopeDataField::LineCard(field_value.to_vec())))
-            }
-            ScopeFieldType::NetflowCache => Ok((
-                new_input,
-                ScopeDataField::NetFlowCache(field_value.to_vec()),
-            )),
-            ScopeFieldType::Template => {
-                Ok((new_input, ScopeDataField::Template(field_value.to_vec())))
-            }
+            ScopeFieldType::System => Ok((new_input, ScopeDataField::System(buf))),
+            ScopeFieldType::Interface => Ok((new_input, ScopeDataField::Interface(buf))),
+            ScopeFieldType::LineCard => Ok((new_input, ScopeDataField::LineCard(buf))),
+            ScopeFieldType::NetflowCache => Ok((new_input, ScopeDataField::NetFlowCache(buf))),
+            ScopeFieldType::Template => Ok((new_input, ScopeDataField::Template(buf))),
             _ => Err(nom::Err::Error(nom::error::Error::new(
                 input,
                 nom::error::ErrorKind::Verify,
@@ -1131,9 +1125,9 @@ impl V9 {
         let padding = if templates.padding.is_empty() {
             calculate_padding(template_content.len())
         } else {
-            templates.padding.clone()
+            &templates.padding[..]
         };
-        result.extend_from_slice(&padding);
+        result.extend_from_slice(padding);
         result
     }
 
@@ -1161,9 +1155,9 @@ impl V9 {
         let padding = if options_templates.padding.is_empty() {
             calculate_padding(options_content.len())
         } else {
-            options_templates.padding.clone()
+            &options_templates.padding[..]
         };
-        result.extend_from_slice(&padding);
+        result.extend_from_slice(padding);
         result
     }
 
@@ -1172,7 +1166,7 @@ impl V9 {
         let mut data_content = Vec::new();
         for data_field in data.fields.iter() {
             for (_, field_value) in data_field.iter() {
-                data_content.extend_from_slice(&field_value.to_be_bytes()?);
+                field_value.write_be_bytes(&mut data_content)?;
             }
         }
 
@@ -1183,9 +1177,9 @@ impl V9 {
         let padding = if data.padding.is_empty() {
             calculate_padding(data_content.len())
         } else {
-            data.padding.clone()
+            &data.padding[..]
         };
-        result.extend_from_slice(&padding);
+        result.extend_from_slice(padding);
         Ok(result)
     }
 
@@ -1197,27 +1191,17 @@ impl V9 {
         for options_data_field in options_data.fields.iter() {
             for field in options_data_field.scope_fields.iter() {
                 match field {
-                    ScopeDataField::System(value) => {
-                        result.extend_from_slice(value);
-                    }
-                    ScopeDataField::Interface(value) => {
-                        result.extend_from_slice(value);
-                    }
-                    ScopeDataField::LineCard(value) => {
-                        result.extend_from_slice(value);
-                    }
-                    ScopeDataField::NetFlowCache(value) => {
-                        result.extend_from_slice(value);
-                    }
-                    ScopeDataField::Template(value) => {
+                    ScopeDataField::System(value)
+                    | ScopeDataField::Interface(value)
+                    | ScopeDataField::LineCard(value)
+                    | ScopeDataField::NetFlowCache(value)
+                    | ScopeDataField::Template(value) => {
                         result.extend_from_slice(value);
                     }
                 }
             }
-            for options_field in options_data_field.options_fields.iter() {
-                for (_field_type, field_value) in options_field.iter() {
-                    result.extend_from_slice(&field_value.to_be_bytes()?);
-                }
+            for (_field_type, field_value) in options_data_field.options_fields.iter() {
+                field_value.write_be_bytes(&mut result)?;
             }
         }
         Ok(result)

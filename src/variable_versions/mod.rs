@@ -213,7 +213,7 @@ impl PendingFlowCache {
         &mut self,
         template_id: u16,
         raw_data: Vec<u8>,
-        metrics: &CacheMetrics,
+        metrics: &mut CacheMetrics,
     ) -> Option<Vec<u8>> {
         if raw_data.len() > self.config.max_entry_size_bytes {
             metrics.record_pending_dropped();
@@ -271,7 +271,7 @@ impl PendingFlowCache {
     pub(crate) fn drain(
         &mut self,
         template_id: u16,
-        metrics: &CacheMetrics,
+        metrics: &mut CacheMetrics,
     ) -> Vec<PendingFlowEntry> {
         let Some(entries) = self.cache.pop(&template_id) else {
             return Vec::new();
@@ -292,7 +292,7 @@ impl PendingFlowCache {
 
     /// Remove expired entries from a single template's vector.
     /// If all entries expire, the key is removed from the cache.
-    fn prune_expired_for_template(&mut self, template_id: u16, metrics: &CacheMetrics) {
+    fn prune_expired_for_template(&mut self, template_id: u16, metrics: &mut CacheMetrics) {
         let Some(ttl) = self.config.ttl else { return };
         // Use peek_mut so pruning alone doesn't promote the key.
         let should_remove = self
@@ -306,7 +306,7 @@ impl PendingFlowCache {
 
     /// Remove expired entries from every template in the cache.
     /// Empty keys are removed so their slots can be reused.
-    fn purge_expired(&mut self, metrics: &CacheMetrics) {
+    fn purge_expired(&mut self, metrics: &mut CacheMetrics) {
         let Some(ttl) = self.config.ttl else { return };
         let keys: Vec<u16> = self.cache.iter().map(|(&k, _)| k).collect();
         for key in keys {
@@ -326,7 +326,7 @@ impl PendingFlowCache {
     fn drop_expired_entries(
         entries: &mut Vec<PendingFlowEntry>,
         ttl: Duration,
-        metrics: &CacheMetrics,
+        metrics: &mut CacheMetrics,
     ) -> bool {
         let before = entries.len();
         entries.retain(|e| e.cached_at.elapsed() < ttl);
@@ -359,7 +359,7 @@ impl PendingFlowCache {
     pub(crate) fn resize(
         &mut self,
         config: PendingFlowsConfig,
-        metrics: &CacheMetrics,
+        metrics: &mut CacheMetrics,
     ) -> Result<(), ConfigError> {
         let size = NonZeroUsize::new(config.max_pending_flows).ok_or(
             ConfigError::InvalidPendingCacheSize(config.max_pending_flows),
@@ -388,7 +388,7 @@ impl PendingFlowCache {
     fn trim_existing_entries(
         cache: &mut LruCache<u16, Vec<PendingFlowEntry>>,
         config: &PendingFlowsConfig,
-        metrics: &CacheMetrics,
+        metrics: &mut CacheMetrics,
     ) {
         // Collect keys first to avoid borrowing issues during iteration.
         let keys: Vec<u16> = cache.iter().map(|(&k, _)| k).collect();

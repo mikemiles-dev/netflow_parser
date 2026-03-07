@@ -24,8 +24,6 @@ use variable_versions::v9::{V9, V9Parser};
 use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
-use std::collections::HashSet;
-
 // Re-export scoped parser types for convenience
 pub use scoped_parser::{
     AutoScopedParser, IpfixSourceKey, RouterScopedParser, ScopingInfo, V9SourceKey,
@@ -205,7 +203,7 @@ struct GenericNetflowHeader {
 pub struct NetflowParser {
     pub v9_parser: V9Parser,
     pub ipfix_parser: IPFixParser,
-    pub allowed_versions: HashSet<u16>,
+    pub allowed_versions: [bool; 11],
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
@@ -247,13 +245,12 @@ pub struct ParserCacheStats {
 /// ```rust
 /// use netflow_parser::NetflowParser;
 /// use netflow_parser::variable_versions::ttl::TtlConfig;
-/// use std::collections::HashSet;
 /// use std::time::Duration;
 ///
 /// let parser = NetflowParser::builder()
 ///     .with_cache_size(2000)
 ///     .with_ttl(TtlConfig::new(Duration::from_secs(7200)))
-///     .with_allowed_versions([5, 9, 10].into())
+///     .with_allowed_versions(&[5, 9, 10])
 ///     .with_max_error_sample_size(512)
 ///     .build()
 ///     .expect("Failed to build parser");
@@ -262,9 +259,20 @@ pub struct ParserCacheStats {
 pub struct NetflowParserBuilder {
     v9_config: Config,
     ipfix_config: Config,
-    allowed_versions: HashSet<u16>,
+    allowed_versions: [bool; 11],
     max_error_sample_size: usize,
     template_hooks: TemplateHooks,
+}
+
+/// Helper to create a `[bool; 11]` allowed_versions array from a set of version numbers.
+fn versions_to_array(versions: &[u16]) -> [bool; 11] {
+    let mut arr = [false; 11];
+    for &v in versions {
+        if (v as usize) < arr.len() {
+            arr[v as usize] = true;
+        }
+    }
+    arr
 }
 
 // Custom Debug implementation to avoid printing closures
@@ -288,7 +296,7 @@ impl Default for NetflowParserBuilder {
         Self {
             v9_config: Config::new(1000, None),
             ipfix_config: Config::new(1000, None),
-            allowed_versions: [5, 7, 9, 10].iter().cloned().collect(),
+            allowed_versions: versions_to_array(&[5, 7, 9, 10]),
             max_error_sample_size: 256,
             template_hooks: TemplateHooks::new(),
         }
@@ -438,13 +446,13 @@ impl NetflowParserBuilder {
     ///
     /// // Only parse V9 and IPFIX
     /// let parser = NetflowParser::builder()
-    ///     .with_allowed_versions([9, 10].into())
+    ///     .with_allowed_versions(&[9, 10])
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
-    pub fn with_allowed_versions(mut self, versions: HashSet<u16>) -> Self {
-        self.allowed_versions = versions;
+    pub fn with_allowed_versions(mut self, versions: &[u16]) -> Self {
+        self.allowed_versions = versions_to_array(versions);
         self
     }
 
@@ -988,7 +996,7 @@ impl Default for NetflowParser {
         Self {
             v9_parser: V9Parser::default(),
             ipfix_parser: IPFixParser::default(),
-            allowed_versions: [5, 7, 9, 10].iter().cloned().collect(),
+            allowed_versions: versions_to_array(&[5, 7, 9, 10]),
             max_error_sample_size: 256,
             template_hooks: TemplateHooks::new(),
         }
@@ -1365,7 +1373,10 @@ impl NetflowParser {
     #[inline]
     fn parse_packet_by_version<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match GenericNetflowHeader::parse(packet) {
-            Ok((remaining, header)) if self.allowed_versions.contains(&header.version) => {
+            Ok((remaining, header))
+                if (header.version as usize) < self.allowed_versions.len()
+                    && self.allowed_versions[header.version as usize] =>
+            {
                 match header.version {
                     5 => V5Parser::parse(remaining),
                     7 => V7Parser::parse(remaining),

@@ -30,7 +30,7 @@ fn test_parse_v5_with_version_filter() {
 
     // Allow only V9
     let mut parser = NetflowParser::builder()
-        .with_allowed_versions([9].into())
+        .with_allowed_versions(&[9])
         .build()
         .expect("Failed to build parser");
 
