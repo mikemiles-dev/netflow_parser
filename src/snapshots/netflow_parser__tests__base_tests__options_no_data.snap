@@ -17,7 +17,6 @@ expression: parser.parse_bytes(&packet).packets
         body:
           NoTemplate:
             template_id: 258
-            available_templates: []
             raw_data:
               - 0
               - 0

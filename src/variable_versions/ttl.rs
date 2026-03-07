@@ -23,26 +23,34 @@ impl Default for TtlConfig {
 /// Metadata for tracking template insertion time
 #[derive(Debug, Clone)]
 pub struct TemplateMetadata {
-    pub inserted_at: Instant,
+    pub inserted_at: Option<Instant>,
 }
 
 impl TemplateMetadata {
-    /// Create new metadata with current timestamp
-    pub fn new() -> Self {
+    /// Create new metadata with current timestamp (when TTL is enabled)
+    pub fn new_with_ttl() -> Self {
         Self {
-            inserted_at: Instant::now(),
+            inserted_at: Some(Instant::now()),
         }
+    }
+
+    /// Create new metadata without timestamp (when TTL is disabled)
+    pub fn new_without_ttl() -> Self {
+        Self { inserted_at: None }
     }
 
     /// Check if this template has expired based on TTL configuration
     pub fn is_expired(&self, config: &TtlConfig) -> bool {
-        self.inserted_at.elapsed() >= config.duration
+        match self.inserted_at {
+            Some(instant) => instant.elapsed() >= config.duration,
+            None => false,
+        }
     }
 }
 
 impl Default for TemplateMetadata {
     fn default() -> Self {
-        Self::new()
+        Self::new_without_ttl()
     }
 }
 
@@ -54,11 +62,28 @@ pub struct TemplateWithTtl<T> {
 }
 
 impl<T> TemplateWithTtl<T> {
-    /// Create a new template wrapper with current metadata
-    pub fn new(template: T) -> Self {
+    /// Create a new template wrapper with TTL tracking enabled
+    pub fn new_with_ttl(template: T) -> Self {
         Self {
             template,
-            metadata: TemplateMetadata::new(),
+            metadata: TemplateMetadata::new_with_ttl(),
+        }
+    }
+
+    /// Create a new template wrapper without TTL tracking
+    pub fn new_without_ttl(template: T) -> Self {
+        Self {
+            template,
+            metadata: TemplateMetadata::new_without_ttl(),
+        }
+    }
+
+    /// Create a new template wrapper, conditionally enabling TTL
+    pub fn new(template: T, ttl_enabled: bool) -> Self {
+        if ttl_enabled {
+            Self::new_with_ttl(template)
+        } else {
+            Self::new_without_ttl(template)
         }
     }
 
@@ -76,7 +101,7 @@ mod tests {
     #[test]
     fn test_time_based_expiration() {
         let config = TtlConfig::new(Duration::from_millis(100));
-        let metadata = TemplateMetadata::new();
+        let metadata = TemplateMetadata::new_with_ttl();
 
         assert!(!metadata.is_expired(&config));
         thread::sleep(Duration::from_millis(150));
@@ -84,9 +109,18 @@ mod tests {
     }
 
     #[test]
+    fn test_no_ttl_never_expires() {
+        let config = TtlConfig::new(Duration::from_millis(1));
+        let metadata = TemplateMetadata::new_without_ttl();
+
+        thread::sleep(Duration::from_millis(10));
+        assert!(!metadata.is_expired(&config));
+    }
+
+    #[test]
     fn test_template_with_ttl_wrapper() {
-        let template = 42u32; // Mock template
-        let wrapped = TemplateWithTtl::new(template);
+        let template = 42u32;
+        let wrapped = TemplateWithTtl::new_with_ttl(template);
 
         assert_eq!(wrapped.template, 42);
 
@@ -94,6 +128,23 @@ mod tests {
         assert!(!wrapped.is_expired(&config));
         thread::sleep(Duration::from_millis(150));
         assert!(wrapped.is_expired(&config));
+    }
+
+    #[test]
+    fn test_template_without_ttl() {
+        let wrapped = TemplateWithTtl::new_without_ttl(42u32);
+        let config = TtlConfig::new(Duration::from_millis(1));
+        thread::sleep(Duration::from_millis(10));
+        assert!(!wrapped.is_expired(&config));
+    }
+
+    #[test]
+    fn test_conditional_new() {
+        let with = TemplateWithTtl::new(42u32, true);
+        assert!(with.metadata.inserted_at.is_some());
+
+        let without = TemplateWithTtl::new(42u32, false);
+        assert!(without.metadata.inserted_at.is_none());
     }
 
     #[test]

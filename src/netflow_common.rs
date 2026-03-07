@@ -914,11 +914,11 @@ mod common_tests {
                         ),
                         (
                             V9Field::InSrcMac,
-                            FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
+                            FieldValue::MacAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x01]),
                         ),
                         (
                             V9Field::InDstMac,
-                            FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
+                            FieldValue::MacAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x02]),
                         ),
                     ])],
                 }),
@@ -999,11 +999,11 @@ mod common_tests {
                         ),
                         (
                             IPFixField::IANA(IANAIPFixField::SourceMacaddress),
-                            FieldValue::MacAddr("00:00:00:00:00:01".to_string()),
+                            FieldValue::MacAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x01]),
                         ),
                         (
                             IPFixField::IANA(IANAIPFixField::DestinationMacaddress),
-                            FieldValue::MacAddr("00:00:00:00:00:02".to_string()),
+                            FieldValue::MacAddr([0x00, 0x00, 0x00, 0x00, 0x00, 0x02]),
                         ),
                     ])],
                     padding: vec![],

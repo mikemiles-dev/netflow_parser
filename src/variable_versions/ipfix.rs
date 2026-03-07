@@ -31,7 +31,6 @@ use crate::variable_versions::v9::{
 };
 
 use lru::LruCache;
-use std::collections::HashSet;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
@@ -51,11 +50,12 @@ pub type IPFixFieldPair = (IPFixField, FieldValue);
 pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
 
 /// Calculate padding needed to align to 4-byte boundary.
-/// Returns a Vec of zero bytes with the appropriate length.
-fn calculate_padding(content_size: usize) -> Vec<u8> {
+/// Returns a static slice of zero bytes with the appropriate length.
+fn calculate_padding(content_size: usize) -> &'static [u8] {
+    const PADDING: [u8; 3] = [0u8; 3];
     const PADDING_SIZES: [usize; 4] = [0, 3, 2, 1];
     let padding_len = PADDING_SIZES[content_size % 4];
-    vec![0u8; padding_len]
+    &PADDING[..padding_len]
 }
 
 #[derive(Debug)]
@@ -176,7 +176,7 @@ impl ParserConfig for IPFixParser {
         match config {
             Some(pf_config) => {
                 if let Some(ref mut cache) = self.pending_flows {
-                    cache.resize(pf_config, &self.metrics)?;
+                    cache.resize(pf_config, &mut self.metrics)?;
                 } else {
                     self.pending_flows = Some(PendingFlowCache::new(pf_config)?);
                 }
@@ -221,7 +221,7 @@ impl IPFixParser {
         let learned = Self::cache_notemplate_ipfix_flowsets(
             ipfix,
             &mut pending_cache,
-            &self.metrics,
+            &mut self.metrics,
             self.max_error_sample_size,
         );
         self.replay_ipfix_pending_flows(ipfix, &mut pending_cache, &learned);
@@ -233,7 +233,7 @@ impl IPFixParser {
     fn cache_notemplate_ipfix_flowsets(
         ipfix: &mut IPFix,
         cache: &mut PendingFlowCache,
-        metrics: &CacheMetrics,
+        metrics: &mut CacheMetrics,
         max_error_sample_size: usize,
     ) -> Vec<u16> {
         let mut learned_template_ids: Vec<u16> = Vec::new();
@@ -316,7 +316,7 @@ impl IPFixParser {
         learned: &[u16],
     ) {
         for &template_id in learned {
-            for entry in cache.drain(template_id, &self.metrics) {
+            for entry in cache.drain(template_id, &mut self.metrics) {
                 let flowset_length =
                     u16::try_from(entry.raw_data.len().saturating_add(4)).unwrap_or(u16::MAX);
                 let Some(new_header_length) = ipfix.header.length.checked_add(flowset_length)
@@ -448,20 +448,32 @@ impl IPFixParser {
         }
     }
 
+    /// Returns a sorted, deduplicated list of all available template IDs.
+    pub fn available_template_ids(&self) -> Vec<u16> {
+        let mut ids: Vec<u16> = self
+            .templates
+            .iter()
+            .map(|(&id, _)| id)
+            .chain(self.v9_templates.iter().map(|(&id, _)| id))
+            .chain(self.ipfix_options_templates.iter().map(|(&id, _)| id))
+            .chain(self.v9_options_templates.iter().map(|(&id, _)| id))
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
+
     /// Add templates to the parser by cloning from slice.
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
+        let ttl_enabled = self.ttl_config.is_some();
         for t in templates {
             let arc_template = Arc::new(t.clone());
-            let wrapped = TemplateWithTtl::new(arc_template.clone());
-            // Check for collision (same ID, different definition)
-            // Use peek() to avoid affecting LRU ordering
+            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
             if let Some(existing) = self.templates.peek(&t.template_id) {
                 if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
-            }
-            // Check if we're evicting an old template
-            else if self.templates.len() >= self.max_template_cache_size {
+            } else if self.templates.len() >= self.max_template_cache_size {
                 self.metrics.record_eviction();
             }
             self.templates.put(t.template_id, wrapped);
@@ -470,18 +482,15 @@ impl IPFixParser {
     }
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
+        let ttl_enabled = self.ttl_config.is_some();
         for t in templates {
             let arc_template = Arc::new(t.clone());
-            let wrapped = TemplateWithTtl::new(arc_template.clone());
-            // Check for collision (same ID, different definition)
-            // Use peek() to avoid affecting LRU ordering
+            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
             if let Some(existing) = self.ipfix_options_templates.peek(&t.template_id) {
                 if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
-            }
-            // Check if we're evicting an old template
-            else if self.ipfix_options_templates.len() >= self.max_template_cache_size {
+            } else if self.ipfix_options_templates.len() >= self.max_template_cache_size {
                 self.metrics.record_eviction();
             }
             self.ipfix_options_templates.put(t.template_id, wrapped);
@@ -490,18 +499,15 @@ impl IPFixParser {
     }
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
+        let ttl_enabled = self.ttl_config.is_some();
         for t in templates {
             let arc_template = Arc::new(t.clone());
-            let wrapped = TemplateWithTtl::new(arc_template.clone());
-            // Check for collision (same ID, different definition)
-            // Use peek() to avoid affecting LRU ordering
+            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
             if let Some(existing) = self.v9_templates.peek(&t.template_id) {
                 if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
-            }
-            // Check if we're evicting an old template
-            else if self.v9_templates.len() >= self.max_template_cache_size {
+            } else if self.v9_templates.len() >= self.max_template_cache_size {
                 self.metrics.record_eviction();
             }
             self.v9_templates.put(t.template_id, wrapped);
@@ -510,18 +516,15 @@ impl IPFixParser {
     }
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
+        let ttl_enabled = self.ttl_config.is_some();
         for t in templates {
             let arc_template = Arc::new(t.clone());
-            let wrapped = TemplateWithTtl::new(arc_template.clone());
-            // Check for collision (same ID, different definition)
-            // Use peek() to avoid affecting LRU ordering
+            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
             if let Some(existing) = self.v9_options_templates.peek(&t.template_id) {
                 if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
-            }
-            // Check if we're evicting an old template
-            else if self.v9_options_templates.len() >= self.max_template_cache_size {
+            } else if self.v9_options_templates.len() >= self.max_template_cache_size {
                 self.metrics.record_eviction();
             }
             self.v9_options_templates.put(t.template_id, wrapped);
@@ -578,8 +581,6 @@ pub struct IPFix {
 pub struct NoTemplateInfo {
     /// The template ID that was requested but not found
     pub template_id: u16,
-    /// List of currently available template IDs in the cache
-    pub available_templates: Vec<u16>,
     /// The unparsed flowset data (for potential retry after template arrives)
     pub raw_data: Vec<u8>,
 }
@@ -589,39 +590,6 @@ impl NoTemplateInfo {
     pub fn new(template_id: u16, raw_data: Vec<u8>) -> Self {
         Self {
             template_id,
-            available_templates: Vec::new(),
-            raw_data,
-        }
-    }
-
-    /// Create a NoTemplateInfo with available templates from the parser
-    pub fn with_available_templates(
-        template_id: u16,
-        raw_data: Vec<u8>,
-        parser: &IPFixParser,
-    ) -> Self {
-        let mut available = Vec::new();
-
-        // Collect all template IDs
-        for (id, _) in parser.templates.iter() {
-            available.push(*id);
-        }
-        for (id, _) in parser.v9_templates.iter() {
-            available.push(*id);
-        }
-        for (id, _) in parser.ipfix_options_templates.iter() {
-            available.push(*id);
-        }
-        for (id, _) in parser.v9_options_templates.iter() {
-            available.push(*id);
-        }
-
-        available.sort_unstable();
-        available.dedup();
-
-        Self {
-            template_id,
-            available_templates: available,
             raw_data,
         }
     }
@@ -836,7 +804,7 @@ impl FlowSetBody {
                     } else {
                         i[..i.len().min(parser.max_error_sample_size)].to_vec()
                     };
-                    let info = NoTemplateInfo::with_available_templates(id, raw_data, parser);
+                    let info = NoTemplateInfo::new(id, raw_data);
                     Ok((i, FlowSetBody::NoTemplate(info)))
                 } else {
                     Err(nom::Err::Error(nom::error::Error::new(
@@ -1071,7 +1039,7 @@ pub(crate) trait CommonTemplate {
         }
 
         // Check for duplicate field IDs
-        let mut seen = HashSet::with_capacity(self.get_fields().len());
+        let mut seen = std::collections::HashSet::with_capacity(self.get_fields().len());
         for field in self.get_fields() {
             // For IPFIX, we need to check the combination of field_type_number and enterprise_number
             let key = (field.field_type_number, field.enterprise_number);
@@ -1370,7 +1338,7 @@ impl IPFix {
                 let mut data_content = Vec::new();
                 for item in data.fields.iter() {
                     for (_, v) in item.iter() {
-                        data_content.extend_from_slice(&v.to_be_bytes()?);
+                        v.write_be_bytes(&mut data_content)?;
                     }
                 }
                 let mut result = Vec::new();
@@ -1378,16 +1346,16 @@ impl IPFix {
                 let padding = if data.padding.is_empty() {
                     calculate_padding(data_content.len())
                 } else {
-                    data.padding.clone()
+                    &data.padding[..]
                 };
-                result.extend_from_slice(&padding);
+                result.extend_from_slice(padding);
                 Ok(result)
             }
             FlowSetBody::OptionsData(data) => {
                 let mut options_data_content = Vec::new();
                 for item in data.fields.iter() {
                     for (_, v) in item.iter() {
-                        options_data_content.extend_from_slice(&v.to_be_bytes()?);
+                        v.write_be_bytes(&mut options_data_content)?;
                     }
                 }
                 let mut result = Vec::new();
@@ -1395,16 +1363,16 @@ impl IPFix {
                 let padding = if data.padding.is_empty() {
                     calculate_padding(options_data_content.len())
                 } else {
-                    data.padding.clone()
+                    &data.padding[..]
                 };
-                result.extend_from_slice(&padding);
+                result.extend_from_slice(padding);
                 Ok(result)
             }
             FlowSetBody::V9Data(data) => {
                 let mut data_content = Vec::new();
                 for item in data.fields.iter() {
                     for (_, v) in item.iter() {
-                        data_content.extend_from_slice(&v.to_be_bytes()?);
+                        v.write_be_bytes(&mut data_content)?;
                     }
                 }
                 let mut result = Vec::new();
@@ -1412,9 +1380,9 @@ impl IPFix {
                 let padding = if data.padding.is_empty() {
                     calculate_padding(data_content.len())
                 } else {
-                    data.padding.clone()
+                    &data.padding[..]
                 };
-                result.extend_from_slice(&padding);
+                result.extend_from_slice(padding);
                 Ok(result)
             }
             FlowSetBody::V9OptionsData(options_data) => {
@@ -1422,32 +1390,22 @@ impl IPFix {
                 for options_data_field in options_data.fields.iter() {
                     for field in options_data_field.scope_fields.iter() {
                         match field {
-                            V9ScopeDataField::System(value) => {
-                                data_content.extend_from_slice(value)
-                            }
-                            V9ScopeDataField::Interface(value) => {
-                                data_content.extend_from_slice(value)
-                            }
-                            V9ScopeDataField::LineCard(value) => {
-                                data_content.extend_from_slice(value)
-                            }
-                            V9ScopeDataField::NetFlowCache(value) => {
-                                data_content.extend_from_slice(value)
-                            }
-                            V9ScopeDataField::Template(value) => {
+                            V9ScopeDataField::System(value)
+                            | V9ScopeDataField::Interface(value)
+                            | V9ScopeDataField::LineCard(value)
+                            | V9ScopeDataField::NetFlowCache(value)
+                            | V9ScopeDataField::Template(value) => {
                                 data_content.extend_from_slice(value)
                             }
                         }
                     }
-                    for options_field in options_data_field.options_fields.iter() {
-                        for (_field_type, field_value) in options_field.iter() {
-                            data_content.extend_from_slice(&field_value.to_be_bytes()?);
-                        }
+                    for (_field_type, field_value) in options_data_field.options_fields.iter() {
+                        field_value.write_be_bytes(&mut data_content)?;
                     }
                 }
                 let mut result = Vec::new();
                 result.extend_from_slice(&data_content);
-                result.extend_from_slice(&calculate_padding(data_content.len()));
+                result.extend_from_slice(calculate_padding(data_content.len()));
                 Ok(result)
             }
             FlowSetBody::NoTemplate(_) | FlowSetBody::Empty => {
