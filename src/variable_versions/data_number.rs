@@ -64,10 +64,25 @@ pub enum DataNumber {
     I32(i32),
 }
 
+/// Error returned when converting a [`DataNumber`] to a concrete numeric type fails
+/// because the variant does not match the requested type.
 #[derive(Debug)]
 pub enum DataNumberError {
+    /// The [`DataNumber`] variant does not match the requested numeric type.
     InvalidDataType,
 }
+
+impl std::fmt::Display for DataNumberError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DataNumberError::InvalidDataType => {
+                write!(f, "DataNumber variant does not match the requested type")
+            }
+        }
+    }
+}
+
+impl std::error::Error for DataNumberError {}
 
 impl_try_from!(
     u8 => U8,
@@ -82,10 +97,25 @@ impl_try_from!(
     i128 => I128;
 );
 
+/// Error returned when converting a [`FieldValue`] to a concrete Rust type fails
+/// because the variant does not match the requested type.
 #[derive(Debug)]
 pub enum FieldValueError {
+    /// The [`FieldValue`] variant does not match the requested type.
     InvalidDataType,
 }
+
+impl std::fmt::Display for FieldValueError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FieldValueError::InvalidDataType => {
+                write!(f, "FieldValue variant does not match the requested type")
+            }
+        }
+    }
+}
+
+impl std::error::Error for FieldValueError {}
 
 impl TryFrom<&FieldValue> for String {
     type Error = FieldValueError;

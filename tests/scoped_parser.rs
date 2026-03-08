@@ -118,7 +118,7 @@ fn test_auto_scoped_parser_with_builder() {
 
     let builder = NetflowParser::builder().with_cache_size(2000);
 
-    let parser = AutoScopedParser::with_builder(builder);
+    let parser = AutoScopedParser::try_with_builder(builder).expect("valid config");
 
     // Verify parser was created with builder configuration
     assert_eq!(parser.source_count(), 0);
@@ -131,7 +131,8 @@ fn test_router_scoped_parser_with_builder() {
 
     let builder = NetflowParser::builder().with_cache_size(2000);
 
-    let mut parser = RouterScopedParser::<String>::with_builder(builder);
+    let mut parser =
+        RouterScopedParser::<String>::try_with_builder(builder).expect("valid config");
 
     // Verify parser was created
     let v5_packet = [

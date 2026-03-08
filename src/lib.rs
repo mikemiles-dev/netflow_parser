@@ -38,6 +38,10 @@ pub use variable_versions::metrics::{CacheMetrics, CacheMetricsSnapshot};
 pub use variable_versions::ttl::TtlConfig;
 pub use variable_versions::{Config, ConfigError, NoTemplateInfo, PendingFlowsConfig};
 
+// Rust-idiomatic naming aliases
+pub use variable_versions::ipfix::{Ipfix, IpfixFieldPair, IpfixFlowRecord, IpfixParser};
+pub use variable_versions::ipfix_lookup::IpfixField;
+
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
 pub enum NetflowPacket {
@@ -207,12 +211,15 @@ struct GenericNetflowHeader {
 /// ```
 #[derive(Debug)]
 pub struct NetflowParser {
-    pub v9_parser: V9Parser,
-    pub ipfix_parser: IPFixParser,
-    pub allowed_versions: [bool; 11],
+    pub(crate) v9_parser: V9Parser,
+    pub(crate) ipfix_parser: IPFixParser,
+    /// Which NetFlow versions are accepted for parsing.
+    /// Indexed by version number (e.g., index 5 = V5, index 9 = V9, index 10 = IPFIX).
+    /// `true` means the version is allowed, `false` means it will be skipped.
+    pub(crate) allowed_versions: [bool; 11],
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
-    pub max_error_sample_size: usize,
+    pub(crate) max_error_sample_size: usize,
     /// Template event hooks for monitoring template lifecycle events.
     template_hooks: TemplateHooks,
 }
@@ -638,6 +645,10 @@ impl NetflowParserBuilder {
     /// **Recommended** for parsing NetFlow from multiple routers. Each source
     /// gets an isolated template cache, preventing template ID collisions.
     ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError` if the builder configuration is invalid.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -647,7 +658,8 @@ impl NetflowParserBuilder {
     /// // Multi-source deployment
     /// let mut parser = NetflowParser::builder()
     ///     .with_cache_size(2000)
-    ///     .multi_source();
+    ///     .try_multi_source()
+    ///     .expect("valid config");
     ///
     /// let source: SocketAddr = "192.168.1.1:2055".parse().unwrap();
     /// let data = [0u8; 72]; // Example data
@@ -659,9 +671,24 @@ impl NetflowParserBuilder {
     /// use netflow_parser::{NetflowParser, AutoScopedParser};
     ///
     /// let builder = NetflowParser::builder().with_cache_size(2000);
-    /// let _parser = AutoScopedParser::with_builder(builder);
+    /// let _parser = AutoScopedParser::try_with_builder(builder).expect("valid config");
     /// ```
+    pub fn try_multi_source(self) -> Result<AutoScopedParser, ConfigError> {
+        AutoScopedParser::try_with_builder(self)
+    }
+
+    /// Creates an AutoScopedParser for multi-source deployments.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the builder configuration is invalid. Prefer [`try_multi_source`](Self::try_multi_source)
+    /// for fallible construction.
+    #[deprecated(
+        since = "1.0.0",
+        note = "use try_multi_source() for fallible construction"
+    )]
     pub fn multi_source(self) -> AutoScopedParser {
+        #[allow(deprecated)]
         AutoScopedParser::with_builder(self)
     }
 
@@ -725,11 +752,9 @@ impl NetflowParserBuilder {
     ///     .build()
     ///     .expect("Failed to build parser");
     /// ```
-    pub fn build(self) -> Result<NetflowParser, String> {
-        let v9_parser =
-            V9Parser::try_new(self.v9_config).map_err(|e| format!("V9 parser error: {}", e))?;
-        let ipfix_parser = IPFixParser::try_new(self.ipfix_config)
-            .map_err(|e| format!("IPFIX parser error: {}", e))?;
+    pub fn build(self) -> Result<NetflowParser, ConfigError> {
+        let v9_parser = V9Parser::try_new(self.v9_config)?;
+        let ipfix_parser = IPFixParser::try_new(self.ipfix_config)?;
 
         Ok(NetflowParser {
             v9_parser,
@@ -1017,6 +1042,45 @@ impl NetflowParser {
     /// ```
     pub fn builder() -> NetflowParserBuilder {
         NetflowParserBuilder::default()
+    }
+
+    /// Returns the allowed versions array.
+    ///
+    /// Indexed by version number: index 5 = V5, 7 = V7, 9 = V9, 10 = IPFIX.
+    /// `true` means the version is accepted for parsing.
+    pub fn allowed_versions(&self) -> &[bool; 11] {
+        &self.allowed_versions
+    }
+
+    /// Returns whether the given NetFlow version is allowed for parsing.
+    pub fn is_version_allowed(&self, version: u16) -> bool {
+        (version as usize) < self.allowed_versions.len()
+            && self.allowed_versions[version as usize]
+    }
+
+    /// Returns the maximum error sample size in bytes.
+    pub fn max_error_sample_size(&self) -> usize {
+        self.max_error_sample_size
+    }
+
+    /// Returns a reference to the V9 parser.
+    pub fn v9_parser(&self) -> &V9Parser {
+        &self.v9_parser
+    }
+
+    /// Returns a mutable reference to the V9 parser.
+    pub fn v9_parser_mut(&mut self) -> &mut V9Parser {
+        &mut self.v9_parser
+    }
+
+    /// Returns a reference to the IPFIX parser.
+    pub fn ipfix_parser(&self) -> &IPFixParser {
+        &self.ipfix_parser
+    }
+
+    /// Returns a mutable reference to the IPFIX parser.
+    pub fn ipfix_parser_mut(&mut self) -> &mut IPFixParser {
+        &mut self.ipfix_parser
     }
 
     /// Gets statistics about the V9 template cache.

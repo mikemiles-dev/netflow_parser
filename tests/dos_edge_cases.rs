@@ -405,10 +405,12 @@ fn test_zero_cache_size_rejected() {
     let result = NetflowParser::builder().with_v9_cache_size(0).build();
 
     assert!(result.is_err(), "Should reject zero cache size");
-    let error_msg = result.unwrap_err();
+    let error = result.unwrap_err();
+    let error_msg = error.to_string();
     assert!(
         error_msg.contains("cache") || error_msg.contains("size"),
-        "Error should mention cache/size issue"
+        "Error should mention cache/size issue, got: {}",
+        error_msg
     );
 }
 

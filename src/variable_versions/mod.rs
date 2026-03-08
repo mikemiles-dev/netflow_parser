@@ -42,7 +42,7 @@
 //! | YAF | 6871 | [`ipfix_lookup::YafIPFixField`] |
 //! | VMware | 6876 | [`ipfix_lookup::VMWareIPFixField`] |
 //!
-//! Register custom enterprise fields using [`EnterpriseFieldRegistry`]:
+//! Register custom enterprise fields using [`enterprise_registry::EnterpriseFieldRegistry`]:
 //!
 //! ```
 //! use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldRegistry;

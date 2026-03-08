@@ -447,11 +447,11 @@ let parser = NetflowParser::builder()
     .build()
     .expect("Failed to build parser");
 
-// Or set directly on an existing parser
-let mut parser = NetflowParser::default();
-parser.allowed_versions = [false; 11];
-parser.allowed_versions[7] = true;
-parser.allowed_versions[9] = true;
+// Check which versions are allowed
+let parser = NetflowParser::default();
+assert!(parser.is_version_allowed(5));
+assert!(parser.is_version_allowed(9));
+assert!(parser.is_version_allowed(10));
 ```
 
 Packets with versions not in the allowed list will be ignored (returns empty Vec).
@@ -981,11 +981,11 @@ let builder = NetflowParser::builder()
     .with_cache_size(5000)
     .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
 
-let mut parser = AutoScopedParser::with_builder(builder);
+let mut parser = AutoScopedParser::try_with_builder(builder).expect("valid config");
 
 // Or configure RouterScopedParser for custom scoping
 use netflow_parser::RouterScopedParser;
-let mut scoped = RouterScopedParser::<String>::with_builder(builder);
+let mut scoped = RouterScopedParser::<String>::try_with_builder(builder).expect("valid config");
 ```
 
 ### Template Collision Detection

@@ -11,7 +11,8 @@ fn main() {
         .with_cache_size(2000)
         .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
 
-    let mut scoped_parser = RouterScopedParser::<SocketAddr>::with_builder(builder);
+    let mut scoped_parser =
+        RouterScopedParser::<SocketAddr>::try_with_builder(builder).expect("valid config");
 
     // Metrics tracking
     let mut packet_count = 0u64;
