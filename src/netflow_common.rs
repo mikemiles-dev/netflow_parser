@@ -194,7 +194,7 @@ impl Default for IPFixFieldMappingConfig {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 /// Common structure for Netflow
 pub struct NetflowCommon {
     pub version: u16,
@@ -215,7 +215,7 @@ impl TryFrom<&NetflowPacket> for NetflowCommon {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 /// Common flow set structure for Netflow
 pub struct NetflowCommonFlowSet {
     /// Source IP address
