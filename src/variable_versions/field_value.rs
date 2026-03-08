@@ -718,7 +718,7 @@ pub enum FieldDataType {
     Vec,
     /// IP protocol number (see [`ProtocolTypes`])
     ProtocolType,
-    /// Forwarding status (see [`ForwardingStatus`](crate::field_types::ForwardingStatus))
+    /// Forwarding status (see [`ForwardingStatus`])
     ForwardingStatus,
     /// Fragment flags bitmask (field 197)
     FragmentFlags,
