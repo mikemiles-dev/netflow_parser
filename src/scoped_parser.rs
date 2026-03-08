@@ -123,7 +123,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     /// Panics if the builder configuration is invalid. Prefer [`try_with_builder`](Self::try_with_builder)
     /// for fallible construction.
     #[deprecated(
-        since = "1.1.0",
+        since = "1.0.0",
         note = "use try_with_builder() for fallible construction"
     )]
     pub fn with_builder(builder: NetflowParserBuilder) -> Self {
@@ -495,7 +495,7 @@ impl AutoScopedParser {
     /// Panics if the builder configuration is invalid. Prefer [`try_with_builder`](Self::try_with_builder)
     /// for fallible construction.
     #[deprecated(
-        since = "1.1.0",
+        since = "1.0.0",
         note = "use try_with_builder() for fallible construction"
     )]
     pub fn with_builder(builder: NetflowParserBuilder) -> Self {

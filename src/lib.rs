@@ -684,7 +684,7 @@ impl NetflowParserBuilder {
     /// Panics if the builder configuration is invalid. Prefer [`try_multi_source`](Self::try_multi_source)
     /// for fallible construction.
     #[deprecated(
-        since = "1.1.0",
+        since = "1.0.0",
         note = "use try_multi_source() for fallible construction"
     )]
     pub fn multi_source(self) -> AutoScopedParser {
