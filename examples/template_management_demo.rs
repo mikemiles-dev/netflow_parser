@@ -92,7 +92,8 @@ fn demo_multi_source() {
         .with_cache_size(2000)
         .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
 
-    let mut scoped_parser = RouterScopedParser::<SocketAddr>::with_builder(builder);
+    let mut scoped_parser =
+        RouterScopedParser::<SocketAddr>::try_with_builder(builder).expect("valid config");
 
     // Simulate data from multiple routers
     let router1: SocketAddr = "192.168.1.1:2055".parse().unwrap();

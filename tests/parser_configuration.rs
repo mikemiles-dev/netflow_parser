@@ -10,11 +10,11 @@ use std::time::Duration;
 fn test_default_parser_creation() {
     let parser = NetflowParser::default();
     // Default allows versions 5, 7, 9, 10
-    assert!(parser.allowed_versions[5]);
-    assert!(parser.allowed_versions[7]);
-    assert!(parser.allowed_versions[9]);
-    assert!(parser.allowed_versions[10]);
-    assert!(!parser.allowed_versions[0]);
+    assert!(parser.allowed_versions()[5]);
+    assert!(parser.allowed_versions()[7]);
+    assert!(parser.allowed_versions()[9]);
+    assert!(parser.allowed_versions()[10]);
+    assert!(!parser.allowed_versions()[0]);
 }
 
 // Verify builder sets the same cache size for both V9 and IPFIX caches
@@ -57,8 +57,8 @@ fn test_parser_builder_with_ttl() {
         .expect("Failed to build parser");
 
     // Parser should be created successfully with default allowed versions
-    assert!(parser.allowed_versions[5]);
-    assert!(parser.allowed_versions[9]);
+    assert!(parser.allowed_versions()[5]);
+    assert!(parser.allowed_versions()[9]);
 }
 
 // Verify builder restricts allowed versions to only those specified
@@ -69,9 +69,9 @@ fn test_parser_builder_with_allowed_versions() {
         .build()
         .expect("Failed to build parser");
 
-    assert!(parser.allowed_versions[5]);
-    assert!(parser.allowed_versions[9]);
-    assert!(!parser.allowed_versions[7]);
+    assert!(parser.allowed_versions()[5]);
+    assert!(parser.allowed_versions()[9]);
+    assert!(!parser.allowed_versions()[7]);
 }
 
 // Verify builder sets the max error sample size on the parser
@@ -82,7 +82,7 @@ fn test_parser_builder_with_max_error_sample_size() {
         .build()
         .expect("Failed to build parser");
 
-    assert_eq!(parser.max_error_sample_size, 512);
+    assert_eq!(parser.max_error_sample_size(), 512);
 }
 
 // Verify builder accepts a max field count limit and creates a valid parser
@@ -94,8 +94,8 @@ fn test_parser_builder_with_field_count_limits() {
         .expect("Failed to build parser");
 
     // Parser should be created successfully with field limits and default allowed versions
-    assert!(parser.allowed_versions[5]);
-    assert!(parser.allowed_versions[9]);
+    assert!(parser.allowed_versions()[5]);
+    assert!(parser.allowed_versions()[9]);
 }
 
 // Verify builder chains all options together and produces correct configuration
@@ -119,9 +119,9 @@ fn test_parser_builder_comprehensive() {
     let ipfix_stats = parser.ipfix_cache_stats();
     assert_eq!(ipfix_stats.max_size, 2500);
 
-    assert!(parser.allowed_versions[5]);
-    assert!(parser.allowed_versions[9]);
-    assert!(parser.allowed_versions[10]);
+    assert!(parser.allowed_versions()[5]);
+    assert!(parser.allowed_versions()[9]);
+    assert!(parser.allowed_versions()[10]);
 
-    assert_eq!(parser.max_error_sample_size, 512);
+    assert_eq!(parser.max_error_sample_size(), 512);
 }

@@ -280,13 +280,13 @@ fn test_builder_propagation() {
 
     // V9 parser should have pending cache enabled
     assert!(
-        parser.v9_parser.pending_flows_enabled(),
+        parser.v9_parser().pending_flows_enabled(),
         "V9 parser should have pending cache"
     );
 
     // IPFIX parser should have pending cache enabled
     assert!(
-        parser.ipfix_parser.pending_flows_enabled(),
+        parser.ipfix_parser().pending_flows_enabled(),
         "IPFIX parser should have pending cache"
     );
 }
@@ -300,11 +300,11 @@ fn test_v9_only_pending_flows() {
         .expect("Failed to build parser");
 
     assert!(
-        parser.v9_parser.pending_flows_enabled(),
+        parser.v9_parser().pending_flows_enabled(),
         "V9 parser should have pending cache"
     );
     assert!(
-        !parser.ipfix_parser.pending_flows_enabled(),
+        !parser.ipfix_parser().pending_flows_enabled(),
         "IPFIX parser should NOT have pending cache"
     );
 }
@@ -318,11 +318,11 @@ fn test_ipfix_only_pending_flows() {
         .expect("Failed to build parser");
 
     assert!(
-        !parser.v9_parser.pending_flows_enabled(),
+        !parser.v9_parser().pending_flows_enabled(),
         "V9 parser should NOT have pending cache"
     );
     assert!(
-        parser.ipfix_parser.pending_flows_enabled(),
+        parser.ipfix_parser().pending_flows_enabled(),
         "IPFIX parser should have pending cache"
     );
 }
@@ -1456,7 +1456,7 @@ fn test_resize_trims_excess_entries_per_template() {
     let mut stricter = PendingFlowsConfig::new(256);
     stricter.max_entries_per_template = 2;
     parser
-        .v9_parser
+        .v9_parser_mut()
         .set_pending_flows_config(Some(stricter))
         .expect("reconfigure should succeed");
 
@@ -1488,7 +1488,7 @@ fn test_resize_trims_oversize_entries() {
     let mut stricter = PendingFlowsConfig::new(256);
     stricter.max_entry_size_bytes = 8;
     parser
-        .v9_parser
+        .v9_parser_mut()
         .set_pending_flows_config(Some(stricter))
         .expect("reconfigure should succeed");
 
@@ -1519,7 +1519,7 @@ fn test_resize_trims_ipfix_pending_flows() {
     let mut stricter = PendingFlowsConfig::new(256);
     stricter.max_entries_per_template = 1;
     parser
-        .ipfix_parser
+        .ipfix_parser_mut()
         .set_pending_flows_config(Some(stricter))
         .expect("reconfigure should succeed");
 

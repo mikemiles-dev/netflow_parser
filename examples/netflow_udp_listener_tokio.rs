@@ -18,7 +18,9 @@ async fn main() -> io::Result<()> {
         .with_cache_size(2000)
         .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
 
-    let parser = Arc::new(Mutex::new(AutoScopedParser::with_builder(builder)));
+    let parser = Arc::new(Mutex::new(
+        AutoScopedParser::try_with_builder(builder).expect("valid config"),
+    ));
 
     let sock = UdpSocket::bind("0.0.0.0:9995").await?;
     let mut buf = [0; 65535];

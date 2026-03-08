@@ -14,9 +14,9 @@ fn main() {
         .with_cache_size(2000)
         .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
 
-    let scoped_parser = Arc::new(Mutex::new(RouterScopedParser::<SocketAddr>::with_builder(
-        builder,
-    )));
+    let scoped_parser = Arc::new(Mutex::new(
+        RouterScopedParser::<SocketAddr>::try_with_builder(builder).expect("valid config"),
+    ));
 
     // Metrics tracking
     let packet_count = Arc::new(AtomicU64::new(0));

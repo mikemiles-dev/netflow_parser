@@ -77,7 +77,7 @@ fn test_scoped_parser_with_builder() {
 
     let builder = NetflowParser::builder().with_cache_size(2000);
 
-    let mut parser = AutoScopedParser::with_builder(builder);
+    let mut parser = AutoScopedParser::try_with_builder(builder).expect("valid config");
 
     let source: SocketAddr = "192.168.1.1:2055".parse().unwrap();
 

@@ -1646,3 +1646,6 @@ mod ipfix_lookup_tests {
         assert_yaml_snapshot!(lookup);
     }
 }
+
+/// Alias for [`IPFixField`] using Rust naming conventions.
+pub type IpfixField = IPFixField;

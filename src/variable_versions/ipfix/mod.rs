@@ -316,3 +316,17 @@ impl CommonTemplate for OptionsTemplate {
 }
 
 pub struct FieldParser;
+
+// Rust-idiomatic naming aliases (additive, non-breaking)
+
+/// Alias for [`IPFix`] using Rust naming conventions.
+pub type Ipfix = IPFix;
+
+/// Alias for [`IPFixParser`] using Rust naming conventions.
+pub type IpfixParser = IPFixParser;
+
+/// Alias for [`IPFixFieldPair`] using Rust naming conventions.
+pub type IpfixFieldPair = IPFixFieldPair;
+
+/// Alias for [`IpFixFlowRecord`] using Rust naming conventions.
+pub type IpfixFlowRecord = IpFixFlowRecord;
