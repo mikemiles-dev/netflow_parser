@@ -506,7 +506,9 @@ impl OptionsTemplate {
     /// Validate the options template against parser configuration
     pub fn is_valid(&self, parser: &V9Parser) -> bool {
         // Scope and option lengths must be multiples of 4 (each field is type_id:u16 + length:u16)
-        if !self.options_scope_length.is_multiple_of(4) || !self.options_length.is_multiple_of(4) {
+        if !self.options_scope_length.is_multiple_of(4)
+            || !self.options_length.is_multiple_of(4)
+        {
             return false;
         }
         let scope_count = usize::from(self.options_scope_length / 4);
