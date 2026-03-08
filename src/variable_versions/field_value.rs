@@ -417,7 +417,7 @@ impl FieldValue {
                 let (i, protocol) = ProtocolTypes::parse(remaining)?;
                 (i, FieldValue::ProtocolType(protocol))
             }
-            FieldDataType::ForwardingStatusType => {
+            FieldDataType::ForwardingStatus => {
                 let (i, status) = ForwardingStatus::parse(remaining)?;
                 (i, FieldValue::ForwardingStatus(status))
             }
@@ -517,7 +517,7 @@ pub enum FieldDataType {
     /// IP protocol number (see [`ProtocolTypes`])
     ProtocolType,
     /// Forwarding status (see [`ForwardingStatus`](crate::field_types::ForwardingStatus))
-    ForwardingStatusType,
+    ForwardingStatus,
     /// Unknown or unsupported field type
     Unknown,
 }

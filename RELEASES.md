@@ -15,7 +15,7 @@
  * **New `field_types` module with `ForwardingStatus` enum**
    - Added `field_types::ForwardingStatus` — decodes field ID 89 (RFC 7270) into status category and reason code variants
    - Status categories: Unknown, Forwarded, Dropped, Consumed — with specific reason codes (e.g., `DroppedAclDeny`, `ForwardedFragmented`, `ConsumedTerminatedForUs`)
-   - Added `FieldDataType::ForwardingStatusType` and `FieldValue::ForwardingStatus` for automatic decoding in both V9 and IPFIX
+   - Added `FieldDataType::ForwardingStatus` and `FieldValue::ForwardingStatus` for automatic decoding in both V9 and IPFIX
    - `field_types` module is designed for future custom field type additions
 
  * **Performance: Hot-path allocation reduction**

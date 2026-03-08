@@ -274,7 +274,7 @@ impl From<V9Field> for FieldDataType {
             V9Field::InPermanentBytes => FieldDataType::UnsignedDataNumber,
             V9Field::InPermanentPkts => FieldDataType::UnsignedDataNumber,
             V9Field::FragmentOffset => FieldDataType::UnsignedDataNumber,
-            V9Field::ForwardingStatus => FieldDataType::ForwardingStatusType,
+            V9Field::ForwardingStatus => FieldDataType::ForwardingStatus,
             V9Field::MplsPalRd => FieldDataType::Vec,
             V9Field::MplsPrefixLen => FieldDataType::UnsignedDataNumber,
             V9Field::SrcTrafficIndex => FieldDataType::UnsignedDataNumber,

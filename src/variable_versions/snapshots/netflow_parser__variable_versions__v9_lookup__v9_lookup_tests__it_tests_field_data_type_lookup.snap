@@ -90,7 +90,7 @@ expression: fields
 - UnsignedDataNumber
 - Unknown
 - UnsignedDataNumber
-- ForwardingStatusType
+- ForwardingStatus
 - Vec
 - UnsignedDataNumber
 - UnsignedDataNumber
