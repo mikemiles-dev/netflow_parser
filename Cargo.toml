@@ -66,7 +66,3 @@ harness = false
 [[bench]]
 name = "steady_state_bench"
 harness = false
-
-[[bench]]
-name = "v5_direct_bench"
-harness = false

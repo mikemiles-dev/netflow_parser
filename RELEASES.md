@@ -33,7 +33,7 @@
    - V7 parsing receives the same treatment (52-byte fixed flow records)
    - `Ipv4Addr` fields constructed directly from bytes instead of `be_u32` → `Ipv4Addr::from()`
    - `to_be_bytes()` now pre-allocates with `Vec::with_capacity()` based on known sizes
-   - nom-derive `#[derive(Nom)]` removed from V5/V7 structs; no API changes
+   - nom-derive `#[derive(Nom)]` removed from V5/V7 structs; `V5Parser::parse()` and `V7Parser::parse()` entry points unchanged
 
  * **Performance: Hot-path allocation reduction**
    - `FieldValue::MacAddr` now stores `[u8; 6]` instead of `String`, eliminating a heap allocation per MAC address field
@@ -115,6 +115,7 @@
    - `with_builder()` on `RouterScopedParser` and `AutoScopedParser` is deprecated. Use `try_with_builder()`.
    - `multi_source()` on `NetflowParserBuilder` is deprecated. Use `try_multi_source()`.
    - `DataNumber::to_be_bytes()` and `FieldValue::to_be_bytes()` removed; use `write_be_bytes()` instead.
+   - V5 and V7 structs (`V5`, `Header`, `FlowSet`) no longer derive `Nom`. Code calling `V5::parse()` or `V7::parse()` via the nom-derive `Parse` trait must use `V5::parse_direct()` / `V7::parse_direct()` instead. The `V5Parser::parse()` and `V7Parser::parse()` entry points are unchanged.
    - `V9Field::BpgIpv6NextHop` renamed to `V9Field::BgpIpv6NextHop`. Code matching on this variant must update the name.
    - `NetflowPacketError` and `NetflowParseError` type aliases removed. Use `NetflowError` directly.
    - V9 `OptionsDataFields.options_fields` changed from `Vec<Vec<V9FieldPair>>` to `Vec<V9FieldPair>`. Code that iterates nested Vecs must flatten.
