@@ -1,4 +1,4 @@
-# Unreleased
+# 1.0.0
 
  * **New IPFIX field types for flags, bitmasks, and enumerations**
    - Added 12 new dedicated field types in `field_types` module, following the `ForwardingStatus` pattern:
@@ -7,8 +7,6 @@
    - These fields were previously decoded as `UnsignedDataNumber` and now produce structured, self-describing values
    - All types support round-trip conversion (parse → typed value → raw bytes)
    - Each type has corresponding `FieldDataType` and `FieldValue` variants
-
-# 1.0.0
 
  * **Bug fix: Corrected V9 field data type mappings**
    - `IfName` (82), `IfDesc` (83), `SamplerName` (84) now correctly map to `FieldDataType::String` instead of `UnsignedDataNumber`
