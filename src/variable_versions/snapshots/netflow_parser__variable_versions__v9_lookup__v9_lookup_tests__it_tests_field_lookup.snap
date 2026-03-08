@@ -64,7 +64,7 @@ expression: fields
 - IpProtocolVersion
 - Direction
 - Ipv6NextHop
-- BpgIpv6NextHop
+- BgpIpv6NextHop
 - Ipv6OptionHeaders
 - Vendor
 - Vendor

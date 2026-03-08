@@ -3,7 +3,7 @@
  * **Performance: Hot-path allocation reduction**
    - `FieldValue::MacAddr` now stores `[u8; 6]` instead of `String`, eliminating a heap allocation per MAC address field
    - Added `DataNumber::write_be_bytes()` and `FieldValue::write_be_bytes()` methods that write directly into a caller-provided buffer, avoiding per-field `Vec<u8>` allocations
-   - `to_be_bytes()` methods on `DataNumber` and `FieldValue` are now deprecated in favor of `write_be_bytes()`
+   - Removed deprecated `to_be_bytes()` methods on `DataNumber` and `FieldValue` in favor of `write_be_bytes()`
    - `CacheMetrics` uses plain `u64` counters instead of `AtomicU64`, removing atomic overhead in the single-threaded parser
    - `TemplateMetadata::inserted_at` is now `Option<Instant>`, skipping `Instant::now()` when TTL is disabled
    - `allowed_versions` uses a `[bool; 11]` array lookup instead of `HashSet<u16>`, replacing hashing with a bounds-checked index
@@ -26,12 +26,21 @@
  * **Benchmarks**
    - Added `steady_state_bench` — V9 and IPFIX benchmarks with pre-warmed template cache (5, 10, 30, 100 flows)
 
+ * **Code cleanup**
+   - Renamed `BpgIpv6NextHop` → `BgpIpv6NextHop` in the `V9Field` enum (typo fix)
+   - Removed deprecated `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly
+   - Split `v9.rs` into `v9/{mod.rs, parser.rs, serializer.rs}`
+   - Split `ipfix.rs` into `ipfix/{mod.rs, parser.rs, serializer.rs}`
+   - Deleted orphaned snapshot file
+
  * **BREAKING CHANGES:**
    - `FieldValue::MacAddr` now wraps `[u8; 6]` instead of `String`. Serialization output is unchanged (`"aa:bb:cc:dd:ee:ff"` format).
    - `NoTemplateInfo` no longer has an `available_templates` field. Use `parser.v9_available_template_ids()` or `parser.ipfix_available_template_ids()` instead.
    - `CacheMetrics` methods (`record_hit`, `record_miss`, etc.) now require `&mut self` instead of `&self`.
    - `with_allowed_versions()` now takes `&[u16]` instead of `HashSet<u16>`. The `allowed_versions` field is now `[bool; 11]`.
-   - `DataNumber::to_be_bytes()` and `FieldValue::to_be_bytes()` are deprecated; use `write_be_bytes()` instead.
+   - `DataNumber::to_be_bytes()` and `FieldValue::to_be_bytes()` removed; use `write_be_bytes()` instead.
+   - `V9Field::BpgIpv6NextHop` renamed to `V9Field::BgpIpv6NextHop`. Code matching on this variant must update the name.
+   - `NetflowPacketError` and `NetflowParseError` type aliases removed. Use `NetflowError` directly.
    - V9 `OptionsDataFields.options_fields` changed from `Vec<Vec<V9FieldPair>>` to `Vec<V9FieldPair>`. Code that iterates nested Vecs must flatten.
    - V9 `ScopeDataField` variants now store `[u8; 4]` instead of `Vec<u8>`.
 

@@ -203,13 +203,6 @@ impl DataNumber {
         }
         Ok(())
     }
-
-    #[deprecated(note = "Use write_be_bytes(&self, buf) instead")]
-    pub fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
-        let mut buf = Vec::new();
-        self.write_be_bytes(&mut buf)?;
-        Ok(buf)
-    }
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
@@ -284,11 +277,9 @@ impl FieldValue {
         match self {
             FieldValue::ApplicationId(app_id) => {
                 buf.push(app_id.classification_engine_id);
-                #[allow(deprecated)]
                 app_id.selector_id.write_be_bytes(buf)?;
             }
             FieldValue::String(s) => buf.extend_from_slice(s.as_bytes()),
-            #[allow(deprecated)]
             FieldValue::DataNumber(d) => d.write_be_bytes(buf)?,
             FieldValue::Float64(f) => buf.extend_from_slice(&f.to_be_bytes()),
             FieldValue::Duration(d) => {
@@ -303,13 +294,6 @@ impl FieldValue {
             FieldValue::Unknown(v) => buf.extend_from_slice(v),
         }
         Ok(())
-    }
-
-    #[deprecated(note = "Use write_be_bytes(&self, buf) instead")]
-    pub fn to_be_bytes(&self) -> Result<Vec<u8>, std::io::Error> {
-        let mut buf = Vec::new();
-        self.write_be_bytes(&mut buf)?;
-        Ok(buf)
     }
 
     fn make_ntp_time_with_unit(seconds: u32, fraction: u32, unit: u64) -> Duration {
