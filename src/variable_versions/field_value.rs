@@ -1,3 +1,4 @@
+use crate::field_types::ForwardingStatus;
 use crate::protocol::ProtocolTypes;
 use nom::{
     Err as NomErr, IResult,
@@ -254,6 +255,7 @@ pub enum FieldValue {
     MacAddr([u8; 6]),
     Vec(Vec<u8>),
     ProtocolType(ProtocolTypes),
+    ForwardingStatus(ForwardingStatus),
     Unknown(Vec<u8>),
 }
 
@@ -294,8 +296,11 @@ impl Serialize for FieldValue {
             FieldValue::ProtocolType(v) => {
                 serializer.serialize_newtype_variant("FieldValue", 9, "ProtocolType", v)
             }
+            FieldValue::ForwardingStatus(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 10, "ForwardingStatus", v)
+            }
             FieldValue::Unknown(v) => {
-                serializer.serialize_newtype_variant("FieldValue", 10, "Unknown", v)
+                serializer.serialize_newtype_variant("FieldValue", 11, "Unknown", v)
             }
         }
     }
@@ -320,6 +325,7 @@ impl FieldValue {
             FieldValue::Ip6Addr(ip) => buf.extend_from_slice(&ip.octets()),
             FieldValue::MacAddr(mac) => buf.extend_from_slice(mac),
             FieldValue::ProtocolType(p) => buf.push(u8::from(*p)),
+            FieldValue::ForwardingStatus(f) => buf.push(u8::from(*f)),
             FieldValue::Vec(v) => buf.extend_from_slice(v),
             FieldValue::Unknown(v) => buf.extend_from_slice(v),
         }
@@ -410,6 +416,10 @@ impl FieldValue {
             FieldDataType::ProtocolType => {
                 let (i, protocol) = ProtocolTypes::parse(remaining)?;
                 (i, FieldValue::ProtocolType(protocol))
+            }
+            FieldDataType::ForwardingStatusType => {
+                let (i, status) = ForwardingStatus::parse(remaining)?;
+                (i, FieldValue::ForwardingStatus(status))
             }
             FieldDataType::Float64 => {
                 let (i, f) = f64::parse(remaining)?;
@@ -506,6 +516,8 @@ pub enum FieldDataType {
     Vec,
     /// IP protocol number (see [`ProtocolTypes`])
     ProtocolType,
+    /// Forwarding status (see [`ForwardingStatus`](crate::field_types::ForwardingStatus))
+    ForwardingStatusType,
     /// Unknown or unsupported field type
     Unknown,
 }
