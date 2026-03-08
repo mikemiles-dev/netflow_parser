@@ -473,7 +473,7 @@ impl Config {
     pub fn new(max_template_cache_size: usize, ttl_config: Option<TtlConfig>) -> Self {
         Self {
             max_template_cache_size,
-            max_field_count: usize::from(ipfix::MAX_FIELD_COUNT),
+            max_field_count: usize::from(MAX_FIELD_COUNT),
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
             ttl_config,
@@ -489,7 +489,7 @@ impl Config {
     ) -> Self {
         Self {
             max_template_cache_size,
-            max_field_count: usize::from(ipfix::MAX_FIELD_COUNT),
+            max_field_count: usize::from(MAX_FIELD_COUNT),
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
             ttl_config,
@@ -499,16 +499,124 @@ impl Config {
     }
 }
 
+/// Default maximum number of templates to cache per parser
+pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
+
+/// Default maximum number of fields allowed per template to prevent DoS attacks
+/// A reasonable limit that should accommodate legitimate use cases
+/// This can be configured per-parser via the Config struct
+pub const MAX_FIELD_COUNT: u16 = 10000;
+
+pub(crate) type TemplateId = u16;
+
+/// Information about a data flowset that couldn't be parsed due to missing template.
+/// This provides context to help diagnose template-related issues.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct NoTemplateInfo {
+    /// The template ID that was requested but not found
+    pub template_id: u16,
+    /// The unparsed flowset data (for potential retry after template arrives)
+    pub raw_data: Vec<u8>,
+}
+
+impl NoTemplateInfo {
+    /// Create a new NoTemplateInfo with the given template ID and raw data
+    pub fn new(template_id: u16, raw_data: Vec<u8>) -> Self {
+        Self {
+            template_id,
+            raw_data,
+        }
+    }
+}
+
+impl PartialEq for NoTemplateInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.template_id == other.template_id && self.raw_data == other.raw_data
+    }
+}
+
+/// Calculate padding needed to align to 4-byte boundary.
+/// Returns a static slice of zero bytes with the appropriate length.
+pub(crate) fn calculate_padding(content_size: usize) -> &'static [u8] {
+    const PADDING: [u8; 3] = [0u8; 3];
+    const PADDING_SIZES: [usize; 4] = [0, 3, 2, 1];
+    let padding_len = PADDING_SIZES[content_size % 4];
+    &PADDING[..padding_len]
+}
+
+/// Helper to get a valid template from an LRU cache, checking TTL if configured.
+/// Returns None if the template doesn't exist or has expired.
+#[inline]
+pub(crate) fn get_valid_template<T: Clone>(
+    cache: &mut LruCache<TemplateId, ttl::TemplateWithTtl<std::sync::Arc<T>>>,
+    id: &TemplateId,
+    ttl_config: &Option<TtlConfig>,
+    metrics: &mut CacheMetrics,
+) -> Option<std::sync::Arc<T>> {
+    if let Some(wrapped) = cache.get(id) {
+        metrics.record_hit();
+        if let Some(config) = ttl_config
+            && wrapped.is_expired(config)
+        {
+            cache.pop(id);
+            metrics.record_expiration();
+            return None;
+        }
+        return Some(std::sync::Arc::clone(&wrapped.template));
+    }
+    None
+}
+
+/// Internal accessor trait for shared parser fields.
+///
+/// Both V9Parser and IPFixParser share the same config/state fields. This trait
+/// provides access so that `ParserConfig` can supply default implementations.
+pub(crate) trait ParserFields {
+    fn set_max_template_cache_size_field(&mut self, size: usize);
+    fn set_max_field_count_field(&mut self, count: usize);
+    fn set_max_template_total_size_field(&mut self, size: usize);
+    fn set_max_error_sample_size_field(&mut self, size: usize);
+    fn set_ttl_config_field(&mut self, config: Option<TtlConfig>);
+    fn pending_flows(&self) -> &Option<PendingFlowCache>;
+    fn pending_flows_mut(&mut self) -> &mut Option<PendingFlowCache>;
+}
+
 /// Trait for parsers that support template caching and TTL configuration
-pub trait ParserConfig {
+#[allow(private_bounds)]
+pub trait ParserConfig: ParserFields {
+    /// Internal helper: resize all template caches to the given size
+    fn resize_template_caches(&mut self, cache_size: NonZeroUsize);
+
     /// Add or update the parser's configuration
-    fn add_config(&mut self, config: Config) -> Result<(), ConfigError>;
+    fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
+        self.set_max_template_cache_size_field(config.max_template_cache_size);
+        self.set_max_field_count_field(config.max_field_count);
+        self.set_max_template_total_size_field(config.max_template_total_size);
+        self.set_max_error_sample_size_field(config.max_error_sample_size);
+        self.set_ttl_config_field(config.ttl_config);
+        self.set_pending_flows_config(config.pending_flows_config)?;
+
+        let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
+            ConfigError::InvalidCacheSize(config.max_template_cache_size),
+        )?;
+
+        self.resize_template_caches(cache_size);
+        Ok(())
+    }
 
     /// Set the maximum template cache size
-    fn set_max_template_cache_size(&mut self, size: usize) -> Result<(), ConfigError>;
+    fn set_max_template_cache_size(&mut self, size: usize) -> Result<(), ConfigError> {
+        let cache_size = NonZeroUsize::new(size).ok_or(ConfigError::InvalidCacheSize(size))?;
+        self.set_max_template_cache_size_field(size);
+        self.resize_template_caches(cache_size);
+        Ok(())
+    }
 
     /// Set the TTL configuration for templates
-    fn set_ttl_config(&mut self, ttl_config: Option<TtlConfig>) -> Result<(), ConfigError>;
+    fn set_ttl_config(&mut self, ttl_config: Option<TtlConfig>) -> Result<(), ConfigError> {
+        self.set_ttl_config_field(ttl_config);
+        Ok(())
+    }
 
     /// Set the pending flows configuration
     ///
@@ -519,6 +627,23 @@ pub trait ParserConfig {
         config: Option<PendingFlowsConfig>,
     ) -> Result<(), ConfigError>;
 
-    /// Internal helper: resize all template caches to the given size
-    fn resize_template_caches(&mut self, cache_size: NonZeroUsize);
+    /// Returns whether pending flow caching is enabled.
+    fn pending_flows_enabled(&self) -> bool {
+        self.pending_flows().is_some()
+    }
+
+    /// Returns the total number of pending flow entries across all template IDs.
+    fn pending_flow_count(&self) -> usize {
+        self.pending_flows()
+            .as_ref()
+            .map(|cache| cache.count())
+            .unwrap_or(0)
+    }
+
+    /// Clear all pending flows.
+    fn clear_pending_flows(&mut self) {
+        if let Some(cache) = self.pending_flows_mut() {
+            cache.clear();
+        }
+    }
 }

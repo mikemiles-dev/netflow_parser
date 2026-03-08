@@ -17,6 +17,7 @@ use static_versions::{
     v7::{V7, V7Parser},
 };
 use variable_versions::Config;
+use variable_versions::ParserConfig;
 use variable_versions::enterprise_registry::EnterpriseFieldDef;
 use variable_versions::ipfix::{IPFix, IPFixParser};
 use variable_versions::v9::{V9, V9Parser};
