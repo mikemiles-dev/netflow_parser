@@ -368,5 +368,4 @@ impl IPFixParser {
         ids.dedup();
         ids
     }
-
 }
