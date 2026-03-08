@@ -1,5 +1,8 @@
+//! Tests for parsing and filtering across multiple NetFlow versions (V5, V7, V9, IPFIX).
+
 use netflow_parser::{NetflowPacket, NetflowParser};
 
+// Verify V5 packet parses with correct header version and flow count
 #[test]
 fn test_parse_v5_packet() {
     let v5_packet = [
@@ -20,6 +23,7 @@ fn test_parse_v5_packet() {
     }
 }
 
+// Verify V5 packet is filtered out when only V9 is allowed
 #[test]
 fn test_parse_v5_with_version_filter() {
     let v5_packet = [
@@ -38,6 +42,7 @@ fn test_parse_v5_with_version_filter() {
     assert_eq!(packets.len(), 0); // Should be filtered out
 }
 
+// Verify parsed packets can be filtered to only V5 using the is_v5 helper
 #[test]
 fn test_filter_v5_packets() {
     let v5_packet = [
@@ -53,6 +58,7 @@ fn test_filter_v5_packets() {
     assert!(v5_parsed.first().unwrap().is_v5());
 }
 
+// Verify V5 packet round-trips back to identical bytes via to_be_bytes
 #[test]
 fn test_v5_round_trip() {
     let packet = [
@@ -73,6 +79,7 @@ fn test_v5_round_trip() {
     }
 }
 
+// Verify iter_packets yields each packet and identifies it as V5
 #[test]
 fn test_iterator_api() {
     let v5_packet = [
@@ -92,6 +99,7 @@ fn test_iterator_api() {
     assert_eq!(count, 1);
 }
 
+// Verify iterator reports complete with no remaining bytes after full consumption
 #[test]
 fn test_iterator_completion() {
     let v5_packet = [
@@ -109,6 +117,7 @@ fn test_iterator_completion() {
     assert_eq!(iter.remaining().len(), 0);
 }
 
+// Verify iterator supports filter_map chaining to count V5 packets
 #[test]
 fn test_iterator_filter() {
     let v5_packet = [

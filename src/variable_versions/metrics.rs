@@ -184,6 +184,7 @@ impl CacheMetricsSnapshot {
 mod tests {
     use super::*;
 
+    // Verify each record method increments the correct counter in the snapshot
     #[test]
     fn test_metrics_recording() {
         let mut metrics = CacheMetrics::new();
@@ -203,6 +204,7 @@ mod tests {
         assert_eq!(snapshot.insertions, 1);
     }
 
+    // Verify hit_rate and miss_rate calculations, including None when no lookups exist
     #[test]
     fn test_hit_rate() {
         let mut metrics = CacheMetrics::new();
@@ -223,6 +225,7 @@ mod tests {
         assert_eq!(snapshot.total_lookups(), 4);
     }
 
+    // Verify reset zeroes all counters
     #[test]
     fn test_reset() {
         let mut metrics = CacheMetrics::new();

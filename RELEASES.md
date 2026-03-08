@@ -31,6 +31,13 @@
    - Consolidated `ParserConfig` trait with default method implementations for `add_config`, `set_max_template_cache_size`, `set_ttl_config`, `pending_flows_enabled`, `pending_flow_count`, and `clear_pending_flows`
    - Introduced `ParserFields` accessor trait to enable shared default implementations
 
+ * **Documentation**
+   - Added module-level `//!` docs to `v9/mod.rs`, `ipfix/mod.rs`, `ttl.rs`, and all integration test files
+   - Added `///` docstrings to all undocumented public structs, enums, traits, and methods (`Config`, `V9`, `V9Parser`, `IPFix`, `IPFixParser`, `FlowSetBody`, `Header`, `FlowSet`, `Template`, `OptionsTemplate`, `TemplateField`, `CommonTemplate`, etc.)
+   - Added `//` comments to all unit and integration test functions describing what they verify
+   - Fixed malformed doc block where `build()` and `on_template_event()` docs were merged in `NetflowParserBuilder`
+   - Fixed unclosed code fence in `ScopeDataField::parse` doc comment
+
  * **Code cleanup**
    - Renamed `BpgIpv6NextHop` → `BgpIpv6NextHop` in the `V9Field` enum (typo fix)
    - Removed deprecated `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly

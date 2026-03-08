@@ -21,6 +21,7 @@ use std::sync::Arc;
 
 use super::{DEFAULT_MAX_TEMPLATE_CACHE_SIZE, MAX_FIELD_COUNT};
 
+/// Stateful NetFlow V9 parser with LRU template caching and optional pending flow support.
 #[derive(Debug)]
 pub struct V9Parser {
     pub templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
@@ -145,6 +146,7 @@ impl ParserConfig for V9Parser {
 }
 
 impl V9Parser {
+    /// Parse a NetFlow V9 packet from raw bytes, using cached templates to decode data records.
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match V9::parse(packet, self) {
             Ok((remaining, mut v9)) => {

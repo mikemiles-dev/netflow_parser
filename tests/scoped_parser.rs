@@ -1,6 +1,10 @@
+//! Tests for scoped parsers: AutoScopedParser (RFC-compliant source keying)
+//! and RouterScopedParser (user-defined keys) with per-source template isolation.
+
 use netflow_parser::{AutoScopedParser, RouterScopedParser};
 use std::net::SocketAddr;
 
+// Verify that a new AutoScopedParser starts with zero sources across all protocol counts
 #[test]
 fn test_auto_scoped_parser_creation() {
     let parser = AutoScopedParser::new();
@@ -10,6 +14,7 @@ fn test_auto_scoped_parser_creation() {
     assert_eq!(parser.ipfix_source_count(), 0);
 }
 
+// Verify that AutoScopedParser can parse a V5 packet from a single source address
 #[test]
 fn test_auto_scoped_parser_with_source() {
     let mut parser = AutoScopedParser::new();
@@ -25,6 +30,7 @@ fn test_auto_scoped_parser_with_source() {
     assert_eq!(packets.len(), 1);
 }
 
+// Verify that AutoScopedParser tracks at least two distinct source addresses
 #[test]
 fn test_auto_scoped_parser_multiple_sources() {
     let mut parser = AutoScopedParser::new();
@@ -44,6 +50,7 @@ fn test_auto_scoped_parser_multiple_sources() {
     assert!(parser.source_count() >= 2);
 }
 
+// Verify that RouterScopedParser works with String keys for per-router parsing
 #[test]
 fn test_router_scoped_parser_string_key() {
     let mut parser = RouterScopedParser::<String>::new();
@@ -60,6 +67,7 @@ fn test_router_scoped_parser_string_key() {
     assert_eq!(packets.len(), 1);
 }
 
+// Verify that clearing a single source's templates still allows subsequent parsing from that source
 #[test]
 fn test_router_scoped_parser_clear_source() {
     let mut parser = RouterScopedParser::<String>::new();
@@ -80,6 +88,7 @@ fn test_router_scoped_parser_clear_source() {
     assert_eq!(packets.len(), 1);
 }
 
+// Verify that clearing all templates across all sources still allows subsequent parsing
 #[test]
 fn test_router_scoped_parser_clear_all() {
     let mut parser = RouterScopedParser::<String>::new();
@@ -102,6 +111,7 @@ fn test_router_scoped_parser_clear_all() {
     assert_eq!(packets.len(), 1);
 }
 
+// Verify that AutoScopedParser can be constructed via a builder with a custom cache size
 #[test]
 fn test_auto_scoped_parser_with_builder() {
     use netflow_parser::NetflowParser;
@@ -114,6 +124,7 @@ fn test_auto_scoped_parser_with_builder() {
     assert_eq!(parser.source_count(), 0);
 }
 
+// Verify that RouterScopedParser can be constructed via a builder and parse successfully
 #[test]
 fn test_router_scoped_parser_with_builder() {
     use netflow_parser::NetflowParser;

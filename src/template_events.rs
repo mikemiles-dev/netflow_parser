@@ -183,6 +183,7 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    // Verify hooks can be registered and counted
     #[test]
     fn test_hook_registration() {
         let mut hooks = TemplateHooks::new();
@@ -194,6 +195,7 @@ mod tests {
         assert!(!hooks.is_empty());
     }
 
+    // Verify triggering an event increments the hook's counter
     #[test]
     fn test_hook_triggering() {
         let mut hooks = TemplateHooks::new();
@@ -216,6 +218,7 @@ mod tests {
         assert_eq!(counter.load(Ordering::SeqCst), 2);
     }
 
+    // Verify multiple hooks all fire on a single event trigger
     #[test]
     fn test_multiple_hooks() {
         let mut hooks = TemplateHooks::new();
@@ -244,6 +247,7 @@ mod tests {
         assert_eq!(counter2.load(Ordering::SeqCst), 10);
     }
 
+    // Verify hooks can match on specific event variants
     #[test]
     fn test_hook_event_matching() {
         let mut hooks = TemplateHooks::new();
@@ -280,6 +284,7 @@ mod tests {
         assert_eq!(collision_count.load(Ordering::SeqCst), 1);
     }
 
+    // Verify TemplateEvent implements Clone with matching fields
     #[test]
     fn test_template_event_clone() {
         let event = TemplateEvent::Evicted {

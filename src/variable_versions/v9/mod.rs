@@ -1,4 +1,13 @@
-//! # Netflow V9
+//! # NetFlow V9
+//!
+//! Types and parsing logic for Cisco NetFlow Version 9 (RFC 3954).
+//!
+//! Key types:
+//! - [`V9`] — a parsed V9 packet containing a [`Header`] and a list of [`FlowSet`]s
+//! - [`V9Parser`] — stateful parser with an LRU template cache
+//! - [`Template`] / [`OptionsTemplate`] — template definitions that describe data record layout
+//! - [`Data`] / [`OptionsData`] — parsed data records decoded using a cached template
+//! - [`FlowSetBody`] — enum of all possible flowset payloads (templates, data, options, or no-template)
 //!
 //! References:
 //! - <https://www.ietf.org/rfc/rfc3954.txt>
@@ -33,6 +42,7 @@ pub type V9FlowRecord = Vec<V9FieldPair>;
 
 use super::calculate_padding;
 
+/// A parsed NetFlow V9 packet containing a header and a list of flowsets.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut V9Parser))]
 pub struct V9 {
@@ -43,6 +53,7 @@ pub struct V9 {
     pub flowsets: Vec<FlowSet>,
 }
 
+/// NetFlow V9 packet header (RFC 3954 Section 5.1).
 #[derive(Debug, PartialEq, Clone, Copy, Serialize, Nom)]
 pub struct Header {
     /// The version of NetFlow records exported in this packet; for Version 9, this value is 9
@@ -71,6 +82,7 @@ pub struct Header {
     pub source_id: u32,
 }
 
+/// A single flowset within a V9 packet, containing a header and a body.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut V9Parser))]
 pub struct FlowSet {
@@ -84,6 +96,7 @@ pub struct FlowSet {
     pub body: FlowSetBody,
 }
 
+/// Header of a V9 flowset, identifying its type and length.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 pub struct FlowSetHeader {
     /// The FlowSet ID is used to distinguish template records from data records.
@@ -100,6 +113,8 @@ pub struct FlowSetHeader {
 
 pub use super::NoTemplateInfo;
 
+/// The payload of a V9 flowset: template definitions, data records, options, or a placeholder
+/// when the required template has not yet been received.
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum FlowSetBody {
     Template(Templates),
@@ -109,6 +124,7 @@ pub enum FlowSetBody {
     NoTemplate(NoTemplateInfo),
 }
 
+/// A collection of V9 template definitions parsed from a template flowset.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 pub struct Templates {
     pub templates: Vec<Template>,
@@ -116,6 +132,7 @@ pub struct Templates {
     pub padding: Vec<u8>,
 }
 
+/// A collection of V9 options template definitions parsed from an options template flowset.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 pub struct OptionsTemplates {
     pub templates: Vec<OptionsTemplate>,
@@ -289,6 +306,7 @@ impl FlowSetBody {
     }
 }
 
+/// A V9 template definition that describes the format of data records.
 #[derive(Debug, PartialEq, Clone, Serialize, Default, Nom)]
 pub struct Template {
     /// As a router generates different template FlowSets to match the type of NetFlow
@@ -347,6 +365,7 @@ impl Template {
     }
 }
 
+/// A V9 options template definition that describes the format of options data records.
 #[derive(Debug, PartialEq, Clone, Serialize, Default, Nom)]
 pub struct OptionsTemplate {
     /// As a router generates different template FlowSets to match the type of NetFlow data it is exporting, each template is given a unique ID. This uniqueness is local to the router that generated the template ID. The Template ID is greater than 255. Template IDs inferior to 255 are reserved.
@@ -440,6 +459,7 @@ pub struct OptionsTemplateScopeField {
     pub field_length: u16,
 }
 
+/// A single field definition within a V9 template, specifying the field type and byte length.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 pub struct TemplateField {
     /// This numeric value represents the type of the field. The possible values of the
@@ -548,7 +568,6 @@ pub enum ScopeDataField {
 ///
 /// If the field type from `template_field` does not match any of the supported types, the function returns a nom error
 /// with `ErrorKind::Verify`.
-/// ```
 impl ScopeDataField {
     fn parse<'a>(
         input: &'a [u8],
