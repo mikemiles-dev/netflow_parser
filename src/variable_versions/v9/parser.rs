@@ -442,6 +442,7 @@ impl FlowSetBody {
                     let info = NoTemplateInfo {
                         template_id: id,
                         raw_data,
+                        truncated: false,
                     };
                     Ok((&[] as &[u8], FlowSetBody::NoTemplate(info)))
                 } else {
@@ -460,6 +461,11 @@ impl Template {
     pub fn is_valid(&self, parser: &V9Parser) -> bool {
         // Check field count limit
         if usize::from(self.field_count) > parser.max_field_count {
+            return false;
+        }
+
+        // Check fields are not empty and have at least one non-zero length field
+        if self.fields.is_empty() || !self.fields.iter().any(|f| f.field_length > 0) {
             return false;
         }
 
@@ -499,8 +505,12 @@ impl Template {
 impl OptionsTemplate {
     /// Validate the options template against parser configuration
     pub fn is_valid(&self, parser: &V9Parser) -> bool {
-        let scope_count = usize::from(self.options_scope_length.checked_div(4).unwrap_or(0));
-        let option_count = usize::from(self.options_length.checked_div(4).unwrap_or(0));
+        // Scope and option lengths must be multiples of 4 (each field is type_id:u16 + length:u16)
+        if !self.options_scope_length.is_multiple_of(4) || !self.options_length.is_multiple_of(4) {
+            return false;
+        }
+        let scope_count = usize::from(self.options_scope_length / 4);
+        let option_count = usize::from(self.options_length / 4);
 
         // Check field count limits
         if scope_count > parser.max_field_count || option_count > parser.max_field_count {
@@ -653,7 +663,7 @@ impl<'a> FieldParser {
         }
 
         // Calculate how many complete records we can parse based on input length
-        let record_count = input.len() / template_total_size;
+        let record_count = (input.len() / template_total_size).min(1024);
         let mut res = Vec::with_capacity(record_count);
 
         for _ in 0..record_count {

@@ -93,7 +93,7 @@ pub struct FlowSet {
     pub tos: u8,
     /// Autonomous system number of the source, either origin or peer
     pub src_as: u16,
-    /// Autonomous system number of the destination, either origin or pee
+    /// Autonomous system number of the destination, either origin or peer
     pub dst_as: u16,
     /// Source address prefix mask bits
     pub src_mask: u8,

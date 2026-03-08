@@ -791,7 +791,9 @@ pub enum ParsedNetflow<'a> {
     Error {
         error: NetflowError,
     },
-    UnallowedVersion,
+    UnallowedVersion {
+        version: u16,
+    },
 }
 
 /// Comprehensive error type for NetFlow parsing operations.
@@ -1016,9 +1018,9 @@ impl<'a> Iterator for NetflowPacketIterator<'a> {
                 self.remaining = new_remaining;
                 Some(Ok(packet))
             }
-            ParsedNetflow::UnallowedVersion => {
+            ParsedNetflow::UnallowedVersion { version } => {
                 self.errored = true;
-                None
+                Some(Err(NetflowError::FilteredVersion { version }))
             }
             ParsedNetflow::Error { error } => {
                 self.errored = true;
@@ -1406,7 +1408,8 @@ impl NetflowParser {
                     packets.push(packet);
                     remaining = new_remaining;
                 }
-                ParsedNetflow::UnallowedVersion => {
+                ParsedNetflow::UnallowedVersion { version } => {
+                    error = Some(NetflowError::FilteredVersion { version });
                     break;
                 }
                 ParsedNetflow::Error { error: e } => {
@@ -1470,9 +1473,11 @@ impl NetflowParser {
                     },
                 }
             }
-            Ok(_) => {
+            Ok((_, header)) => {
                 // Version is valid but filtered by allowed_versions
-                ParsedNetflow::UnallowedVersion
+                ParsedNetflow::UnallowedVersion {
+                    version: header.version,
+                }
             }
             Err(e) => ParsedNetflow::Error {
                 error: NetflowError::Incomplete {
