@@ -22,8 +22,8 @@ mod parser;
 mod serializer;
 
 use super::PendingFlowCache;
-use super::field_value::FieldValue;
 use super::enterprise_registry::EnterpriseFieldRegistry;
+use super::field_value::FieldValue;
 use super::metrics::CacheMetrics;
 use super::ttl::{TemplateWithTtl, TtlConfig};
 use crate::variable_versions::ipfix_lookup::IPFixField;
