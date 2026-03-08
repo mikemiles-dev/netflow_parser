@@ -1,5 +1,17 @@
 # 1.0.0
 
+ * **Breaking: `FieldValue::Duration` now wraps `DurationValue` instead of `std::time::Duration`**
+   - New `DurationValue` enum preserves the original time unit (`Seconds`, `Millis`, `MicrosNtp`, `NanosNtp`), field width (4 or 8 bytes), and raw NTP fractional seconds
+   - Enables lossless round-trip serialization — previously, unit and width information was lost during parsing
+   - Use `DurationValue::as_duration()` to get a `std::time::Duration` for ergonomic access
+   - JSON serialization output is unchanged (delegates to `Duration`)
+
+ * **Breaking: `FieldValue::String` now wraps `StringValue` instead of `String`**
+   - New `StringValue` struct contains `value: String` (cleaned display string) and `raw: Vec<u8>` (original wire bytes)
+   - Enables lossless round-trip serialization — previously, lossy UTF-8 conversion, control character filtering, and P4 prefix stripping made the string non-invertible
+   - `TryFrom<&FieldValue> for String` still returns the cleaned `value`
+   - JSON serialization output is unchanged (serializes only the `value` field)
+
  * **New IPFIX field types for flags, bitmasks, and enumerations**
    - Added 12 new dedicated field types in `field_types` module, following the `ForwardingStatus` pattern:
      - **Bitmask/flag types:** `FragmentFlags` (field 197), `TcpControlBits` (field 6), `Ipv6ExtensionHeaders` (field 64), `Ipv4Options` (field 208), `TcpOptions` (field 209), `IsMulticast` (field 206), `MplsLabelExp` (fields 203, 237)
@@ -27,14 +39,19 @@
    - `field_types` module is designed for future custom field type additions
 
  * **Safety and correctness fixes**
-   - `UnallowedVersion` now carries the version number and returns a `FilteredVersion` error instead of silently stopping parsing
+   - `UnallowedVersion` now carries the version number; `parse_bytes()` reports a `FilteredVersion` error instead of silently stopping
+   - Versions >= 11 now correctly return `UnsupportedVersion` instead of being misclassified as `FilteredVersion`
+   - `with_allowed_versions()` now rejects out-of-range version numbers via `ConfigError::InvalidAllowedVersion`
    - `ApplicationId` field parsing uses `checked_sub` instead of `saturating_sub` to properly error on zero-length fields
    - `Vec::with_capacity` for parsed records is capped at 1024 in V9 and IPFIX to prevent untrusted input from causing large allocations
    - V9 `Template::is_valid()` now rejects templates with empty fields or all-zero-length fields
+   - V9 and IPFIX `OptionsTemplate` validation now rejects templates with zero scope fields (RFC 3954/7011 require at least one)
    - V9 `OptionsTemplate::is_valid()` now rejects `options_scope_length` and `options_length` that aren't multiples of 4
-   - `NoTemplateInfo` gains a `truncated: bool` field to indicate when raw data was size-limited
-   - `IpfixField` type alias moved before the test module for correct code organization
-   - Fixed doc typo in V5 `FlowSet::dst_as` ("pee" → "peer")
+   - V9 templates embedded in IPFIX packets are now validated against parser limits (field count, total size, zero-length fields)
+   - `NoTemplateInfo.truncated` field now correctly set to `true` when raw data is truncated to `max_error_sample_size`
+   - Fixed `DurationNanosNTP` unit conversion bug — fractional NTP seconds were passed to `Duration::from_micros()` instead of `Duration::from_nanos()`, producing durations 1000x too large
+   - Fixed IPFIX template serialization losing the enterprise bit — round-trip (parse → serialize) now correctly restores bit 15 of `field_type_number` for enterprise fields
+   - Fixed `ScopeDataField` silently truncating scope field values to 4 bytes regardless of the template-declared `field_length`
 
  * **Performance: V5/V7 direct byte parsing**
    - Replaced nom-derive generated parsers with hand-written direct byte reads for V5 and V7
@@ -53,7 +70,6 @@
    - `TemplateMetadata::inserted_at` is now `Option<Instant>`, skipping `Instant::now()` when TTL is disabled
    - `allowed_versions` uses a `[bool; 11]` array lookup instead of `HashSet<u16>`, replacing hashing with a bounds-checked index
    - `calculate_padding()` returns `&'static [u8]` instead of allocating a `Vec<u8>`
-   - `ScopeDataField` variants store `[u8; 4]` instead of `Vec<u8>`
    - `OptionsFieldParser` returns a flat `Vec<V9FieldPair>` instead of `Vec<Vec<V9FieldPair>>`
    - String parsing avoids a double allocation when stripping the `"P4"` prefix
 
@@ -129,9 +145,14 @@
    - `V9Field::BpgIpv6NextHop` renamed to `V9Field::BgpIpv6NextHop`. Code matching on this variant must update the name.
    - `NetflowPacketError` and `NetflowParseError` type aliases removed. Use `NetflowError` directly.
    - V9 `OptionsDataFields.options_fields` changed from `Vec<Vec<V9FieldPair>>` to `Vec<V9FieldPair>`. Code that iterates nested Vecs must flatten.
-   - V9 `ScopeDataField` variants now store `[u8; 4]` instead of `Vec<u8>`.
    - Module `variable_versions::data_number` renamed to `variable_versions::field_value`. A deprecated re-export module preserves backward compatibility but will be removed in a future release.
    - `IpFixFlowRecord` renamed to `IPFixFlowRecord` for consistent casing. A deprecated alias preserves backward compatibility.
+   - `V9Field::ImpIpv6CodeValue` renamed to `V9Field::IcmpIpv6CodeValue` (field ID 179). Code matching on this variant must update the name.
+   - `NoTemplateInfo` gains a `truncated: bool` field. Code that destructures `NoTemplateInfo` must include the new field (or use `..`).
+   - `ConfigError` gains an `InvalidAllowedVersion(u16)` variant. Exhaustive matches on `ConfigError` must add this arm.
+   - `NetflowParserBuilder::build()` now calls `validate()` and rejects out-of-range version numbers in `allowed_versions`.
+   - `FieldValue::Duration` now wraps `DurationValue` instead of `std::time::Duration`. Use `DurationValue::as_duration()` to get a `std::time::Duration`. JSON output is unchanged.
+   - `FieldValue::String` now wraps `StringValue` instead of `String`. Access the cleaned string via `.value`. `TryFrom<&FieldValue> for String` still works. JSON output is unchanged.
 
 # 0.9.0
 

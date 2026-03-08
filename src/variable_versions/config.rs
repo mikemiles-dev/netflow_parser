@@ -48,6 +48,8 @@ pub enum ConfigError {
     InvalidCacheSize(usize),
     /// Pending flow cache size must be greater than 0
     InvalidPendingCacheSize(usize),
+    /// An allowed version number is out of the supported range (0-10)
+    InvalidAllowedVersion(u16),
 }
 
 impl std::error::Error for ConfigError {}
@@ -67,6 +69,13 @@ impl std::fmt::Display for ConfigError {
                     f,
                     "Invalid pending flow cache size: {}. Must be greater than 0.",
                     size
+                )
+            }
+            ConfigError::InvalidAllowedVersion(version) => {
+                write!(
+                    f,
+                    "Invalid allowed version: {}. Supported versions are 5, 7, 9, 10.",
+                    version
                 )
             }
         }
@@ -129,16 +138,17 @@ pub trait ParserConfig: ParserFields {
 
     /// Add or update the parser's configuration
     fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
+        // Validate before mutating to avoid partial state changes on error
+        let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
+            ConfigError::InvalidCacheSize(config.max_template_cache_size),
+        )?;
+
         self.set_max_template_cache_size_field(config.max_template_cache_size);
         self.set_max_field_count_field(config.max_field_count);
         self.set_max_template_total_size_field(config.max_template_total_size);
         self.set_max_error_sample_size_field(config.max_error_sample_size);
         self.set_ttl_config_field(config.ttl_config);
         self.set_pending_flows_config(config.pending_flows_config)?;
-
-        let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
-            ConfigError::InvalidCacheSize(config.max_template_cache_size),
-        )?;
 
         self.resize_template_caches(cache_size);
         Ok(())

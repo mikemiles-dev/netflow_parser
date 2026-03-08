@@ -145,8 +145,7 @@ pub(crate) fn get_valid_template<T: Clone>(
     ttl_config: &Option<TtlConfig>,
     metrics: &mut CacheMetrics,
 ) -> Option<std::sync::Arc<T>> {
-    if let Some(wrapped) = cache.get(id) {
-        metrics.record_hit();
+    if let Some(wrapped) = cache.peek(id) {
         if let Some(config) = ttl_config
             && wrapped.is_expired(config)
         {
@@ -154,7 +153,11 @@ pub(crate) fn get_valid_template<T: Clone>(
             metrics.record_expiration();
             return None;
         }
-        return Some(std::sync::Arc::clone(&wrapped.template));
+        metrics.record_hit();
+        // Promote to most-recently-used only after confirming non-expired
+        let template = std::sync::Arc::clone(&wrapped.template);
+        cache.promote(id);
+        return Some(template);
     }
     None
 }

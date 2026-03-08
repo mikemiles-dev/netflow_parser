@@ -431,18 +431,20 @@ impl FlowSetBody {
                     // per-template cap has room.  Otherwise truncate to
                     // max_error_sample_size to avoid large allocations
                     // that would be immediately rejected.
-                    let raw_data = if parser.pending_flows.as_ref().is_some_and(|c| {
-                        i.len() <= c.max_entry_size_bytes() && c.would_accept(id)
-                    }) {
-                        i.to_vec()
-                    } else {
-                        i[..i.len().min(parser.max_error_sample_size)].to_vec()
-                    };
+                    let (raw_data, truncated) =
+                        if parser.pending_flows.as_ref().is_some_and(|c| {
+                            i.len() <= c.max_entry_size_bytes() && c.would_accept(id)
+                        }) {
+                            (i.to_vec(), false)
+                        } else {
+                            let limit = i.len().min(parser.max_error_sample_size);
+                            (i[..limit].to_vec(), i.len() > parser.max_error_sample_size)
+                        };
 
                     let info = NoTemplateInfo {
                         template_id: id,
                         raw_data,
-                        truncated: false,
+                        truncated,
                     };
                     Ok((&[] as &[u8], FlowSetBody::NoTemplate(info)))
                 } else {
@@ -514,6 +516,11 @@ impl OptionsTemplate {
         let scope_count = usize::from(self.options_scope_length / 4);
         let option_count = usize::from(self.options_length / 4);
 
+        // RFC 3954 requires at least one scope field
+        if scope_count == 0 {
+            return false;
+        }
+
         // Check field count limits
         if scope_count > parser.max_field_count || option_count > parser.max_field_count {
             return false;
@@ -539,7 +546,7 @@ impl OptionsTemplate {
     }
 
     /// Returns the total size of all fields in the options template
-    fn get_total_size(&self) -> u16 {
+    pub fn get_total_size(&self) -> u16 {
         let scope_size: u16 = self
             .scope_fields
             .iter()
@@ -614,9 +621,7 @@ impl ScopeDataField {
         template_field: &OptionsTemplateScopeField,
     ) -> IResult<&'a [u8], ScopeDataField> {
         let (new_input, field_value) = take(template_field.field_length)(input)?;
-        let mut buf = [0u8; 4];
-        let len = field_value.len().min(4);
-        buf[..len].copy_from_slice(&field_value[..len]);
+        let buf = field_value.to_vec();
 
         match template_field.field_type {
             ScopeFieldType::System => Ok((new_input, ScopeDataField::System(buf))),
