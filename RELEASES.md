@@ -26,6 +26,15 @@
    - Added `FieldDataType::ForwardingStatus` and `FieldValue::ForwardingStatus` for automatic decoding in both V9 and IPFIX
    - `field_types` module is designed for future custom field type additions
 
+ * **Performance: V5/V7 direct byte parsing**
+   - Replaced nom-derive generated parsers with hand-written direct byte reads for V5 and V7
+   - Fixed-layout protocols now use a single bounds check instead of per-field nom combinator calls
+   - V5 parsing is ~2x faster at scale (e.g., 100 flows: 1,147ns → 626ns, -44%)
+   - V7 parsing receives the same treatment (52-byte fixed flow records)
+   - `Ipv4Addr` fields constructed directly from bytes instead of `be_u32` → `Ipv4Addr::from()`
+   - `to_be_bytes()` now pre-allocates with `Vec::with_capacity()` based on known sizes
+   - nom-derive `#[derive(Nom)]` removed from V5/V7 structs; `V5Parser::parse()` and `V7Parser::parse()` entry points unchanged
+
  * **Performance: Hot-path allocation reduction**
    - `FieldValue::MacAddr` now stores `[u8; 6]` instead of `String`, eliminating a heap allocation per MAC address field
    - Added `DataNumber::write_be_bytes()` and `FieldValue::write_be_bytes()` methods that write directly into a caller-provided buffer, avoiding per-field `Vec<u8>` allocations
@@ -106,6 +115,7 @@
    - `with_builder()` on `RouterScopedParser` and `AutoScopedParser` is deprecated. Use `try_with_builder()`.
    - `multi_source()` on `NetflowParserBuilder` is deprecated. Use `try_multi_source()`.
    - `DataNumber::to_be_bytes()` and `FieldValue::to_be_bytes()` removed; use `write_be_bytes()` instead.
+   - V5 and V7 structs (`V5`, `Header`, `FlowSet`) no longer derive `Nom`. Code calling `V5::parse()` or `V7::parse()` via the nom-derive `Parse` trait must use `V5::parse_direct()` / `V7::parse_direct()` instead. The `V5Parser::parse()` and `V7Parser::parse()` entry points are unchanged.
    - `V9Field::BpgIpv6NextHop` renamed to `V9Field::BgpIpv6NextHop`. Code matching on this variant must update the name.
    - `NetflowPacketError` and `NetflowParseError` type aliases removed. Use `NetflowError` directly.
    - V9 `OptionsDataFields.options_fields` changed from `Vec<Vec<V9FieldPair>>` to `Vec<V9FieldPair>`. Code that iterates nested Vecs must flatten.
