@@ -1,0 +1,28 @@
+---
+source: src/field_types/fragment_flags.rs
+expression: flags
+---
+- reserved: false
+  dont_fragment: false
+  more_fragments: false
+- reserved: true
+  dont_fragment: false
+  more_fragments: false
+- reserved: false
+  dont_fragment: true
+  more_fragments: false
+- reserved: true
+  dont_fragment: true
+  more_fragments: false
+- reserved: false
+  dont_fragment: false
+  more_fragments: true
+- reserved: true
+  dont_fragment: false
+  more_fragments: true
+- reserved: false
+  dont_fragment: true
+  more_fragments: true
+- reserved: true
+  dont_fragment: true
+  more_fragments: true
