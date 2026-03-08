@@ -1,14 +1,21 @@
 //! V9Parser — template-cached NetFlow V9 parser with pending flow support.
 //!
 //! Type definitions live in the parent `v9` module (`mod.rs`).
+//! Parsing impl blocks for V9 types (FlowSetBody, FlowSetParser, FieldParser, etc.)
+//! are also defined here.
 
 use super::{
-    Data, FlowSet, FlowSetBody, FlowSetHeader, OptionsData, OptionsTemplate, Template,
-    TemplateId, V9,
+    DATA_TEMPLATE_V9_ID, DEFAULT_MAX_TEMPLATE_CACHE_SIZE, Data, FieldParser, FlowSet,
+    FlowSetBody, FlowSetHeader, FlowSetParser, MAX_FIELD_COUNT, NoTemplateInfo,
+    OPTIONS_TEMPLATE_V9_ID, OptionsData, OptionsFieldParser, OptionsTemplate,
+    OptionsTemplateScopeField, OptionsTemplates, ScopeDataField, ScopeParser, Template,
+    TemplateField, TemplateId, Templates, V9, V9FieldPair, V9FlowRecord,
 };
+use crate::variable_versions::data_number::FieldValue;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::metrics::CacheMetrics;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
+use crate::variable_versions::v9_lookup::ScopeFieldType;
 use crate::variable_versions::{
     Config, ConfigError, ParserConfig, ParserFields, PendingFlowCache, PendingFlowEntry,
     PendingFlowsConfig,
@@ -16,10 +23,12 @@ use crate::variable_versions::{
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
 use lru::LruCache;
+use nom::IResult;
+use nom::bytes::complete::take;
+use nom::error::{Error as NomError, ErrorKind};
+use nom_derive::Parse;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-
-use super::{DEFAULT_MAX_TEMPLATE_CACHE_SIZE, MAX_FIELD_COUNT};
 
 /// Stateful NetFlow V9 parser with LRU template caching and optional pending flow support.
 #[derive(Debug)]
@@ -302,5 +311,375 @@ impl V9Parser {
         ids.sort_unstable();
         ids.dedup();
         ids
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Parsing impl blocks (moved from mod.rs)
+// ---------------------------------------------------------------------------
+
+impl FlowSetBody {
+    pub(super) fn parse<'a>(
+        i: &'a [u8],
+        parser: &mut V9Parser,
+        id: u16,
+    ) -> IResult<&'a [u8], FlowSetBody> {
+        match id {
+            DATA_TEMPLATE_V9_ID => {
+                let (i, templates) = Templates::parse(i)?;
+                // Validate templates before storing
+                if templates.templates.is_empty()
+                    || templates.templates.iter().any(|t| !t.is_valid(parser))
+                {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )));
+                }
+                let ttl_enabled = parser.ttl_config.is_some();
+                for template in &templates.templates {
+                    let arc_template = Arc::new(template.clone());
+                    let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
+                    // Check for collision (same ID, different definition)
+                    // Use peek() to avoid affecting LRU ordering
+                    if let Some(existing) = parser.templates.peek(&template.template_id) {
+                        if existing.template.as_ref() != template {
+                            parser.metrics.record_collision();
+                        }
+                    }
+                    // Check if we're evicting an old template
+                    else if parser.templates.len() >= parser.max_template_cache_size {
+                        parser.metrics.record_eviction();
+                    }
+                    parser.templates.put(template.template_id, wrapped);
+                    parser.metrics.record_insertion();
+                }
+                Ok((i, FlowSetBody::Template(templates)))
+            }
+            OPTIONS_TEMPLATE_V9_ID => {
+                let (i, options_templates) = OptionsTemplates::parse(i)?;
+                // Validate templates before storing
+                if options_templates.templates.is_empty()
+                    || options_templates
+                        .templates
+                        .iter()
+                        .any(|t| !t.is_valid(parser))
+                {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )));
+                }
+                // Store templates efficiently using Arc for zero-cost sharing
+                let ttl_enabled = parser.ttl_config.is_some();
+                for template in &options_templates.templates {
+                    let arc_template = Arc::new(template.clone());
+                    let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
+                    // Check for collision (same ID, different definition)
+                    // Use peek() to avoid affecting LRU ordering
+                    if let Some(existing) = parser.options_templates.peek(&template.template_id)
+                    {
+                        if existing.template.as_ref() != template {
+                            parser.metrics.record_collision();
+                        }
+                    }
+                    // Check if we're evicting an old template
+                    else if parser.options_templates.len() >= parser.max_template_cache_size {
+                        parser.metrics.record_eviction();
+                    }
+                    parser.options_templates.put(template.template_id, wrapped);
+                    parser.metrics.record_insertion();
+                }
+                Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
+            }
+            _ => {
+                // Try regular templates
+                if let Some(template) = crate::variable_versions::get_valid_template(
+                    &mut parser.templates,
+                    &id,
+                    &parser.ttl_config,
+                    &mut parser.metrics,
+                ) {
+                    let (i, data) = Data::parse(i, &template)?;
+                    return Ok((i, FlowSetBody::Data(data)));
+                }
+
+                // Try options templates
+                if let Some(template) = crate::variable_versions::get_valid_template(
+                    &mut parser.options_templates,
+                    &id,
+                    &parser.ttl_config,
+                    &mut parser.metrics,
+                ) {
+                    let (i, options_data) = OptionsData::parse(i, &template)?;
+                    return Ok((i, FlowSetBody::OptionsData(options_data)));
+                }
+
+                // Template not found or expired
+                parser.metrics.record_miss();
+                if id > 255 {
+                    // Store full raw data only when the pending cache is
+                    // enabled, the entry fits the size limit, AND the
+                    // per-template cap has room.  Otherwise truncate to
+                    // max_error_sample_size to avoid large allocations
+                    // that would be immediately rejected.
+                    let raw_data = if parser.pending_flows.as_ref().is_some_and(|c| {
+                        i.len() <= c.max_entry_size_bytes() && c.would_accept(id)
+                    }) {
+                        i.to_vec()
+                    } else {
+                        i[..i.len().min(parser.max_error_sample_size)].to_vec()
+                    };
+
+                    let info = NoTemplateInfo {
+                        template_id: id,
+                        raw_data,
+                    };
+                    Ok((&[] as &[u8], FlowSetBody::NoTemplate(info)))
+                } else {
+                    Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )))
+                }
+            }
+        }
+    }
+}
+
+impl Template {
+    /// Validate the template against parser configuration
+    pub fn is_valid(&self, parser: &V9Parser) -> bool {
+        // Check field count limit
+        if usize::from(self.field_count) > parser.max_field_count {
+            return false;
+        }
+
+        // Check total size limit
+        let total_size = usize::from(self.get_total_size());
+        if total_size > parser.max_template_total_size {
+            return false;
+        }
+
+        // Check for duplicate field type numbers
+        if self.has_duplicate_fields() {
+            return false;
+        }
+
+        true
+    }
+
+    /// Returns the total size of the template, including the header and all fields.
+    pub fn get_total_size(&self) -> u16 {
+        self.fields
+            .iter()
+            .fold(0, |acc, i| acc.saturating_add(i.field_length))
+    }
+
+    /// Check if the template has duplicate field type numbers
+    fn has_duplicate_fields(&self) -> bool {
+        let mut seen = std::collections::HashSet::with_capacity(self.fields.len());
+        for field in &self.fields {
+            if !seen.insert(field.field_type_number) {
+                return true; // Found duplicate
+            }
+        }
+        false
+    }
+}
+
+impl OptionsTemplate {
+    /// Validate the options template against parser configuration
+    pub fn is_valid(&self, parser: &V9Parser) -> bool {
+        let scope_count = usize::from(self.options_scope_length.checked_div(4).unwrap_or(0));
+        let option_count = usize::from(self.options_length.checked_div(4).unwrap_or(0));
+
+        // Check field count limits
+        if scope_count > parser.max_field_count || option_count > parser.max_field_count {
+            return false;
+        }
+
+        // Check total size limit
+        let total_size = usize::from(self.get_total_size());
+        if total_size > parser.max_template_total_size {
+            return false;
+        }
+
+        // Check for duplicate field type numbers in scope fields
+        if self.has_duplicate_scope_fields() {
+            return false;
+        }
+
+        // Check for duplicate field type numbers in option fields
+        if self.has_duplicate_option_fields() {
+            return false;
+        }
+
+        true
+    }
+
+    /// Returns the total size of all fields in the options template
+    fn get_total_size(&self) -> u16 {
+        let scope_size: u16 = self
+            .scope_fields
+            .iter()
+            .fold(0, |acc, f| acc.saturating_add(f.field_length));
+        let option_size: u16 = self
+            .option_fields
+            .iter()
+            .fold(0, |acc, f| acc.saturating_add(f.field_length));
+        scope_size.saturating_add(option_size)
+    }
+
+    /// Check if the template has duplicate scope field type numbers
+    fn has_duplicate_scope_fields(&self) -> bool {
+        use std::collections::HashSet;
+        let mut seen = HashSet::with_capacity(self.scope_fields.len());
+        for field in &self.scope_fields {
+            if !seen.insert(field.field_type_number) {
+                return true; // Found duplicate
+            }
+        }
+        false
+    }
+
+    /// Check if the template has duplicate option field type numbers
+    fn has_duplicate_option_fields(&self) -> bool {
+        use std::collections::HashSet;
+        let mut seen = HashSet::with_capacity(self.option_fields.len());
+        for field in &self.option_fields {
+            if !seen.insert(field.field_type_number) {
+                return true; // Found duplicate
+            }
+        }
+        false
+    }
+}
+
+impl<'a> ScopeParser {
+    pub(super) fn parse(
+        input: &'a [u8],
+        template: &OptionsTemplate,
+    ) -> IResult<&'a [u8], Vec<ScopeDataField>> {
+        let mut result = Vec::with_capacity(template.scope_fields.len());
+        let mut remaining = input;
+        for template_field in template.scope_fields.iter() {
+            let (i, scope_field) = ScopeDataField::parse(remaining, template_field)?;
+            remaining = i;
+            result.push(scope_field);
+        }
+        Ok((remaining, result))
+    }
+}
+
+impl<'a> OptionsFieldParser {
+    pub(super) fn parse(
+        input: &'a [u8],
+        template: &OptionsTemplate,
+    ) -> IResult<&'a [u8], Vec<V9FieldPair>> {
+        let mut result = Vec::with_capacity(template.option_fields.len());
+        let mut remaining = input;
+        for template_field in template.option_fields.iter() {
+            let (i, field_value) = template_field.parse_as_field_value(remaining)?;
+            remaining = i;
+            result.push((template_field.field_type, field_value));
+        }
+        Ok((remaining, result))
+    }
+}
+
+impl ScopeDataField {
+    pub(super) fn parse<'a>(
+        input: &'a [u8],
+        template_field: &OptionsTemplateScopeField,
+    ) -> IResult<&'a [u8], ScopeDataField> {
+        let (new_input, field_value) = take(template_field.field_length)(input)?;
+        let mut buf = [0u8; 4];
+        let len = field_value.len().min(4);
+        buf[..len].copy_from_slice(&field_value[..len]);
+
+        match template_field.field_type {
+            ScopeFieldType::System => Ok((new_input, ScopeDataField::System(buf))),
+            ScopeFieldType::Interface => Ok((new_input, ScopeDataField::Interface(buf))),
+            ScopeFieldType::LineCard => Ok((new_input, ScopeDataField::LineCard(buf))),
+            ScopeFieldType::NetflowCache => Ok((new_input, ScopeDataField::NetFlowCache(buf))),
+            ScopeFieldType::Template => Ok((new_input, ScopeDataField::Template(buf))),
+            _ => Err(nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::Verify,
+            ))),
+        }
+    }
+}
+
+impl FlowSetParser {
+    pub(super) fn parse_flowsets<'a>(
+        i: &'a [u8],
+        parser: &mut V9Parser,
+        record_count: u16,
+    ) -> IResult<&'a [u8], Vec<FlowSet>> {
+        let (remaining, flowsets) = (0..record_count).try_fold(
+            (i, Vec::with_capacity(record_count as usize)),
+            |(remaining, mut flowsets), _| {
+                if remaining.is_empty() {
+                    return Ok((remaining, flowsets));
+                }
+                let (i, flowset) = FlowSet::parse(remaining, parser)?;
+                flowsets.push(flowset);
+                Ok((i, flowsets))
+            },
+        )?;
+
+        Ok((remaining, flowsets))
+    }
+}
+
+impl<'a> FieldParser {
+    pub(super) fn parse(
+        mut input: &'a [u8],
+        template: &Template,
+    ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
+        let template_total_size = usize::from(template.get_total_size());
+        if template_total_size == 0 {
+            return Err(nom::Err::Error(NomError::new(input, ErrorKind::Verify)));
+        }
+
+        // Calculate how many complete records we can parse based on input length
+        let record_count = input.len() / template_total_size;
+        let mut res = Vec::with_capacity(record_count);
+
+        for _ in 0..record_count {
+            match Self::parse_data_fields(input, template) {
+                Ok((remaining, record)) => {
+                    input = remaining;
+                    res.push(record);
+                }
+                Err(_) => return Ok((input, res)),
+            };
+        }
+
+        Ok((input, res))
+    }
+
+    fn parse_data_fields(
+        mut input: &'a [u8],
+        template: &Template,
+    ) -> IResult<&'a [u8], V9FlowRecord> {
+        let mut res = Vec::with_capacity(template.fields.len());
+
+        for template_field in template.fields.iter() {
+            let (new_input, field_value) = template_field.parse_as_field_value(input)?;
+            input = new_input;
+            res.push((template_field.field_type, field_value));
+        }
+
+        Ok((input, res))
+    }
+}
+
+impl TemplateField {
+    #[inline]
+    pub fn parse_as_field_value<'a>(&self, input: &'a [u8]) -> IResult<&'a [u8], FieldValue> {
+        FieldValue::from_field_type(input, self.field_type.into(), self.field_length)
     }
 }

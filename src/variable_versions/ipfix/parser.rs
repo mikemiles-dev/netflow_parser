@@ -1,12 +1,23 @@
 //! IPFixParser — template-cached IPFIX parser with pending flow support.
 //!
 //! Type definitions live in the parent `ipfix` module (`mod.rs`).
+//! Parsing impl blocks for IPFIX types (FlowSetBody, FieldParser, TemplateField, etc.)
+//! are also defined here.
 
-use super::{Data, FlowSet, FlowSetBody, FlowSetHeader, IPFix, IPFixParser, OptionsData};
+use super::{
+    CommonTemplate, DATA_TEMPLATE_IPFIX_ID, DEFAULT_MAX_TEMPLATE_CACHE_SIZE, Data, FieldParser,
+    FlowSet, FlowSetBody, FlowSetHeader, IPFix, IPFixFieldPair, IPFixParser, MAX_FIELD_COUNT,
+    NoTemplateInfo, OPTIONS_TEMPLATE_IPFIX_ID, OptionsData, OptionsTemplate, Template,
+    TemplateField,
+};
+use crate::variable_versions::data_number::FieldValue;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::metrics::CacheMetrics;
-use crate::variable_versions::ttl::TtlConfig;
-use crate::variable_versions::v9::{Data as V9Data, OptionsData as V9OptionsData};
+use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
+use crate::variable_versions::v9::{
+    DATA_TEMPLATE_V9_ID, Data as V9Data, OPTIONS_TEMPLATE_V9_ID, OptionsData as V9OptionsData,
+    OptionsTemplate as V9OptionsTemplate, Template as V9Template,
+};
 use crate::variable_versions::{
     Config, ConfigError, ParserConfig, ParserFields, PendingFlowCache, PendingFlowEntry,
     PendingFlowsConfig,
@@ -14,9 +25,13 @@ use crate::variable_versions::{
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
 use lru::LruCache;
+use nom::IResult;
+use nom::combinator::complete;
+use nom::multi::many0;
+use nom::number::complete::{be_u8, be_u16};
+use nom_derive::Parse;
 use std::num::NonZeroUsize;
-
-use super::{DEFAULT_MAX_TEMPLATE_CACHE_SIZE, MAX_FIELD_COUNT};
+use std::sync::Arc;
 
 impl Default for IPFixParser {
     fn default() -> Self {
@@ -368,5 +383,433 @@ impl IPFixParser {
         ids.sort_unstable();
         ids.dedup();
         ids
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Parsing impl blocks (moved from mod.rs)
+// ---------------------------------------------------------------------------
+
+impl IPFixParser {
+    /// Add templates to the parser by cloning from slice.
+    fn add_ipfix_templates(&mut self, templates: &[Template]) {
+        let ttl_enabled = self.ttl_config.is_some();
+        for t in templates {
+            let arc_template = Arc::new(t.clone());
+            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
+            if let Some(existing) = self.templates.peek(&t.template_id) {
+                if existing.template.as_ref() != t {
+                    self.metrics.record_collision();
+                }
+            } else if self.templates.len() >= self.max_template_cache_size {
+                self.metrics.record_eviction();
+            }
+            self.templates.put(t.template_id, wrapped);
+            self.metrics.record_insertion();
+        }
+    }
+
+    fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
+        let ttl_enabled = self.ttl_config.is_some();
+        for t in templates {
+            let arc_template = Arc::new(t.clone());
+            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
+            if let Some(existing) = self.ipfix_options_templates.peek(&t.template_id) {
+                if existing.template.as_ref() != t {
+                    self.metrics.record_collision();
+                }
+            } else if self.ipfix_options_templates.len() >= self.max_template_cache_size {
+                self.metrics.record_eviction();
+            }
+            self.ipfix_options_templates.put(t.template_id, wrapped);
+            self.metrics.record_insertion();
+        }
+    }
+
+    fn add_v9_templates(&mut self, templates: &[V9Template]) {
+        let ttl_enabled = self.ttl_config.is_some();
+        for t in templates {
+            let arc_template = Arc::new(t.clone());
+            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
+            if let Some(existing) = self.v9_templates.peek(&t.template_id) {
+                if existing.template.as_ref() != t {
+                    self.metrics.record_collision();
+                }
+            } else if self.v9_templates.len() >= self.max_template_cache_size {
+                self.metrics.record_eviction();
+            }
+            self.v9_templates.put(t.template_id, wrapped);
+            self.metrics.record_insertion();
+        }
+    }
+
+    fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
+        let ttl_enabled = self.ttl_config.is_some();
+        for t in templates {
+            let arc_template = Arc::new(t.clone());
+            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
+            if let Some(existing) = self.v9_options_templates.peek(&t.template_id) {
+                if existing.template.as_ref() != t {
+                    self.metrics.record_collision();
+                }
+            } else if self.v9_options_templates.len() >= self.max_template_cache_size {
+                self.metrics.record_eviction();
+            }
+            self.v9_options_templates.put(t.template_id, wrapped);
+            self.metrics.record_insertion();
+        }
+    }
+}
+
+impl FlowSetBody {
+    fn parse_templates<'a, T, F>(
+        i: &'a [u8],
+        parser: &mut IPFixParser,
+        parse_fn: F,
+        single_variant: fn(T) -> FlowSetBody,
+        multi_variant: fn(Vec<T>) -> FlowSetBody,
+        validate: fn(&T, &IPFixParser) -> bool,
+        add_templates: fn(&mut IPFixParser, &[T]),
+    ) -> IResult<&'a [u8], FlowSetBody>
+    where
+        T: Clone,
+        F: Fn(&'a [u8]) -> IResult<&'a [u8], T>,
+    {
+        let (i, templates) = many0(complete(parse_fn))(i)?;
+        if templates.is_empty() || templates.iter().any(|t| !validate(t, parser)) {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                i,
+                nom::error::ErrorKind::Verify,
+            )));
+        }
+        // Pass slice to add_templates to clone only what's needed
+        add_templates(parser, &templates);
+        match templates.len() {
+            1 => {
+                if let Some(template) = templates.into_iter().next() {
+                    Ok((i, single_variant(template)))
+                } else {
+                    Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )))
+                }
+            }
+            _ => Ok((i, multi_variant(templates))),
+        }
+    }
+
+    pub(super) fn parse<'a>(
+        i: &'a [u8],
+        parser: &mut IPFixParser,
+        id: u16,
+    ) -> IResult<&'a [u8], FlowSetBody> {
+        match id {
+            DATA_TEMPLATE_IPFIX_ID => Self::parse_templates(
+                i,
+                parser,
+                Template::parse,
+                FlowSetBody::Template,
+                FlowSetBody::Templates,
+                |t: &Template, p: &IPFixParser| t.is_valid(p),
+                |parser, templates| parser.add_ipfix_templates(templates),
+            ),
+            DATA_TEMPLATE_V9_ID => Self::parse_templates(
+                i,
+                parser,
+                V9Template::parse,
+                FlowSetBody::V9Template,
+                FlowSetBody::V9Templates,
+                |_t: &V9Template, _p: &IPFixParser| true,
+                |parser, templates| parser.add_v9_templates(templates),
+            ),
+            OPTIONS_TEMPLATE_V9_ID => Self::parse_templates(
+                i,
+                parser,
+                V9OptionsTemplate::parse,
+                FlowSetBody::V9OptionsTemplate,
+                FlowSetBody::V9OptionsTemplates,
+                |_t: &V9OptionsTemplate, _p: &IPFixParser| true,
+                |parser, templates| parser.add_v9_options_templates(templates),
+            ),
+            OPTIONS_TEMPLATE_IPFIX_ID => Self::parse_templates(
+                i,
+                parser,
+                OptionsTemplate::parse,
+                FlowSetBody::OptionsTemplate,
+                FlowSetBody::OptionsTemplates,
+                |t: &OptionsTemplate, p: &IPFixParser| t.is_valid(p),
+                |parser, templates| parser.add_ipfix_options_templates(templates),
+            ),
+            // Parse Data
+            _ => {
+                // Try IPFix templates
+                if let Some(template) = crate::variable_versions::get_valid_template(
+                    &mut parser.templates,
+                    &id,
+                    &parser.ttl_config,
+                    &mut parser.metrics,
+                ) {
+                    if template.get_fields().is_empty() {
+                        return Ok((i, FlowSetBody::Empty));
+                    }
+                    let (i, data) =
+                        Data::parse_with_registry(i, &template, &parser.enterprise_registry)?;
+                    return Ok((i, FlowSetBody::Data(data)));
+                }
+
+                // Try IPFix options templates
+                if let Some(template) = crate::variable_versions::get_valid_template(
+                    &mut parser.ipfix_options_templates,
+                    &id,
+                    &parser.ttl_config,
+                    &mut parser.metrics,
+                ) {
+                    if template.get_fields().is_empty() {
+                        return Ok((i, FlowSetBody::Empty));
+                    }
+                    let (i, data) = OptionsData::parse_with_registry(
+                        i,
+                        &template,
+                        &parser.enterprise_registry,
+                    )?;
+                    return Ok((i, FlowSetBody::OptionsData(data)));
+                }
+
+                // Try V9 templates
+                if let Some(template) = crate::variable_versions::get_valid_template(
+                    &mut parser.v9_templates,
+                    &id,
+                    &parser.ttl_config,
+                    &mut parser.metrics,
+                ) {
+                    let (i, data) = V9Data::parse(i, &template)?;
+                    return Ok((i, FlowSetBody::V9Data(data)));
+                }
+
+                // Try V9 options templates
+                if let Some(template) = crate::variable_versions::get_valid_template(
+                    &mut parser.v9_options_templates,
+                    &id,
+                    &parser.ttl_config,
+                    &mut parser.metrics,
+                ) {
+                    let (i, data) = V9OptionsData::parse(i, &template)?;
+                    return Ok((i, FlowSetBody::V9OptionsData(data)));
+                }
+
+                // Template not found or expired
+                parser.metrics.record_miss();
+                if id > 255 {
+                    // Store full raw data only when the pending cache is
+                    // enabled, the entry fits the size limit, AND the
+                    // per-template cap has room.  Otherwise truncate to
+                    // max_error_sample_size to avoid large allocations
+                    // that would be immediately rejected.
+                    let raw_data = if parser.pending_flows.as_ref().is_some_and(|c| {
+                        i.len() <= c.max_entry_size_bytes() && c.would_accept(id)
+                    }) {
+                        i.to_vec()
+                    } else {
+                        i[..i.len().min(parser.max_error_sample_size)].to_vec()
+                    };
+                    let info = NoTemplateInfo::new(id, raw_data);
+                    Ok((i, FlowSetBody::NoTemplate(info)))
+                } else {
+                    Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )))
+                }
+            }
+        }
+    }
+}
+
+impl Template {
+    /// Validate the template against parser configuration
+    pub fn is_valid(&self, parser: &IPFixParser) -> bool {
+        <Self as CommonTemplate>::is_valid(self, parser)
+    }
+}
+
+impl OptionsTemplate {
+    /// Validate the options template against parser configuration
+    pub fn is_valid(&self, parser: &IPFixParser) -> bool {
+        <Self as CommonTemplate>::is_valid(self, parser)
+    }
+}
+
+impl Data {
+    /// Parse Data using the enterprise registry to resolve custom enterprise fields
+    pub(super) fn parse_with_registry<'a>(
+        i: &'a [u8],
+        template: &Template,
+        registry: &EnterpriseFieldRegistry,
+    ) -> IResult<&'a [u8], Self> {
+        let (i, fields) = FieldParser::parse_with_registry(i, template, registry)?;
+        Ok((
+            i,
+            Self {
+                fields,
+                padding: vec![],
+            },
+        ))
+    }
+}
+
+impl OptionsData {
+    /// Parse OptionsData using the enterprise registry to resolve custom enterprise fields
+    pub(super) fn parse_with_registry<'a>(
+        i: &'a [u8],
+        template: &OptionsTemplate,
+        registry: &EnterpriseFieldRegistry,
+    ) -> IResult<&'a [u8], Self> {
+        let (i, fields) = FieldParser::parse_with_registry(i, template, registry)?;
+        Ok((
+            i,
+            Self {
+                fields,
+                padding: vec![],
+            },
+        ))
+    }
+}
+
+impl<'a> FieldParser {
+    /// Takes a byte stream and a cached template.
+    /// Fields get matched to static types.
+    /// Returns BTree of IPFix Types & Fields or IResult Error.
+    pub(super) fn parse<T: CommonTemplate>(
+        mut i: &'a [u8],
+        template: &T,
+    ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
+        let template_fields = template.get_fields();
+        if template_fields.is_empty() {
+            return Ok((i, Vec::new()));
+        }
+
+        // Estimate capacity based on input size and template field count
+        let template_size: usize = template_fields
+            .iter()
+            .map(|f| usize::from(f.field_length))
+            .sum();
+        let estimated_records = if template_size > 0 {
+            i.len() / template_size
+        } else {
+            0
+        };
+        let mut res = Vec::with_capacity(estimated_records);
+
+        // Try to parse as much as we can, but if it fails, just return what we have so far.
+        while !i.is_empty() {
+            let mut vec = Vec::with_capacity(template_fields.len());
+            for field in template_fields.iter() {
+                match field.parse_as_field_value(i) {
+                    Ok((remaining, field_value)) => {
+                        vec.push((field.field_type, field_value));
+                        i = remaining;
+                    }
+                    Err(_) => {
+                        return Ok((i, res));
+                    }
+                }
+            }
+            res.push(vec);
+        }
+        Ok((i, res))
+    }
+
+    /// Same as parse but uses the enterprise registry to resolve custom enterprise fields
+    fn parse_with_registry<T: CommonTemplate>(
+        mut i: &'a [u8],
+        template: &T,
+        registry: &EnterpriseFieldRegistry,
+    ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
+        let template_fields = template.get_fields();
+        if template_fields.is_empty() {
+            return Ok((i, Vec::new()));
+        }
+
+        // Estimate capacity based on input size and template field count
+        let template_size: usize = template_fields
+            .iter()
+            .map(|f| usize::from(f.field_length))
+            .sum();
+        let estimated_records = if template_size > 0 {
+            i.len() / template_size
+        } else {
+            0
+        };
+        let mut res = Vec::with_capacity(estimated_records);
+
+        // Try to parse as much as we can, but if it fails, just return what we have so far.
+        while !i.is_empty() {
+            let mut vec = Vec::with_capacity(template_fields.len());
+            for field in template_fields.iter() {
+                match field.parse_as_field_value_with_registry(i, registry) {
+                    Ok((remaining, field_value)) => {
+                        vec.push((field.field_type, field_value));
+                        i = remaining;
+                    }
+                    Err(_) => {
+                        return Ok((i, res));
+                    }
+                }
+            }
+            res.push(vec);
+        }
+        Ok((i, res))
+    }
+}
+
+impl TemplateField {
+    // If 65535, read 1 byte.
+    // If that byte is < 255 that is the length.
+    // If that byte is == 255 then read 2 bytes.  That is the length.
+    // Otherwise, return the field length.
+    fn parse_field_length<'a>(&self, i: &'a [u8]) -> IResult<&'a [u8], u16> {
+        match self.field_length {
+            65535 => {
+                let (i, length) = be_u8(i)?;
+                if length == 255 {
+                    let (i, full_length) = be_u16(i)?;
+                    // Validate length doesn't exceed remaining buffer
+                    // Note: full_length is u16, so max is 65535 (u16::MAX)
+                    if (full_length as usize) > i.len() {
+                        return Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Eof,
+                        )));
+                    }
+                    Ok((i, full_length))
+                } else {
+                    // Validate length doesn't exceed remaining buffer
+                    if (length as usize) > i.len() {
+                        return Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Eof,
+                        )));
+                    }
+                    Ok((i, u16::from(length)))
+                }
+            }
+            length => Ok((i, length)),
+        }
+    }
+
+    fn parse_as_field_value<'a>(&self, i: &'a [u8]) -> IResult<&'a [u8], FieldValue> {
+        let (i, length) = self.parse_field_length(i)?;
+        FieldValue::from_field_type(i, self.field_type.into(), length)
+    }
+
+    fn parse_as_field_value_with_registry<'a>(
+        &self,
+        i: &'a [u8],
+        registry: &EnterpriseFieldRegistry,
+    ) -> IResult<&'a [u8], FieldValue> {
+        let (i, length) = self.parse_field_length(i)?;
+        let field_type = self.field_type.to_field_data_type(registry);
+        FieldValue::from_field_type(i, field_type, length)
     }
 }
