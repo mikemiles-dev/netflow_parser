@@ -461,7 +461,7 @@ impl FieldValue {
 /// # Examples
 ///
 /// ```
-/// use netflow_parser::variable_versions::data_number::FieldDataType;
+/// use netflow_parser::variable_versions::field_value::FieldDataType;
 /// use netflow_parser::variable_versions::ipfix_lookup::IANAIPFixField;
 ///
 /// // Get the data type for a specific field
@@ -511,7 +511,7 @@ pub enum FieldDataType {
 }
 
 #[cfg(test)]
-mod data_number_tests {
+mod field_value_tests {
     use super::{DataNumber, FieldDataType, FieldValue, ProtocolTypes};
     use std::net::{Ipv4Addr, Ipv6Addr};
     use std::time::Duration;

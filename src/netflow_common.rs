@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use crate::NetflowPacket;
 use crate::protocol::ProtocolTypes;
 use crate::static_versions::{v5::V5, v7::V7};
-use crate::variable_versions::data_number::FieldValue;
+use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::ipfix_lookup::{IANAIPFixField, IPFixField};
 use crate::variable_versions::v9_lookup::V9Field;
 use crate::variable_versions::{
@@ -728,7 +728,7 @@ mod common_tests {
     use crate::netflow_common::NetflowCommon;
     use crate::static_versions::v5::{FlowSet as V5FlowSet, Header as V5Header, V5};
     use crate::static_versions::v7::{FlowSet as V7FlowSet, Header as V7Header, V7};
-    use crate::variable_versions::data_number::{DataNumber, FieldValue};
+    use crate::variable_versions::field_value::{DataNumber, FieldValue};
     use crate::variable_versions::ipfix::{
         Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody as IPFixFlowSetBody,
         FlowSetHeader as IPFixFlowSetHeader, Header as IPFixHeader, IPFix,

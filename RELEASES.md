@@ -58,6 +58,7 @@
    - Removed deprecated `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly
    - Split `v9.rs` into `v9/{mod.rs, parser.rs, serializer.rs}`
    - Split `ipfix.rs` into `ipfix/{mod.rs, parser.rs, serializer.rs}`
+   - Renamed `data_number.rs` → `field_value.rs` (deprecated re-export module preserves backward compatibility)
    - Deleted orphaned snapshot file
 
  * **Testing**
@@ -79,6 +80,7 @@
    - `NetflowPacketError` and `NetflowParseError` type aliases removed. Use `NetflowError` directly.
    - V9 `OptionsDataFields.options_fields` changed from `Vec<Vec<V9FieldPair>>` to `Vec<V9FieldPair>`. Code that iterates nested Vecs must flatten.
    - V9 `ScopeDataField` variants now store `[u8; 4]` instead of `Vec<u8>`.
+   - Module `variable_versions::data_number` renamed to `variable_versions::field_value`. A deprecated re-export module preserves backward compatibility but will be removed in a future release.
 
 # 0.9.0
 

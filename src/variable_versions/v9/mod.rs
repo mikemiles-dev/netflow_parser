@@ -18,7 +18,7 @@ mod serializer;
 
 pub use parser::V9Parser;
 
-use super::data_number::FieldValue;
+use super::field_value::FieldValue;
 use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
 
 use nom::bytes::complete::take;

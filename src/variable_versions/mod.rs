@@ -62,13 +62,18 @@
 //! - [`ipfix`] - IPFIX parser and data structures
 //! - [`v9_lookup`] - V9 field type definitions
 //! - [`ipfix_lookup`] - IPFIX field type definitions (IANA and enterprise)
-//! - [`data_number`] - Field value types and parsing
+//! - [`field_value`] - Field value types and parsing
 //! - [`enterprise_registry`] - Custom enterprise field registration
 //! - [`ttl`] - Template expiration configuration
 //! - [`metrics`] - Template cache performance metrics
 
 pub(crate) mod config;
-pub mod data_number;
+pub mod field_value;
+#[deprecated(since = "1.0.0", note = "renamed to `field_value`")]
+pub mod data_number {
+    //! Deprecated re-export — use [`super::field_value`] instead.
+    pub use super::field_value::*;
+}
 pub mod enterprise_registry;
 pub mod ipfix;
 pub mod ipfix_lookup;

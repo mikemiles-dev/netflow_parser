@@ -11,8 +11,8 @@ use super::{
     OptionsTemplateScopeField, OptionsTemplates, ScopeDataField, ScopeParser, Template,
     TemplateField, TemplateId, Templates, V9, V9FieldPair, V9FlowRecord,
 };
-use crate::variable_versions::data_number::FieldValue;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
+use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::metrics::CacheMetrics;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 use crate::variable_versions::v9_lookup::ScopeFieldType;

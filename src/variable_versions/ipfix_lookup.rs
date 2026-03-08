@@ -1,6 +1,6 @@
 //! See <https://www.iana.org/assignments/ipfix/ipfix.xhtml> for more details on fields
 
-use super::data_number::*;
+use super::field_value::*;
 
 use serde::Serialize;
 
@@ -1093,7 +1093,7 @@ ipfix_field_enum! {
 ///
 /// ```
 /// use netflow_parser::variable_versions::ipfix_lookup::IANAIPFixField;
-/// use netflow_parser::variable_versions::data_number::FieldDataType;
+/// use netflow_parser::variable_versions::field_value::FieldDataType;
 ///
 /// // Convert from field ID
 /// let field = IANAIPFixField::from(8);
@@ -1618,7 +1618,7 @@ SrhSegmentIpv6endpointBehavior = 502 => FieldDataType::UnsignedDataNumber,
 #[cfg(test)]
 mod ipfix_lookup_tests {
 
-    use crate::variable_versions::data_number::FieldDataType;
+    use crate::variable_versions::field_value::FieldDataType;
 
     use super::IANAIPFixField;
 

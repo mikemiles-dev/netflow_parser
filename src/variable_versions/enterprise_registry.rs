@@ -23,7 +23,7 @@
 //!
 //! ```
 //! use netflow_parser::variable_versions::enterprise_registry::{EnterpriseFieldRegistry, EnterpriseFieldDef};
-//! use netflow_parser::variable_versions::data_number::FieldDataType;
+//! use netflow_parser::variable_versions::field_value::FieldDataType;
 //! use netflow_parser::variable_versions::Config;
 //!
 //! // Create a registry
@@ -41,7 +41,7 @@
 //! let config = Config::with_enterprise_registry(10000, None, registry);
 //! ```
 
-use super::data_number::FieldDataType;
+use super::field_value::FieldDataType;
 use std::collections::HashMap;
 
 /// Definition of a custom enterprise field that can be registered by library users
@@ -50,7 +50,7 @@ use std::collections::HashMap;
 ///
 /// ```rust
 /// use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
-/// use netflow_parser::variable_versions::data_number::FieldDataType;
+/// use netflow_parser::variable_versions::field_value::FieldDataType;
 ///
 /// let field_def = EnterpriseFieldDef {
 ///     enterprise_number: 12345,
@@ -85,7 +85,7 @@ impl EnterpriseFieldDef {
     ///
     /// ```rust
     /// use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
-    /// use netflow_parser::variable_versions::data_number::FieldDataType;
+    /// use netflow_parser::variable_versions::field_value::FieldDataType;
     ///
     /// let field_def = EnterpriseFieldDef::new(
     ///     12345,

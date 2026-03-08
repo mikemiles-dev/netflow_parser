@@ -4,7 +4,7 @@
 //! the `calculate_padding` function to help calculate the correct padding bytes needed
 //! to align FlowSets to 4-byte boundaries.
 
-use netflow_parser::variable_versions::data_number::FieldValue;
+use netflow_parser::variable_versions::field_value::FieldValue;
 use netflow_parser::variable_versions::ipfix::{
     Data, FlowSet, FlowSetBody, FlowSetHeader, Header, IPFix, Template, TemplateField,
 };
