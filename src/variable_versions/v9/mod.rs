@@ -27,26 +27,11 @@ use std::sync::Arc;
 pub const DATA_TEMPLATE_V9_ID: u16 = 0;
 pub const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
 
-/// Default maximum number of templates to cache per parser
-pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
-
-/// Default maximum number of fields allowed per template to prevent DoS attacks
-/// A reasonable limit that should accommodate legitimate use cases
-/// This can be configured per-parser via the Config struct
-pub const MAX_FIELD_COUNT: u16 = 10000;
-
-type TemplateId = u16;
+use super::{DEFAULT_MAX_TEMPLATE_CACHE_SIZE, MAX_FIELD_COUNT, TemplateId};
 pub type V9FieldPair = (V9Field, FieldValue);
 pub type V9FlowRecord = Vec<V9FieldPair>;
 
-/// Calculate padding needed to align to 4-byte boundary.
-/// Returns a static slice of zero bytes with the appropriate length.
-fn calculate_padding(content_size: usize) -> &'static [u8] {
-    const PADDING: [u8; 3] = [0u8; 3];
-    const PADDING_SIZES: [usize; 4] = [0, 3, 2, 1];
-    let padding_len = PADDING_SIZES[content_size % 4];
-    &PADDING[..padding_len]
-}
+use super::calculate_padding;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut V9Parser))]
@@ -113,20 +98,7 @@ pub struct FlowSetHeader {
     pub length: u16,
 }
 
-/// Information about a data flowset that couldn't be parsed due to missing template.
-#[derive(Debug, Clone, Serialize)]
-pub struct NoTemplateInfo {
-    /// The template ID that was requested but not found
-    pub template_id: u16,
-    /// The unparsed flowset data (for potential retry after template arrives)
-    pub raw_data: Vec<u8>,
-}
-
-impl PartialEq for NoTemplateInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.template_id == other.template_id && self.raw_data == other.raw_data
-    }
-}
+pub use super::NoTemplateInfo;
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum FlowSetBody {
@@ -264,7 +236,7 @@ impl FlowSetBody {
             }
             _ => {
                 // Try regular templates
-                if let Some(template) = V9Parser::get_valid_template(
+                if let Some(template) = crate::variable_versions::get_valid_template(
                     &mut parser.templates,
                     &id,
                     &parser.ttl_config,
@@ -275,7 +247,7 @@ impl FlowSetBody {
                 }
 
                 // Try options templates
-                if let Some(template) = V9Parser::get_valid_template(
+                if let Some(template) = crate::variable_versions::get_valid_template(
                     &mut parser.options_templates,
                     &id,
                     &parser.ttl_config,

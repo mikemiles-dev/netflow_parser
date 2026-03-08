@@ -10,7 +10,8 @@ use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::metrics::CacheMetrics;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 use crate::variable_versions::{
-    Config, ConfigError, ParserConfig, PendingFlowCache, PendingFlowEntry, PendingFlowsConfig,
+    Config, ConfigError, ParserConfig, ParserFields, PendingFlowCache, PendingFlowEntry,
+    PendingFlowsConfig,
 };
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
@@ -93,40 +94,31 @@ impl V9Parser {
     }
 }
 
-impl ParserConfig for V9Parser {
-    /// Add or update the parser's configuration.
-    /// # Arguments
-    /// * `config` - Configuration struct containing max_template_cache_size and optional ttl_config
-    /// # Errors
-    /// Returns `ConfigError` if `max_template_cache_size` is 0
-    fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
-        self.max_template_cache_size = config.max_template_cache_size;
-        self.max_field_count = config.max_field_count;
-        self.max_template_total_size = config.max_template_total_size;
-        self.max_error_sample_size = config.max_error_sample_size;
-        self.ttl_config = config.ttl_config;
-        self.set_pending_flows_config(config.pending_flows_config)?;
-
-        let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
-            ConfigError::InvalidCacheSize(config.max_template_cache_size),
-        )?;
-
-        self.resize_template_caches(cache_size);
-        Ok(())
-    }
-
-    fn set_max_template_cache_size(&mut self, size: usize) -> Result<(), ConfigError> {
-        let cache_size = NonZeroUsize::new(size).ok_or(ConfigError::InvalidCacheSize(size))?;
+impl ParserFields for V9Parser {
+    fn set_max_template_cache_size_field(&mut self, size: usize) {
         self.max_template_cache_size = size;
-        self.resize_template_caches(cache_size);
-        Ok(())
     }
-
-    fn set_ttl_config(&mut self, ttl_config: Option<TtlConfig>) -> Result<(), ConfigError> {
-        self.ttl_config = ttl_config;
-        Ok(())
+    fn set_max_field_count_field(&mut self, count: usize) {
+        self.max_field_count = count;
     }
+    fn set_max_template_total_size_field(&mut self, size: usize) {
+        self.max_template_total_size = size;
+    }
+    fn set_max_error_sample_size_field(&mut self, size: usize) {
+        self.max_error_sample_size = size;
+    }
+    fn set_ttl_config_field(&mut self, config: Option<TtlConfig>) {
+        self.ttl_config = config;
+    }
+    fn pending_flows(&self) -> &Option<PendingFlowCache> {
+        &self.pending_flows
+    }
+    fn pending_flows_mut(&mut self) -> &mut Option<PendingFlowCache> {
+        &mut self.pending_flows
+    }
+}
 
+impl ParserConfig for V9Parser {
     fn set_pending_flows_config(
         &mut self,
         config: Option<PendingFlowsConfig>,
@@ -265,7 +257,7 @@ impl V9Parser {
         entry: &PendingFlowEntry,
     ) -> bool {
         // Try regular template
-        if let Some(template) = V9Parser::get_valid_template(
+        if let Some(template) = crate::variable_versions::get_valid_template(
             &mut self.templates,
             &template_id,
             &self.ttl_config,
@@ -284,7 +276,7 @@ impl V9Parser {
             return true;
         }
         // Try options template
-        if let Some(template) = V9Parser::get_valid_template(
+        if let Some(template) = crate::variable_versions::get_valid_template(
             &mut self.options_templates,
             &template_id,
             &self.ttl_config,
@@ -305,26 +297,6 @@ impl V9Parser {
         false
     }
 
-    /// Returns whether pending flow caching is enabled.
-    pub fn pending_flows_enabled(&self) -> bool {
-        self.pending_flows.is_some()
-    }
-
-    /// Returns the total number of pending flow entries across all template IDs.
-    pub fn pending_flow_count(&self) -> usize {
-        self.pending_flows
-            .as_ref()
-            .map(|cache| cache.count())
-            .unwrap_or(0)
-    }
-
-    /// Clear all pending flows.
-    pub fn clear_pending_flows(&mut self) {
-        if let Some(ref mut cache) = self.pending_flows {
-            cache.clear();
-        }
-    }
-
     /// Returns a sorted, deduplicated list of all available template IDs.
     pub fn available_template_ids(&self) -> Vec<u16> {
         let mut ids: Vec<u16> = self
@@ -338,26 +310,4 @@ impl V9Parser {
         ids
     }
 
-    /// Helper method to get a valid template from cache, checking TTL if configured.
-    /// Returns None if template doesn't exist or has expired.
-    #[inline]
-    pub(crate) fn get_valid_template<T: Clone>(
-        cache: &mut LruCache<TemplateId, TemplateWithTtl<Arc<T>>>,
-        id: &TemplateId,
-        ttl_config: &Option<TtlConfig>,
-        metrics: &mut CacheMetrics,
-    ) -> Option<Arc<T>> {
-        if let Some(wrapped) = cache.get(id) {
-            metrics.record_hit();
-            if let Some(config) = ttl_config
-                && wrapped.is_expired(config)
-            {
-                cache.pop(id);
-                metrics.record_expiration();
-                return None;
-            }
-            return Some(Arc::clone(&wrapped.template));
-        }
-        None
-    }
 }

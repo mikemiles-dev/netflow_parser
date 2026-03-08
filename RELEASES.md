@@ -26,6 +26,11 @@
  * **Benchmarks**
    - Added `steady_state_bench` — V9 and IPFIX benchmarks with pre-warmed template cache (5, 10, 30, 100 flows)
 
+ * **Refactor: Reduced code duplication between V9 and IPFIX parsers**
+   - Extracted shared `calculate_padding()`, `NoTemplateInfo`, `get_valid_template()`, constants (`DEFAULT_MAX_TEMPLATE_CACHE_SIZE`, `MAX_FIELD_COUNT`, `TemplateId`) into `variable_versions` module
+   - Consolidated `ParserConfig` trait with default method implementations for `add_config`, `set_max_template_cache_size`, `set_ttl_config`, `pending_flows_enabled`, `pending_flow_count`, and `clear_pending_flows`
+   - Introduced `ParserFields` accessor trait to enable shared default implementations
+
  * **Code cleanup**
    - Renamed `BpgIpv6NextHop` → `BgpIpv6NextHop` in the `V9Field` enum (typo fix)
    - Removed deprecated `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly
