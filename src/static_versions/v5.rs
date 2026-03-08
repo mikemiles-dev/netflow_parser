@@ -6,6 +6,7 @@
 use crate::protocol::ProtocolTypes;
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
+use nom::error::{Error, ErrorKind};
 use serde::Serialize;
 
 use std::net::Ipv4Addr;
@@ -115,9 +116,7 @@ impl V5 {
     #[inline]
     pub fn parse_direct(input: &[u8]) -> nom::IResult<&[u8], V5> {
         if input.len() < HEADER_SIZE {
-            return Err(nom::Err::Incomplete(nom::Needed::new(
-                HEADER_SIZE - input.len(),
-            )));
+            return Err(nom::Err::Error(Error::new(input, ErrorKind::Eof)));
         }
 
         let count = u16::from_be_bytes([input[0], input[1]]);
@@ -136,7 +135,7 @@ impl V5 {
         let flows_len = count as usize * FLOW_SIZE;
         let total = HEADER_SIZE + flows_len;
         if input.len() < total {
-            return Err(nom::Err::Incomplete(nom::Needed::new(total - input.len())));
+            return Err(nom::Err::Error(Error::new(input, ErrorKind::Eof)));
         }
 
         let mut flowsets = Vec::with_capacity(count as usize);
