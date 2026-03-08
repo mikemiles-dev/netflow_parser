@@ -41,7 +41,7 @@ use serde::Serialize;
 ///
 /// See [IANA Protocol Numbers](https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml)
 /// for the complete official registry.
-#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd, Ord, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub enum ProtocolTypes {
     Hopopt,
     Icmp,
@@ -189,8 +189,26 @@ pub enum ProtocolTypes {
     Ethernet,
     Aggfrag,
     /// Unrecognized or unassigned protocol number, carrying its original value.
+    ///
+    /// This variant only holds values that are **not** covered by a named variant
+    /// (i.e., 145–254). Constructing `Unknown` with a value that has a named variant
+    /// (e.g., `Unknown(6)`) will work but is not canonical — `From<u8>` always
+    /// produces the named variant, so round-tripping through `u8` will not preserve
+    /// `Unknown(6)` (it becomes `Tcp`).
     Unknown(u8),
     Reserved,
+}
+
+impl PartialOrd for ProtocolTypes {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for ProtocolTypes {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        u8::from(*self).cmp(&u8::from(*other))
+    }
 }
 
 impl ProtocolTypes {

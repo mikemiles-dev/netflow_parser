@@ -734,6 +734,21 @@ impl NetflowParserBuilder {
         self
     }
 
+    /// Validates the builder configuration without constructing a parser.
+    ///
+    /// This is cheaper than [`build`](Self::build) since it only checks that
+    /// config values are valid (e.g., non-zero cache sizes) without allocating
+    /// parser internals.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError` if the configuration is invalid.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        V9Parser::validate_config(&self.v9_config)?;
+        IPFixParser::validate_config(&self.ipfix_config)?;
+        Ok(())
+    }
+
     /// Builds the configured [`NetflowParser`].
     ///
     /// # Errors
@@ -1053,6 +1068,8 @@ impl NetflowParser {
     }
 
     /// Returns whether the given NetFlow version is allowed for parsing.
+    ///
+    /// Returns `false` for version numbers outside the supported range (0–10).
     pub fn is_version_allowed(&self, version: u16) -> bool {
         (version as usize) < self.allowed_versions.len()
             && self.allowed_versions[version as usize]

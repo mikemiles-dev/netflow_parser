@@ -34,9 +34,10 @@
  * **API hygiene**
    - `NetflowParser` fields (`v9_parser`, `ipfix_parser`, `allowed_versions`, `max_error_sample_size`) are now `pub(crate)` instead of `pub`. Use accessor methods: `v9_parser()`, `v9_parser_mut()`, `ipfix_parser()`, `ipfix_parser_mut()`, `allowed_versions()`, `is_version_allowed()`, `max_error_sample_size()`
    - `NetflowParserBuilder::build()` now returns `Result<NetflowParser, ConfigError>` instead of `Result<NetflowParser, String>`
+   - Added `NetflowParserBuilder::validate()` for lightweight config validation without allocating parser internals
    - `ConfigError` now implements `std::error::Error`
    - `DataNumberError` and `FieldValueError` now implement `Display` and `std::error::Error`
-   - `ProtocolTypes::Unknown` is now `Unknown(u8)`, carrying the original protocol number. `#[repr(u8)]` removed from `ProtocolTypes`
+   - `ProtocolTypes::Unknown` is now `Unknown(u8)`, carrying the original protocol number. `#[repr(u8)]` removed from `ProtocolTypes`. `PartialOrd`/`Ord` are now implemented manually based on protocol number (not enum declaration order)
    - Added `try_with_builder()` on `RouterScopedParser` and `AutoScopedParser` (returns `Result<Self, ConfigError>`). Deprecated `with_builder()` — calls `try_with_builder().expect(...)`
    - Added `try_multi_source()` on builder (returns `Result<AutoScopedParser, ConfigError>`). Deprecated `multi_source()` — calls `try_multi_source().expect(...)`
 
@@ -70,7 +71,7 @@
    - `with_allowed_versions()` now takes `&[u16]` instead of `HashSet<u16>`. The `allowed_versions` field is now `pub(crate) [bool; 11]`; use `allowed_versions()` or `is_version_allowed()` accessors.
    - `NetflowParser` fields `v9_parser`, `ipfix_parser`, `allowed_versions`, `max_error_sample_size` are now `pub(crate)`. Use the corresponding accessor methods instead.
    - `NetflowParserBuilder::build()` returns `ConfigError` instead of `String` on failure.
-   - `ProtocolTypes::Unknown` is now `Unknown(u8)` instead of a unit variant. Pattern matching on `Unknown` must use `Unknown(_)` or `Unknown(v)`. `#[repr(u8)]` removed; use `u8::from(protocol)` instead of `protocol as u8`.
+   - `ProtocolTypes::Unknown` is now `Unknown(u8)` instead of a unit variant. Pattern matching on `Unknown` must use `Unknown(_)` or `Unknown(v)`. `#[repr(u8)]` removed; use `u8::from(protocol)` instead of `protocol as u8`. `PartialOrd`/`Ord` now compare by protocol number value, not enum declaration order.
    - `with_builder()` on `RouterScopedParser` and `AutoScopedParser` is deprecated. Use `try_with_builder()`.
    - `multi_source()` on `NetflowParserBuilder` is deprecated. Use `try_multi_source()`.
    - `DataNumber::to_be_bytes()` and `FieldValue::to_be_bytes()` removed; use `write_be_bytes()` instead.

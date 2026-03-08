@@ -108,8 +108,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     ///     .expect("valid config");
     /// ```
     pub fn try_with_builder(builder: NetflowParserBuilder) -> Result<Self, ConfigError> {
-        // Validate by building a test parser
-        let _ = builder.clone().build()?;
+        builder.validate()?;
         Ok(Self {
             parsers: HashMap::new(),
             parser_builder: Some(builder),
@@ -127,7 +126,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         note = "use try_with_builder() for fallible construction"
     )]
     pub fn with_builder(builder: NetflowParserBuilder) -> Self {
-        Self::try_with_builder(builder).expect("builder configuration is valid (pre-validated)")
+        Self::try_with_builder(builder).expect("invalid builder configuration")
     }
 
     /// Parse NetFlow data from a specific source.
@@ -156,7 +155,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
                 builder
                     .clone()
                     .build()
-                    .expect("builder pre-validated in try_with_builder")
+                    .expect("builder validated in try_with_builder")
             } else {
                 NetflowParser::default()
             }
@@ -192,7 +191,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
                 builder
                     .clone()
                     .build()
-                    .expect("builder pre-validated in try_with_builder")
+                    .expect("builder validated in try_with_builder")
             } else {
                 NetflowParser::default()
             }
@@ -478,8 +477,7 @@ impl AutoScopedParser {
     ///     .expect("valid config");
     /// ```
     pub fn try_with_builder(builder: NetflowParserBuilder) -> Result<Self, ConfigError> {
-        // Validate by building a test parser
-        let _ = builder.clone().build()?;
+        builder.validate()?;
         Ok(Self {
             ipfix_parsers: HashMap::new(),
             v9_parsers: HashMap::new(),
@@ -499,7 +497,7 @@ impl AutoScopedParser {
         note = "use try_with_builder() for fallible construction"
     )]
     pub fn with_builder(builder: NetflowParserBuilder) -> Self {
-        Self::try_with_builder(builder).expect("builder configuration is valid (pre-validated)")
+        Self::try_with_builder(builder).expect("invalid builder configuration")
     }
 
     /// Parse NetFlow data from a source with automatic RFC-compliant scoping.
@@ -722,7 +720,7 @@ impl AutoScopedParser {
             builder
                 .clone()
                 .build()
-                .expect("builder pre-validated in try_with_builder")
+                .expect("builder validated in try_with_builder")
         } else {
             NetflowParser::default()
         }

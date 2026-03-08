@@ -51,6 +51,16 @@ impl Default for IPFixParser {
 }
 
 impl IPFixParser {
+    /// Validates a configuration without allocating parser internals.
+    pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
+        NonZeroUsize::new(config.max_template_cache_size)
+            .ok_or(ConfigError::InvalidCacheSize(config.max_template_cache_size))?;
+        if let Some(ref pf) = config.pending_flows_config {
+            PendingFlowCache::validate_config(pf)?;
+        }
+        Ok(())
+    }
+
     /// Create a new IPFixParser with a custom template cache size and optional TTL configuration.
     ///
     /// # Arguments

@@ -111,6 +111,13 @@ impl PendingFlowCache {
         }
     }
 
+    /// Validates pending flow configuration without allocating.
+    pub(crate) fn validate_config(config: &PendingFlowsConfig) -> Result<(), ConfigError> {
+        NonZeroUsize::new(config.max_pending_flows)
+            .ok_or(ConfigError::InvalidPendingCacheSize(config.max_pending_flows))?;
+        Ok(())
+    }
+
     /// Create a new PendingFlowCache from the given configuration.
     ///
     /// # Errors
