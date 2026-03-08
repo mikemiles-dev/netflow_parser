@@ -706,7 +706,7 @@ impl<'a> FieldParser {
             .map(|f| usize::from(f.field_length))
             .sum();
         let estimated_records = if template_size > 0 {
-            i.len() / template_size
+            (i.len() / template_size).min(1024)
         } else {
             0
         };
@@ -748,7 +748,7 @@ impl<'a> FieldParser {
             .map(|f| usize::from(f.field_length))
             .sum();
         let estimated_records = if template_size > 0 {
-            i.len() / template_size
+            (i.len() / template_size).min(1024)
         } else {
             0
         };

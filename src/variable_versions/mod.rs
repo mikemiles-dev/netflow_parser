@@ -104,6 +104,8 @@ pub struct NoTemplateInfo {
     pub template_id: u16,
     /// The unparsed flowset data (for potential retry after template arrives)
     pub raw_data: Vec<u8>,
+    /// Whether the raw_data was truncated due to size limits
+    pub truncated: bool,
 }
 
 impl NoTemplateInfo {
@@ -112,13 +114,16 @@ impl NoTemplateInfo {
         Self {
             template_id,
             raw_data,
+            truncated: false,
         }
     }
 }
 
 impl PartialEq for NoTemplateInfo {
     fn eq(&self, other: &Self) -> bool {
-        self.template_id == other.template_id && self.raw_data == other.raw_data
+        self.template_id == other.template_id
+            && self.raw_data == other.raw_data
+            && self.truncated == other.truncated
     }
 }
 

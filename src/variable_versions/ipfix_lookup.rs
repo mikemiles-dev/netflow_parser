@@ -1615,6 +1615,9 @@ SrhSegmentIpv6endpointBehavior = 502 => FieldDataType::UnsignedDataNumber,
     }
 }
 
+/// Alias for [`IPFixField`] using Rust naming conventions.
+pub type IpfixField = IPFixField;
+
 #[cfg(test)]
 mod ipfix_lookup_tests {
 
@@ -1646,6 +1649,3 @@ mod ipfix_lookup_tests {
         assert_yaml_snapshot!(lookup);
     }
 }
-
-/// Alias for [`IPFixField`] using Rust naming conventions.
-pub type IpfixField = IPFixField;

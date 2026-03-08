@@ -146,3 +146,4 @@ expression: parser.parse_bytes(&packet).packets
               - 0
               - 0
               - 0
+            truncated: false

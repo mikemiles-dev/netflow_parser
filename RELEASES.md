@@ -26,6 +26,16 @@
    - Added `FieldDataType::ForwardingStatus` and `FieldValue::ForwardingStatus` for automatic decoding in both V9 and IPFIX
    - `field_types` module is designed for future custom field type additions
 
+ * **Safety and correctness fixes**
+   - `UnallowedVersion` now carries the version number and returns a `FilteredVersion` error instead of silently stopping parsing
+   - `ApplicationId` field parsing uses `checked_sub` instead of `saturating_sub` to properly error on zero-length fields
+   - `Vec::with_capacity` for parsed records is capped at 1024 in V9 and IPFIX to prevent untrusted input from causing large allocations
+   - V9 `Template::is_valid()` now rejects templates with empty fields or all-zero-length fields
+   - V9 `OptionsTemplate::is_valid()` now rejects `options_scope_length` and `options_length` that aren't multiples of 4
+   - `NoTemplateInfo` gains a `truncated: bool` field to indicate when raw data was size-limited
+   - `IpfixField` type alias moved before the test module for correct code organization
+   - Fixed doc typo in V5 `FlowSet::dst_as` ("pee" → "peer")
+
  * **Performance: V5/V7 direct byte parsing**
    - Replaced nom-derive generated parsers with hand-written direct byte reads for V5 and V7
    - Fixed-layout protocols now use a single bounds check instead of per-field nom combinator calls

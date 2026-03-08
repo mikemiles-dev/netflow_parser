@@ -416,9 +416,14 @@ impl FieldValue {
     ) -> IResult<&[u8], FieldValue> {
         let (remaining, field_value) = match field_type {
             FieldDataType::ApplicationId => {
+                let selector_length = field_length.checked_sub(1).ok_or_else(|| {
+                    nom::Err::Error(nom::error::Error::new(
+                        remaining,
+                        nom::error::ErrorKind::Verify,
+                    ))
+                })?;
                 let (i, id) = u8::parse(remaining)?;
-                let (i, selector_id) =
-                    DataNumber::parse(i, field_length.saturating_sub(1), false)?;
+                let (i, selector_id) = DataNumber::parse(i, selector_length, false)?;
                 (
                     i,
                     FieldValue::ApplicationId(ApplicationId {
