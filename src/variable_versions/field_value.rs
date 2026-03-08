@@ -13,10 +13,7 @@ use nom::{
 use nom_derive::Parse;
 use serde::Serialize;
 use serde::ser::Serializer;
-use std::{
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
-    time::Duration,
-};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 macro_rules! impl_try_from {
     ($($t:ty => $v:ident),*; $($s:ty => $sv:ident),*) => {
@@ -127,7 +124,7 @@ impl TryFrom<&FieldValue> for String {
 
     fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
         match value {
-            FieldValue::String(s) => Ok(s.clone()),
+            FieldValue::String(s) => Ok(s.value.clone()),
             FieldValue::MacAddr(bytes) => Ok(format_mac_addr(bytes)),
             _ => Err(FieldValueError::InvalidDataType),
         }
@@ -165,23 +162,25 @@ fn parse_unknown_fields(remaining: &[u8], _field_length: u16) -> IResult<&[u8], 
     Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))
 }
 
-/// Helper function to parse duration fields that can be either 4 or 8 bytes
+/// Helper function to parse duration fields that can be either 4 or 8 bytes.
+/// Builds a `DurationValue::Seconds` or `DurationValue::Millis` depending on the
+/// variant constructor passed via `make_variant`.
 fn parse_duration<F>(
     remaining: &[u8],
     field_length: u16,
-    from_fn: F,
+    make_variant: F,
 ) -> IResult<&[u8], FieldValue>
 where
-    F: Fn(u64) -> Duration,
+    F: Fn(u64, u8) -> DurationValue,
 {
     match field_length {
         4 => {
             let (i, value) = u32::parse_be(remaining)?;
-            Ok((i, FieldValue::Duration(from_fn(value.into()))))
+            Ok((i, FieldValue::Duration(make_variant(value.into(), 4))))
         }
         8 => {
             let (i, value) = u64::parse_be(remaining)?;
-            Ok((i, FieldValue::Duration(from_fn(value))))
+            Ok((i, FieldValue::Duration(make_variant(value, 8))))
         }
         _ => Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail))),
     }
@@ -242,14 +241,79 @@ pub struct ApplicationId {
     pub selector_id: DataNumber,
 }
 
+/// Preserves the original time unit, field width, and sub-second precision
+/// so that round-trip serialization is lossless.
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum DurationValue {
+    /// Duration in seconds, stored as 4 or 8 bytes
+    Seconds { value: u64, width: u8 },
+    /// Duration in milliseconds, stored as 4 or 8 bytes
+    Millis { value: u64, width: u8 },
+    /// Duration in NTP microsecond format (seconds + fractional), always 8 bytes
+    MicrosNtp { seconds: u32, fraction: u32 },
+    /// Duration in NTP nanosecond format (seconds + fractional), always 8 bytes
+    NanosNtp { seconds: u32, fraction: u32 },
+}
+
+impl DurationValue {
+    /// Convert to a `std::time::Duration` for ergonomic access.
+    pub fn as_duration(&self) -> std::time::Duration {
+        match self {
+            DurationValue::Seconds { value, .. } => std::time::Duration::from_secs(*value),
+            DurationValue::Millis { value, .. } => std::time::Duration::from_millis(*value),
+            DurationValue::MicrosNtp { seconds, fraction } => {
+                let micros = ((u64::from(*fraction)).saturating_mul(1_000_000)) >> 32;
+                std::time::Duration::from_secs(u64::from(*seconds))
+                    .saturating_add(std::time::Duration::from_micros(micros))
+            }
+            DurationValue::NanosNtp { seconds, fraction } => {
+                let nanos = ((u64::from(*fraction)).saturating_mul(1_000_000_000)) >> 32;
+                std::time::Duration::from_secs(u64::from(*seconds))
+                    .saturating_add(std::time::Duration::from_nanos(nanos))
+            }
+        }
+    }
+}
+
+impl Serialize for DurationValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Serialize as the computed Duration for JSON compatibility
+        let dur = self.as_duration();
+        dur.serialize(serializer)
+    }
+}
+
+/// Preserves the original wire bytes alongside the cleaned display string
+/// so that round-trip serialization is lossless.
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+pub struct StringValue {
+    /// Cleaned display string (lossy UTF-8, control chars filtered, P4 stripped)
+    pub value: String,
+    /// Original wire bytes for faithful serialization
+    pub raw: Vec<u8>,
+}
+
+impl Serialize for StringValue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Serialize only the cleaned value to preserve current JSON output
+        self.value.serialize(serializer)
+    }
+}
+
 /// Holds the post parsed field with its relevant datatype
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum FieldValue {
     ApplicationId(ApplicationId),
-    String(String),
+    String(StringValue),
     DataNumber(DataNumber),
     Float64(f64),
-    Duration(Duration),
+    Duration(DurationValue),
     Ip4Addr(Ipv4Addr),
     Ip6Addr(Ipv6Addr),
     MacAddr([u8; 6]),
@@ -281,7 +345,7 @@ impl Serialize for FieldValue {
                 serializer.serialize_newtype_variant("FieldValue", 0, "ApplicationId", v)
             }
             FieldValue::String(v) => {
-                serializer.serialize_newtype_variant("FieldValue", 1, "String", v)
+                serializer.serialize_newtype_variant("FieldValue", 1, "String", &v.value)
             }
             FieldValue::DataNumber(v) => {
                 serializer.serialize_newtype_variant("FieldValue", 2, "DataNumber", v)
@@ -368,13 +432,24 @@ impl FieldValue {
                 buf.push(app_id.classification_engine_id);
                 app_id.selector_id.write_be_bytes(buf)?;
             }
-            FieldValue::String(s) => buf.extend_from_slice(s.as_bytes()),
+            FieldValue::String(s) => buf.extend_from_slice(&s.raw),
             FieldValue::DataNumber(d) => d.write_be_bytes(buf)?,
             FieldValue::Float64(f) => buf.extend_from_slice(&f.to_be_bytes()),
-            FieldValue::Duration(d) => {
-                let secs = u32::try_from(d.as_secs()).map_err(std::io::Error::other)?;
-                buf.extend_from_slice(&secs.to_be_bytes());
-            }
+            FieldValue::Duration(d) => match d {
+                DurationValue::Seconds { value, width } | DurationValue::Millis { value, width } => {
+                    if *width <= 4 {
+                        let v = u32::try_from(*value).map_err(std::io::Error::other)?;
+                        buf.extend_from_slice(&v.to_be_bytes());
+                    } else {
+                        buf.extend_from_slice(&value.to_be_bytes());
+                    }
+                }
+                DurationValue::MicrosNtp { seconds, fraction }
+                | DurationValue::NanosNtp { seconds, fraction } => {
+                    buf.extend_from_slice(&seconds.to_be_bytes());
+                    buf.extend_from_slice(&fraction.to_be_bytes());
+                }
+            },
             FieldValue::Ip4Addr(ip) => buf.extend_from_slice(&ip.octets()),
             FieldValue::Ip6Addr(ip) => buf.extend_from_slice(&ip.octets()),
             FieldValue::MacAddr(mac) => buf.extend_from_slice(mac),
@@ -400,18 +475,6 @@ impl FieldValue {
             FieldValue::Unknown(v) => buf.extend_from_slice(v),
         }
         Ok(())
-    }
-
-    fn make_ntp_time_nanos(seconds: u32, fraction: u32) -> Duration {
-        // Convert NTP fractional seconds to nanoseconds: fraction * 1e9 / 2^32
-        let nanos = ((u64::from(fraction)).saturating_mul(1_000_000_000)) >> 32;
-        Duration::from_secs(u64::from(seconds)).saturating_add(Duration::from_nanos(nanos))
-    }
-
-    fn make_ntp_time_micros(seconds: u32, fraction: u32) -> Duration {
-        // Convert NTP fractional seconds to microseconds: fraction * 1e6 / 2^32
-        let micros = ((u64::from(fraction)).saturating_mul(1_000_000)) >> 32;
-        Duration::from_secs(u64::from(seconds)).saturating_add(Duration::from_micros(micros))
     }
 
     #[inline]
@@ -448,6 +511,7 @@ impl FieldValue {
             }
             FieldDataType::String => {
                 let (i, taken) = take(field_length)(remaining)?;
+                let raw = taken.to_vec();
                 let s: String = String::from_utf8_lossy(taken)
                     .chars()
                     .filter(|&c| !c.is_control())
@@ -457,7 +521,7 @@ impl FieldValue {
                 } else {
                     s
                 };
-                (i, FieldValue::String(s))
+                (i, FieldValue::String(StringValue { value: s, raw }))
             }
             FieldDataType::Ip4Addr => {
                 let (i, taken) = be_u32(remaining)?;
@@ -477,22 +541,24 @@ impl FieldValue {
                 (i, FieldValue::MacAddr(*taken))
             }
             FieldDataType::DurationSeconds => {
-                parse_duration(remaining, field_length, Duration::from_secs)?
+                parse_duration(remaining, field_length, |value, width| {
+                    DurationValue::Seconds { value, width }
+                })?
             }
             FieldDataType::DurationMillis => {
-                parse_duration(remaining, field_length, Duration::from_millis)?
+                parse_duration(remaining, field_length, |value, width| {
+                    DurationValue::Millis { value, width }
+                })?
             }
             FieldDataType::DurationMicrosNTP => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                let dur = Self::make_ntp_time_micros(seconds, fraction);
-                (i, FieldValue::Duration(dur))
+                (i, FieldValue::Duration(DurationValue::MicrosNtp { seconds, fraction }))
             }
             FieldDataType::DurationNanosNTP => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                let dur = Self::make_ntp_time_nanos(seconds, fraction);
-                (i, FieldValue::Duration(dur))
+                (i, FieldValue::Duration(DurationValue::NanosNtp { seconds, fraction }))
             }
             FieldDataType::ProtocolType => {
                 let (i, protocol) = ProtocolTypes::parse(remaining)?;
@@ -677,9 +743,8 @@ pub enum FieldDataType {
 
 #[cfg(test)]
 mod field_value_tests {
-    use super::{DataNumber, FieldDataType, FieldValue, ProtocolTypes};
+    use super::{DataNumber, DurationValue, FieldDataType, FieldValue, ProtocolTypes, StringValue};
     use std::net::{Ipv4Addr, Ipv6Addr};
-    use std::time::Duration;
 
     #[test]
     fn it_tests_3_byte_data_number_exports() {
@@ -693,7 +758,10 @@ mod field_value_tests {
     fn it_tests_field_value_to_be_bytes() {
         let mut buf = Vec::new();
 
-        let field_value = FieldValue::String("test".to_string());
+        let field_value = FieldValue::String(StringValue {
+            value: "test".to_string(),
+            raw: b"test".to_vec(),
+        });
         buf.clear();
         field_value.write_be_bytes(&mut buf).unwrap();
         assert_eq!(buf, vec![116, 101, 115, 116]);
@@ -708,7 +776,10 @@ mod field_value_tests {
         field_value.write_be_bytes(&mut buf).unwrap();
         assert_eq!(buf, 123.456f64.to_be_bytes().to_vec());
 
-        let field_value = FieldValue::Duration(Duration::from_secs(12345));
+        let field_value = FieldValue::Duration(DurationValue::Seconds {
+            value: 12345,
+            width: 4,
+        });
         buf.clear();
         field_value.write_be_bytes(&mut buf).unwrap();
         assert_eq!(buf, vec![0, 0, 48, 57]);

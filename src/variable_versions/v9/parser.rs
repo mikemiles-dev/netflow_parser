@@ -621,9 +621,7 @@ impl ScopeDataField {
         template_field: &OptionsTemplateScopeField,
     ) -> IResult<&'a [u8], ScopeDataField> {
         let (new_input, field_value) = take(template_field.field_length)(input)?;
-        let mut buf = [0u8; 4];
-        let len = field_value.len().min(4);
-        buf[..len].copy_from_slice(&field_value[..len]);
+        let buf = field_value.to_vec();
 
         match template_field.field_type {
             ScopeFieldType::System => Ok((new_input, ScopeDataField::System(buf))),

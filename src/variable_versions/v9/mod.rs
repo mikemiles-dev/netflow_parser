@@ -191,11 +191,11 @@ pub struct OptionsDataFields {
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum ScopeDataField {
-    System([u8; 4]),
-    Interface([u8; 4]),
-    LineCard([u8; 4]),
-    NetFlowCache([u8; 4]),
-    Template([u8; 4]),
+    System(Vec<u8>),
+    Interface(Vec<u8>),
+    LineCard(Vec<u8>),
+    NetFlowCache(Vec<u8>),
+    Template(Vec<u8>),
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
