@@ -161,11 +161,7 @@ fn parse_unknown_fields(remaining: &[u8], field_length: u16) -> IResult<&[u8], F
 }
 
 #[cfg(not(feature = "parse_unknown_fields"))]
-fn parse_unknown_fields(
-    remaining: &[u8],
-    field_type: FieldDataType,
-    field_length: u16,
-) -> IResult<&[u8], FieldValue> {
+fn parse_unknown_fields(remaining: &[u8], _field_length: u16) -> IResult<&[u8], FieldValue> {
     Err(NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))
 }
 
