@@ -1,7 +1,11 @@
+//! Tests for template event hooks: registration, callback invocation,
+//! and event details for template lifecycle monitoring.
+
 use netflow_parser::{NetflowParser, TemplateEvent, TemplateProtocol};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+// Verify that a template event hook can be registered via the builder without triggering
 #[test]
 fn test_hook_registration() {
     let counter = Arc::new(AtomicUsize::new(0));
@@ -18,6 +22,7 @@ fn test_hook_registration() {
     assert_eq!(counter.load(Ordering::SeqCst), 0);
 }
 
+// Verify that multiple hooks receive the correct events based on variant filtering
 #[test]
 fn test_multiple_hooks() {
     let learned_count = Arc::new(AtomicUsize::new(0));
@@ -68,6 +73,7 @@ fn test_multiple_hooks() {
     assert_eq!(all_events_count.load(Ordering::SeqCst), 3);
 }
 
+// Verify that a hook fires when a MissingTemplate event is triggered on a builder-created parser
 #[test]
 fn test_hook_with_default_parser() {
     let event_count = Arc::new(AtomicUsize::new(0));
@@ -89,6 +95,7 @@ fn test_hook_with_default_parser() {
     assert_eq!(event_count.load(Ordering::SeqCst), 1);
 }
 
+// Verify that hook callbacks receive correct template_id and protocol from Evicted events
 #[test]
 fn test_hook_event_details() {
     let captured_id = Arc::new(AtomicUsize::new(0));
@@ -123,6 +130,7 @@ fn test_hook_event_details() {
     );
 }
 
+// Verify that hooks can be chained with other builder options and all fire on a single event
 #[test]
 fn test_hook_builder_chaining() {
     let counter = Arc::new(AtomicUsize::new(0));
@@ -150,6 +158,7 @@ fn test_hook_builder_chaining() {
     assert_eq!(counter.load(Ordering::SeqCst), 11);
 }
 
+// Verify that triggering events on a parser with no hooks does not panic
 #[test]
 fn test_parser_without_hooks() {
     // Parser should work fine without any hooks registered
@@ -162,6 +171,7 @@ fn test_parser_without_hooks() {
     });
 }
 
+// Verify that a hook can capture and format all event variants into a log buffer
 #[test]
 fn test_hook_with_logging() {
     use std::sync::Mutex;

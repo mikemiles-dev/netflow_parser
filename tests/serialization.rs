@@ -1,5 +1,8 @@
+//! Tests for JSON serialization of parsed NetFlow packets.
+
 use netflow_parser::{NetflowPacket, NetflowParser};
 
+// Verify V5 packet serializes to JSON containing version identifier and number
 #[test]
 fn test_v5_serialization() {
     let v5_packet = [
@@ -34,6 +37,7 @@ fn test_v5_round_trip_serialization() {
     assert_eq!(parsed.len(), 1);
 }
 
+// Verify V5 packet pretty-prints to JSON with newlines and version data
 #[test]
 fn test_v5_json_pretty_print() {
     let v5_packet = [
@@ -49,6 +53,7 @@ fn test_v5_json_pretty_print() {
     assert!(json.contains('\n')); // Pretty printed should have newlines
 }
 
+// Verify V5 header serializes independently with correct version and count fields
 #[test]
 fn test_v5_header_serialization() {
     let v5_packet = [
@@ -69,6 +74,7 @@ fn test_v5_header_serialization() {
     }
 }
 
+// Verify that parsing an unknown version number returns an empty result
 #[test]
 fn test_invalid_packet_handling() {
     // Invalid version number - parser returns empty vec for unknown versions

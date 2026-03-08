@@ -1,4 +1,16 @@
-//! # IPFix
+//! # IPFIX (IP Flow Information Export)
+//!
+//! Types and parsing logic for IPFIX (RFC 7011), the IETF standard evolution of NetFlow V9.
+//!
+//! IPFIX extends V9 with variable-length fields, enterprise-specific information elements,
+//! and a length-based message header (instead of V9's count-based header).
+//!
+//! Key types:
+//! - [`IPFix`] — a parsed IPFIX message containing a [`Header`] and a list of [`FlowSet`]s
+//! - [`IPFixParser`] — stateful parser with LRU template caches (supports both IPFIX and V9-style templates)
+//! - [`Template`] / [`OptionsTemplate`] — IPFIX template definitions with enterprise field support
+//! - [`Data`] / [`OptionsData`] — parsed data records decoded using a cached template
+//! - [`FlowSetBody`] — enum of all possible flowset payloads
 //!
 //! References:
 //! - <https://datatracker.ietf.org/doc/html/rfc7011>
@@ -45,6 +57,8 @@ use super::calculate_padding;
 // IPFixParser struct and impl blocks are in parser.rs
 // Serialization (to_be_bytes) is in serializer.rs
 
+/// Stateful IPFIX parser with LRU template caches and optional pending flow support.
+/// Supports both native IPFIX templates and V9-style templates embedded in IPFIX messages.
 #[derive(Debug)]
 pub struct IPFixParser {
     pub templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
@@ -147,6 +161,7 @@ impl IPFixParser {
     }
 }
 
+/// A parsed IPFIX message containing a header and a list of flowsets.
 #[derive(Nom, Debug, PartialEq, Clone, Serialize)]
 #[nom(ExtraArgs(parser: &mut IPFixParser))]
 pub struct IPFix {
@@ -167,6 +182,8 @@ pub struct IPFix {
 
 pub use super::NoTemplateInfo;
 
+/// The payload of an IPFIX flowset: template definitions, data records, options,
+/// V9-style templates/data, or a placeholder when the required template is missing.
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum FlowSetBody {
     Template(Template),
@@ -383,6 +400,7 @@ impl FlowSetBody {
     }
 }
 
+/// IPFIX message header (RFC 7011 Section 3.1).
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Nom)]
 pub struct Header {
     /// Version of Flow Record format that is exported in this message. The value of this
@@ -414,6 +432,7 @@ pub struct Header {
     pub observation_domain_id: u32,
 }
 
+/// A single set within an IPFIX message, containing a header and a body.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(parser: &mut IPFixParser))]
 pub struct FlowSet {
@@ -427,6 +446,7 @@ pub struct FlowSet {
     pub body: FlowSetBody,
 }
 
+/// Header of an IPFIX set, identifying its type (template, options, or data) and length.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 pub struct FlowSetHeader {
     /// Set ID value identifies the Set. A value of 2 is reserved for the Template Set.
@@ -440,6 +460,7 @@ pub struct FlowSetHeader {
     pub length: u16,
 }
 
+/// Parsed IPFIX data records decoded using an IPFIX template.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(template: &Template))]
 pub struct Data {
@@ -480,6 +501,7 @@ impl Data {
     }
 }
 
+/// Parsed IPFIX options data records decoded using an IPFIX options template.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(template: &OptionsTemplate))]
 pub struct OptionsData {
@@ -520,6 +542,7 @@ impl OptionsData {
     }
 }
 
+/// An IPFIX options template definition (RFC 7011 Section 3.4.2.2).
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct OptionsTemplate {
     pub template_id: u16,
@@ -539,6 +562,7 @@ impl OptionsTemplate {
     }
 }
 
+/// An IPFIX template definition (RFC 7011 Section 3.4.1) that describes data record layout.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom, Default)]
 pub struct Template {
     pub template_id: u16,
@@ -554,6 +578,7 @@ impl Template {
     }
 }
 
+/// A single field definition within an IPFIX template, with optional enterprise number support.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Nom)]
 pub struct TemplateField {
     #[nom(
@@ -570,7 +595,8 @@ pub struct TemplateField {
     pub field_type: IPFixField,
 }
 
-// Common trait for both templates.  Mainly for fetching fields.
+/// Shared interface for IPFIX `Template` and `OptionsTemplate`, providing
+/// field access and validation against parser configuration limits.
 pub(crate) trait CommonTemplate {
     fn get_fields(&self) -> &Vec<TemplateField>;
     fn get_field_count(&self) -> u16;

@@ -689,6 +689,7 @@ mod tests {
     use super::*;
     use std::net::SocketAddr;
 
+    // Verify RouterScopedParser creates per-source parsers on first use
     #[test]
     fn test_scoped_parser_basic() {
         let mut scoped = RouterScopedParser::<SocketAddr>::new();
@@ -714,6 +715,7 @@ mod tests {
         assert!(scoped.get_source_stats(&source2).is_some());
     }
 
+    // Verify RouterScopedParser works with String keys
     #[test]
     fn test_scoped_parser_with_string_keys() {
         let mut scoped = RouterScopedParser::<String>::new();
@@ -730,6 +732,7 @@ mod tests {
         assert!(scoped.sources().contains(&&router2));
     }
 
+    // Verify remove_source drops the parser for that key
     #[test]
     fn test_remove_source() {
         let mut scoped = RouterScopedParser::<String>::new();
@@ -744,6 +747,7 @@ mod tests {
         assert_eq!(scoped.source_count(), 0);
     }
 
+    // Verify clear_source_templates and clear_all_templates don't panic
     #[test]
     fn test_clear_templates() {
         let mut scoped = RouterScopedParser::<String>::new();
@@ -756,6 +760,7 @@ mod tests {
         scoped.clear_all_templates();
     }
 
+    // Verify V9 packet scoping extracts source_id from header bytes
     #[test]
     fn test_extract_scoping_info_v9() {
         // NetFlow v9 packet with source_id = 0x12345678
@@ -776,6 +781,7 @@ mod tests {
         );
     }
 
+    // Verify IPFIX packet scoping extracts observation_domain_id from header bytes
     #[test]
     fn test_extract_scoping_info_ipfix() {
         // IPFIX packet with observation_domain_id = 0xABCDEF01
@@ -796,6 +802,7 @@ mod tests {
         );
     }
 
+    // Verify V5 packets return Legacy scoping info
     #[test]
     fn test_extract_scoping_info_v5() {
         // NetFlow v5 packet
@@ -807,6 +814,7 @@ mod tests {
         assert_eq!(info, ScopingInfo::Legacy);
     }
 
+    // Verify truncated packets return Unknown scoping info
     #[test]
     fn test_extract_scoping_info_truncated() {
         // Truncated packet
@@ -816,6 +824,7 @@ mod tests {
         assert_eq!(info, ScopingInfo::Unknown);
     }
 
+    // Verify unrecognized version numbers return Unknown scoping info
     #[test]
     fn test_extract_scoping_info_unknown_version() {
         // Unknown version
@@ -825,6 +834,7 @@ mod tests {
         assert_eq!(info, ScopingInfo::Unknown);
     }
 
+    // Verify AutoScopedParser initializes with zero sources
     #[test]
     fn test_auto_scoped_parser_basic() {
         let parser = AutoScopedParser::new();
@@ -836,6 +846,7 @@ mod tests {
         assert_eq!(parser.legacy_source_count(), 0);
     }
 
+    // Verify V9 and IPFIX packets are routed to separate source-specific parsers
     #[test]
     fn test_auto_scoped_parser_routes_correctly() {
         let mut parser = AutoScopedParser::new();
@@ -869,6 +880,7 @@ mod tests {
         assert_eq!(parser.source_count(), 2);
     }
 
+    // Verify different IPFIX observation domains create separate parsers
     #[test]
     fn test_auto_scoped_parser_multiple_domains() {
         let mut parser = AutoScopedParser::new();
@@ -891,6 +903,7 @@ mod tests {
         assert_eq!(parser.ipfix_source_count(), 3);
     }
 
+    // Verify IPFIX stats include observation_domain_id for each source
     #[test]
     fn test_auto_scoped_parser_stats() {
         let mut parser = AutoScopedParser::new();
@@ -909,6 +922,7 @@ mod tests {
         assert_eq!(ipfix_stats[0].0.observation_domain_id, 1);
     }
 
+    // Verify clear_all_templates preserves parser instances but clears caches
     #[test]
     fn test_auto_scoped_parser_clear_all() {
         let mut parser = AutoScopedParser::new();

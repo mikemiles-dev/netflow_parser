@@ -1,3 +1,6 @@
+//! Tests for pending flow caching: flows arriving before their template are cached
+//! and automatically replayed when the template arrives.
+
 use netflow_parser::variable_versions::ParserConfig;
 use netflow_parser::variable_versions::v9::FlowSetBody as V9FlowSetBody;
 use netflow_parser::{NetflowPacket, NetflowParser, PendingFlowsConfig};
@@ -1294,6 +1297,7 @@ fn test_max_entry_size_bytes_ipfix() {
     assert_eq!(parser.ipfix_cache_stats().metrics.pending_dropped, 1);
 }
 
+// Verify that building a parser with max_pending_flows=0 is rejected for all configurations
 #[test]
 fn test_zero_pending_cache_size_rejected() {
     let result = NetflowParser::builder()

@@ -1,5 +1,9 @@
+//! Tests for template cache behavior: custom sizes, metrics tracking,
+//! template ID listing, and cache clearing.
+
 use netflow_parser::NetflowParser;
 
+// Verify that V9 and IPFIX caches start empty with the default max size
 #[test]
 fn test_template_cache_initial_state() {
     let parser = NetflowParser::default();
@@ -13,6 +17,7 @@ fn test_template_cache_initial_state() {
     assert_eq!(ipfix_stats.max_size, 1000);
 }
 
+// Verify that all cache metrics (hits, misses, evictions, collisions, expired) start at zero
 #[test]
 fn test_cache_metrics_initialization() {
     let parser = NetflowParser::default();
@@ -27,6 +32,7 @@ fn test_cache_metrics_initialization() {
     assert_eq!(metrics.expired, 0);
 }
 
+// Verify that hit_rate() returns None when no lookups have occurred
 #[test]
 fn test_cache_hit_rate_calculation() {
     let parser = NetflowParser::default();
@@ -36,6 +42,7 @@ fn test_cache_hit_rate_calculation() {
     assert!(stats.metrics.hit_rate().is_none());
 }
 
+// Verify that V9 and IPFIX template ID lists are empty on a fresh parser
 #[test]
 fn test_template_id_listing_empty() {
     let parser = NetflowParser::default();
@@ -47,6 +54,7 @@ fn test_template_id_listing_empty() {
     assert_eq!(ipfix_templates.len(), 0);
 }
 
+// Verify that has_v9_template and has_ipfix_template return false on an empty cache
 #[test]
 fn test_has_template_empty_cache() {
     let parser = NetflowParser::default();
@@ -55,6 +63,7 @@ fn test_has_template_empty_cache() {
     assert!(!parser.has_ipfix_template(256));
 }
 
+// Verify that clearing V9 and IPFIX templates resets cache size to zero
 #[test]
 fn test_clear_templates() {
     let mut parser = NetflowParser::default();
@@ -69,6 +78,7 @@ fn test_clear_templates() {
     assert_eq!(ipfix_stats.current_size, 0);
 }
 
+// Verify that with_cache_size sets the same max size for both V9 and IPFIX caches
 #[test]
 fn test_custom_cache_size() {
     let parser = NetflowParser::builder()
@@ -83,6 +93,7 @@ fn test_custom_cache_size() {
     assert_eq!(ipfix_stats.max_size, 500);
 }
 
+// Verify that V9 and IPFIX cache sizes can be configured independently
 #[test]
 fn test_different_cache_sizes() {
     let parser = NetflowParser::builder()

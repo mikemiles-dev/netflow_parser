@@ -1,3 +1,6 @@
+//! Tests for security edge cases: malformed packets, excessive field counts,
+//! cache eviction under pressure, and error buffer size limits.
+
 use netflow_parser::{NetflowError, NetflowPacket, NetflowParser};
 use std::time::Duration;
 

@@ -423,9 +423,16 @@ impl PendingFlowCache {
     }
 }
 
+/// Configuration for V9 and IPFIX parsers.
+///
+/// Controls template cache size, field limits, TTL, enterprise field definitions,
+/// and pending flow caching. Use [`Config::new`] for defaults or construct directly
+/// for full control.
 #[derive(Debug, Clone)]
 pub struct Config {
+    /// Maximum number of templates to keep in the LRU cache.
     pub max_template_cache_size: usize,
+    /// Maximum number of fields allowed per template. Default: 10,000.
     pub max_field_count: usize,
     /// Maximum total size (in bytes) of all fields in a template.
     /// This prevents DoS attacks via templates with excessive total field lengths.
@@ -434,7 +441,9 @@ pub struct Config {
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
+    /// Optional TTL configuration for template expiration.
     pub ttl_config: Option<TtlConfig>,
+    /// Registry of custom enterprise-specific field definitions for IPFIX.
     pub enterprise_registry: EnterpriseFieldRegistry,
     /// Configuration for pending flow caching. `None` means disabled (default).
     pub pending_flows_config: Option<PendingFlowsConfig>,
@@ -470,6 +479,8 @@ impl std::fmt::Display for ConfigError {
 }
 
 impl Config {
+    /// Creates a new `Config` with the given cache size and optional TTL.
+    /// Other fields use defaults (field count: 10,000, no enterprise registry, no pending flows).
     pub fn new(max_template_cache_size: usize, ttl_config: Option<TtlConfig>) -> Self {
         Self {
             max_template_cache_size,
@@ -482,6 +493,8 @@ impl Config {
         }
     }
 
+    /// Creates a new `Config` with a custom enterprise field registry.
+    /// Useful for IPFIX parsers that need to decode vendor-specific information elements.
     pub fn with_enterprise_registry(
         max_template_cache_size: usize,
         ttl_config: Option<TtlConfig>,

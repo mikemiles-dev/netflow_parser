@@ -123,6 +123,7 @@ impl ParserConfig for IPFixParser {
 }
 
 impl IPFixParser {
+    /// Parse an IPFIX message from raw bytes, using cached templates to decode data records.
     pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match IPFix::parse(packet, self) {
             Ok((remaining, mut ipfix)) => {

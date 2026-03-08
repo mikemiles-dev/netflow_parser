@@ -1,3 +1,9 @@
+//! Template TTL (Time-to-Live) support for expiring cached templates.
+//!
+//! When enabled via [`TtlConfig`], templates are stamped with an insertion time
+//! and expire after a configurable duration (default: 2 hours). Expired templates
+//! are evicted on the next cache lookup, ensuring stale definitions are refreshed.
+
 use std::time::{Duration, Instant};
 
 /// Configuration for template TTL (Time-to-Live)
@@ -98,6 +104,7 @@ mod tests {
     use super::*;
     use std::thread;
 
+    // Verify template expires after configured TTL duration elapses
     #[test]
     fn test_time_based_expiration() {
         let config = TtlConfig::new(Duration::from_millis(100));
@@ -108,6 +115,7 @@ mod tests {
         assert!(metadata.is_expired(&config));
     }
 
+    // Verify template without TTL stamp never expires regardless of elapsed time
     #[test]
     fn test_no_ttl_never_expires() {
         let config = TtlConfig::new(Duration::from_millis(1));
@@ -117,6 +125,7 @@ mod tests {
         assert!(!metadata.is_expired(&config));
     }
 
+    // Verify TemplateWithTtl wraps a value and respects TTL expiration
     #[test]
     fn test_template_with_ttl_wrapper() {
         let template = 42u32;
@@ -130,6 +139,7 @@ mod tests {
         assert!(wrapped.is_expired(&config));
     }
 
+    // Verify TemplateWithTtl created without TTL never expires
     #[test]
     fn test_template_without_ttl() {
         let wrapped = TemplateWithTtl::new_without_ttl(42u32);
@@ -138,6 +148,7 @@ mod tests {
         assert!(!wrapped.is_expired(&config));
     }
 
+    // Verify new() sets inserted_at based on the ttl_enabled flag
     #[test]
     fn test_conditional_new() {
         let with = TemplateWithTtl::new(42u32, true);
@@ -147,6 +158,7 @@ mod tests {
         assert!(without.metadata.inserted_at.is_none());
     }
 
+    // Verify default TtlConfig is 2 hours
     #[test]
     fn test_default_config() {
         let config = TtlConfig::default();

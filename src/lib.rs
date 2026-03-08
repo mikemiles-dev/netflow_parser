@@ -51,15 +51,19 @@ pub enum NetflowPacket {
 }
 
 impl NetflowPacket {
+    /// Returns `true` if this is a NetFlow V5 packet.
     pub fn is_v5(&self) -> bool {
         matches!(self, Self::V5(_v))
     }
+    /// Returns `true` if this is a NetFlow V7 packet.
     pub fn is_v7(&self) -> bool {
         matches!(self, Self::V7(_v))
     }
+    /// Returns `true` if this is a NetFlow V9 packet.
     pub fn is_v9(&self) -> bool {
         matches!(self, Self::V9(_v))
     }
+    /// Returns `true` if this is an IPFIX packet.
     pub fn is_ipfix(&self) -> bool {
         matches!(self, Self::IPFix(_v))
     }
@@ -660,24 +664,6 @@ impl NetflowParserBuilder {
         AutoScopedParser::with_builder(self)
     }
 
-    /// Builds the configured [`NetflowParser`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if:
-    /// - Template cache size is 0
-    /// - Parser initialization fails
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use netflow_parser::NetflowParser;
-    ///
-    /// let parser = NetflowParser::builder()
-    ///     .with_cache_size(2000)
-    ///     .build()
-    ///     .expect("Failed to build parser");
-    /// ```
     /// Registers a callback for template lifecycle events.
     ///
     /// This allows you to monitor template operations in real-time, including:
@@ -720,9 +706,24 @@ impl NetflowParserBuilder {
         self
     }
 
-    /// Builds the `NetflowParser` with the configured settings.
+    /// Builds the configured [`NetflowParser`].
     ///
-    /// Returns an error if the parser configuration is invalid.
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Template cache size is 0
+    /// - Parser initialization fails
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::NetflowParser;
+    ///
+    /// let parser = NetflowParser::builder()
+    ///     .with_cache_size(2000)
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
     pub fn build(self) -> Result<NetflowParser, String> {
         let v9_parser =
             V9Parser::try_new(self.v9_config).map_err(|e| format!("V9 parser error: {}", e))?;

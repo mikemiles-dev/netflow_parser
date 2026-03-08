@@ -1,6 +1,10 @@
+//! Tests for template cache collision detection and multi-source isolation
+//! via scoped parsers.
+
 use netflow_parser::{AutoScopedParser, NetflowParser};
 use std::net::SocketAddr;
 
+// Verify that AutoScopedParser isolates parsing across different source addresses without collisions
 #[test]
 fn test_auto_scoped_parser_no_collisions() {
     let mut parser = AutoScopedParser::new();
@@ -26,6 +30,7 @@ fn test_auto_scoped_parser_no_collisions() {
     assert!(parser.source_count() >= 2);
 }
 
+// Verify that a single NetflowParser can parse repeatedly from simulated multiple sources
 #[test]
 fn test_single_parser_multi_source() {
     // This test demonstrates parsing from multiple sources with a single parser
@@ -46,6 +51,7 @@ fn test_single_parser_multi_source() {
     }
 }
 
+// Verify that V9 and IPFIX cache metrics start at zero on a fresh parser
 #[test]
 fn test_collision_rate_calculation() {
     let parser = NetflowParser::default();
@@ -64,6 +70,7 @@ fn test_collision_rate_calculation() {
     assert_eq!(ipfix_stats.metrics.misses, 0);
 }
 
+// Verify that AutoScopedParser can be created with a custom builder configuration
 #[test]
 fn test_scoped_parser_with_builder() {
     use netflow_parser::NetflowParser;
@@ -84,6 +91,7 @@ fn test_scoped_parser_with_builder() {
     assert_eq!(packets.len(), 1);
 }
 
+// Verify that V9 and IPFIX cache stats report zero size and default max on a new parser
 #[test]
 fn test_cache_stats_initial_state() {
     let parser = NetflowParser::default();
