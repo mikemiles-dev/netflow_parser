@@ -436,7 +436,8 @@ impl FieldValue {
             FieldValue::DataNumber(d) => d.write_be_bytes(buf)?,
             FieldValue::Float64(f) => buf.extend_from_slice(&f.to_be_bytes()),
             FieldValue::Duration(d) => match d {
-                DurationValue::Seconds { value, width } | DurationValue::Millis { value, width } => {
+                DurationValue::Seconds { value, width }
+                | DurationValue::Millis { value, width } => {
                     if *width <= 4 {
                         let v = u32::try_from(*value).map_err(std::io::Error::other)?;
                         buf.extend_from_slice(&v.to_be_bytes());
@@ -553,12 +554,18 @@ impl FieldValue {
             FieldDataType::DurationMicrosNTP => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                (i, FieldValue::Duration(DurationValue::MicrosNtp { seconds, fraction }))
+                (
+                    i,
+                    FieldValue::Duration(DurationValue::MicrosNtp { seconds, fraction }),
+                )
             }
             FieldDataType::DurationNanosNTP => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                (i, FieldValue::Duration(DurationValue::NanosNtp { seconds, fraction }))
+                (
+                    i,
+                    FieldValue::Duration(DurationValue::NanosNtp { seconds, fraction }),
+                )
             }
             FieldDataType::ProtocolType => {
                 let (i, protocol) = ProtocolTypes::parse(remaining)?;
@@ -743,7 +750,9 @@ pub enum FieldDataType {
 
 #[cfg(test)]
 mod field_value_tests {
-    use super::{DataNumber, DurationValue, FieldDataType, FieldValue, ProtocolTypes, StringValue};
+    use super::{
+        DataNumber, DurationValue, FieldDataType, FieldValue, ProtocolTypes, StringValue,
+    };
     use std::net::{Ipv4Addr, Ipv6Addr};
 
     #[test]
