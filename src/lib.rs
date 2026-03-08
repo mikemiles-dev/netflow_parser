@@ -1,5 +1,6 @@
 #![doc = include_str!("../README.md")]
 
+pub mod field_types;
 #[cfg(feature = "netflow_common")]
 pub mod netflow_common;
 pub mod protocol;

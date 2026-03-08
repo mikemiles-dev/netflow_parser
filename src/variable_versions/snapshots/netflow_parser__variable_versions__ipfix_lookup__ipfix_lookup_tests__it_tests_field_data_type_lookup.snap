@@ -91,7 +91,7 @@ expression: lookup
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
-- UnsignedDataNumber
+- ForwardingStatus
 - String
 - UnsignedDataNumber
 - UnsignedDataNumber

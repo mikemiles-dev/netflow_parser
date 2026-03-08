@@ -1,5 +1,23 @@
 # 1.0.0
 
+ * **Bug fix: Corrected V9 field data type mappings**
+   - `IfName` (82), `IfDesc` (83), `SamplerName` (84) now correctly map to `FieldDataType::String` instead of `UnsignedDataNumber`
+   - `Layer2packetSectionData` (104) now correctly maps to `FieldDataType::Vec` instead of `UnsignedDataNumber`
+
+ * **Bug fix: Typo in V9Field variant name**
+   - Renamed `V9Field::ImpIpv6CodeValue` to `V9Field::IcmpIpv6CodeValue` (field ID 179)
+
+ * **New V9 field types (IDs 128-175)**
+   - Added 46 new `V9Field` variants from the IANA IPFIX Information Elements registry
+   - Includes: `BgpNextAdjacentAsNumber`, `ExporterIpv4Address`, `ExporterIpv6Address`, `DroppedOctetDeltaCount`, `FlowEndReason`, `WlanSsid`, `FlowStartSeconds`, `FlowEndSeconds`, `FlowStartMicroseconds`, `FlowEndMicroseconds`, `FlowStartNanoseconds`, `FlowEndNanoseconds`, `DestinationIpv6Prefix`, `SourceIpv6Prefix`, and more
+   - Each field has the correct `FieldDataType` mapping per the IANA registry
+
+ * **New `field_types` module with `ForwardingStatus` enum**
+   - Added `field_types::ForwardingStatus` — decodes field ID 89 (RFC 7270) into status category and reason code variants
+   - Status categories: Unknown, Forwarded, Dropped, Consumed — with specific reason codes (e.g., `DroppedAclDeny`, `ForwardedFragmented`, `ConsumedTerminatedForUs`)
+   - Added `FieldDataType::ForwardingStatus` and `FieldValue::ForwardingStatus` for automatic decoding in both V9 and IPFIX
+   - `field_types` module is designed for future custom field type additions
+
  * **Performance: Hot-path allocation reduction**
    - `FieldValue::MacAddr` now stores `[u8; 6]` instead of `String`, eliminating a heap allocation per MAC address field
    - Added `DataNumber::write_be_bytes()` and `FieldValue::write_be_bytes()` methods that write directly into a caller-provided buffer, avoiding per-field `Vec<u8>` allocations
