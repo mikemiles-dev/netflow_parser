@@ -130,8 +130,10 @@ impl V7 {
             reserved: u32::from_be_bytes([input[18], input[19], input[20], input[21]]),
         };
 
-        let flows_len = count as usize * FLOW_SIZE;
-        let total = HEADER_SIZE + flows_len;
+        let total = (count as usize)
+            .checked_mul(FLOW_SIZE)
+            .and_then(|flows_len| flows_len.checked_add(HEADER_SIZE))
+            .ok_or_else(|| nom::Err::Error(Error::new(input, ErrorKind::TooLarge)))?;
         if input.len() < total {
             return Err(nom::Err::Error(Error::new(input, ErrorKind::Eof)));
         }
