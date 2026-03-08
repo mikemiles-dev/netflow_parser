@@ -47,7 +47,13 @@ use super::{DEFAULT_MAX_TEMPLATE_CACHE_SIZE, MAX_FIELD_COUNT, TemplateId};
 const DATA_TEMPLATE_IPFIX_ID: u16 = 2;
 const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
 pub type IPFixFieldPair = (IPFixField, FieldValue);
-pub type IpFixFlowRecord = Vec<IPFixFieldPair>;
+pub type IPFixFlowRecord = Vec<IPFixFieldPair>;
+/// Deprecated alias for [`IPFixFlowRecord`].
+#[deprecated(
+    since = "1.0.0",
+    note = "renamed to `IPFixFlowRecord` for consistent casing"
+)]
+pub type IpFixFlowRecord = IPFixFlowRecord;
 
 use super::calculate_padding;
 
@@ -165,14 +171,14 @@ pub struct Data {
         ErrorIf = "template.get_fields().is_empty() ",
         Parse = "{ |i| FieldParser::parse::<Template>(i, template) }"
     )]
-    pub fields: Vec<IpFixFlowRecord>,
+    pub fields: Vec<IPFixFlowRecord>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
 }
 
 impl Data {
     /// Creates a new Data instance with the given fields.
-    pub fn new(fields: Vec<IpFixFlowRecord>) -> Self {
+    pub fn new(fields: Vec<IPFixFlowRecord>) -> Self {
         Self {
             fields,
             padding: vec![],
@@ -328,5 +334,5 @@ pub type IpfixParser = IPFixParser;
 /// Alias for [`IPFixFieldPair`] using Rust naming conventions.
 pub type IpfixFieldPair = IPFixFieldPair;
 
-/// Alias for [`IpFixFlowRecord`] using Rust naming conventions.
-pub type IpfixFlowRecord = IpFixFlowRecord;
+/// Alias for [`IPFixFlowRecord`] using Rust naming conventions.
+pub type IpfixFlowRecord = IPFixFlowRecord;

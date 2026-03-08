@@ -533,7 +533,8 @@ impl AutoScopedParser {
         source: SocketAddr,
         data: &[u8],
     ) -> Result<Vec<NetflowPacket>, NetflowError> {
-        match extract_scoping_info(data) {
+        let builder = self.parser_builder.as_ref();
+        let parser = match extract_scoping_info(data) {
             ScopingInfo::IPFix {
                 observation_domain_id,
             } => {
@@ -541,37 +542,26 @@ impl AutoScopedParser {
                     addr: source,
                     observation_domain_id,
                 };
-                if !self.ipfix_parsers.contains_key(&key) {
-                    self.ipfix_parsers
-                        .insert(key, Self::build_parser(self.parser_builder.as_ref()));
-                }
-                let parser = self.ipfix_parsers.get_mut(&key).unwrap();
-                let result = parser.parse_bytes(data);
-                result.error.map_or(Ok(result.packets), Err)
+                self.ipfix_parsers
+                    .entry(key)
+                    .or_insert_with(|| Self::build_parser(builder))
             }
             ScopingInfo::V9 { source_id } => {
                 let key = V9SourceKey {
                     addr: source,
                     source_id,
                 };
-                if !self.v9_parsers.contains_key(&key) {
-                    self.v9_parsers
-                        .insert(key, Self::build_parser(self.parser_builder.as_ref()));
-                }
-                let parser = self.v9_parsers.get_mut(&key).unwrap();
-                let result = parser.parse_bytes(data);
-                result.error.map_or(Ok(result.packets), Err)
+                self.v9_parsers
+                    .entry(key)
+                    .or_insert_with(|| Self::build_parser(builder))
             }
-            ScopingInfo::Legacy | ScopingInfo::Unknown => {
-                if !self.legacy_parsers.contains_key(&source) {
-                    self.legacy_parsers
-                        .insert(source, Self::build_parser(self.parser_builder.as_ref()));
-                }
-                let parser = self.legacy_parsers.get_mut(&source).unwrap();
-                let result = parser.parse_bytes(data);
-                result.error.map_or(Ok(result.packets), Err)
-            }
-        }
+            ScopingInfo::Legacy | ScopingInfo::Unknown => self
+                .legacy_parsers
+                .entry(source)
+                .or_insert_with(|| Self::build_parser(builder)),
+        };
+        let result = parser.parse_bytes(data);
+        result.error.map_or(Ok(result.packets), Err)
     }
 
     /// Parse NetFlow data from a source using the iterator API.
@@ -592,7 +582,8 @@ impl AutoScopedParser {
         source: SocketAddr,
         data: &'a [u8],
     ) -> impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a {
-        match extract_scoping_info(data) {
+        let builder = self.parser_builder.as_ref();
+        let parser = match extract_scoping_info(data) {
             ScopingInfo::IPFix {
                 observation_domain_id,
             } => {
@@ -600,34 +591,25 @@ impl AutoScopedParser {
                     addr: source,
                     observation_domain_id,
                 };
-                if !self.ipfix_parsers.contains_key(&key) {
-                    self.ipfix_parsers
-                        .insert(key, Self::build_parser(self.parser_builder.as_ref()));
-                }
-                let parser = self.ipfix_parsers.get_mut(&key).unwrap();
-                parser.iter_packets(data)
+                self.ipfix_parsers
+                    .entry(key)
+                    .or_insert_with(|| Self::build_parser(builder))
             }
             ScopingInfo::V9 { source_id } => {
                 let key = V9SourceKey {
                     addr: source,
                     source_id,
                 };
-                if !self.v9_parsers.contains_key(&key) {
-                    self.v9_parsers
-                        .insert(key, Self::build_parser(self.parser_builder.as_ref()));
-                }
-                let parser = self.v9_parsers.get_mut(&key).unwrap();
-                parser.iter_packets(data)
+                self.v9_parsers
+                    .entry(key)
+                    .or_insert_with(|| Self::build_parser(builder))
             }
-            ScopingInfo::Legacy | ScopingInfo::Unknown => {
-                if !self.legacy_parsers.contains_key(&source) {
-                    self.legacy_parsers
-                        .insert(source, Self::build_parser(self.parser_builder.as_ref()));
-                }
-                let parser = self.legacy_parsers.get_mut(&source).unwrap();
-                parser.iter_packets(data)
-            }
-        }
+            ScopingInfo::Legacy | ScopingInfo::Unknown => self
+                .legacy_parsers
+                .entry(source)
+                .or_insert_with(|| Self::build_parser(builder)),
+        };
+        parser.iter_packets(data)
     }
 
     /// Get the total number of registered sources across all scoping types.

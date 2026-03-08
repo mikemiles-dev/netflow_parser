@@ -16,6 +16,18 @@ pub enum NetflowCommonError {
     UnknownVersion(NetflowPacket),
 }
 
+impl std::fmt::Display for NetflowCommonError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NetflowCommonError::UnknownVersion(pkt) => {
+                write!(f, "unknown or unsupported NetFlow version: {:?}", pkt)
+            }
+        }
+    }
+}
+
+impl std::error::Error for NetflowCommonError {}
+
 /// Generic configuration for mapping fields to NetflowCommonFlowSet fields.
 /// Each field can have a primary and optional fallback field type.
 #[derive(Debug, Clone)]

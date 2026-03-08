@@ -40,8 +40,6 @@ pub struct V9Parser {
     pub(crate) max_field_count: usize,
     pub(crate) max_template_total_size: usize,
     pub(crate) max_error_sample_size: usize,
-    #[allow(dead_code)]
-    pub(crate) enterprise_registry: EnterpriseFieldRegistry,
     pub(crate) metrics: CacheMetrics,
     pub(crate) pending_flows: Option<PendingFlowCache>,
 }
@@ -100,7 +98,6 @@ impl V9Parser {
             max_field_count: config.max_field_count,
             max_template_total_size: config.max_template_total_size,
             max_error_sample_size: config.max_error_sample_size,
-            enterprise_registry: config.enterprise_registry,
             metrics: CacheMetrics::new(),
             pending_flows,
         })
