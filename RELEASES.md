@@ -36,7 +36,7 @@
    - `NetflowParserBuilder::build()` now returns `Result<NetflowParser, ConfigError>` instead of `Result<NetflowParser, String>`
    - Added `NetflowParserBuilder::validate()` for lightweight config validation without allocating parser internals
    - `ConfigError` now implements `std::error::Error`
-   - `DataNumberError` and `FieldValueError` now implement `Display` and `std::error::Error`
+   - `DataNumberError`, `FieldValueError`, and `NetflowCommonError` now implement `Display` and `std::error::Error`
    - `ProtocolTypes::Unknown` is now `Unknown(u8)`, carrying the original protocol number. `#[repr(u8)]` removed from `ProtocolTypes`. `PartialOrd`/`Ord` are now implemented manually based on protocol number (not enum declaration order)
    - Added `try_with_builder()` on `RouterScopedParser` and `AutoScopedParser` (returns `Result<Self, ConfigError>`). Deprecated `with_builder()` — calls `try_with_builder().expect(...)`
    - Added `try_multi_source()` on builder (returns `Result<AutoScopedParser, ConfigError>`). Deprecated `multi_source()` — calls `try_multi_source().expect(...)`
@@ -59,6 +59,10 @@
    - Split `v9.rs` into `v9/{mod.rs, parser.rs, serializer.rs}`
    - Split `ipfix.rs` into `ipfix/{mod.rs, parser.rs, serializer.rs}`
    - Renamed `data_number.rs` → `field_value.rs` (deprecated re-export module preserves backward compatibility)
+   - Renamed `IpFixFlowRecord` → `IPFixFlowRecord` for consistent casing with `IPFixFieldPair`, `IPFix`, etc. (deprecated alias preserves backward compatibility)
+   - Removed unused `enterprise_registry` field from `V9Parser` (was `#[allow(dead_code)]`)
+   - Replaced `contains_key` + `unwrap` pattern in `AutoScopedParser` with `entry()` API
+   - Added compile-time assertion for `DEFAULT_MAX_TEMPLATE_CACHE_SIZE > 0`
    - Deleted orphaned snapshot file
 
  * **Testing**
@@ -81,6 +85,7 @@
    - V9 `OptionsDataFields.options_fields` changed from `Vec<Vec<V9FieldPair>>` to `Vec<V9FieldPair>`. Code that iterates nested Vecs must flatten.
    - V9 `ScopeDataField` variants now store `[u8; 4]` instead of `Vec<u8>`.
    - Module `variable_versions::data_number` renamed to `variable_versions::field_value`. A deprecated re-export module preserves backward compatibility but will be removed in a future release.
+   - `IpFixFlowRecord` renamed to `IPFixFlowRecord` for consistent casing. A deprecated alias preserves backward compatibility.
 
 # 0.9.0
 

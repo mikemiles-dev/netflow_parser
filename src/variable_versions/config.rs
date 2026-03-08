@@ -7,6 +7,7 @@ use std::num::NonZeroUsize;
 
 /// Default maximum number of templates to cache per parser
 pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
+const _: () = assert!(DEFAULT_MAX_TEMPLATE_CACHE_SIZE > 0);
 
 pub(crate) type TemplateId = u16;
 
