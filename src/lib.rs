@@ -33,10 +33,10 @@ pub use scoped_parser::{
 pub use template_events::{TemplateEvent, TemplateHook, TemplateHooks, TemplateProtocol};
 
 // Re-export configuration and utility types for convenience
-pub use variable_versions::{Config, ConfigError, NoTemplateInfo, PendingFlowsConfig};
 pub use variable_versions::enterprise_registry::{EnterpriseFieldDef, EnterpriseFieldRegistry};
 pub use variable_versions::metrics::{CacheMetrics, CacheMetricsSnapshot};
 pub use variable_versions::ttl::TtlConfig;
+pub use variable_versions::{Config, ConfigError, NoTemplateInfo, PendingFlowsConfig};
 
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]

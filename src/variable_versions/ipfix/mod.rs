@@ -63,8 +63,10 @@ use super::calculate_padding;
 pub struct IPFixParser {
     pub(crate) templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
     pub(crate) v9_templates: LruCache<TemplateId, TemplateWithTtl<Arc<V9Template>>>,
-    pub(crate) ipfix_options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
-    pub(crate) v9_options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<V9OptionsTemplate>>>,
+    pub(crate) ipfix_options_templates:
+        LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
+    pub(crate) v9_options_templates:
+        LruCache<TemplateId, TemplateWithTtl<Arc<V9OptionsTemplate>>>,
     pub(crate) ttl_config: Option<TtlConfig>,
     pub(crate) max_template_cache_size: usize,
     pub(crate) max_field_count: usize,
