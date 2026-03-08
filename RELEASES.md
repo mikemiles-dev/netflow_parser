@@ -1,3 +1,13 @@
+# Unreleased
+
+ * **New IPFIX field types for flags, bitmasks, and enumerations**
+   - Added 12 new dedicated field types in `field_types` module, following the `ForwardingStatus` pattern:
+     - **Bitmask/flag types:** `FragmentFlags` (field 197), `TcpControlBits` (field 6), `Ipv6ExtensionHeaders` (field 64), `Ipv4Options` (field 208), `TcpOptions` (field 209), `IsMulticast` (field 206), `MplsLabelExp` (fields 203, 237)
+     - **Enumeration types:** `FlowEndReason` (field 136), `NatEvent` (field 230), `FirewallEvent` (field 233), `MplsTopLabelType` (field 46), `NatOriginatingAddressRealm` (field 229)
+   - These fields were previously decoded as `UnsignedDataNumber` and now produce structured, self-describing values
+   - All types support round-trip conversion (parse → typed value → raw bytes)
+   - Each type has corresponding `FieldDataType` and `FieldValue` variants
+
 # 1.0.0
 
  * **Bug fix: Corrected V9 field data type mappings**

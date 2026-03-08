@@ -1,4 +1,8 @@
-use crate::field_types::ForwardingStatus;
+use crate::field_types::{
+    FirewallEvent, FlowEndReason, ForwardingStatus, FragmentFlags, Ipv4Options,
+    Ipv6ExtensionHeaders, IsMulticast, MplsLabelExp, MplsTopLabelType, NatEvent,
+    NatOriginatingAddressRealm, TcpControlBits, TcpOptions,
+};
 use crate::protocol::ProtocolTypes;
 use nom::{
     Err as NomErr, IResult,
@@ -256,6 +260,18 @@ pub enum FieldValue {
     Vec(Vec<u8>),
     ProtocolType(ProtocolTypes),
     ForwardingStatus(ForwardingStatus),
+    FragmentFlags(FragmentFlags),
+    TcpControlBits(TcpControlBits),
+    Ipv6ExtensionHeaders(Ipv6ExtensionHeaders),
+    Ipv4Options(Ipv4Options),
+    TcpOptions(TcpOptions),
+    IsMulticast(IsMulticast),
+    MplsLabelExp(MplsLabelExp),
+    FlowEndReason(FlowEndReason),
+    NatEvent(NatEvent),
+    FirewallEvent(FirewallEvent),
+    MplsTopLabelType(MplsTopLabelType),
+    NatOriginatingAddressRealm(NatOriginatingAddressRealm),
     Unknown(Vec<u8>),
 }
 
@@ -299,8 +315,50 @@ impl Serialize for FieldValue {
             FieldValue::ForwardingStatus(v) => {
                 serializer.serialize_newtype_variant("FieldValue", 10, "ForwardingStatus", v)
             }
+            FieldValue::FragmentFlags(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 11, "FragmentFlags", v)
+            }
+            FieldValue::TcpControlBits(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 12, "TcpControlBits", v)
+            }
+            FieldValue::Ipv6ExtensionHeaders(v) => serializer.serialize_newtype_variant(
+                "FieldValue",
+                13,
+                "Ipv6ExtensionHeaders",
+                v,
+            ),
+            FieldValue::Ipv4Options(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 14, "Ipv4Options", v)
+            }
+            FieldValue::TcpOptions(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 15, "TcpOptions", v)
+            }
+            FieldValue::IsMulticast(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 16, "IsMulticast", v)
+            }
+            FieldValue::MplsLabelExp(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 17, "MplsLabelExp", v)
+            }
+            FieldValue::FlowEndReason(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 18, "FlowEndReason", v)
+            }
+            FieldValue::NatEvent(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 19, "NatEvent", v)
+            }
+            FieldValue::FirewallEvent(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 20, "FirewallEvent", v)
+            }
+            FieldValue::MplsTopLabelType(v) => {
+                serializer.serialize_newtype_variant("FieldValue", 21, "MplsTopLabelType", v)
+            }
+            FieldValue::NatOriginatingAddressRealm(v) => serializer.serialize_newtype_variant(
+                "FieldValue",
+                22,
+                "NatOriginatingAddressRealm",
+                v,
+            ),
             FieldValue::Unknown(v) => {
-                serializer.serialize_newtype_variant("FieldValue", 11, "Unknown", v)
+                serializer.serialize_newtype_variant("FieldValue", 23, "Unknown", v)
             }
         }
     }
@@ -326,6 +384,22 @@ impl FieldValue {
             FieldValue::MacAddr(mac) => buf.extend_from_slice(mac),
             FieldValue::ProtocolType(p) => buf.push(u8::from(*p)),
             FieldValue::ForwardingStatus(f) => buf.push(u8::from(*f)),
+            FieldValue::FragmentFlags(f) => buf.push(u8::from(*f)),
+            FieldValue::TcpControlBits(t) => {
+                buf.extend_from_slice(&u16::from(*t).to_be_bytes())
+            }
+            FieldValue::Ipv6ExtensionHeaders(h) => {
+                buf.extend_from_slice(&u32::from(*h).to_be_bytes())
+            }
+            FieldValue::Ipv4Options(o) => buf.extend_from_slice(&u32::from(*o).to_be_bytes()),
+            FieldValue::TcpOptions(o) => buf.extend_from_slice(&u64::from(*o).to_be_bytes()),
+            FieldValue::IsMulticast(m) => buf.push(u8::from(*m)),
+            FieldValue::MplsLabelExp(e) => buf.push(u8::from(*e)),
+            FieldValue::FlowEndReason(r) => buf.push(u8::from(*r)),
+            FieldValue::NatEvent(e) => buf.push(u8::from(*e)),
+            FieldValue::FirewallEvent(e) => buf.push(u8::from(*e)),
+            FieldValue::MplsTopLabelType(t) => buf.push(u8::from(*t)),
+            FieldValue::NatOriginatingAddressRealm(r) => buf.push(u8::from(*r)),
             FieldValue::Vec(v) => buf.extend_from_slice(v),
             FieldValue::Unknown(v) => buf.extend_from_slice(v),
         }
@@ -420,6 +494,54 @@ impl FieldValue {
             FieldDataType::ForwardingStatus => {
                 let (i, status) = ForwardingStatus::parse(remaining)?;
                 (i, FieldValue::ForwardingStatus(status))
+            }
+            FieldDataType::FragmentFlags => {
+                let (i, flags) = FragmentFlags::parse(remaining)?;
+                (i, FieldValue::FragmentFlags(flags))
+            }
+            FieldDataType::TcpControlBits => {
+                let (i, bits) = TcpControlBits::parse(remaining)?;
+                (i, FieldValue::TcpControlBits(bits))
+            }
+            FieldDataType::Ipv6ExtensionHeaders => {
+                let (i, headers) = Ipv6ExtensionHeaders::parse(remaining)?;
+                (i, FieldValue::Ipv6ExtensionHeaders(headers))
+            }
+            FieldDataType::Ipv4Options => {
+                let (i, opts) = Ipv4Options::parse(remaining)?;
+                (i, FieldValue::Ipv4Options(opts))
+            }
+            FieldDataType::TcpOptions => {
+                let (i, opts) = TcpOptions::parse(remaining)?;
+                (i, FieldValue::TcpOptions(opts))
+            }
+            FieldDataType::IsMulticast => {
+                let (i, m) = IsMulticast::parse(remaining)?;
+                (i, FieldValue::IsMulticast(m))
+            }
+            FieldDataType::MplsLabelExp => {
+                let (i, exp) = MplsLabelExp::parse(remaining)?;
+                (i, FieldValue::MplsLabelExp(exp))
+            }
+            FieldDataType::FlowEndReason => {
+                let (i, reason) = FlowEndReason::parse(remaining)?;
+                (i, FieldValue::FlowEndReason(reason))
+            }
+            FieldDataType::NatEvent => {
+                let (i, event) = NatEvent::parse(remaining)?;
+                (i, FieldValue::NatEvent(event))
+            }
+            FieldDataType::FirewallEvent => {
+                let (i, event) = FirewallEvent::parse(remaining)?;
+                (i, FieldValue::FirewallEvent(event))
+            }
+            FieldDataType::MplsTopLabelType => {
+                let (i, lt) = MplsTopLabelType::parse(remaining)?;
+                (i, FieldValue::MplsTopLabelType(lt))
+            }
+            FieldDataType::NatOriginatingAddressRealm => {
+                let (i, realm) = NatOriginatingAddressRealm::parse(remaining)?;
+                (i, FieldValue::NatOriginatingAddressRealm(realm))
             }
             FieldDataType::Float64 => {
                 let (i, f) = f64::parse(remaining)?;
@@ -518,6 +640,30 @@ pub enum FieldDataType {
     ProtocolType,
     /// Forwarding status (see [`ForwardingStatus`](crate::field_types::ForwardingStatus))
     ForwardingStatus,
+    /// Fragment flags bitmask (field 197)
+    FragmentFlags,
+    /// TCP control bits / header flags (field 6)
+    TcpControlBits,
+    /// IPv6 extension headers bitmask (field 64)
+    Ipv6ExtensionHeaders,
+    /// IPv4 options bitmask (field 208)
+    Ipv4Options,
+    /// TCP options bitmask (field 209)
+    TcpOptions,
+    /// Multicast indicator (field 206)
+    IsMulticast,
+    /// MPLS label experimental bits (fields 203, 237)
+    MplsLabelExp,
+    /// Flow end reason (field 136)
+    FlowEndReason,
+    /// NAT event type (field 230)
+    NatEvent,
+    /// Firewall event (field 233)
+    FirewallEvent,
+    /// MPLS top label type (field 46)
+    MplsTopLabelType,
+    /// NAT originating address realm (field 229)
+    NatOriginatingAddressRealm,
     /// Unknown or unsupported field type
     Unknown,
 }

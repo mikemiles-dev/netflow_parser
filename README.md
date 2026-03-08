@@ -621,6 +621,19 @@ When registering enterprise fields, you can use any of these built-in data types
 - `FieldDataType::ProtocolType` - Protocol numbers
 - `FieldDataType::Vec` - Raw byte arrays
 - `FieldDataType::ApplicationId` - Application identifiers
+- `FieldDataType::ForwardingStatus` - Forwarding status (field 89)
+- `FieldDataType::FragmentFlags` - Fragment flags bitmask (field 197)
+- `FieldDataType::TcpControlBits` - TCP header flags (field 6)
+- `FieldDataType::Ipv6ExtensionHeaders` - IPv6 extension headers bitmask (field 64)
+- `FieldDataType::Ipv4Options` - IPv4 options bitmask (field 208)
+- `FieldDataType::TcpOptions` - TCP options bitmask (field 209)
+- `FieldDataType::IsMulticast` - Multicast indicator (field 206)
+- `FieldDataType::MplsLabelExp` - MPLS experimental bits (fields 203, 237)
+- `FieldDataType::FlowEndReason` - Flow end reason (field 136)
+- `FieldDataType::NatEvent` - NAT event type (field 230)
+- `FieldDataType::FirewallEvent` - Firewall event (field 233)
+- `FieldDataType::MplsTopLabelType` - MPLS label type (field 46)
+- `FieldDataType::NatOriginatingAddressRealm` - NAT address realm (field 229)
 
 **How It Works:**
 1. **Without registration**: Unknown enterprise fields are parsed as raw bytes (`FieldValue::Vec`)
