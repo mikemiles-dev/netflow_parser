@@ -73,8 +73,17 @@ mod nat_originating_address_realm_tests {
 
     #[test]
     fn test_known_values() {
-        assert_eq!(NatOriginatingAddressRealm::from(1), NatOriginatingAddressRealm::Private);
-        assert_eq!(NatOriginatingAddressRealm::from(2), NatOriginatingAddressRealm::Public);
-        assert_eq!(NatOriginatingAddressRealm::from(0), NatOriginatingAddressRealm::Unknown(0));
+        assert_eq!(
+            NatOriginatingAddressRealm::from(1),
+            NatOriginatingAddressRealm::Private
+        );
+        assert_eq!(
+            NatOriginatingAddressRealm::from(2),
+            NatOriginatingAddressRealm::Public
+        );
+        assert_eq!(
+            NatOriginatingAddressRealm::from(0),
+            NatOriginatingAddressRealm::Unknown(0)
+        );
     }
 }

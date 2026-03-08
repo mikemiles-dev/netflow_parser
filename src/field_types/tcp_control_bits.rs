@@ -105,15 +105,27 @@ mod tcp_control_bits_tests {
         assert!(syn_ack.ack);
 
         let all = TcpControlBits::from(0x01FFu16);
-        assert!(all.fin && all.syn && all.rst && all.psh && all.ack && all.urg && all.ece && all.cwr && all.ns);
+        assert!(
+            all.fin
+                && all.syn
+                && all.rst
+                && all.psh
+                && all.ack
+                && all.urg
+                && all.ece
+                && all.cwr
+                && all.ns
+        );
     }
 
     #[test]
     fn test_all_single_flags() {
-        let flags: Vec<_> = [0x0001, 0x0002, 0x0004, 0x0008, 0x0010, 0x0020, 0x0040, 0x0080, 0x0100u16]
-            .iter()
-            .map(|&v| TcpControlBits::from(v))
-            .collect();
+        let flags: Vec<_> = [
+            0x0001, 0x0002, 0x0004, 0x0008, 0x0010, 0x0020, 0x0040, 0x0080, 0x0100u16,
+        ]
+        .iter()
+        .map(|&v| TcpControlBits::from(v))
+        .collect();
         assert_yaml_snapshot!(flags);
     }
 }

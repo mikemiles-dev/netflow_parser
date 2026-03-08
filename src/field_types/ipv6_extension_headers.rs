@@ -100,7 +100,13 @@ mod ipv6_extension_headers_tests {
         assert!(frag.fragment);
 
         let all_known = Ipv6ExtensionHeaders::from(0x3Fu32);
-        assert!(all_known.destination_options && all_known.fragment && all_known.hop_by_hop
-            && all_known.routing && all_known.authentication && all_known.esp);
+        assert!(
+            all_known.destination_options
+                && all_known.fragment
+                && all_known.hop_by_hop
+                && all_known.routing
+                && all_known.authentication
+                && all_known.esp
+        );
     }
 }

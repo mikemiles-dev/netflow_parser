@@ -37,7 +37,9 @@ impl From<u8> for FragmentFlags {
 
 impl From<FragmentFlags> for u8 {
     fn from(flags: FragmentFlags) -> Self {
-        (flags.reserved as u8) | ((flags.dont_fragment as u8) << 1) | ((flags.more_fragments as u8) << 2)
+        (flags.reserved as u8)
+            | ((flags.dont_fragment as u8) << 1)
+            | ((flags.more_fragments as u8) << 2)
     }
 }
 
@@ -71,19 +73,35 @@ mod fragment_flags_tests {
     fn test_known_values() {
         assert_eq!(
             FragmentFlags::from(0x00),
-            FragmentFlags { reserved: false, dont_fragment: false, more_fragments: false }
+            FragmentFlags {
+                reserved: false,
+                dont_fragment: false,
+                more_fragments: false
+            }
         );
         assert_eq!(
             FragmentFlags::from(0x02),
-            FragmentFlags { reserved: false, dont_fragment: true, more_fragments: false }
+            FragmentFlags {
+                reserved: false,
+                dont_fragment: true,
+                more_fragments: false
+            }
         );
         assert_eq!(
             FragmentFlags::from(0x04),
-            FragmentFlags { reserved: false, dont_fragment: false, more_fragments: true }
+            FragmentFlags {
+                reserved: false,
+                dont_fragment: false,
+                more_fragments: true
+            }
         );
         assert_eq!(
             FragmentFlags::from(0x07),
-            FragmentFlags { reserved: true, dont_fragment: true, more_fragments: true }
+            FragmentFlags {
+                reserved: true,
+                dont_fragment: true,
+                more_fragments: true
+            }
         );
     }
 

@@ -321,9 +321,12 @@ impl Serialize for FieldValue {
             FieldValue::TcpControlBits(v) => {
                 serializer.serialize_newtype_variant("FieldValue", 12, "TcpControlBits", v)
             }
-            FieldValue::Ipv6ExtensionHeaders(v) => {
-                serializer.serialize_newtype_variant("FieldValue", 13, "Ipv6ExtensionHeaders", v)
-            }
+            FieldValue::Ipv6ExtensionHeaders(v) => serializer.serialize_newtype_variant(
+                "FieldValue",
+                13,
+                "Ipv6ExtensionHeaders",
+                v,
+            ),
             FieldValue::Ipv4Options(v) => {
                 serializer.serialize_newtype_variant("FieldValue", 14, "Ipv4Options", v)
             }
@@ -348,9 +351,12 @@ impl Serialize for FieldValue {
             FieldValue::MplsTopLabelType(v) => {
                 serializer.serialize_newtype_variant("FieldValue", 21, "MplsTopLabelType", v)
             }
-            FieldValue::NatOriginatingAddressRealm(v) => {
-                serializer.serialize_newtype_variant("FieldValue", 22, "NatOriginatingAddressRealm", v)
-            }
+            FieldValue::NatOriginatingAddressRealm(v) => serializer.serialize_newtype_variant(
+                "FieldValue",
+                22,
+                "NatOriginatingAddressRealm",
+                v,
+            ),
             FieldValue::Unknown(v) => {
                 serializer.serialize_newtype_variant("FieldValue", 23, "Unknown", v)
             }
@@ -379,7 +385,9 @@ impl FieldValue {
             FieldValue::ProtocolType(p) => buf.push(u8::from(*p)),
             FieldValue::ForwardingStatus(f) => buf.push(u8::from(*f)),
             FieldValue::FragmentFlags(f) => buf.push(u8::from(*f)),
-            FieldValue::TcpControlBits(t) => buf.extend_from_slice(&u16::from(*t).to_be_bytes()),
+            FieldValue::TcpControlBits(t) => {
+                buf.extend_from_slice(&u16::from(*t).to_be_bytes())
+            }
             FieldValue::Ipv6ExtensionHeaders(h) => {
                 buf.extend_from_slice(&u32::from(*h).to_be_bytes())
             }
