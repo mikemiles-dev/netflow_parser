@@ -747,6 +747,12 @@ impl NetflowParserBuilder {
     pub fn validate(&self) -> Result<(), ConfigError> {
         V9Parser::validate_config(&self.v9_config)?;
         IPFixParser::validate_config(&self.ipfix_config)?;
+        // Check that only supported versions (5, 7, 9, 10) are enabled
+        for (v, &enabled) in self.allowed_versions.iter().enumerate() {
+            if enabled && !matches!(v, 5 | 7 | 9 | 10) {
+                return Err(ConfigError::InvalidAllowedVersion(v as u16));
+            }
+        }
         Ok(())
     }
 
@@ -769,6 +775,7 @@ impl NetflowParserBuilder {
     ///     .expect("Failed to build parser");
     /// ```
     pub fn build(self) -> Result<NetflowParser, ConfigError> {
+        self.validate()?;
         let v9_parser = V9Parser::try_new(self.v9_config)?;
         let ipfix_parser = IPFixParser::try_new(self.ipfix_config)?;
 
@@ -1473,10 +1480,20 @@ impl NetflowParser {
                     },
                 }
             }
-            Ok((_, header)) => {
-                // Version is valid but filtered by allowed_versions
+            Ok((_, header)) if (header.version as usize) < self.allowed_versions.len() => {
+                // Version is supported but filtered by allowed_versions
                 ParsedNetflow::UnallowedVersion {
                     version: header.version,
+                }
+            }
+            Ok((_, header)) => {
+                // Version is not supported at all
+                ParsedNetflow::Error {
+                    error: NetflowError::UnsupportedVersion {
+                        version: header.version,
+                        offset: 0,
+                        sample: packet[..packet.len().min(self.max_error_sample_size)].to_vec(),
+                    },
                 }
             }
             Err(e) => ParsedNetflow::Error {

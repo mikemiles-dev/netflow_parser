@@ -2,10 +2,24 @@
 //!
 //! Type definitions live in the parent `ipfix` module (`mod.rs`).
 
-use super::{FlowSetBody, IPFix, calculate_padding};
+use super::{FlowSetBody, IPFix, TemplateField, calculate_padding};
 use crate::variable_versions::v9::ScopeDataField as V9ScopeDataField;
 
 impl IPFix {
+    /// Write an IPFIX template field, restoring the enterprise bit if needed.
+    fn write_ipfix_template_field(buf: &mut Vec<u8>, field: &TemplateField) {
+        let type_number = if field.enterprise_number.is_some() {
+            field.field_type_number | 0x8000
+        } else {
+            field.field_type_number
+        };
+        buf.extend_from_slice(&type_number.to_be_bytes());
+        buf.extend_from_slice(&field.field_length.to_be_bytes());
+        if let Some(enterprise) = field.enterprise_number {
+            buf.extend_from_slice(&enterprise.to_be_bytes());
+        }
+    }
+
     /// Serialize FlowSetBody to bytes
     fn serialize_flowset_body(
         body: &FlowSetBody,
@@ -16,11 +30,7 @@ impl IPFix {
                 result.extend_from_slice(&template.template_id.to_be_bytes());
                 result.extend_from_slice(&template.field_count.to_be_bytes());
                 for field in template.fields.iter() {
-                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
-                    result.extend_from_slice(&field.field_length.to_be_bytes());
-                    if let Some(enterprise) = field.enterprise_number {
-                        result.extend_from_slice(&enterprise.to_be_bytes());
-                    }
+                    Self::write_ipfix_template_field(&mut result, field);
                 }
                 Ok(result)
             }
@@ -30,11 +40,7 @@ impl IPFix {
                     result.extend_from_slice(&template.template_id.to_be_bytes());
                     result.extend_from_slice(&template.field_count.to_be_bytes());
                     for field in template.fields.iter() {
-                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
-                        result.extend_from_slice(&field.field_length.to_be_bytes());
-                        if let Some(enterprise) = field.enterprise_number {
-                            result.extend_from_slice(&enterprise.to_be_bytes());
-                        }
+                        Self::write_ipfix_template_field(&mut result, field);
                     }
                 }
                 Ok(result)
@@ -55,11 +61,7 @@ impl IPFix {
                 result.extend_from_slice(&options_template.field_count.to_be_bytes());
                 result.extend_from_slice(&options_template.scope_field_count.to_be_bytes());
                 for field in options_template.fields.iter() {
-                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
-                    result.extend_from_slice(&field.field_length.to_be_bytes());
-                    if let Some(enterprise) = field.enterprise_number {
-                        result.extend_from_slice(&enterprise.to_be_bytes());
-                    }
+                    Self::write_ipfix_template_field(&mut result, field);
                 }
                 Ok(result)
             }
@@ -97,11 +99,7 @@ impl IPFix {
                     result.extend_from_slice(&template.field_count.to_be_bytes());
                     result.extend_from_slice(&template.scope_field_count.to_be_bytes());
                     for field in template.fields.iter() {
-                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
-                        result.extend_from_slice(&field.field_length.to_be_bytes());
-                        if let Some(enterprise) = field.enterprise_number {
-                            result.extend_from_slice(&enterprise.to_be_bytes());
-                        }
+                        Self::write_ipfix_template_field(&mut result, field);
                     }
                 }
                 Ok(result)

@@ -48,6 +48,8 @@ pub enum ConfigError {
     InvalidCacheSize(usize),
     /// Pending flow cache size must be greater than 0
     InvalidPendingCacheSize(usize),
+    /// An allowed version number is out of the supported range (0-10)
+    InvalidAllowedVersion(u16),
 }
 
 impl std::error::Error for ConfigError {}
@@ -67,6 +69,13 @@ impl std::fmt::Display for ConfigError {
                     f,
                     "Invalid pending flow cache size: {}. Must be greater than 0.",
                     size
+                )
+            }
+            ConfigError::InvalidAllowedVersion(version) => {
+                write!(
+                    f,
+                    "Invalid allowed version: {}. Supported versions are 5, 7, 9, 10.",
+                    version
                 )
             }
         }

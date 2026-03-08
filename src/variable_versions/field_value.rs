@@ -402,10 +402,16 @@ impl FieldValue {
         Ok(())
     }
 
-    fn make_ntp_time_with_unit(seconds: u32, fraction: u32, unit: u64) -> Duration {
-        Duration::from_secs(u64::from(seconds)).saturating_add(Duration::from_micros(
-            ((u64::from(fraction)).saturating_mul(unit)) >> 32,
-        ))
+    fn make_ntp_time_nanos(seconds: u32, fraction: u32) -> Duration {
+        // Convert NTP fractional seconds to nanoseconds: fraction * 1e9 / 2^32
+        let nanos = ((u64::from(fraction)).saturating_mul(1_000_000_000)) >> 32;
+        Duration::from_secs(u64::from(seconds)).saturating_add(Duration::from_nanos(nanos))
+    }
+
+    fn make_ntp_time_micros(seconds: u32, fraction: u32) -> Duration {
+        // Convert NTP fractional seconds to microseconds: fraction * 1e6 / 2^32
+        let micros = ((u64::from(fraction)).saturating_mul(1_000_000)) >> 32;
+        Duration::from_secs(u64::from(seconds)).saturating_add(Duration::from_micros(micros))
     }
 
     #[inline]
@@ -479,13 +485,13 @@ impl FieldValue {
             FieldDataType::DurationMicrosNTP => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                let dur = Self::make_ntp_time_with_unit(seconds, fraction, 1_000_000);
+                let dur = Self::make_ntp_time_micros(seconds, fraction);
                 (i, FieldValue::Duration(dur))
             }
             FieldDataType::DurationNanosNTP => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
-                let dur = Self::make_ntp_time_with_unit(seconds, fraction, 1_000_000_000);
+                let dur = Self::make_ntp_time_nanos(seconds, fraction);
                 (i, FieldValue::Duration(dur))
             }
             FieldDataType::ProtocolType => {
