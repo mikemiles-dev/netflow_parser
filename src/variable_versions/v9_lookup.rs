@@ -93,7 +93,7 @@ pub enum V9Field {
     IpProtocolVersion = 60,
     Direction = 61,
     Ipv6NextHop = 62,
-    BpgIpv6NextHop = 63,
+    BgpIpv6NextHop = 63,
     Ipv6OptionHeaders = 64,
     MplsLabel1 = 70,
     MplsLabel2 = 71,
@@ -208,7 +208,7 @@ impl From<V9Field> for FieldDataType {
             V9Field::IpProtocolVersion => FieldDataType::UnsignedDataNumber,
             V9Field::Direction => FieldDataType::UnsignedDataNumber,
             V9Field::Ipv6NextHop => FieldDataType::Ip6Addr,
-            V9Field::BpgIpv6NextHop => FieldDataType::Ip6Addr,
+            V9Field::BgpIpv6NextHop => FieldDataType::Ip6Addr,
             V9Field::Ipv6OptionHeaders => FieldDataType::UnsignedDataNumber,
             V9Field::MplsLabel1
             | V9Field::MplsLabel2
@@ -326,7 +326,7 @@ impl From<u16> for V9Field {
             60 => V9Field::IpProtocolVersion,
             61 => V9Field::Direction,
             62 => V9Field::Ipv6NextHop,
-            63 => V9Field::BpgIpv6NextHop,
+            63 => V9Field::BgpIpv6NextHop,
             64 => V9Field::Ipv6OptionHeaders,
             65 => V9Field::Vendor,
             66 => V9Field::Vendor,

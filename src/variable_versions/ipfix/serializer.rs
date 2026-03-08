@@ -1,0 +1,253 @@
+//! IPFIX binary serialization — `to_be_bytes()` and flowset body helpers.
+//!
+//! Type definitions live in the parent `ipfix` module (`mod.rs`).
+
+use super::{FlowSetBody, IPFix, calculate_padding};
+use crate::variable_versions::v9::ScopeDataField as V9ScopeDataField;
+
+impl IPFix {
+    /// Serialize FlowSetBody to bytes
+    fn serialize_flowset_body(
+        body: &FlowSetBody,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        match body {
+            FlowSetBody::Template(template) => {
+                let mut result = Vec::new();
+                result.extend_from_slice(&template.template_id.to_be_bytes());
+                result.extend_from_slice(&template.field_count.to_be_bytes());
+                for field in template.fields.iter() {
+                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result.extend_from_slice(&field.field_length.to_be_bytes());
+                    if let Some(enterprise) = field.enterprise_number {
+                        result.extend_from_slice(&enterprise.to_be_bytes());
+                    }
+                }
+                Ok(result)
+            }
+            FlowSetBody::Templates(templates) => {
+                let mut result = Vec::new();
+                for template in templates.iter() {
+                    result.extend_from_slice(&template.template_id.to_be_bytes());
+                    result.extend_from_slice(&template.field_count.to_be_bytes());
+                    for field in template.fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                        if let Some(enterprise) = field.enterprise_number {
+                            result.extend_from_slice(&enterprise.to_be_bytes());
+                        }
+                    }
+                }
+                Ok(result)
+            }
+            FlowSetBody::V9Template(template) => {
+                let mut result = Vec::new();
+                result.extend_from_slice(&template.template_id.to_be_bytes());
+                result.extend_from_slice(&template.field_count.to_be_bytes());
+                for field in template.fields.iter() {
+                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result.extend_from_slice(&field.field_length.to_be_bytes());
+                }
+                Ok(result)
+            }
+            FlowSetBody::OptionsTemplate(options_template) => {
+                let mut result = Vec::new();
+                result.extend_from_slice(&options_template.template_id.to_be_bytes());
+                result.extend_from_slice(&options_template.field_count.to_be_bytes());
+                result.extend_from_slice(&options_template.scope_field_count.to_be_bytes());
+                for field in options_template.fields.iter() {
+                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result.extend_from_slice(&field.field_length.to_be_bytes());
+                    if let Some(enterprise) = field.enterprise_number {
+                        result.extend_from_slice(&enterprise.to_be_bytes());
+                    }
+                }
+                Ok(result)
+            }
+            FlowSetBody::V9OptionsTemplate(template) => {
+                let mut result = Vec::new();
+                result.extend_from_slice(&template.template_id.to_be_bytes());
+                result.extend_from_slice(&template.options_scope_length.to_be_bytes());
+                result.extend_from_slice(&template.options_length.to_be_bytes());
+                for field in template.scope_fields.iter() {
+                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result.extend_from_slice(&field.field_length.to_be_bytes());
+                }
+                for field in template.option_fields.iter() {
+                    result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                    result.extend_from_slice(&field.field_length.to_be_bytes());
+                }
+                Ok(result)
+            }
+            FlowSetBody::V9Templates(templates) => {
+                let mut result = Vec::new();
+                for template in templates.iter() {
+                    result.extend_from_slice(&template.template_id.to_be_bytes());
+                    result.extend_from_slice(&template.field_count.to_be_bytes());
+                    for field in template.fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                    }
+                }
+                Ok(result)
+            }
+            FlowSetBody::OptionsTemplates(templates) => {
+                let mut result = Vec::new();
+                for template in templates.iter() {
+                    result.extend_from_slice(&template.template_id.to_be_bytes());
+                    result.extend_from_slice(&template.field_count.to_be_bytes());
+                    result.extend_from_slice(&template.scope_field_count.to_be_bytes());
+                    for field in template.fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                        if let Some(enterprise) = field.enterprise_number {
+                            result.extend_from_slice(&enterprise.to_be_bytes());
+                        }
+                    }
+                }
+                Ok(result)
+            }
+            FlowSetBody::V9OptionsTemplates(templates) => {
+                let mut result = Vec::new();
+                for template in templates.iter() {
+                    result.extend_from_slice(&template.template_id.to_be_bytes());
+                    result.extend_from_slice(&template.options_scope_length.to_be_bytes());
+                    result.extend_from_slice(&template.options_length.to_be_bytes());
+                    for field in template.scope_fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                    }
+                    for field in template.option_fields.iter() {
+                        result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                        result.extend_from_slice(&field.field_length.to_be_bytes());
+                    }
+                }
+                Ok(result)
+            }
+            FlowSetBody::Data(data) => {
+                let mut data_content = Vec::new();
+                for item in data.fields.iter() {
+                    for (_, v) in item.iter() {
+                        v.write_be_bytes(&mut data_content)?;
+                    }
+                }
+                let mut result = Vec::new();
+                result.extend_from_slice(&data_content);
+                let padding = if data.padding.is_empty() {
+                    calculate_padding(data_content.len())
+                } else {
+                    &data.padding[..]
+                };
+                result.extend_from_slice(padding);
+                Ok(result)
+            }
+            FlowSetBody::OptionsData(data) => {
+                let mut options_data_content = Vec::new();
+                for item in data.fields.iter() {
+                    for (_, v) in item.iter() {
+                        v.write_be_bytes(&mut options_data_content)?;
+                    }
+                }
+                let mut result = Vec::new();
+                result.extend_from_slice(&options_data_content);
+                let padding = if data.padding.is_empty() {
+                    calculate_padding(options_data_content.len())
+                } else {
+                    &data.padding[..]
+                };
+                result.extend_from_slice(padding);
+                Ok(result)
+            }
+            FlowSetBody::V9Data(data) => {
+                let mut data_content = Vec::new();
+                for item in data.fields.iter() {
+                    for (_, v) in item.iter() {
+                        v.write_be_bytes(&mut data_content)?;
+                    }
+                }
+                let mut result = Vec::new();
+                result.extend_from_slice(&data_content);
+                let padding = if data.padding.is_empty() {
+                    calculate_padding(data_content.len())
+                } else {
+                    &data.padding[..]
+                };
+                result.extend_from_slice(padding);
+                Ok(result)
+            }
+            FlowSetBody::V9OptionsData(options_data) => {
+                let mut data_content = Vec::new();
+                for options_data_field in options_data.fields.iter() {
+                    for field in options_data_field.scope_fields.iter() {
+                        match field {
+                            V9ScopeDataField::System(value)
+                            | V9ScopeDataField::Interface(value)
+                            | V9ScopeDataField::LineCard(value)
+                            | V9ScopeDataField::NetFlowCache(value)
+                            | V9ScopeDataField::Template(value) => {
+                                data_content.extend_from_slice(value)
+                            }
+                        }
+                    }
+                    for (_field_type, field_value) in options_data_field.options_fields.iter() {
+                        field_value.write_be_bytes(&mut data_content)?;
+                    }
+                }
+                let mut result = Vec::new();
+                result.extend_from_slice(&data_content);
+                result.extend_from_slice(calculate_padding(data_content.len()));
+                Ok(result)
+            }
+            FlowSetBody::NoTemplate(_) | FlowSetBody::Empty => {
+                Err("serialize_flowset_body called with NoTemplate or Empty variant".into())
+            }
+        }
+    }
+
+    /// Convert the IPFix to a `Vec<u8>` of bytes in big-endian order for exporting.
+    ///
+    /// `NoTemplate` and `Empty` flowsets are omitted from the output, and
+    /// `header.length` is recomputed to match the actual serialized size.
+    pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut result = Vec::new();
+
+        // IPFIX header: version(2) + length(2) + export_time(4) + seq(4) + obs_domain(4) = 16 bytes
+        result.extend_from_slice(&self.header.version.to_be_bytes());
+        result.extend_from_slice(&[0u8; 2]); // placeholder for length
+        result.extend_from_slice(&self.header.export_time.to_be_bytes());
+        result.extend_from_slice(&self.header.sequence_number.to_be_bytes());
+        result.extend_from_slice(&self.header.observation_domain_id.to_be_bytes());
+
+        for flow in &self.flowsets {
+            if matches!(&flow.body, FlowSetBody::NoTemplate(_) | FlowSetBody::Empty) {
+                continue;
+            }
+
+            let flowset_bytes = Self::serialize_flowset_body(&flow.body)?;
+
+            // Compute set length from actual serialized body instead of
+            // trusting flow.header.length, which can be stale when
+            // padding was auto-calculated or the body was modified.
+            let set_length: u16 = (flowset_bytes.len() + 4).try_into().map_err(|_| {
+                format!(
+                    "IPFIX set body size {} exceeds u16::MAX - 4",
+                    flowset_bytes.len()
+                )
+            })?;
+            result.extend_from_slice(&flow.header.header_id.to_be_bytes());
+            result.extend_from_slice(&set_length.to_be_bytes());
+            result.extend_from_slice(&flowset_bytes);
+        }
+
+        // Patch header.length with actual serialized size
+        let total_length: u16 = result.len().try_into().map_err(|_| {
+            format!(
+                "IPFIX message size {} exceeds u16::MAX ({})",
+                result.len(),
+                u16::MAX
+            )
+        })?;
+        result[2..4].copy_from_slice(&total_length.to_be_bytes());
+
+        Ok(result)
+    }
+}

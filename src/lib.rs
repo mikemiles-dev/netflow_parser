@@ -887,13 +887,6 @@ impl std::fmt::Display for NetflowError {
 
 impl std::error::Error for NetflowError {}
 
-// Legacy type alias for backwards compatibility during migration
-#[deprecated(since = "0.8.0", note = "Use NetflowError instead")]
-pub type NetflowPacketError = NetflowError;
-
-#[deprecated(since = "0.8.0", note = "Use NetflowError instead")]
-pub type NetflowParseError = NetflowError;
-
 #[derive(Debug, Clone, Serialize)]
 pub struct PartialParse {
     pub version: u16,
