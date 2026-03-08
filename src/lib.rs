@@ -16,9 +16,7 @@ use static_versions::{
     v5::{V5, V5Parser},
     v7::{V7, V7Parser},
 };
-use variable_versions::Config;
 use variable_versions::ParserConfig;
-use variable_versions::enterprise_registry::EnterpriseFieldDef;
 use variable_versions::ipfix::{IPFix, IPFixParser};
 use variable_versions::v9::{V9, V9Parser};
 
@@ -34,8 +32,11 @@ pub use scoped_parser::{
 // Re-export template event types for convenience
 pub use template_events::{TemplateEvent, TemplateHook, TemplateHooks, TemplateProtocol};
 
-// Re-export pending flows config for convenience
-pub use variable_versions::PendingFlowsConfig;
+// Re-export configuration and utility types for convenience
+pub use variable_versions::enterprise_registry::{EnterpriseFieldDef, EnterpriseFieldRegistry};
+pub use variable_versions::metrics::{CacheMetrics, CacheMetricsSnapshot};
+pub use variable_versions::ttl::TtlConfig;
+pub use variable_versions::{Config, ConfigError, NoTemplateInfo, PendingFlowsConfig};
 
 /// Enum of supported Netflow Versions
 #[derive(Debug, Clone, Serialize)]
