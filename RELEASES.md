@@ -1,4 +1,4 @@
-# 0.9.1
+# 1.0.0
 
  * **Performance: Hot-path allocation reduction**
    - `FieldValue::MacAddr` now stores `[u8; 6]` instead of `String`, eliminating a heap allocation per MAC address field

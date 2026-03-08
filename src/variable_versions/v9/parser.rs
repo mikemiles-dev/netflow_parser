@@ -24,24 +24,16 @@ use super::{DEFAULT_MAX_TEMPLATE_CACHE_SIZE, MAX_FIELD_COUNT};
 /// Stateful NetFlow V9 parser with LRU template caching and optional pending flow support.
 #[derive(Debug)]
 pub struct V9Parser {
-    pub templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
-    pub options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
-    /// Optional TTL configuration for template expiration
-    pub ttl_config: Option<TtlConfig>,
-    /// Maximum number of templates to cache. Defaults to 1000.
-    pub max_template_cache_size: usize,
-    /// Maximum number of fields allowed per template. Defaults to 10000.
-    pub max_field_count: usize,
-    /// Maximum total size (in bytes) of all fields in a template. Defaults to u16::MAX.
-    pub max_template_total_size: usize,
-    /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
-    /// Defaults to 256 bytes.
-    pub max_error_sample_size: usize,
-    /// Registry of custom enterprise field definitions
-    pub enterprise_registry: EnterpriseFieldRegistry,
-    /// Cache performance metrics
-    pub metrics: CacheMetrics,
-    /// Pending flow cache for flows awaiting their template
+    pub(crate) templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
+    pub(crate) options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
+    pub(crate) ttl_config: Option<TtlConfig>,
+    pub(crate) max_template_cache_size: usize,
+    pub(crate) max_field_count: usize,
+    pub(crate) max_template_total_size: usize,
+    pub(crate) max_error_sample_size: usize,
+    #[allow(dead_code)]
+    pub(crate) enterprise_registry: EnterpriseFieldRegistry,
+    pub(crate) metrics: CacheMetrics,
     pub(crate) pending_flows: Option<PendingFlowCache>,
 }
 

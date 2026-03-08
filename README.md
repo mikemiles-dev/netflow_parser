@@ -497,17 +497,10 @@ To prevent memory exhaustion from malformed packets, the parser limits the size 
 ```rust
 use netflow_parser::NetflowParser;
 
-// Recommended: Use builder pattern (automatically configures all parsers)
 let parser = NetflowParser::builder()
     .with_max_error_sample_size(512)  // Default is 256 bytes
     .build()
     .expect("Failed to build parser");
-
-// Or configure directly on an existing parser (requires manual sync)
-let mut parser = NetflowParser::default();
-parser.max_error_sample_size = 512;
-parser.v9_parser.max_error_sample_size = 512;
-parser.ipfix_parser.max_error_sample_size = 512;
 ```
 
 This setting helps prevent memory exhaustion when processing malformed or malicious packets while still providing enough context for debugging.

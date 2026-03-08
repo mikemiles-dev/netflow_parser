@@ -1,15 +1,5 @@
 //! Template cache metrics for monitoring parser performance
 
-/// Event type for template collision detection
-#[derive(Debug, Clone)]
-pub enum TemplateEvent {
-    /// A template was replaced with a different definition for the same ID
-    TemplateReplaced {
-        template_id: u16,
-        collision_count: u64,
-    },
-}
-
 /// Metrics for tracking template cache performance.
 ///
 /// All counters use plain u64 fields. The parser itself is not thread-safe

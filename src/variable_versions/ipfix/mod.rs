@@ -61,26 +61,17 @@ use super::calculate_padding;
 /// Supports both native IPFIX templates and V9-style templates embedded in IPFIX messages.
 #[derive(Debug)]
 pub struct IPFixParser {
-    pub templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
-    pub v9_templates: LruCache<TemplateId, TemplateWithTtl<Arc<V9Template>>>,
-    pub ipfix_options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
-    pub v9_options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<V9OptionsTemplate>>>,
-    /// Optional TTL configuration for template expiration
-    pub ttl_config: Option<TtlConfig>,
-    /// Maximum number of templates to cache. Defaults to 1000.
-    pub max_template_cache_size: usize,
-    /// Maximum number of fields allowed per template. Defaults to 10000.
-    pub max_field_count: usize,
-    /// Maximum total size (in bytes) of all fields in a template. Defaults to u16::MAX.
-    pub max_template_total_size: usize,
-    /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
-    /// Defaults to 256 bytes.
-    pub max_error_sample_size: usize,
-    /// Registry of custom enterprise field definitions
-    pub enterprise_registry: EnterpriseFieldRegistry,
-    /// Cache performance metrics
-    pub metrics: CacheMetrics,
-    /// Pending flow cache for flows awaiting their template
+    pub(crate) templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
+    pub(crate) v9_templates: LruCache<TemplateId, TemplateWithTtl<Arc<V9Template>>>,
+    pub(crate) ipfix_options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
+    pub(crate) v9_options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<V9OptionsTemplate>>>,
+    pub(crate) ttl_config: Option<TtlConfig>,
+    pub(crate) max_template_cache_size: usize,
+    pub(crate) max_field_count: usize,
+    pub(crate) max_template_total_size: usize,
+    pub(crate) max_error_sample_size: usize,
+    pub(crate) enterprise_registry: EnterpriseFieldRegistry,
+    pub(crate) metrics: CacheMetrics,
     pub(crate) pending_flows: Option<PendingFlowCache>,
 }
 
