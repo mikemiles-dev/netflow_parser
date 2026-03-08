@@ -26,6 +26,15 @@
    - Added `FieldDataType::ForwardingStatus` and `FieldValue::ForwardingStatus` for automatic decoding in both V9 and IPFIX
    - `field_types` module is designed for future custom field type additions
 
+ * **Performance: V5/V7 direct byte parsing**
+   - Replaced nom-derive generated parsers with hand-written direct byte reads for V5 and V7
+   - Fixed-layout protocols now use a single bounds check instead of per-field nom combinator calls
+   - V5 parsing is ~2x faster at scale (e.g., 100 flows: 1,147ns → 626ns, -44%)
+   - V7 parsing receives the same treatment (52-byte fixed flow records)
+   - `Ipv4Addr` fields constructed directly from bytes instead of `be_u32` → `Ipv4Addr::from()`
+   - `to_be_bytes()` now pre-allocates with `Vec::with_capacity()` based on known sizes
+   - nom-derive `#[derive(Nom)]` removed from V5/V7 structs; no API changes
+
  * **Performance: Hot-path allocation reduction**
    - `FieldValue::MacAddr` now stores `[u8; 6]` instead of `String`, eliminating a heap allocation per MAC address field
    - Added `DataNumber::write_be_bytes()` and `FieldValue::write_be_bytes()` methods that write directly into a caller-provided buffer, avoiding per-field `Vec<u8>` allocations
