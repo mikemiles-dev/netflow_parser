@@ -559,7 +559,7 @@ IPFIX supports vendor-specific enterprise fields that extend the standard IANA f
 
 ```rust,ignore
 use netflow_parser::NetflowParser;
-use netflow_parser::variable_versions::data_number::FieldDataType;
+use netflow_parser::variable_versions::field_value::FieldDataType;
 use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
 
 // Register custom enterprise fields for your vendor
@@ -587,7 +587,7 @@ let packets = parser.parse_bytes(&buffer);
 
 ```rust
 use netflow_parser::NetflowParser;
-use netflow_parser::variable_versions::data_number::FieldDataType;
+use netflow_parser::variable_versions::field_value::FieldDataType;
 use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
 
 let custom_fields = vec![
@@ -634,7 +634,7 @@ See `examples/custom_enterprise_fields.rs` for a complete working example.
 ```rust
 use netflow_parser::NetflowParser;
 use netflow_parser::variable_versions::ttl::TtlConfig;
-use netflow_parser::variable_versions::data_number::FieldDataType;
+use netflow_parser::variable_versions::field_value::FieldDataType;
 use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
 use std::time::Duration;
 

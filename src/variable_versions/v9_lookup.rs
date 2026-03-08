@@ -1,6 +1,6 @@
 //! See: <https://www.ibm.com/docs/en/npi/1.3.0?topic=versions-v9-field-type-definitions>
 
-use super::data_number::*;
+use super::field_value::*;
 
 use nom_derive::*;
 use serde::Serialize;
@@ -388,7 +388,7 @@ impl From<u16> for V9Field {
 #[cfg(test)]
 mod v9_lookup_tests {
 
-    use crate::variable_versions::data_number::FieldDataType;
+    use crate::variable_versions::field_value::FieldDataType;
 
     use super::V9Field;
 

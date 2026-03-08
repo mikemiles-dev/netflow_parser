@@ -4,7 +4,7 @@
 //! without modifying the library source code.
 
 use netflow_parser::NetflowParser;
-use netflow_parser::variable_versions::data_number::FieldDataType;
+use netflow_parser::variable_versions::field_value::FieldDataType;
 use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
 
 fn main() {

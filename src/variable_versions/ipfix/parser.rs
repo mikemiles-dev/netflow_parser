@@ -10,7 +10,7 @@ use super::{
     NoTemplateInfo, OPTIONS_TEMPLATE_IPFIX_ID, OptionsData, OptionsTemplate, Template,
     TemplateField,
 };
-use crate::variable_versions::data_number::FieldValue;
+use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::metrics::CacheMetrics;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};

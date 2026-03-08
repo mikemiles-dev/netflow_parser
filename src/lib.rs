@@ -508,7 +508,7 @@ impl NetflowParserBuilder {
     /// ```rust
     /// use netflow_parser::NetflowParser;
     /// use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
-    /// use netflow_parser::variable_versions::data_number::FieldDataType;
+    /// use netflow_parser::variable_versions::field_value::FieldDataType;
     ///
     /// let parser = NetflowParser::builder()
     ///     .register_enterprise_field(EnterpriseFieldDef::new(
@@ -544,7 +544,7 @@ impl NetflowParserBuilder {
     /// ```rust
     /// use netflow_parser::NetflowParser;
     /// use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
-    /// use netflow_parser::variable_versions::data_number::FieldDataType;
+    /// use netflow_parser::variable_versions::field_value::FieldDataType;
     ///
     /// let fields = vec![
     ///     EnterpriseFieldDef::new(12345, 1, "field1", FieldDataType::UnsignedDataNumber),

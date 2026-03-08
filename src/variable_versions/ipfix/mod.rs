@@ -22,7 +22,7 @@ mod parser;
 mod serializer;
 
 use super::PendingFlowCache;
-use super::data_number::FieldValue;
+use super::field_value::FieldValue;
 use super::enterprise_registry::EnterpriseFieldRegistry;
 use super::metrics::CacheMetrics;
 use super::ttl::{TemplateWithTtl, TtlConfig};
