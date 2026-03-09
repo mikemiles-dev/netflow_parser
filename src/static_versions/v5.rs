@@ -107,6 +107,8 @@ pub struct FlowSet {
 const HEADER_SIZE: usize = 22;
 /// Each V5 flow record is exactly 48 bytes.
 const FLOW_SIZE: usize = 48;
+/// Maximum number of flows per V5 packet per the Cisco specification.
+const MAX_FLOWS: u16 = 30;
 
 impl V5 {
     /// Parse a V5 packet from bytes using direct reads.
@@ -119,7 +121,8 @@ impl V5 {
             return Err(nom::Err::Error(Error::new(input, ErrorKind::Eof)));
         }
 
-        let count = u16::from_be_bytes([input[0], input[1]]);
+        let raw_count = u16::from_be_bytes([input[0], input[1]]);
+        let count = raw_count.min(MAX_FLOWS);
         let header = Header {
             version: 5,
             count,

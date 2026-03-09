@@ -196,6 +196,7 @@ pub enum ScopeDataField {
     LineCard(Vec<u8>),
     NetFlowCache(Vec<u8>),
     Template(Vec<u8>),
+    Unknown(u16, Vec<u8>),
 }
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]

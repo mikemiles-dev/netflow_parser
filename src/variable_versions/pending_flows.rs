@@ -182,9 +182,7 @@ impl PendingFlowCache {
             if self.cache.len() >= self.cache.cap().get()
                 && let Some((_, evicted)) = self.cache.pop_lru()
             {
-                for _ in 0..evicted.len() {
-                    metrics.record_pending_dropped();
-                }
+                metrics.record_pending_dropped_n(evicted.len() as u64);
             }
             self.cache.put(
                 template_id,
@@ -216,9 +214,7 @@ impl PendingFlowCache {
             let (valid, expired): (Vec<_>, Vec<_>) = entries
                 .into_iter()
                 .partition(|e| e.cached_at.elapsed() < ttl_duration);
-            for _ in 0..expired.len() {
-                metrics.record_pending_dropped();
-            }
+            metrics.record_pending_dropped_n(expired.len() as u64);
             valid
         } else {
             entries
@@ -265,10 +261,7 @@ impl PendingFlowCache {
     ) -> bool {
         let before = entries.len();
         entries.retain(|e| e.cached_at.elapsed() < ttl);
-        let expired = before - entries.len();
-        for _ in 0..expired {
-            metrics.record_pending_dropped();
-        }
+        metrics.record_pending_dropped_n((before - entries.len()) as u64);
         entries.is_empty()
     }
 
@@ -303,9 +296,7 @@ impl PendingFlowCache {
         // individual pending flow entry is reflected in pending_dropped.
         while self.cache.len() > size.get() {
             if let Some((_, evicted)) = self.cache.pop_lru() {
-                for _ in 0..evicted.len() {
-                    metrics.record_pending_dropped();
-                }
+                metrics.record_pending_dropped_n(evicted.len() as u64);
             }
         }
         self.cache.resize(size);
@@ -336,18 +327,13 @@ impl PendingFlowCache {
             // Drop entries whose raw_data exceeds the new size limit.
             let before = entries.len();
             entries.retain(|e| e.raw_data.len() <= config.max_entry_size_bytes);
-            let oversize_dropped = before - entries.len();
-            for _ in 0..oversize_dropped {
-                metrics.record_pending_dropped();
-            }
+            metrics.record_pending_dropped_n((before - entries.len()) as u64);
 
             // Truncate to the new per-template cap (keep oldest = front).
             if entries.len() > config.max_entries_per_template {
                 let excess = entries.len() - config.max_entries_per_template;
                 entries.truncate(config.max_entries_per_template);
-                for _ in 0..excess {
-                    metrics.record_pending_dropped();
-                }
+                metrics.record_pending_dropped_n(excess as u64);
             }
 
             // Remove the key entirely if no entries remain.

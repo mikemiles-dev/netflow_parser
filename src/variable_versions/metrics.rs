@@ -37,61 +37,67 @@ impl CacheMetrics {
     /// Record a cache hit
     #[inline]
     pub fn record_hit(&mut self) {
-        self.hits += 1;
+        self.hits = self.hits.saturating_add(1);
     }
 
     /// Record a cache miss
     #[inline]
     pub fn record_miss(&mut self) {
-        self.misses += 1;
+        self.misses = self.misses.saturating_add(1);
     }
 
     /// Record a template eviction
     #[inline]
     pub fn record_eviction(&mut self) {
-        self.evictions += 1;
+        self.evictions = self.evictions.saturating_add(1);
     }
 
     /// Record a template expiration
     #[inline]
     pub fn record_expiration(&mut self) {
-        self.expired += 1;
+        self.expired = self.expired.saturating_add(1);
     }
 
     /// Record a template insertion
     #[inline]
     pub fn record_insertion(&mut self) {
-        self.insertions += 1;
+        self.insertions = self.insertions.saturating_add(1);
     }
 
     /// Record a template collision (same ID, different definition)
     #[inline]
     pub fn record_collision(&mut self) {
-        self.collisions += 1;
+        self.collisions = self.collisions.saturating_add(1);
     }
 
     /// Record a flow cached as pending (awaiting template)
     #[inline]
     pub fn record_pending_cached(&mut self) {
-        self.pending_cached += 1;
+        self.pending_cached = self.pending_cached.saturating_add(1);
     }
 
     /// Record a pending flow successfully replayed
     #[inline]
     pub fn record_pending_replayed(&mut self) {
-        self.pending_replayed += 1;
+        self.pending_replayed = self.pending_replayed.saturating_add(1);
     }
 
     /// Record a pending flow dropped (expired or evicted)
     #[inline]
     pub fn record_pending_dropped(&mut self) {
-        self.pending_dropped += 1;
+        self.pending_dropped = self.pending_dropped.saturating_add(1);
+    }
+
+    /// Record multiple pending flows dropped at once
+    #[inline]
+    pub fn record_pending_dropped_n(&mut self, n: u64) {
+        self.pending_dropped = self.pending_dropped.saturating_add(n);
     }
 
     /// Record a pending flow that failed to replay (parse error)
     #[inline]
     pub fn record_pending_replay_failed(&mut self) {
-        self.pending_replay_failed += 1;
+        self.pending_replay_failed = self.pending_replay_failed.saturating_add(1);
     }
 
     /// Get a snapshot of current metrics
@@ -149,7 +155,7 @@ impl CacheMetricsSnapshot {
     ///
     /// Returns `None` if there have been no lookups yet.
     pub fn hit_rate(&self) -> Option<f64> {
-        let total = self.hits + self.misses;
+        let total = self.hits.saturating_add(self.misses);
         if total == 0 {
             None
         } else {
@@ -166,7 +172,7 @@ impl CacheMetricsSnapshot {
 
     /// Total number of template lookups (hits + misses)
     pub fn total_lookups(&self) -> u64 {
-        self.hits + self.misses
+        self.hits.saturating_add(self.misses)
     }
 }
 
