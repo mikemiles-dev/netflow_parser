@@ -601,7 +601,8 @@ impl AutoScopedParser {
         &'a mut self,
         source: SocketAddr,
         data: &'a [u8],
-    ) -> Result<impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a, NetflowError> {
+    ) -> Result<impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a, NetflowError>
+    {
         let parser = self.get_or_create_parser(source, data)?;
         Ok(parser.iter_packets(data))
     }
