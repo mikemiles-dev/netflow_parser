@@ -24,7 +24,7 @@ jobs:
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: stable
+        toolchain: 1.94.0
 
     # Use direct cargo-audit (the rustsec action has JSON parsing issues)
     - name: Install cargo-audit
@@ -45,7 +45,7 @@ jobs:
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: stable
+        toolchain: 1.94.0
 
     # Cache cargo-deny for faster runs
     - name: Cache cargo-deny

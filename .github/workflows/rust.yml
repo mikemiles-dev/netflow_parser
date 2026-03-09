@@ -18,7 +18,7 @@ jobs:
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: stable
+        toolchain: 1.94.0
         components: rustfmt, clippy
     - name: Fmt Check
       run: cargo fmt --check
@@ -41,7 +41,7 @@ jobs:
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: stable
+        toolchain: 1.94.0
     - name: Build with netflow_common feature
       run: cargo build --features netflow_common --verbose
     - name: Test with netflow_common feature
@@ -57,7 +57,7 @@ jobs:
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: stable
+        toolchain: 1.94.0
     - name: Run benchmarks
       run: cargo bench --verbose
 
@@ -96,7 +96,7 @@ jobs:
     - name: Setup Rust
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
-        toolchain: stable
+        toolchain: 1.94.0
 
     # Primary: cargo-deny (reliable and comprehensive)
     - name: Install cargo-deny
