@@ -77,6 +77,10 @@
 * **`ScopeDataField` gains an `Unknown(u16, Vec<u8>)` variant**
   - Code with exhaustive `match` on `ScopeDataField` must add an `Unknown(_, _)` arm
 
+* **`ApplicationId.selector_id` changed from `DataNumber` to `Option<DataNumber>`**
+  - `None` when the field is 1 byte (classification engine ID only, no selector)
+  - Fixes round-trip serialization: previously a 1-byte field serialized to 2 bytes
+
 ## New Features
 
 * **New IPFIX field types for flags, bitmasks, and enumerations**
@@ -115,9 +119,19 @@
 
 ## Bug Fixes
 
-* **Fixed `ApplicationId` parsing with 1-byte fields**
+* **Fixed `ApplicationId` parsing and round-trip for 1-byte fields**
   - A 1-byte `ApplicationId` (classification engine ID only, no selector) previously caused a parse error
-  - Now correctly returns a valid `ApplicationId` with a zero-valued selector
+  - `selector_id` is now `Option<DataNumber>` (`None` for zero-length selectors), fixing round-trip serialization
+
+* **Fixed template event hooks never firing during parsing**
+  - `on_template_event()` callbacks were registered but never triggered by V9/IPFIX parsing
+  - Now fires `TemplateEvent::Learned` for each template in parsed packets
+  - Now fires `TemplateEvent::MissingTemplate` for NoTemplate flowsets
+
+* **Fixed IPFIX reserved set IDs 4-255 stopping flowset parsing**
+  - Per RFC 7011, set IDs 4-255 are reserved for future use
+  - Previously caused a parse error that stopped processing remaining flowsets in the message
+  - Now skipped gracefully
 
 * **Corrected V9 field data type mappings**
   - `IfName` (82), `IfDesc` (83), `SamplerName` (84) now correctly map to `FieldDataType::String` instead of `UnsignedDataNumber`

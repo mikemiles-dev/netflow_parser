@@ -1476,7 +1476,7 @@ impl NetflowParser {
 
     #[inline]
     fn parse_packet_by_version<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
-        match GenericNetflowHeader::parse(packet) {
+        let result = match GenericNetflowHeader::parse(packet) {
             Ok((remaining, header))
                 if (header.version as usize) < self.allowed_versions.len()
                     && self.allowed_versions[header.version as usize] =>
@@ -1518,6 +1518,120 @@ impl NetflowParser {
                     context: format!("NetFlow header: {}", e),
                 },
             },
+        };
+
+        if !self.template_hooks.is_empty() {
+            if let ParsedNetflow::Success { ref packet, .. } = result {
+                self.fire_template_events(packet);
+            }
+        }
+
+        result
+    }
+
+    fn fire_template_events(&self, packet: &NetflowPacket) {
+        match packet {
+            NetflowPacket::V9(v9) => {
+                for fs in &v9.flowsets {
+                    match &fs.body {
+                        variable_versions::v9::FlowSetBody::Template(templates) => {
+                            for t in &templates.templates {
+                                self.template_hooks.trigger(&TemplateEvent::Learned {
+                                    template_id: t.template_id,
+                                    protocol: TemplateProtocol::V9,
+                                });
+                            }
+                        }
+                        variable_versions::v9::FlowSetBody::OptionsTemplate(templates) => {
+                            for t in &templates.templates {
+                                self.template_hooks.trigger(&TemplateEvent::Learned {
+                                    template_id: t.template_id,
+                                    protocol: TemplateProtocol::V9,
+                                });
+                            }
+                        }
+                        variable_versions::v9::FlowSetBody::NoTemplate(info) => {
+                            self.template_hooks
+                                .trigger(&TemplateEvent::MissingTemplate {
+                                    template_id: info.template_id,
+                                    protocol: TemplateProtocol::V9,
+                                });
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            NetflowPacket::IPFix(ipfix) => {
+                for fs in &ipfix.flowsets {
+                    match &fs.body {
+                        variable_versions::ipfix::FlowSetBody::Template(t) => {
+                            self.template_hooks.trigger(&TemplateEvent::Learned {
+                                template_id: t.template_id,
+                                protocol: TemplateProtocol::Ipfix,
+                            });
+                        }
+                        variable_versions::ipfix::FlowSetBody::Templates(ts) => {
+                            for t in ts {
+                                self.template_hooks.trigger(&TemplateEvent::Learned {
+                                    template_id: t.template_id,
+                                    protocol: TemplateProtocol::Ipfix,
+                                });
+                            }
+                        }
+                        variable_versions::ipfix::FlowSetBody::V9Template(t) => {
+                            self.template_hooks.trigger(&TemplateEvent::Learned {
+                                template_id: t.template_id,
+                                protocol: TemplateProtocol::Ipfix,
+                            });
+                        }
+                        variable_versions::ipfix::FlowSetBody::V9Templates(ts) => {
+                            for t in ts {
+                                self.template_hooks.trigger(&TemplateEvent::Learned {
+                                    template_id: t.template_id,
+                                    protocol: TemplateProtocol::Ipfix,
+                                });
+                            }
+                        }
+                        variable_versions::ipfix::FlowSetBody::OptionsTemplate(t) => {
+                            self.template_hooks.trigger(&TemplateEvent::Learned {
+                                template_id: t.template_id,
+                                protocol: TemplateProtocol::Ipfix,
+                            });
+                        }
+                        variable_versions::ipfix::FlowSetBody::OptionsTemplates(ts) => {
+                            for t in ts {
+                                self.template_hooks.trigger(&TemplateEvent::Learned {
+                                    template_id: t.template_id,
+                                    protocol: TemplateProtocol::Ipfix,
+                                });
+                            }
+                        }
+                        variable_versions::ipfix::FlowSetBody::V9OptionsTemplate(t) => {
+                            self.template_hooks.trigger(&TemplateEvent::Learned {
+                                template_id: t.template_id,
+                                protocol: TemplateProtocol::Ipfix,
+                            });
+                        }
+                        variable_versions::ipfix::FlowSetBody::V9OptionsTemplates(ts) => {
+                            for t in ts {
+                                self.template_hooks.trigger(&TemplateEvent::Learned {
+                                    template_id: t.template_id,
+                                    protocol: TemplateProtocol::Ipfix,
+                                });
+                            }
+                        }
+                        variable_versions::ipfix::FlowSetBody::NoTemplate(info) => {
+                            self.template_hooks
+                                .trigger(&TemplateEvent::MissingTemplate {
+                                    template_id: info.template_id,
+                                    protocol: TemplateProtocol::Ipfix,
+                                });
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
         }
     }
 

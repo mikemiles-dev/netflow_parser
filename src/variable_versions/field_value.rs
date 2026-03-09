@@ -238,7 +238,7 @@ impl DataNumber {
 #[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
 pub struct ApplicationId {
     pub classification_engine_id: u8,
-    pub selector_id: DataNumber,
+    pub selector_id: Option<DataNumber>,
 }
 
 /// Preserves the original time unit, field width, and sub-second precision
@@ -430,7 +430,9 @@ impl FieldValue {
         match self {
             FieldValue::ApplicationId(app_id) => {
                 buf.push(app_id.classification_engine_id);
-                app_id.selector_id.write_be_bytes(buf)?;
+                if let Some(ref sid) = app_id.selector_id {
+                    sid.write_be_bytes(buf)?;
+                }
             }
             FieldValue::String(s) => buf.extend_from_slice(&s.raw),
             FieldValue::DataNumber(d) => d.write_be_bytes(buf)?,
@@ -493,24 +495,19 @@ impl FieldValue {
                     ))
                 })?;
                 let (i, id) = u8::parse(remaining)?;
-                if selector_length == 0 {
-                    (
-                        i,
-                        FieldValue::ApplicationId(ApplicationId {
-                            classification_engine_id: id,
-                            selector_id: DataNumber::U8(0),
-                        }),
-                    )
+                let (i, selector_id) = if selector_length == 0 {
+                    (i, None)
                 } else {
-                    let (i, selector_id) = DataNumber::parse(i, selector_length, false)?;
-                    (
-                        i,
-                        FieldValue::ApplicationId(ApplicationId {
-                            classification_engine_id: id,
-                            selector_id,
-                        }),
-                    )
-                }
+                    let (i, sid) = DataNumber::parse(i, selector_length, false)?;
+                    (i, Some(sid))
+                };
+                (
+                    i,
+                    FieldValue::ApplicationId(ApplicationId {
+                        classification_engine_id: id,
+                        selector_id,
+                    }),
+                )
             }
             FieldDataType::UnsignedDataNumber => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
