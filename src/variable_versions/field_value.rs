@@ -493,14 +493,24 @@ impl FieldValue {
                     ))
                 })?;
                 let (i, id) = u8::parse(remaining)?;
-                let (i, selector_id) = DataNumber::parse(i, selector_length, false)?;
-                (
-                    i,
-                    FieldValue::ApplicationId(ApplicationId {
-                        classification_engine_id: id,
-                        selector_id,
-                    }),
-                )
+                if selector_length == 0 {
+                    (
+                        i,
+                        FieldValue::ApplicationId(ApplicationId {
+                            classification_engine_id: id,
+                            selector_id: DataNumber::U8(0),
+                        }),
+                    )
+                } else {
+                    let (i, selector_id) = DataNumber::parse(i, selector_length, false)?;
+                    (
+                        i,
+                        FieldValue::ApplicationId(ApplicationId {
+                            classification_engine_id: id,
+                            selector_id,
+                        }),
+                    )
+                }
             }
             FieldDataType::UnsignedDataNumber => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
