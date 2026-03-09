@@ -648,10 +648,8 @@ impl FlowSetBody {
                     };
                     Ok((i, FlowSetBody::NoTemplate(info)))
                 } else {
-                    Err(nom::Err::Error(nom::error::Error::new(
-                        i,
-                        nom::error::ErrorKind::Verify,
-                    )))
+                    // Set IDs 4-255 are reserved per RFC 7011; skip gracefully
+                    Ok((&[] as &[u8], FlowSetBody::Empty))
                 }
             }
         }
