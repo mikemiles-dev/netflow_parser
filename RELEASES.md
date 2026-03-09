@@ -2,192 +2,192 @@
 
 ## Breaking Changes
 
- * **`FieldValue::Duration` now wraps `DurationValue` instead of `std::time::Duration`**
-   - New `DurationValue` enum preserves the original time unit (`Seconds`, `Millis`, `MicrosNtp`, `NanosNtp`), field width (4 or 8 bytes), and raw NTP fractional seconds
-   - Enables lossless round-trip serialization — previously, unit and width information was lost during parsing
-   - Use `DurationValue::as_duration()` to get a `std::time::Duration` for ergonomic access
-   - JSON serialization output is unchanged (delegates to `Duration`)
+* **`FieldValue::Duration` now wraps `DurationValue` instead of `std::time::Duration`**
+  - New `DurationValue` enum preserves the original time unit (`Seconds`, `Millis`, `MicrosNtp`, `NanosNtp`), field width (4 or 8 bytes), and raw NTP fractional seconds
+  - Enables lossless round-trip serialization — previously, unit and width information was lost during parsing
+  - Use `DurationValue::as_duration()` to get a `std::time::Duration` for ergonomic access
+  - JSON serialization output is unchanged (delegates to `Duration`)
 
- * **`FieldValue::String` now wraps `StringValue` instead of `String`**
-   - New `StringValue` struct contains `value: String` (cleaned display string) and `raw: Vec<u8>` (original wire bytes)
-   - Enables lossless round-trip serialization — previously, lossy UTF-8 conversion, control character filtering, and P4 prefix stripping made the string non-invertible
-   - `TryFrom<&FieldValue> for String` still returns the cleaned `value`
-   - JSON serialization output is unchanged (serializes only the `value` field)
+* **`FieldValue::String` now wraps `StringValue` instead of `String`**
+  - New `StringValue` struct contains `value: String` (cleaned display string) and `raw: Vec<u8>` (original wire bytes)
+  - Enables lossless round-trip serialization — previously, lossy UTF-8 conversion, control character filtering, and P4 prefix stripping made the string non-invertible
+  - `TryFrom<&FieldValue> for String` still returns the cleaned `value`
+  - JSON serialization output is unchanged (serializes only the `value` field)
 
- * **`FieldValue::MacAddr` now wraps `[u8; 6]` instead of `String`**
-   - Eliminates a heap allocation per MAC address field
-   - Serialization output is unchanged (`"aa:bb:cc:dd:ee:ff"` format)
+* **`FieldValue::MacAddr` now wraps `[u8; 6]` instead of `String`**
+  - Eliminates a heap allocation per MAC address field
+  - Serialization output is unchanged (`"aa:bb:cc:dd:ee:ff"` format)
 
- * **`DataNumber::to_be_bytes()` and `FieldValue::to_be_bytes()` removed**
-   - Use `write_be_bytes()` instead, which writes directly into a caller-provided buffer
+* **`DataNumber::to_be_bytes()` and `FieldValue::to_be_bytes()` removed**
+  - Use `write_be_bytes()` instead, which writes directly into a caller-provided buffer
 
- * **`NoTemplateInfo` changes**
-   - Removed `available_templates` field. Use `parser.v9_available_template_ids()` or `parser.ipfix_available_template_ids()` instead
-   - Added `truncated: bool` field. Code that destructures `NoTemplateInfo` must include the new field (or use `..`)
+* **`NoTemplateInfo` changes**
+  - Removed `available_templates` field. Use `parser.v9_available_template_ids()` or `parser.ipfix_available_template_ids()` instead
+  - Added `truncated: bool` field. Code that destructures `NoTemplateInfo` must include the new field (or use `..`)
 
- * **`CacheMetrics` methods now require `&mut self` instead of `&self`**
-   - Uses plain `u64` counters instead of `AtomicU64`, removing atomic overhead in the single-threaded parser
+* **`CacheMetrics` methods now require `&mut self` instead of `&self`**
+  - Uses plain `u64` counters instead of `AtomicU64`, removing atomic overhead in the single-threaded parser
 
- * **`NetflowParser` fields are now `pub(crate)`**
-   - `v9_parser`, `ipfix_parser`, `allowed_versions`, `max_error_sample_size` are no longer public
-   - Use accessor methods: `v9_parser()`, `v9_parser_mut()`, `ipfix_parser()`, `ipfix_parser_mut()`, `allowed_versions()`, `is_version_allowed()`, `max_error_sample_size()`
+* **`NetflowParser` fields are now `pub(crate)`**
+  - `v9_parser`, `ipfix_parser`, `allowed_versions`, `max_error_sample_size` are no longer public
+  - Use accessor methods: `v9_parser()`, `v9_parser_mut()`, `ipfix_parser()`, `ipfix_parser_mut()`, `allowed_versions()`, `is_version_allowed()`, `max_error_sample_size()`
 
- * **`NetflowParserBuilder::build()` returns `ConfigError` instead of `String` on failure**
-   - Now calls `validate()` and rejects out-of-range version numbers in `allowed_versions`
-   - Added `NetflowParserBuilder::validate()` for lightweight config validation without allocating parser internals
+* **`NetflowParserBuilder::build()` returns `ConfigError` instead of `String` on failure**
+  - Now calls `validate()` and rejects out-of-range version numbers in `allowed_versions`
+  - Added `NetflowParserBuilder::validate()` for lightweight config validation without allocating parser internals
 
- * **`with_allowed_versions()` now takes `&[u16]` instead of `HashSet<u16>`**
-   - The `allowed_versions` field is now `pub(crate) [bool; 11]`; use `allowed_versions()` or `is_version_allowed()` accessors
-   - Rejects out-of-range version numbers via `ConfigError::InvalidAllowedVersion`
+* **`with_allowed_versions()` now takes `&[u16]` instead of `HashSet<u16>`**
+  - The `allowed_versions` field is now `pub(crate) [bool; 11]`; use `allowed_versions()` or `is_version_allowed()` accessors
+  - Rejects out-of-range version numbers via `ConfigError::InvalidAllowedVersion`
 
- * **`ProtocolTypes::Unknown` is now `Unknown(u8)`**
-   - Carries the original protocol number instead of being a unit variant
-   - Pattern matching must use `Unknown(_)` or `Unknown(v)`
-   - `#[repr(u8)]` removed; use `u8::from(protocol)` instead of `protocol as u8`
-   - `PartialOrd`/`Ord` now compare by protocol number value, not enum declaration order
+* **`ProtocolTypes::Unknown` is now `Unknown(u8)`**
+  - Carries the original protocol number instead of being a unit variant
+  - Pattern matching must use `Unknown(_)` or `Unknown(v)`
+  - `#[repr(u8)]` removed; use `u8::from(protocol)` instead of `protocol as u8`
+  - `PartialOrd`/`Ord` now compare by protocol number value, not enum declaration order
 
- * **V5 and V7 structs no longer derive `Nom`**
-   - Code calling `V5::parse()` or `V7::parse()` via the nom-derive `Parse` trait must use `V5::parse_direct()` / `V7::parse_direct()` instead
-   - The `V5Parser::parse()` and `V7Parser::parse()` entry points are unchanged
+* **V5 and V7 structs no longer derive `Nom`**
+  - Code calling `V5::parse()` or `V7::parse()` via the nom-derive `Parse` trait must use `V5::parse_direct()` / `V7::parse_direct()` instead
+  - The `V5Parser::parse()` and `V7Parser::parse()` entry points are unchanged
 
- * **V9 `OptionsDataFields.options_fields` changed from `Vec<Vec<V9FieldPair>>` to `Vec<V9FieldPair>`**
-   - Code that iterates nested Vecs must flatten
+* **V9 `OptionsDataFields.options_fields` changed from `Vec<Vec<V9FieldPair>>` to `Vec<V9FieldPair>`**
+  - Code that iterates nested Vecs must flatten
 
- * **Deprecated APIs**
-   - `with_builder()` on `RouterScopedParser` and `AutoScopedParser` — use `try_with_builder()` (returns `Result<Self, ConfigError>`)
-   - `multi_source()` on `NetflowParserBuilder` — use `try_multi_source()` (returns `Result<AutoScopedParser, ConfigError>`)
+* **Deprecated APIs**
+  - `with_builder()` on `RouterScopedParser` and `AutoScopedParser` — use `try_with_builder()` (returns `Result<Self, ConfigError>`)
+  - `multi_source()` on `NetflowParserBuilder` — use `try_multi_source()` (returns `Result<AutoScopedParser, ConfigError>`)
 
- * **Renamed types and variants**
-   - `V9Field::BpgIpv6NextHop` → `V9Field::BgpIpv6NextHop` (typo fix)
-   - `V9Field::ImpIpv6CodeValue` → `V9Field::IcmpIpv6CodeValue` (field ID 179, typo fix)
-   - `IpFixFlowRecord` → `IPFixFlowRecord` for consistent casing (deprecated alias preserves backward compatibility)
-   - Module `variable_versions::data_number` → `variable_versions::field_value` (deprecated re-export preserves backward compatibility)
+* **Renamed types and variants**
+  - `V9Field::BpgIpv6NextHop` → `V9Field::BgpIpv6NextHop` (typo fix)
+  - `V9Field::ImpIpv6CodeValue` → `V9Field::IcmpIpv6CodeValue` (field ID 179, typo fix)
+  - `IpFixFlowRecord` → `IPFixFlowRecord` for consistent casing (deprecated alias preserves backward compatibility)
+  - Module `variable_versions::data_number` → `variable_versions::field_value` (deprecated re-export preserves backward compatibility)
 
- * **Removed deprecated items**
-   - `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly
+* **Removed deprecated items**
+  - `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly
 
- * **New enum variants (exhaustive match impact)**
-   - `ConfigError` gains `InvalidAllowedVersion(u16)`
+* **New enum variants (exhaustive match impact)**
+  - `ConfigError` gains `InvalidAllowedVersion(u16)`
 
 ## New Features
 
- * **New IPFIX field types for flags, bitmasks, and enumerations**
-   - Added 12 new dedicated field types in `field_types` module, following the `ForwardingStatus` pattern:
-     - **Bitmask/flag types:** `FragmentFlags` (field 197), `TcpControlBits` (field 6), `Ipv6ExtensionHeaders` (field 64), `Ipv4Options` (field 208), `TcpOptions` (field 209), `IsMulticast` (field 206), `MplsLabelExp` (fields 203, 237)
-     - **Enumeration types:** `FlowEndReason` (field 136), `NatEvent` (field 230), `FirewallEvent` (field 233), `MplsTopLabelType` (field 46), `NatOriginatingAddressRealm` (field 229)
-   - These fields were previously decoded as `UnsignedDataNumber` and now produce structured, self-describing values
-   - All types support round-trip conversion (parse → typed value → raw bytes)
-   - Each type has corresponding `FieldDataType` and `FieldValue` variants
+* **New IPFIX field types for flags, bitmasks, and enumerations**
+  - Added 12 new dedicated field types in `field_types` module, following the `ForwardingStatus` pattern:
+    - **Bitmask/flag types:** `FragmentFlags` (field 197), `TcpControlBits` (field 6), `Ipv6ExtensionHeaders` (field 64), `Ipv4Options` (field 208), `TcpOptions` (field 209), `IsMulticast` (field 206), `MplsLabelExp` (fields 203, 237)
+    - **Enumeration types:** `FlowEndReason` (field 136), `NatEvent` (field 230), `FirewallEvent` (field 233), `MplsTopLabelType` (field 46), `NatOriginatingAddressRealm` (field 229)
+  - These fields were previously decoded as `UnsignedDataNumber` and now produce structured, self-describing values
+  - All types support round-trip conversion (parse → typed value → raw bytes)
+  - Each type has corresponding `FieldDataType` and `FieldValue` variants
 
- * **New `field_types` module with `ForwardingStatus` enum**
-   - Added `field_types::ForwardingStatus` — decodes field ID 89 (RFC 7270) into status category and reason code variants
-   - Status categories: Unknown, Forwarded, Dropped, Consumed — with specific reason codes (e.g., `DroppedAclDeny`, `ForwardedFragmented`, `ConsumedTerminatedForUs`)
-   - Added `FieldDataType::ForwardingStatus` and `FieldValue::ForwardingStatus` for automatic decoding in both V9 and IPFIX
-   - `field_types` module is designed for future custom field type additions
+* **New `field_types` module with `ForwardingStatus` enum**
+  - Added `field_types::ForwardingStatus` — decodes field ID 89 (RFC 7270) into status category and reason code variants
+  - Status categories: Unknown, Forwarded, Dropped, Consumed — with specific reason codes (e.g., `DroppedAclDeny`, `ForwardedFragmented`, `ConsumedTerminatedForUs`)
+  - Added `FieldDataType::ForwardingStatus` and `FieldValue::ForwardingStatus` for automatic decoding in both V9 and IPFIX
+  - `field_types` module is designed for future custom field type additions
 
- * **New V9 field types (IDs 128-175)**
-   - Added 46 new `V9Field` variants from the IANA IPFIX Information Elements registry
-   - Includes: `BgpNextAdjacentAsNumber`, `ExporterIpv4Address`, `ExporterIpv6Address`, `DroppedOctetDeltaCount`, `FlowEndReason`, `WlanSsid`, `FlowStartSeconds`, `FlowEndSeconds`, `FlowStartMicroseconds`, `FlowEndMicroseconds`, `FlowStartNanoseconds`, `FlowEndNanoseconds`, `DestinationIpv6Prefix`, `SourceIpv6Prefix`, and more
-   - Each field has the correct `FieldDataType` mapping per the IANA registry
+* **New V9 field types (IDs 128-175)**
+  - Added 46 new `V9Field` variants from the IANA IPFIX Information Elements registry
+  - Includes: `BgpNextAdjacentAsNumber`, `ExporterIpv4Address`, `ExporterIpv6Address`, `DroppedOctetDeltaCount`, `FlowEndReason`, `WlanSsid`, `FlowStartSeconds`, `FlowEndSeconds`, `FlowStartMicroseconds`, `FlowEndMicroseconds`, `FlowStartNanoseconds`, `FlowEndNanoseconds`, `DestinationIpv6Prefix`, `SourceIpv6Prefix`, and more
+  - Each field has the correct `FieldDataType` mapping per the IANA registry
 
- * **Naming aliases**
-   - Added Rust-idiomatic type aliases: `Ipfix`, `IpfixParser`, `IpfixField`, `IpfixFieldPair`, `IpfixFlowRecord`
-   - Re-exported from crate root for convenience
+* **Naming aliases**
+  - Added Rust-idiomatic type aliases: `Ipfix`, `IpfixParser`, `IpfixField`, `IpfixFieldPair`, `IpfixFlowRecord`
+  - Re-exported from crate root for convenience
 
- * **Error type improvements**
-   - `ConfigError`, `DataNumberError`, `FieldValueError`, and `NetflowCommonError` now implement `Display` and `std::error::Error`
-   - `UnallowedVersion` now carries the version number
+* **Error type improvements**
+  - `ConfigError`, `DataNumberError`, `FieldValueError`, and `NetflowCommonError` now implement `Display` and `std::error::Error`
+  - `UnallowedVersion` now carries the version number
 
 ## Bug Fixes
 
- * **Corrected V9 field data type mappings**
-   - `IfName` (82), `IfDesc` (83), `SamplerName` (84) now correctly map to `FieldDataType::String` instead of `UnsignedDataNumber`
-   - `Layer2packetSectionData` (104) now correctly maps to `FieldDataType::Vec` instead of `UnsignedDataNumber`
+* **Corrected V9 field data type mappings**
+  - `IfName` (82), `IfDesc` (83), `SamplerName` (84) now correctly map to `FieldDataType::String` instead of `UnsignedDataNumber`
+  - `Layer2packetSectionData` (104) now correctly maps to `FieldDataType::Vec` instead of `UnsignedDataNumber`
 
- * **Fixed `DurationNanosNTP` unit conversion bug**
-   - Fractional NTP seconds were passed to `Duration::from_micros()` instead of `Duration::from_nanos()`, producing durations 1000x too large
+* **Fixed `DurationNanosNTP` unit conversion bug**
+  - Fractional NTP seconds were passed to `Duration::from_micros()` instead of `Duration::from_nanos()`, producing durations 1000x too large
 
- * **Fixed IPFIX template serialization losing the enterprise bit**
-   - Round-trip (parse → serialize) now correctly restores bit 15 of `field_type_number` for enterprise fields
+* **Fixed IPFIX template serialization losing the enterprise bit**
+  - Round-trip (parse → serialize) now correctly restores bit 15 of `field_type_number` for enterprise fields
 
- * **Fixed `ScopeDataField` silently truncating scope field values**
-   - Previously truncated to 4 bytes regardless of the template-declared `field_length`
+* **Fixed `ScopeDataField` silently truncating scope field values**
+  - Previously truncated to 4 bytes regardless of the template-declared `field_length`
 
- * **Fixed `NoTemplateInfo.truncated` field**
-   - Now correctly set to `true` when raw data is truncated to `max_error_sample_size`
+* **Fixed `NoTemplateInfo.truncated` field**
+  - Now correctly set to `true` when raw data is truncated to `max_error_sample_size`
 
 ## Safety and Correctness
 
- * `parse_bytes()` reports a `FilteredVersion` error instead of silently stopping on unallowed versions
- * Versions >= 11 now correctly return `UnsupportedVersion` instead of being misclassified as `FilteredVersion`
- * `ApplicationId` field parsing uses `checked_sub` instead of `saturating_sub` to properly error on zero-length fields
- * `Vec::with_capacity` for parsed records is capped at 1024 in V9 and IPFIX to prevent untrusted input from causing large allocations
- * V9 `Template::is_valid()` now rejects templates with empty fields or all-zero-length fields
- * V9 and IPFIX `OptionsTemplate` validation now rejects templates with zero scope fields (RFC 3954/7011 require at least one)
- * V9 `OptionsTemplate::is_valid()` now rejects `options_scope_length` and `options_length` that aren't multiples of 4
- * V9 templates embedded in IPFIX packets are now validated against parser limits (field count, total size, zero-length fields)
+* `parse_bytes()` reports a `FilteredVersion` error instead of silently stopping on unallowed versions
+* Versions >= 11 now correctly return `UnsupportedVersion` instead of being misclassified as `FilteredVersion`
+* `ApplicationId` field parsing uses `checked_sub` instead of `saturating_sub` to properly error on zero-length fields
+* `Vec::with_capacity` for parsed records is capped at 1024 in V9 and IPFIX to prevent untrusted input from causing large allocations
+* V9 `Template::is_valid()` now rejects templates with empty fields or all-zero-length fields
+* V9 and IPFIX `OptionsTemplate` validation now rejects templates with zero scope fields (RFC 3954/7011 require at least one)
+* V9 `OptionsTemplate::is_valid()` now rejects `options_scope_length` and `options_length` that aren't multiples of 4
+* V9 templates embedded in IPFIX packets are now validated against parser limits (field count, total size, zero-length fields)
 
 ## Performance
 
- * **V5/V7 direct byte parsing**
-   - Replaced nom-derive generated parsers with hand-written direct byte reads for V5 and V7
-   - Fixed-layout protocols now use a single bounds check instead of per-field nom combinator calls
-   - V5 parsing is ~2x faster at scale (e.g., 100 flows: 1,147ns → 626ns, -44%)
-   - V7 parsing receives the same treatment (52-byte fixed flow records)
-   - `Ipv4Addr` fields constructed directly from bytes instead of `be_u32` → `Ipv4Addr::from()`
-   - `to_be_bytes()` now pre-allocates with `Vec::with_capacity()` based on known sizes
+* **V5/V7 direct byte parsing**
+  - Replaced nom-derive generated parsers with hand-written direct byte reads for V5 and V7
+  - Fixed-layout protocols now use a single bounds check instead of per-field nom combinator calls
+  - V5 parsing is ~2x faster at scale (e.g., 100 flows: 1,147ns → 626ns, -44%)
+  - V7 parsing receives the same treatment (52-byte fixed flow records)
+  - `Ipv4Addr` fields constructed directly from bytes instead of `be_u32` → `Ipv4Addr::from()`
+  - `to_be_bytes()` now pre-allocates with `Vec::with_capacity()` based on known sizes
 
- * **Hot-path allocation reduction**
-   - Added `DataNumber::write_be_bytes()` and `FieldValue::write_be_bytes()` methods that write directly into a caller-provided buffer, avoiding per-field `Vec<u8>` allocations
-   - `TemplateMetadata::inserted_at` is now `Option<Instant>`, skipping `Instant::now()` when TTL is disabled
-   - `calculate_padding()` returns `&'static [u8]` instead of allocating a `Vec<u8>`
-   - `OptionsFieldParser` returns a flat `Vec<V9FieldPair>` instead of `Vec<Vec<V9FieldPair>>`
-   - String parsing avoids a double allocation when stripping the `"P4"` prefix
+* **Hot-path allocation reduction**
+  - Added `DataNumber::write_be_bytes()` and `FieldValue::write_be_bytes()` methods that write directly into a caller-provided buffer, avoiding per-field `Vec<u8>` allocations
+  - `TemplateMetadata::inserted_at` is now `Option<Instant>`, skipping `Instant::now()` when TTL is disabled
+  - `calculate_padding()` returns `&'static [u8]` instead of allocating a `Vec<u8>`
+  - `OptionsFieldParser` returns a flat `Vec<V9FieldPair>` instead of `Vec<Vec<V9FieldPair>>`
+  - String parsing avoids a double allocation when stripping the `"P4"` prefix
 
- * **NoTemplateInfo hot-path optimization**
-   - Removed `available_templates` field from `NoTemplateInfo` to avoid collecting template IDs on every cache miss
-   - Added `V9Parser::available_template_ids()` and `IPFixParser::available_template_ids()` for on-demand querying
+* **NoTemplateInfo hot-path optimization**
+  - Removed `available_templates` field from `NoTemplateInfo` to avoid collecting template IDs on every cache miss
+  - Added `V9Parser::available_template_ids()` and `IPFixParser::available_template_ids()` for on-demand querying
 
- * **Scoped parser optimization**
-   - `AutoScopedParser::parse_from_source` and `iter_packets_from_source` no longer clone the parser builder on every call; builder is only cloned on cache miss
+* **Scoped parser optimization**
+  - `AutoScopedParser::parse_from_source` and `iter_packets_from_source` no longer clone the parser builder on every call; builder is only cloned on cache miss
 
 ## Refactoring
 
- * **Reduced code duplication between V9 and IPFIX parsers**
-   - Extracted shared `calculate_padding()`, `NoTemplateInfo`, `get_valid_template()`, constants (`DEFAULT_MAX_TEMPLATE_CACHE_SIZE`, `MAX_FIELD_COUNT`, `TemplateId`) into `variable_versions` module
-   - Consolidated `ParserConfig` trait with default method implementations for `add_config`, `set_max_template_cache_size`, `set_ttl_config`, `pending_flows_enabled`, `pending_flow_count`, and `clear_pending_flows`
-   - Introduced `ParserFields` accessor trait to enable shared default implementations
+* **Reduced code duplication between V9 and IPFIX parsers**
+  - Extracted shared `calculate_padding()`, `NoTemplateInfo`, `get_valid_template()`, constants (`DEFAULT_MAX_TEMPLATE_CACHE_SIZE`, `MAX_FIELD_COUNT`, `TemplateId`) into `variable_versions` module
+  - Consolidated `ParserConfig` trait with default method implementations for `add_config`, `set_max_template_cache_size`, `set_ttl_config`, `pending_flows_enabled`, `pending_flow_count`, and `clear_pending_flows`
+  - Introduced `ParserFields` accessor trait to enable shared default implementations
 
- * **Module restructuring**
-   - Split `v9.rs` into `v9/{mod.rs, parser.rs, serializer.rs}`
-   - Split `ipfix.rs` into `ipfix/{mod.rs, parser.rs, serializer.rs}`
-   - Renamed `data_number.rs` → `field_value.rs` (deprecated re-export module preserves backward compatibility)
+* **Module restructuring**
+  - Split `v9.rs` into `v9/{mod.rs, parser.rs, serializer.rs}`
+  - Split `ipfix.rs` into `ipfix/{mod.rs, parser.rs, serializer.rs}`
+  - Renamed `data_number.rs` → `field_value.rs` (deprecated re-export module preserves backward compatibility)
 
- * **Code cleanup**
-   - Removed unused `enterprise_registry` field from `V9Parser` (was `#[allow(dead_code)]`)
-   - Replaced `contains_key` + `unwrap` pattern in `AutoScopedParser` with `entry()` API
-   - Added compile-time assertion for `DEFAULT_MAX_TEMPLATE_CACHE_SIZE > 0`
-   - Deleted orphaned snapshot file
+* **Code cleanup**
+  - Removed unused `enterprise_registry` field from `V9Parser` (was `#[allow(dead_code)]`)
+  - Replaced `contains_key` + `unwrap` pattern in `AutoScopedParser` with `entry()` API
+  - Added compile-time assertion for `DEFAULT_MAX_TEMPLATE_CACHE_SIZE > 0`
+  - Deleted orphaned snapshot file
 
 ## Dependencies
 
- * Removed `byteorder` crate — manual 3-byte big-endian serialization for u24/i24 types
- * Removed `mac_address` crate — MAC addresses parsed directly from raw bytes
+* Removed `byteorder` crate — manual 3-byte big-endian serialization for u24/i24 types
+* Removed `mac_address` crate — MAC addresses parsed directly from raw bytes
 
 ## Documentation
 
- * Added module-level `//!` docs to `v9/mod.rs`, `ipfix/mod.rs`, `ttl.rs`, and all integration test files
- * Added `///` docstrings to all undocumented public structs, enums, traits, and methods (`Config`, `V9`, `V9Parser`, `IPFix`, `IPFixParser`, `FlowSetBody`, `Header`, `FlowSet`, `Template`, `OptionsTemplate`, `TemplateField`, `CommonTemplate`, etc.)
- * Added `//` comments to all unit and integration test functions describing what they verify
- * Fixed malformed doc block where `build()` and `on_template_event()` docs were merged in `NetflowParserBuilder`
- * Fixed unclosed code fence in `ScopeDataField::parse` doc comment
- * Fixed doc link warning for `EnterpriseFieldRegistry` in `variable_versions` module docs
+* Added module-level `//!` docs to `v9/mod.rs`, `ipfix/mod.rs`, `ttl.rs`, and all integration test files
+* Added `///` docstrings to all undocumented public structs, enums, traits, and methods (`Config`, `V9`, `V9Parser`, `IPFix`, `IPFixParser`, `FlowSetBody`, `Header`, `FlowSet`, `Template`, `OptionsTemplate`, `TemplateField`, `CommonTemplate`, etc.)
+* Added `//` comments to all unit and integration test functions describing what they verify
+* Fixed malformed doc block where `build()` and `on_template_event()` docs were merged in `NetflowParserBuilder`
+* Fixed unclosed code fence in `ScopeDataField::parse` doc comment
+* Fixed doc link warning for `EnterpriseFieldRegistry` in `variable_versions` module docs
 
 ## Testing and Benchmarks
 
- * Added concurrent parsing tests (`Arc<Mutex<RouterScopedParser>>` shared across threads, independent parsers per thread)
- * Added memory bounds tests (cache stats within configured limits, error sample size bounded)
- * Added `steady_state_bench` — V9 and IPFIX benchmarks with pre-warmed template cache (5, 10, 30, 100 flows)
+* Added concurrent parsing tests (`Arc<Mutex<RouterScopedParser>>` shared across threads, independent parsers per thread)
+* Added memory bounds tests (cache stats within configured limits, error sample size bounded)
+* Added `steady_state_bench` — V9 and IPFIX benchmarks with pre-warmed template cache (5, 10, 30, 100 flows)
 
 # 0.9.0
 
