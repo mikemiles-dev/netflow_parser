@@ -962,6 +962,15 @@ pub struct NetflowPacketIterator<'a> {
     errored: bool,
 }
 
+impl std::fmt::Debug for NetflowPacketIterator<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NetflowPacketIterator")
+            .field("remaining_bytes", &self.remaining.len())
+            .field("errored", &self.errored)
+            .finish()
+    }
+}
+
 impl<'a> NetflowPacketIterator<'a> {
     /// Returns the unconsumed bytes remaining in the buffer.
     ///

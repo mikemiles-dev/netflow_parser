@@ -375,8 +375,8 @@ fn test_template_ttl_expiration() {
         "Data packet should parse with fresh template"
     );
 
-    // Wait for TTL to expire
-    std::thread::sleep(Duration::from_millis(150));
+    // Wait for TTL to expire (generous margin for CI)
+    std::thread::sleep(Duration::from_millis(500));
 
     // Try to use template again (should fail - expired)
     let result3 = parser.parse_bytes(&data);

@@ -169,6 +169,10 @@
 
 ## Bug Fixes
 
+* **Fixed `ApplicationId` parsing with 1-byte fields**
+  - A 1-byte `ApplicationId` (classification engine ID only, no selector) previously caused a parse error
+  - Now correctly returns a valid `ApplicationId` with a zero-valued selector
+
 * **Corrected V9 field data type mappings**
   - `IfName` (82), `IfDesc` (83), `SamplerName` (84) now correctly map to `FieldDataType::String` instead of `UnsignedDataNumber`
   - `Layer2packetSectionData` (104) now correctly maps to `FieldDataType::Vec` instead of `UnsignedDataNumber`
@@ -215,6 +219,12 @@
   - Previously, unknown scope field types caused a hard parse error
   - Now parses them as `ScopeDataField::Unknown(field_type_number, raw_bytes)`
   - Improves robustness with vendor-specific scope types
+
+* **`NetflowPacketIterator` now implements `Debug`**
+  - Shows `remaining_bytes` count and `errored` state for easier debugging
+
+* **Added `rust-version = "1.87"` to `Cargo.toml`**
+  - Documents the minimum supported Rust version required by the crate
 
 ## Performance
 
