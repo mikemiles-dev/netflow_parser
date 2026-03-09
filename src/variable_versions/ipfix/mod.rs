@@ -85,7 +85,7 @@ pub struct IPFix {
     pub header: Header,
     /// Sets
     #[nom(
-        PreExec = "let length = header.length.saturating_sub(16);",
+        PreExec = "let length = header.length.checked_sub(16).ok_or(nom::Err::Error(nom::error::Error::new(i, nom::error::ErrorKind::Verify)))?;",
         Parse = "map_res(take(length), |i| {
             many0(complete(|i| FlowSet::parse(i, parser)
                 .map(|(i, flow_set)| (i, flow_set))
