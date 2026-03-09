@@ -1551,10 +1551,11 @@ impl NetflowParser {
                             }
                         }
                         variable_versions::v9::FlowSetBody::NoTemplate(info) => {
-                            self.template_hooks.trigger(&TemplateEvent::MissingTemplate {
-                                template_id: info.template_id,
-                                protocol: TemplateProtocol::V9,
-                            });
+                            self.template_hooks
+                                .trigger(&TemplateEvent::MissingTemplate {
+                                    template_id: info.template_id,
+                                    protocol: TemplateProtocol::V9,
+                                });
                         }
                         _ => {}
                     }
@@ -1620,10 +1621,11 @@ impl NetflowParser {
                             }
                         }
                         variable_versions::ipfix::FlowSetBody::NoTemplate(info) => {
-                            self.template_hooks.trigger(&TemplateEvent::MissingTemplate {
-                                template_id: info.template_id,
-                                protocol: TemplateProtocol::Ipfix,
-                            });
+                            self.template_hooks
+                                .trigger(&TemplateEvent::MissingTemplate {
+                                    template_id: info.template_id,
+                                    protocol: TemplateProtocol::Ipfix,
+                                });
                         }
                         _ => {}
                     }
