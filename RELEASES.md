@@ -1,57 +1,3 @@
-# 1.0.1
-
-## Breaking Changes
-
-* **`RouterScopedParser::iter_packets_from_source` and `AutoScopedParser::iter_packets_from_source` now return `Result`**
-  - Return type changed from `impl Iterator` to `Result<impl Iterator, NetflowError>`
-  - Returns an error when the max source limit is reached
-  - Callers must unwrap or match on the result before iterating
-
-* **`ScopeDataField` gains an `Unknown(u16, Vec<u8>)` variant**
-  - Code with exhaustive `match` on `ScopeDataField` must add an `Unknown(_, _)` arm
-
-## Safety and Correctness
-
-* **Scoped parser source count limits**
-  - `RouterScopedParser` and `AutoScopedParser` now enforce a maximum source count (default: 10,000)
-  - Prevents unbounded memory growth from spoofed or misconfigured source addresses
-  - New sources are rejected with an error when at capacity
-  - Configurable via `with_max_sources()`
-
-* **V5/V7 flow count capping**
-  - V5 `count` field capped at 30 per Cisco specification
-  - V7 `count` field capped at 28 per Cisco specification
-  - Prevents oversized `Vec::with_capacity` allocations from untrusted input
-
-* **`CacheMetrics` counter overflow protection**
-  - All metric counters now use `saturating_add` instead of `+= 1`
-  - `hit_rate()` and `total_lookups()` use `saturating_add` to prevent overflow in rate calculations
-
-* **`ScopeDataField` handles unknown scope field types gracefully**
-  - Previously, unknown scope field types caused a hard parse error
-  - Now parses them as `ScopeDataField::Unknown(field_type_number, raw_bytes)`
-  - Improves robustness with vendor-specific scope types
-
-## New Features
-
-* **Source eviction API for `AutoScopedParser`**
-  - Added `remove_ipfix_source()`, `remove_v9_source()`, `remove_legacy_source()` for pruning stale sources
-  - Prevents monotonic growth of internal `HashMap`s in long-running deployments
-
-* **`#[must_use]` on `ParseResult`**
-  - Compiler warns when `parse_bytes()` return values are silently discarded
-
-## Performance
-
-* **Bulk pending flow drop tracking**
-  - Added `CacheMetrics::record_pending_dropped_n(n)` for batch metric updates
-  - Replaced per-entry loops with single bulk calls in pending flow cache eviction paths
-
-## Code Cleanup
-
-* **`CommonTemplate::get_fields` returns `&[TemplateField]` instead of `&Vec<TemplateField>`**
-  - Idiomatic Rust: return slices rather than references to `Vec`
-
 # 1.0.0
 
 ## Breaking Changes
@@ -189,6 +135,9 @@
 * **Fixed `NoTemplateInfo.truncated` field**
   - Now correctly set to `true` when raw data is truncated to `max_error_sample_size`
 
+* **Fixed `Dot1qCustomerSourceMacaddress` (IPFIX field 414) mapped to `String` instead of `MacAddr`**
+  - Now consistent with `Dot1qCustomerDestinationMacaddress` (field 415) and the reverse information element entries
+
 ## Safety and Correctness
 
 * `parse_bytes()` reports a `FilteredVersion` error instead of silently stopping on unallowed versions
@@ -225,6 +174,10 @@
 
 * **Added `rust-version = "1.87"` to `Cargo.toml`**
   - Documents the minimum supported Rust version required by the crate
+
+* **IPFIX header length validation**
+  - IPFIX messages with `header.length < 16` are now rejected as malformed
+  - Previously, `saturating_sub(16)` silently accepted them as valid empty messages
 
 ## Performance
 
