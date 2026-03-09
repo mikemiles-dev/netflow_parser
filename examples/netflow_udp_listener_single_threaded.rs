@@ -31,10 +31,13 @@ fn main() {
             socket.recv_from(&mut buf).expect("Didn't receive data");
 
         // Parse packets from this source using RouterScopedParser
-        for packet in scoped_parser.iter_packets_from_source(src_addr, &buf[..number_of_bytes])
+        if let Ok(iter) =
+            scoped_parser.iter_packets_from_source(src_addr, &buf[..number_of_bytes])
         {
-            println!("{:?}", packet);
-            packet_count += 1;
+            for packet in iter {
+                println!("{:?}", packet);
+                packet_count += 1;
+            }
         }
 
         // Periodic metrics report

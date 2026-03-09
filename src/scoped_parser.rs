@@ -11,6 +11,10 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::net::SocketAddr;
 
+/// Default maximum number of sources tracked by scoped parsers.
+/// Prevents unbounded memory growth from spoofed source addresses.
+pub const DEFAULT_MAX_SOURCES: usize = 10_000;
+
 /// A parser that maintains separate template caches for each NetFlow source.
 ///
 /// This is the recommended pattern for multi-source deployments where different
@@ -64,6 +68,8 @@ pub struct RouterScopedParser<K: Hash + Eq> {
     parsers: HashMap<K, NetflowParser>,
     /// Optional builder for creating new parsers with custom configuration
     parser_builder: Option<NetflowParserBuilder>,
+    /// Maximum number of sources to track. New sources are rejected when at capacity.
+    max_sources: usize,
 }
 
 impl<K: Hash + Eq> Default for RouterScopedParser<K> {
@@ -80,6 +86,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         Self {
             parsers: HashMap::new(),
             parser_builder: None,
+            max_sources: DEFAULT_MAX_SOURCES,
         }
     }
 
@@ -112,7 +119,17 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         Ok(Self {
             parsers: HashMap::new(),
             parser_builder: Some(builder),
+            max_sources: DEFAULT_MAX_SOURCES,
         })
+    }
+
+    /// Set the maximum number of sources to track.
+    ///
+    /// When the limit is reached, new sources are rejected with an error.
+    /// Default: 10,000.
+    pub fn with_max_sources(mut self, max: usize) -> Self {
+        self.max_sources = max;
+        self
     }
 
     /// Create a new scoped parser with a custom parser builder.
@@ -150,6 +167,14 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     where
         K: Clone,
     {
+        if !self.parsers.contains_key(&source) && self.parsers.len() >= self.max_sources {
+            return Err(NetflowError::Partial {
+                message: format!(
+                    "Max source limit reached ({}). Use remove_source() to free slots.",
+                    self.max_sources
+                ),
+            });
+        }
         let parser = self.parsers.entry(source).or_insert_with(|| {
             if let Some(ref builder) = self.parser_builder {
                 builder
@@ -182,10 +207,18 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         &'a mut self,
         source: K,
         data: &'a [u8],
-    ) -> impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a
+    ) -> Result<impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a, NetflowError>
     where
         K: Clone,
     {
+        if !self.parsers.contains_key(&source) && self.parsers.len() >= self.max_sources {
+            return Err(NetflowError::Partial {
+                message: format!(
+                    "Max source limit reached ({}). Use remove_source() to free slots.",
+                    self.max_sources
+                ),
+            });
+        }
         let parser = self.parsers.entry(source).or_insert_with(|| {
             if let Some(ref builder) = self.parser_builder {
                 builder
@@ -197,7 +230,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             }
         });
 
-        parser.iter_packets(data)
+        Ok(parser.iter_packets(data))
     }
 
     /// Get statistics for a specific source's template cache.
@@ -431,6 +464,8 @@ pub struct AutoScopedParser {
     legacy_parsers: HashMap<SocketAddr, NetflowParser>,
     /// Optional builder for creating new parsers with custom configuration
     parser_builder: Option<NetflowParserBuilder>,
+    /// Maximum number of sources to track across all maps.
+    max_sources: usize,
 }
 
 impl Default for AutoScopedParser {
@@ -449,6 +484,7 @@ impl AutoScopedParser {
             v9_parsers: HashMap::new(),
             legacy_parsers: HashMap::new(),
             parser_builder: None,
+            max_sources: DEFAULT_MAX_SOURCES,
         }
     }
 
@@ -483,7 +519,17 @@ impl AutoScopedParser {
             v9_parsers: HashMap::new(),
             legacy_parsers: HashMap::new(),
             parser_builder: Some(builder),
+            max_sources: DEFAULT_MAX_SOURCES,
         })
+    }
+
+    /// Set the maximum number of sources to track across all protocol types.
+    ///
+    /// When the limit is reached, new sources are rejected with an error.
+    /// Default: 10,000.
+    pub fn with_max_sources(mut self, max: usize) -> Self {
+        self.max_sources = max;
+        self
     }
 
     /// Create a new auto-scoped parser with a custom parser builder.
@@ -533,33 +579,7 @@ impl AutoScopedParser {
         source: SocketAddr,
         data: &[u8],
     ) -> Result<Vec<NetflowPacket>, NetflowError> {
-        let builder = self.parser_builder.as_ref();
-        let parser = match extract_scoping_info(data) {
-            ScopingInfo::IPFix {
-                observation_domain_id,
-            } => {
-                let key = IpfixSourceKey {
-                    addr: source,
-                    observation_domain_id,
-                };
-                self.ipfix_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder))
-            }
-            ScopingInfo::V9 { source_id } => {
-                let key = V9SourceKey {
-                    addr: source,
-                    source_id,
-                };
-                self.v9_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder))
-            }
-            ScopingInfo::Legacy | ScopingInfo::Unknown => self
-                .legacy_parsers
-                .entry(source)
-                .or_insert_with(|| Self::build_parser(builder)),
-        };
+        let parser = self.get_or_create_parser(source, data)?;
         let result = parser.parse_bytes(data);
         result.error.map_or(Ok(result.packets), Err)
     }
@@ -581,35 +601,10 @@ impl AutoScopedParser {
         &'a mut self,
         source: SocketAddr,
         data: &'a [u8],
-    ) -> impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a {
-        let builder = self.parser_builder.as_ref();
-        let parser = match extract_scoping_info(data) {
-            ScopingInfo::IPFix {
-                observation_domain_id,
-            } => {
-                let key = IpfixSourceKey {
-                    addr: source,
-                    observation_domain_id,
-                };
-                self.ipfix_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder))
-            }
-            ScopingInfo::V9 { source_id } => {
-                let key = V9SourceKey {
-                    addr: source,
-                    source_id,
-                };
-                self.v9_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder))
-            }
-            ScopingInfo::Legacy | ScopingInfo::Unknown => self
-                .legacy_parsers
-                .entry(source)
-                .or_insert_with(|| Self::build_parser(builder)),
-        };
-        parser.iter_packets(data)
+    ) -> Result<impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a, NetflowError>
+    {
+        let parser = self.get_or_create_parser(source, data)?;
+        Ok(parser.iter_packets(data))
     }
 
     /// Get the total number of registered sources across all scoping types.
@@ -630,6 +625,21 @@ impl AutoScopedParser {
     /// Get the number of legacy (v5/v7) sources.
     pub fn legacy_source_count(&self) -> usize {
         self.legacy_parsers.len()
+    }
+
+    /// Remove an IPFIX source and its parser.
+    pub fn remove_ipfix_source(&mut self, key: &IpfixSourceKey) -> Option<NetflowParser> {
+        self.ipfix_parsers.remove(key)
+    }
+
+    /// Remove a V9 source and its parser.
+    pub fn remove_v9_source(&mut self, key: &V9SourceKey) -> Option<NetflowParser> {
+        self.v9_parsers.remove(key)
+    }
+
+    /// Remove a legacy source and its parser.
+    pub fn remove_legacy_source(&mut self, addr: &SocketAddr) -> Option<NetflowParser> {
+        self.legacy_parsers.remove(addr)
     }
 
     /// Clear templates for all sources.
@@ -694,6 +704,68 @@ impl AutoScopedParser {
                 )
             })
             .collect()
+    }
+
+    /// Get or create a parser for the given source, enforcing the max_sources limit.
+    fn get_or_create_parser(
+        &mut self,
+        source: SocketAddr,
+        data: &[u8],
+    ) -> Result<&mut NetflowParser, NetflowError> {
+        let scoping = extract_scoping_info(data);
+        let is_new = match &scoping {
+            ScopingInfo::IPFix {
+                observation_domain_id,
+            } => !self.ipfix_parsers.contains_key(&IpfixSourceKey {
+                addr: source,
+                observation_domain_id: *observation_domain_id,
+            }),
+            ScopingInfo::V9 { source_id } => !self.v9_parsers.contains_key(&V9SourceKey {
+                addr: source,
+                source_id: *source_id,
+            }),
+            ScopingInfo::Legacy | ScopingInfo::Unknown => {
+                !self.legacy_parsers.contains_key(&source)
+            }
+        };
+
+        if is_new && self.source_count() >= self.max_sources {
+            return Err(NetflowError::Partial {
+                message: format!(
+                    "Max source limit reached ({}). Source count will not grow beyond this limit.",
+                    self.max_sources
+                ),
+            });
+        }
+
+        let builder = self.parser_builder.as_ref();
+        let parser = match scoping {
+            ScopingInfo::IPFix {
+                observation_domain_id,
+            } => {
+                let key = IpfixSourceKey {
+                    addr: source,
+                    observation_domain_id,
+                };
+                self.ipfix_parsers
+                    .entry(key)
+                    .or_insert_with(|| Self::build_parser(builder))
+            }
+            ScopingInfo::V9 { source_id } => {
+                let key = V9SourceKey {
+                    addr: source,
+                    source_id,
+                };
+                self.v9_parsers
+                    .entry(key)
+                    .or_insert_with(|| Self::build_parser(builder))
+            }
+            ScopingInfo::Legacy | ScopingInfo::Unknown => self
+                .legacy_parsers
+                .entry(source)
+                .or_insert_with(|| Self::build_parser(builder)),
+        };
+        Ok(parser)
     }
 
     /// Create a new parser instance using the configured builder or default

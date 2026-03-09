@@ -181,7 +181,8 @@ impl IPFix {
                             | V9ScopeDataField::Interface(value)
                             | V9ScopeDataField::LineCard(value)
                             | V9ScopeDataField::NetFlowCache(value)
-                            | V9ScopeDataField::Template(value) => {
+                            | V9ScopeDataField::Template(value)
+                            | V9ScopeDataField::Unknown(_, value) => {
                                 data_content.extend_from_slice(value)
                             }
                         }

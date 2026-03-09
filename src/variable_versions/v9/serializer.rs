@@ -97,7 +97,8 @@ impl V9 {
                     | ScopeDataField::Interface(value)
                     | ScopeDataField::LineCard(value)
                     | ScopeDataField::NetFlowCache(value)
-                    | ScopeDataField::Template(value) => {
+                    | ScopeDataField::Template(value)
+                    | ScopeDataField::Unknown(_, value) => {
                         result.extend_from_slice(value);
                     }
                 }

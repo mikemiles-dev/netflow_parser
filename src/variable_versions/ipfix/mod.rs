@@ -251,7 +251,7 @@ pub struct TemplateField {
 /// Shared interface for IPFIX `Template` and `OptionsTemplate`, providing
 /// field access and validation against parser configuration limits.
 pub(crate) trait CommonTemplate {
-    fn get_fields(&self) -> &Vec<TemplateField>;
+    fn get_fields(&self) -> &[TemplateField];
     fn get_field_count(&self) -> u16;
     fn get_scope_field_count(&self) -> Option<u16> {
         None
@@ -298,7 +298,7 @@ pub(crate) trait CommonTemplate {
 }
 
 impl CommonTemplate for Template {
-    fn get_fields(&self) -> &Vec<TemplateField> {
+    fn get_fields(&self) -> &[TemplateField] {
         &self.fields
     }
 
@@ -308,7 +308,7 @@ impl CommonTemplate for Template {
 }
 
 impl CommonTemplate for OptionsTemplate {
-    fn get_fields(&self) -> &Vec<TemplateField> {
+    fn get_fields(&self) -> &[TemplateField] {
         &self.fields
     }
 

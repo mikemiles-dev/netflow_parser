@@ -220,7 +220,7 @@ fn test_pending_flow_ttl_expiration() {
         .expect("Failed to build parser");
 
     // Send data packet before template
-    parser.parse_bytes(&v9_data_packet());
+    let _ = parser.parse_bytes(&v9_data_packet());
     assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
 
     // Send template - pending flow should have already expired (TTL is zero)
@@ -248,19 +248,19 @@ fn test_pending_flow_lru_eviction() {
         .expect("Failed to build parser");
 
     // Send data for template ID 256
-    parser.parse_bytes(&ipfix_data_packet());
+    let _ = parser.parse_bytes(&ipfix_data_packet());
 
     // Send data for template ID 257 (different template)
     let mut data_257 = ipfix_data_packet();
     data_257[16] = 0x01;
     data_257[17] = 0x01; // Set ID = 257
-    parser.parse_bytes(&data_257);
+    let _ = parser.parse_bytes(&data_257);
 
     // Send data for template ID 258 - should evict 256
     let mut data_258 = ipfix_data_packet();
     data_258[16] = 0x01;
     data_258[17] = 0x02; // Set ID = 258
-    parser.parse_bytes(&data_258);
+    let _ = parser.parse_bytes(&data_258);
 
     // Cache should have exactly 2 entries (257 and 258); 256 was evicted
     let stats = parser.ipfix_cache_stats();
@@ -412,8 +412,8 @@ fn test_clear_pending_flows() {
         .expect("Failed to build parser");
 
     // Cache some pending flows
-    parser.parse_bytes(&v9_data_packet());
-    parser.parse_bytes(&ipfix_data_packet());
+    let _ = parser.parse_bytes(&v9_data_packet());
+    let _ = parser.parse_bytes(&ipfix_data_packet());
 
     assert!(parser.v9_cache_stats().pending_flow_count > 0);
     assert!(parser.ipfix_cache_stats().pending_flow_count > 0);
@@ -914,8 +914,8 @@ fn test_v9_multiple_pending_same_template() {
         .expect("Failed to build parser");
 
     // Send two data packets for template 256 before the template arrives
-    parser.parse_bytes(&v9_multifield_data_packet());
-    parser.parse_bytes(&v9_multifield_two_records_packet());
+    let _ = parser.parse_bytes(&v9_multifield_data_packet());
+    let _ = parser.parse_bytes(&v9_multifield_two_records_packet());
     assert_eq!(
         parser.v9_cache_stats().pending_flow_count,
         2,
@@ -964,8 +964,8 @@ fn test_ipfix_multiple_pending_same_template() {
         .build()
         .expect("Failed to build parser");
 
-    parser.parse_bytes(&ipfix_multifield_data_packet());
-    parser.parse_bytes(&ipfix_multifield_two_records_packet());
+    let _ = parser.parse_bytes(&ipfix_multifield_data_packet());
+    let _ = parser.parse_bytes(&ipfix_multifield_two_records_packet());
     assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 2);
 
     let result = parser.parse_bytes(&ipfix_multifield_template_packet());
@@ -1013,7 +1013,7 @@ fn test_v9_pending_replay_with_same_packet_data() {
         .expect("Failed to build parser");
 
     // Cache a pending flow for template 256
-    parser.parse_bytes(&v9_data_packet());
+    let _ = parser.parse_bytes(&v9_data_packet());
     assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
 
     // Send a packet containing BOTH a template definition for 256 AND data using 256
@@ -1105,9 +1105,9 @@ fn test_v9_out_of_order_template_arrival() {
     };
 
     // Cache data for templates 256, 257, 258 in order
-    parser.parse_bytes(&make_v9_data(0x01, 0x00)); // 256
-    parser.parse_bytes(&make_v9_data(0x01, 0x01)); // 257
-    parser.parse_bytes(&make_v9_data(0x01, 0x02)); // 258
+    let _ = parser.parse_bytes(&make_v9_data(0x01, 0x00)); // 256
+    let _ = parser.parse_bytes(&make_v9_data(0x01, 0x01)); // 257
+    let _ = parser.parse_bytes(&make_v9_data(0x01, 0x02)); // 258
     assert_eq!(parser.v9_cache_stats().pending_flow_count, 3);
 
     // Template 258 arrives first

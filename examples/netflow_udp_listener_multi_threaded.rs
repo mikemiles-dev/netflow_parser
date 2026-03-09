@@ -98,7 +98,10 @@ fn main() {
         // Spawn thread to process packet without blocking receive loop
         thread::spawn(move || {
             let mut parser = parser_clone.lock().unwrap();
-            let count = parser.iter_packets_from_source(src_addr, &data).count() as u64;
+            let count = parser
+                .iter_packets_from_source(src_addr, &data)
+                .map(|iter| iter.count() as u64)
+                .unwrap_or(0);
 
             if count > 0 {
                 packet_count_clone.fetch_add(count, Ordering::Relaxed);

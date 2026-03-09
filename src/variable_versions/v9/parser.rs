@@ -629,10 +629,10 @@ impl ScopeDataField {
             ScopeFieldType::LineCard => Ok((new_input, ScopeDataField::LineCard(buf))),
             ScopeFieldType::NetflowCache => Ok((new_input, ScopeDataField::NetFlowCache(buf))),
             ScopeFieldType::Template => Ok((new_input, ScopeDataField::Template(buf))),
-            _ => Err(nom::Err::Error(nom::error::Error::new(
-                input,
-                nom::error::ErrorKind::Verify,
-            ))),
+            ScopeFieldType::Unknown => Ok((
+                new_input,
+                ScopeDataField::Unknown(template_field.field_type_number, buf),
+            )),
         }
     }
 }

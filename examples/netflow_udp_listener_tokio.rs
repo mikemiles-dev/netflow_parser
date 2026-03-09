@@ -138,7 +138,10 @@ async fn main() -> io::Result<()> {
             let mut parser_lock = parser_clone.lock().await;
 
             // Parse packets from this source
-            let count = parser_lock.iter_packets_from_source(addr, &data).count() as u64;
+            let count = parser_lock
+                .iter_packets_from_source(addr, &data)
+                .map(|iter| iter.count() as u64)
+                .unwrap_or(0);
 
             if count > 0 {
                 successful.fetch_add(count, Ordering::Relaxed);

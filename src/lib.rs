@@ -26,8 +26,8 @@ use serde::Serialize;
 
 // Re-export scoped parser types for convenience
 pub use scoped_parser::{
-    AutoScopedParser, IpfixSourceKey, RouterScopedParser, ScopingInfo, V9SourceKey,
-    extract_scoping_info,
+    AutoScopedParser, DEFAULT_MAX_SOURCES, IpfixSourceKey, RouterScopedParser, ScopingInfo,
+    V9SourceKey, extract_scoping_info,
 };
 
 // Re-export template event types for convenience
@@ -106,6 +106,7 @@ impl NetflowPacket {
 /// }
 /// ```
 #[derive(Debug, Clone, Serialize)]
+#[must_use = "parsing results should not be discarded; check .packets and .error"]
 pub struct ParseResult {
     /// Successfully parsed NetFlow packets.
     /// This vec contains all packets that were successfully parsed before
