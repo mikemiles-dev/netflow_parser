@@ -31,7 +31,9 @@ pub use scoped_parser::{
 };
 
 // Re-export template event types for convenience
-pub use template_events::{TemplateEvent, TemplateHook, TemplateHooks, TemplateProtocol};
+pub use template_events::{
+    TemplateEvent, TemplateHook, TemplateHookError, TemplateHooks, TemplateProtocol,
+};
 
 // Re-export configuration and utility types for convenience
 pub use variable_versions::enterprise_registry::{EnterpriseFieldDef, EnterpriseFieldRegistry};
@@ -723,10 +725,11 @@ impl NetflowParserBuilder {
     ///                 println!("Learned template {}", template_id);
     ///             }
     ///             TemplateEvent::Collision { template_id, protocol } => {
-    ///                 eprintln!("⚠️  Template collision: {}", template_id);
+    ///                 eprintln!("Template collision: {}", template_id);
     ///             }
     ///             _ => {}
     ///         }
+    ///         Ok(())
     ///     })
     ///     .build()
     ///     .unwrap();
@@ -734,7 +737,10 @@ impl NetflowParserBuilder {
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn on_template_event<F>(mut self, hook: F) -> Self
     where
-        F: Fn(&TemplateEvent) + Send + Sync + 'static,
+        F: Fn(&TemplateEvent) -> Result<(), template_events::TemplateHookError>
+            + Send
+            + Sync
+            + 'static,
     {
         self.template_hooks.register(hook);
         self
@@ -754,6 +760,9 @@ impl NetflowParserBuilder {
         IPFixParser::validate_config(&self.ipfix_config)?;
         // Check that all requested versions are supported (5, 7, 9, 10)
         if let Some(versions) = &self.requested_versions {
+            if versions.is_empty() {
+                return Err(ConfigError::EmptyAllowedVersions);
+            }
             for &v in versions {
                 if !matches!(v, 5 | 7 | 9 | 10) {
                     return Err(ConfigError::InvalidAllowedVersion(v));

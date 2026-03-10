@@ -24,10 +24,11 @@
 //!                 println!("Learned template {} for {:?}", template_id, protocol);
 //!             }
 //!             TemplateEvent::Collision { template_id, protocol } => {
-//!                 eprintln!("⚠️  Collision on template {} for {:?}", template_id, protocol);
+//!                 eprintln!("Collision on template {} for {:?}", template_id, protocol);
 //!             }
 //!             _ => {}
 //!         }
+//!         Ok(())
 //!     })
 //!     .build()
 //!     .unwrap();
@@ -71,6 +72,9 @@ pub enum TemplateEvent {
     /// In multi-source deployments without proper scoping, collisions indicate
     /// that different routers are using the same template ID with potentially
     /// different schemas. Use `AutoScopedParser` to avoid this issue.
+    ///
+    /// **Note:** This event is not yet fired by the parser. It is reserved for
+    /// future use when the template cache reports collisions to the hook system.
     Collision {
         /// The template ID that collided
         template_id: u16,
@@ -84,6 +88,9 @@ pub enum TemplateEvent {
     /// template is evicted to make room for new templates. Frequent evictions
     /// may indicate that the cache size is too small or that there are too
     /// many active templates.
+    ///
+    /// **Note:** This event is not yet fired by the parser. It is reserved for
+    /// future use when the template cache reports evictions to the hook system.
     Evicted {
         /// The template ID that was evicted
         template_id: u16,
@@ -97,6 +104,9 @@ pub enum TemplateEvent {
     /// been used within the configured timeout are automatically removed from
     /// the cache. This is useful for handling exporters that may change their
     /// template definitions without notification.
+    ///
+    /// **Note:** This event is not yet fired by the parser. It is reserved for
+    /// future use when the template cache reports expirations to the hook system.
     Expired {
         /// The template ID that expired
         template_id: u16,
@@ -120,6 +130,9 @@ pub enum TemplateEvent {
     },
 }
 
+/// Error type returned by template event hooks.
+pub type TemplateHookError = Box<dyn std::error::Error + Send + Sync>;
+
 /// Type alias for template event hooks.
 ///
 /// Hooks are functions that receive a reference to a `TemplateEvent` and
@@ -128,7 +141,9 @@ pub enum TemplateEvent {
 /// Hooks must be:
 /// - `Send + Sync` for thread safety
 /// - `'static` lifetime to be stored in the parser
-pub type TemplateHook = Arc<dyn Fn(&TemplateEvent) + Send + Sync + 'static>;
+/// - Infallible or return errors via `Result` — hooks must not panic
+pub type TemplateHook =
+    Arc<dyn Fn(&TemplateEvent) -> Result<(), TemplateHookError> + Send + Sync + 'static>;
 
 /// Container for registered template event hooks.
 #[derive(Clone, Default)]
@@ -154,15 +169,22 @@ impl TemplateHooks {
     /// Registers a new hook.
     pub fn register<F>(&mut self, hook: F)
     where
-        F: Fn(&TemplateEvent) + Send + Sync + 'static,
+        F: Fn(&TemplateEvent) -> Result<(), TemplateHookError> + Send + Sync + 'static,
     {
         self.hooks.push(Arc::new(hook));
     }
 
     /// Triggers all registered hooks with the given event.
+    ///
+    /// All hooks are called regardless of whether earlier hooks return errors.
+    /// Errors from hooks are collected but do not interrupt other hooks or parsing.
     pub fn trigger(&self, event: &TemplateEvent) {
         for hook in &self.hooks {
-            hook(event);
+            if let Err(e) = hook(event) {
+                #[cfg(debug_assertions)]
+                eprintln!("template hook error: {e}");
+                let _ = e;
+            }
         }
     }
 
@@ -190,7 +212,7 @@ mod tests {
         assert_eq!(hooks.len(), 0);
         assert!(hooks.is_empty());
 
-        hooks.register(|_| {});
+        hooks.register(|_| Ok(()));
         assert_eq!(hooks.len(), 1);
         assert!(!hooks.is_empty());
     }
@@ -204,6 +226,7 @@ mod tests {
 
         hooks.register(move |_| {
             counter_clone.fetch_add(1, Ordering::SeqCst);
+            Ok(())
         });
 
         let event = TemplateEvent::Learned {
@@ -230,10 +253,12 @@ mod tests {
 
         hooks.register(move |_| {
             c1.fetch_add(1, Ordering::SeqCst);
+            Ok(())
         });
 
         hooks.register(move |_| {
             c2.fetch_add(10, Ordering::SeqCst);
+            Ok(())
         });
 
         let event = TemplateEvent::Collision {
@@ -257,14 +282,17 @@ mod tests {
         let lc = learned_count.clone();
         let cc = collision_count.clone();
 
-        hooks.register(move |event| match event {
-            TemplateEvent::Learned { .. } => {
-                lc.fetch_add(1, Ordering::SeqCst);
+        hooks.register(move |event| {
+            match event {
+                TemplateEvent::Learned { .. } => {
+                    lc.fetch_add(1, Ordering::SeqCst);
+                }
+                TemplateEvent::Collision { .. } => {
+                    cc.fetch_add(1, Ordering::SeqCst);
+                }
+                _ => {}
             }
-            TemplateEvent::Collision { .. } => {
-                cc.fetch_add(1, Ordering::SeqCst);
-            }
-            _ => {}
+            Ok(())
         });
 
         hooks.trigger(&TemplateEvent::Learned {

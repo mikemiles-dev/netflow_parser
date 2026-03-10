@@ -89,7 +89,7 @@ impl V9 {
     fn serialize_options_data_body(
         options_data: &OptionsData,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        let mut result = Vec::new();
+        let mut data_content = Vec::new();
         for options_data_field in options_data.fields.iter() {
             for field in options_data_field.scope_fields.iter() {
                 match field {
@@ -99,14 +99,18 @@ impl V9 {
                     | ScopeDataField::NetFlowCache(value)
                     | ScopeDataField::Template(value)
                     | ScopeDataField::Unknown(_, value) => {
-                        result.extend_from_slice(value);
+                        data_content.extend_from_slice(value);
                     }
                 }
             }
             for (_field_type, field_value) in options_data_field.options_fields.iter() {
-                field_value.write_be_bytes(&mut result)?;
+                field_value.write_be_bytes(&mut data_content)?;
             }
         }
+
+        let mut result = Vec::new();
+        result.extend_from_slice(&data_content);
+        result.extend_from_slice(calculate_padding(data_content.len()));
         Ok(result)
     }
 

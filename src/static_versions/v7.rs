@@ -121,8 +121,10 @@ impl V7 {
             return Err(nom::Err::Error(Error::new(input, ErrorKind::Eof)));
         }
 
-        let raw_count = u16::from_be_bytes([input[0], input[1]]);
-        let count = raw_count.min(MAX_FLOWS);
+        let count = u16::from_be_bytes([input[0], input[1]]);
+        if count > MAX_FLOWS {
+            return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge)));
+        }
         let header = Header {
             version: 7,
             count,

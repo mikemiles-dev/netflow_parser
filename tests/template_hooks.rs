@@ -14,6 +14,7 @@ fn test_hook_registration() {
     let _parser = NetflowParser::builder()
         .on_template_event(move |_event| {
             counter_clone.fetch_add(1, Ordering::SeqCst);
+            Ok(())
         })
         .build()
         .unwrap();
@@ -34,17 +35,21 @@ fn test_multiple_hooks() {
     let ac = all_events_count.clone();
 
     let parser = NetflowParser::builder()
-        .on_template_event(move |event| match event {
-            TemplateEvent::Learned { .. } => {
-                lc.fetch_add(1, Ordering::SeqCst);
+        .on_template_event(move |event| {
+            match event {
+                TemplateEvent::Learned { .. } => {
+                    lc.fetch_add(1, Ordering::SeqCst);
+                }
+                TemplateEvent::Collision { .. } => {
+                    cc.fetch_add(1, Ordering::SeqCst);
+                }
+                _ => {}
             }
-            TemplateEvent::Collision { .. } => {
-                cc.fetch_add(1, Ordering::SeqCst);
-            }
-            _ => {}
+            Ok(())
         })
         .on_template_event(move |_event| {
             ac.fetch_add(1, Ordering::SeqCst);
+            Ok(())
         })
         .build()
         .unwrap();
@@ -82,6 +87,7 @@ fn test_hook_with_default_parser() {
     let parser = NetflowParser::builder()
         .on_template_event(move |_event| {
             ec.fetch_add(1, Ordering::SeqCst);
+            Ok(())
         })
         .build()
         .unwrap();
@@ -114,6 +120,7 @@ fn test_hook_event_details() {
                 cid.store(*template_id as usize, Ordering::SeqCst);
                 *cp.lock().unwrap() = Some(*protocol);
             }
+            Ok(())
         })
         .build()
         .unwrap();
@@ -141,10 +148,12 @@ fn test_hook_builder_chaining() {
         .with_cache_size(2000)
         .on_template_event(move |_| {
             c1.fetch_add(1, Ordering::SeqCst);
+            Ok(())
         })
         .with_allowed_versions(&[5, 9, 10])
         .on_template_event(move |_| {
             c2.fetch_add(10, Ordering::SeqCst);
+            Ok(())
         })
         .build()
         .unwrap();
@@ -204,6 +213,7 @@ fn test_hook_with_logging() {
                 } => format!("Missing template {} ({:?})", template_id, protocol),
             };
             log_clone.lock().unwrap().push(msg);
+            Ok(())
         })
         .build()
         .unwrap();
@@ -228,4 +238,28 @@ fn test_hook_with_logging() {
     assert!(logged[0].contains("Learned template 256"));
     assert!(logged[1].contains("Collision on template 256"));
     assert!(logged[2].contains("Missing template 300"));
+}
+
+// Verify that hook errors don't prevent subsequent hooks from firing
+#[test]
+fn test_hook_error_isolation() {
+    let counter = Arc::new(AtomicUsize::new(0));
+    let c = counter.clone();
+
+    let parser = NetflowParser::builder()
+        .on_template_event(|_| Err("hook 1 failed".into()))
+        .on_template_event(move |_| {
+            c.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        })
+        .build()
+        .unwrap();
+
+    parser.trigger_template_event(TemplateEvent::Learned {
+        template_id: 256,
+        protocol: TemplateProtocol::V9,
+    });
+
+    // Second hook should still fire despite first hook returning an error
+    assert_eq!(counter.load(Ordering::SeqCst), 1);
 }

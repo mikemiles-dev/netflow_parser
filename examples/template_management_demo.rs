@@ -103,15 +103,9 @@ fn demo_multi_source() {
     let dummy_data = vec![0u8; 100];
 
     println!("\nParsing packets from multiple routers...");
-    let _ = scoped_parser
-        .parse_from_source(router1, &dummy_data)
-        .unwrap_or_default();
-    let _ = scoped_parser
-        .parse_from_source(router2, &dummy_data)
-        .unwrap_or_default();
-    let _ = scoped_parser
-        .parse_from_source(router3, &dummy_data)
-        .unwrap_or_default();
+    let _ = scoped_parser.parse_from_source(router1, &dummy_data);
+    let _ = scoped_parser.parse_from_source(router2, &dummy_data);
+    let _ = scoped_parser.parse_from_source(router3, &dummy_data);
 
     println!("Active sources: {}", scoped_parser.source_count());
     println!("\nRegistered routers:");

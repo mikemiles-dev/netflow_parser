@@ -122,6 +122,12 @@ impl IPFix {
                 Ok(result)
             }
             FlowSetBody::Data(data) => {
+                // TODO: Variable-length fields (template field_length == 65535)
+                // need a 1-byte or 3-byte length prefix per RFC 7011 Section 7.
+                // Currently write_be_bytes emits only raw value bytes without
+                // the prefix, producing corrupt output for variable-length fields.
+                // Fixing this requires storing template field_length alongside
+                // parsed values or passing the template to the serializer.
                 let mut data_content = Vec::new();
                 for item in data.fields.iter() {
                     for (_, v) in item.iter() {

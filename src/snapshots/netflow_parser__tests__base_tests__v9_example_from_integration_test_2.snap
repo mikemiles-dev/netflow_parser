@@ -24,11 +24,15 @@ expression: "parser.parse_bytes(&hex::decode(hex2).unwrap()).packets"
                 - - InputSnmp
                   - DataNumber: 1
                 - - Protocol
-                  - ProtocolType: Hopopt
+                  - Vec:
+                      - 0
+                      - 0
+                      - 0
+                      - 1
                 - - Ipv4SrcAddr
-                  - Ip4Addr: 0.0.1.0
+                  - Ip4Addr: 0.0.0.1
                 - - Ipv4DstAddr
-                  - Ip4Addr: 0.0.1.0
+                  - Ip4Addr: 0.0.0.1
       - header:
           flowset_id: 256
           length: 8

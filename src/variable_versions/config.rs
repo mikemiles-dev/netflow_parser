@@ -50,6 +50,18 @@ pub enum ConfigError {
     InvalidPendingCacheSize(usize),
     /// An allowed version number is out of the supported range (0-10)
     InvalidAllowedVersion(u16),
+    /// Max field count must be greater than 0
+    InvalidFieldCount(usize),
+    /// Max template total size must be greater than 0
+    InvalidTemplateTotalSize(usize),
+    /// Pending flow max entries per template must be greater than 0
+    InvalidEntriesPerTemplate(usize),
+    /// Pending flow max entry size must be between 1 and 65531 (u16::MAX - 4)
+    InvalidEntrySize(usize),
+    /// TTL duration must be greater than zero
+    InvalidTtlDuration,
+    /// Allowed versions list must not be empty
+    EmptyAllowedVersions,
 }
 
 impl std::error::Error for ConfigError {}
@@ -76,6 +88,43 @@ impl std::fmt::Display for ConfigError {
                     f,
                     "Invalid allowed version: {}. Supported versions are 5, 7, 9, 10.",
                     version
+                )
+            }
+            ConfigError::InvalidFieldCount(count) => {
+                write!(
+                    f,
+                    "Invalid max field count: {}. Must be greater than 0.",
+                    count
+                )
+            }
+            ConfigError::InvalidTemplateTotalSize(size) => {
+                write!(
+                    f,
+                    "Invalid max template total size: {}. Must be greater than 0.",
+                    size
+                )
+            }
+            ConfigError::InvalidEntriesPerTemplate(count) => {
+                write!(
+                    f,
+                    "Invalid max entries per template: {}. Must be greater than 0.",
+                    count
+                )
+            }
+            ConfigError::InvalidEntrySize(size) => {
+                write!(
+                    f,
+                    "Invalid max entry size: {}. Must be between 1 and 65531 (u16::MAX - 4).",
+                    size
+                )
+            }
+            ConfigError::InvalidTtlDuration => {
+                write!(f, "Invalid TTL duration: must be greater than zero.")
+            }
+            ConfigError::EmptyAllowedVersions => {
+                write!(
+                    f,
+                    "Allowed versions list must not be empty. Supported versions are 5, 7, 9, 10."
                 )
             }
         }
@@ -142,6 +191,17 @@ pub trait ParserConfig: ParserFields {
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
         )?;
+        if config.max_field_count == 0 {
+            return Err(ConfigError::InvalidFieldCount(0));
+        }
+        if config.max_template_total_size == 0 {
+            return Err(ConfigError::InvalidTemplateTotalSize(0));
+        }
+        if let Some(ref ttl) = config.ttl_config {
+            if ttl.duration.is_zero() {
+                return Err(ConfigError::InvalidTtlDuration);
+            }
+        }
 
         self.set_max_template_cache_size_field(config.max_template_cache_size);
         self.set_max_field_count_field(config.max_field_count);
@@ -164,6 +224,11 @@ pub trait ParserConfig: ParserFields {
 
     /// Set the TTL configuration for templates
     fn set_ttl_config(&mut self, ttl_config: Option<TtlConfig>) -> Result<(), ConfigError> {
+        if let Some(ref ttl) = ttl_config {
+            if ttl.duration.is_zero() {
+                return Err(ConfigError::InvalidTtlDuration);
+            }
+        }
         self.set_ttl_config_field(ttl_config);
         Ok(())
     }

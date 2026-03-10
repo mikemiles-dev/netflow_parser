@@ -199,7 +199,7 @@ impl From<V9Field> for FieldDataType {
             V9Field::Flows => FieldDataType::UnsignedDataNumber,
             V9Field::Protocol => FieldDataType::ProtocolType,
             V9Field::SrcTos => FieldDataType::UnsignedDataNumber,
-            V9Field::TcpFlags => FieldDataType::UnsignedDataNumber,
+            V9Field::TcpFlags => FieldDataType::TcpControlBits,
             V9Field::L4SrcPort => FieldDataType::UnsignedDataNumber,
             V9Field::Ipv4SrcAddr => FieldDataType::Ip4Addr,
             V9Field::SrcMask => FieldDataType::UnsignedDataNumber,
@@ -255,7 +255,7 @@ impl From<V9Field> for FieldDataType {
             V9Field::Direction => FieldDataType::UnsignedDataNumber,
             V9Field::Ipv6NextHop => FieldDataType::Ip6Addr,
             V9Field::BgpIpv6NextHop => FieldDataType::Ip6Addr,
-            V9Field::Ipv6OptionHeaders => FieldDataType::UnsignedDataNumber,
+            V9Field::Ipv6OptionHeaders => FieldDataType::Ipv6ExtensionHeaders,
             V9Field::MplsLabel1
             | V9Field::MplsLabel2
             | V9Field::MplsLabel3
@@ -296,7 +296,7 @@ impl From<V9Field> for FieldDataType {
             V9Field::DroppedPacketDeltaCount => FieldDataType::UnsignedDataNumber,
             V9Field::DroppedOctetTotalCount => FieldDataType::UnsignedDataNumber,
             V9Field::DroppedPacketTotalCount => FieldDataType::UnsignedDataNumber,
-            V9Field::FlowEndReason => FieldDataType::UnsignedDataNumber,
+            V9Field::FlowEndReason => FieldDataType::FlowEndReason,
             V9Field::CommonPropertiesId => FieldDataType::UnsignedDataNumber,
             V9Field::ObservationPointId => FieldDataType::UnsignedDataNumber,
             V9Field::IcmpTypeCodeIpv6 => FieldDataType::UnsignedDataNumber,
@@ -347,7 +347,7 @@ impl From<V9Field> for FieldDataType {
             V9Field::PostNATSourceIpv6Address => FieldDataType::Ip6Addr,
             V9Field::PostNATDestinationIpv6Address => FieldDataType::Ip6Addr,
             V9Field::ObservationTimeMilliseconds => FieldDataType::DurationMillis,
-            V9Field::NatEvent => FieldDataType::UnsignedDataNumber,
+            V9Field::NatEvent => FieldDataType::NatEvent,
             _ => FieldDataType::Unknown,
         }
     }
