@@ -73,7 +73,7 @@ pub struct Header {
 pub struct FlowSet {
     pub header: FlowSetHeader,
     #[nom(
-        PreExec = "let length = header.length.saturating_sub(4);",
+        PreExec = "let length = header.length.checked_sub(4).ok_or(nom::Err::Error(nom::error::Error::new(i, nom::error::ErrorKind::Verify)))?;",
         Parse = "map_res(take(length),
                   |i| FlowSetBody::parse(i, parser, header.flowset_id)
                       .map(|(_, flow_set)| flow_set))"

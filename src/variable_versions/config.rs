@@ -187,7 +187,7 @@ pub trait ParserConfig: ParserFields {
 
     /// Add or update the parser's configuration
     fn add_config(&mut self, config: Config) -> Result<(), ConfigError> {
-        // Validate before mutating to avoid partial state changes on error
+        // Validate everything before mutating to avoid partial state changes on error
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
         )?;
@@ -202,7 +202,11 @@ pub trait ParserConfig: ParserFields {
                 return Err(ConfigError::InvalidTtlDuration);
             }
         }
+        if let Some(ref pf) = config.pending_flows_config {
+            PendingFlowCache::validate_config(pf)?;
+        }
 
+        // All validation passed — now safe to mutate
         self.set_max_template_cache_size_field(config.max_template_cache_size);
         self.set_max_field_count_field(config.max_field_count);
         self.set_max_template_total_size_field(config.max_template_total_size);
