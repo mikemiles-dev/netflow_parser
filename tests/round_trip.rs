@@ -76,10 +76,7 @@ fn test_v9_template_and_data_round_trip() {
 
     if let Some(NetflowPacket::V9(v9)) = data_result.packets.first() {
         let serialized = v9.to_be_bytes().expect("V9 serialization failed");
-        assert_eq!(
-            serialized, data_bytes,
-            "V9 data packet round-trip failed"
-        );
+        assert_eq!(serialized, data_bytes, "V9 data packet round-trip failed");
     } else {
         panic!("Expected V9 data packet");
     }
@@ -132,7 +129,10 @@ fn test_ipfix_template_and_data_round_trip() {
 
     let template_bytes = hex::decode(hex_template).unwrap();
     let template_result = parser.parse_bytes(&template_bytes);
-    assert!(template_result.error.is_none(), "IPFIX template parse failed");
+    assert!(
+        template_result.error.is_none(),
+        "IPFIX template parse failed"
+    );
 
     // IPFIX data: src=192.168.1.1, dst=10.0.0.1, ingress=10, egress=20
     // Data set: setId=256, length=20 (4 header + 16 data)
@@ -168,7 +168,9 @@ fn test_ipfix_template_only_round_trip() {
     let result = parser.parse_bytes(&template_bytes);
 
     if let Some(NetflowPacket::IPFix(ipfix)) = result.packets.first() {
-        let serialized = ipfix.to_be_bytes().expect("IPFIX template serialization failed");
+        let serialized = ipfix
+            .to_be_bytes()
+            .expect("IPFIX template serialization failed");
         assert_eq!(
             serialized, template_bytes,
             "IPFIX template packet round-trip failed"
@@ -230,8 +232,14 @@ fn test_field_round_trip_tcp_control_bits() {
 
 #[test]
 fn test_field_round_trip_ipv6_extension_headers() {
-    assert_field_round_trip(&[0x00, 0x00, 0x00, 0x3F], FieldDataType::Ipv6ExtensionHeaders);
-    assert_field_round_trip(&[0xFF, 0xFF, 0xFF, 0xFF], FieldDataType::Ipv6ExtensionHeaders);
+    assert_field_round_trip(
+        &[0x00, 0x00, 0x00, 0x3F],
+        FieldDataType::Ipv6ExtensionHeaders,
+    );
+    assert_field_round_trip(
+        &[0xFF, 0xFF, 0xFF, 0xFF],
+        FieldDataType::Ipv6ExtensionHeaders,
+    );
 }
 
 #[test]
@@ -320,7 +328,10 @@ fn test_field_round_trip_ip6addr() {
 
 #[test]
 fn test_field_round_trip_mac_addr() {
-    assert_field_round_trip(&[0x00, 0x1B, 0x44, 0x11, 0x3A, 0xB7], FieldDataType::MacAddr);
+    assert_field_round_trip(
+        &[0x00, 0x1B, 0x44, 0x11, 0x3A, 0xB7],
+        FieldDataType::MacAddr,
+    );
 }
 
 #[test]

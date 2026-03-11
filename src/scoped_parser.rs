@@ -159,11 +159,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     /// # Returns
     ///
     /// A `ParseResult` containing successfully parsed packets and an optional error.
-    pub fn parse_from_source(
-        &mut self,
-        source: K,
-        data: &[u8],
-    ) -> ParseResult
+    pub fn parse_from_source(&mut self, source: K, data: &[u8]) -> ParseResult
     where
         K: Clone,
     {
@@ -238,9 +234,12 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
             std::collections::hash_map::Entry::Vacant(e) => {
                 let p = if let Some(ref builder) = self.parser_builder {
-                    builder.clone().build().map_err(|err| NetflowError::Partial {
-                        message: format!("Failed to build parser for source: {err}"),
-                    })?
+                    builder
+                        .clone()
+                        .build()
+                        .map_err(|err| NetflowError::Partial {
+                            message: format!("Failed to build parser for source: {err}"),
+                        })?
                 } else {
                     NetflowParser::default()
                 };
@@ -592,11 +591,7 @@ impl AutoScopedParser {
     ///
     /// let packets = parser.parse_from_source(source, &data);
     /// ```
-    pub fn parse_from_source(
-        &mut self,
-        source: SocketAddr,
-        data: &[u8],
-    ) -> ParseResult {
+    pub fn parse_from_source(&mut self, source: SocketAddr, data: &[u8]) -> ParseResult {
         let parser = match self.get_or_create_parser(source, data) {
             Ok(p) => p,
             Err(e) => {
@@ -804,7 +799,9 @@ impl AutoScopedParser {
     }
 
     /// Create a new parser instance using the configured builder or default
-    fn build_parser(builder: Option<&NetflowParserBuilder>) -> Result<NetflowParser, NetflowError> {
+    fn build_parser(
+        builder: Option<&NetflowParserBuilder>,
+    ) -> Result<NetflowParser, NetflowError> {
         if let Some(builder) = builder {
             builder
                 .clone()
