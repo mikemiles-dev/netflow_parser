@@ -183,8 +183,9 @@ impl V7 {
     pub fn to_be_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(24 + self.flowsets.len() * FLOW_SIZE);
 
+        let count = u16::try_from(self.flowsets.len()).unwrap_or(u16::MAX);
         result.extend_from_slice(&self.header.version.to_be_bytes());
-        result.extend_from_slice(&self.header.count.to_be_bytes());
+        result.extend_from_slice(&count.to_be_bytes());
         result.extend_from_slice(&self.header.sys_up_time.to_be_bytes());
         result.extend_from_slice(&self.header.unix_secs.to_be_bytes());
         result.extend_from_slice(&self.header.unix_nsecs.to_be_bytes());

@@ -92,7 +92,7 @@ expression: lookup
 - UnsignedDataNumber
 - UnsignedDataNumber
 - ForwardingStatus
-- String
+- Vec
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
@@ -106,7 +106,7 @@ expression: lookup
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
-- String
+- Vec
 - Unknown
 - Unknown
 - Unknown
