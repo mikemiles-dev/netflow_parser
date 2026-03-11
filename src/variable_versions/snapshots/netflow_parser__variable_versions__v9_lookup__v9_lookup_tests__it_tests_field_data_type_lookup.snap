@@ -47,7 +47,7 @@ expression: fields
 - Unknown
 - Ip4Addr
 - Ip4Addr
-- UnsignedDataNumber
+- MplsTopLabelType
 - Ip4Addr
 - UnsignedDataNumber
 - UnsignedDataNumber

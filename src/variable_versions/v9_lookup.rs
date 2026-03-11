@@ -238,7 +238,7 @@ impl From<V9Field> for FieldDataType {
             V9Field::TotalFlowsExp => FieldDataType::UnsignedDataNumber,
             V9Field::Ipv4SrcPrefix => FieldDataType::Ip4Addr,
             V9Field::Ipv4DstPrefix => FieldDataType::Ip4Addr,
-            V9Field::MplsTopLabelType => FieldDataType::UnsignedDataNumber,
+            V9Field::MplsTopLabelType => FieldDataType::MplsTopLabelType,
             V9Field::MplsTopLabelIpAddr => FieldDataType::Ip4Addr,
             V9Field::FlowSamplerId => FieldDataType::UnsignedDataNumber,
             V9Field::FlowSamplerMode => FieldDataType::UnsignedDataNumber,
