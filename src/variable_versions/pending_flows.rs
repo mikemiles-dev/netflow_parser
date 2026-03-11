@@ -26,19 +26,33 @@ pub struct PendingFlowsConfig {
     pub max_entries_per_template: usize,
     /// Maximum size in bytes of a single pending flow entry's raw data.
     /// Entries exceeding this limit are dropped to prevent memory exhaustion
-    /// from oversized flowset bodies. Default: 65535 (u16::MAX).
+    /// from oversized flowset bodies. Default: 65531 (u16::MAX - 4).
+    /// Must not exceed 65531 to fit within the 16-bit FlowSet length field.
     pub max_entry_size_bytes: usize,
+    /// Maximum total bytes across all pending flow entries.
+    /// When exceeded, LRU template entries are evicted until under the limit.
+    /// Default: 67,108,864 (64 MB).
+    pub max_total_bytes: usize,
     /// TTL for pending flows. `None` means pending flows never expire
     /// (only evicted by LRU or per-template cap).
     pub ttl: Option<Duration>,
 }
+
+/// Default total byte limit: 64 MB
+const DEFAULT_MAX_TOTAL_BYTES: usize = 64 * 1024 * 1024;
+
+/// Maximum allowed entry size in bytes. The FlowSet header is 4 bytes, so the
+/// data portion must fit in `u16::MAX - 4` to avoid overflow in the 16-bit
+/// FlowSet length field on replay.
+const MAX_ENTRY_SIZE_LIMIT: usize = u16::MAX as usize - 4;
 
 impl Default for PendingFlowsConfig {
     fn default() -> Self {
         Self {
             max_pending_flows: 256,
             max_entries_per_template: 1024,
-            max_entry_size_bytes: u16::MAX as usize,
+            max_entry_size_bytes: MAX_ENTRY_SIZE_LIMIT,
+            max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
             ttl: None,
         }
     }
@@ -50,7 +64,8 @@ impl PendingFlowsConfig {
         Self {
             max_pending_flows,
             max_entries_per_template: 1024,
-            max_entry_size_bytes: u16::MAX as usize,
+            max_entry_size_bytes: MAX_ENTRY_SIZE_LIMIT,
+            max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
             ttl: None,
         }
     }
@@ -60,7 +75,8 @@ impl PendingFlowsConfig {
         Self {
             max_pending_flows,
             max_entries_per_template: 1024,
-            max_entry_size_bytes: u16::MAX as usize,
+            max_entry_size_bytes: MAX_ENTRY_SIZE_LIMIT,
+            max_total_bytes: DEFAULT_MAX_TOTAL_BYTES,
             ttl: Some(ttl),
         }
     }
@@ -80,6 +96,7 @@ pub(crate) struct PendingFlowEntry {
 pub(crate) struct PendingFlowCache {
     cache: LruCache<u16, Vec<PendingFlowEntry>>,
     config: PendingFlowsConfig,
+    total_bytes: usize,
 }
 
 impl PendingFlowCache {
@@ -116,6 +133,17 @@ impl PendingFlowCache {
         NonZeroUsize::new(config.max_pending_flows).ok_or(
             ConfigError::InvalidPendingCacheSize(config.max_pending_flows),
         )?;
+        if config.max_entries_per_template == 0 {
+            return Err(ConfigError::InvalidEntriesPerTemplate(0));
+        }
+        if config.max_entry_size_bytes == 0
+            || config.max_entry_size_bytes > MAX_ENTRY_SIZE_LIMIT
+        {
+            return Err(ConfigError::InvalidEntrySize(config.max_entry_size_bytes));
+        }
+        if config.max_total_bytes == 0 {
+            return Err(ConfigError::InvalidPendingCacheSize(0));
+        }
         Ok(())
     }
 
@@ -130,6 +158,7 @@ impl PendingFlowCache {
         Ok(Self {
             cache: LruCache::new(size),
             config,
+            total_bytes: 0,
         })
     }
 
@@ -155,12 +184,26 @@ impl PendingFlowCache {
             return Some(raw_data);
         }
 
+        // Enforce total byte limit: evict LRU templates until under budget.
+        while self.total_bytes.saturating_add(raw_data.len()) > self.config.max_total_bytes {
+            if let Some((_, evicted)) = self.cache.pop_lru() {
+                let evicted_bytes: usize = evicted.iter().map(|e| e.raw_data.len()).sum();
+                self.total_bytes = self.total_bytes.saturating_sub(evicted_bytes);
+                metrics.record_pending_dropped_n(evicted.len() as u64);
+            } else {
+                // Cache is empty but single entry exceeds total limit
+                metrics.record_pending_dropped();
+                return Some(raw_data);
+            }
+        }
+
         // Prune expired entries for this template before checking capacity.
         self.prune_expired_for_template(template_id, metrics);
 
         // The peek_mut borrow must be released before we call promote(),
         // so we resolve the entire if/else in one expression and promote
         // afterward based on the returned flag.
+        let entry_size = raw_data.len();
         let needs_promote = if let Some(entries) = self.cache.peek_mut(&template_id) {
             if entries.len() >= self.config.max_entries_per_template {
                 // Reject without promoting the key in the LRU so a
@@ -182,6 +225,8 @@ impl PendingFlowCache {
             if self.cache.len() >= self.cache.cap().get()
                 && let Some((_, evicted)) = self.cache.pop_lru()
             {
+                let evicted_bytes: usize = evicted.iter().map(|e| e.raw_data.len()).sum();
+                self.total_bytes = self.total_bytes.saturating_sub(evicted_bytes);
                 metrics.record_pending_dropped_n(evicted.len() as u64);
             }
             self.cache.put(
@@ -196,6 +241,7 @@ impl PendingFlowCache {
         if needs_promote {
             self.cache.promote(&template_id);
         }
+        self.total_bytes = self.total_bytes.saturating_add(entry_size);
         metrics.record_pending_cached();
         None
     }
@@ -209,6 +255,9 @@ impl PendingFlowCache {
         let Some(entries) = self.cache.pop(&template_id) else {
             return Vec::new();
         };
+
+        let popped_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
+        self.total_bytes = self.total_bytes.saturating_sub(popped_bytes);
 
         if let Some(ttl_duration) = self.config.ttl {
             let (valid, expired): (Vec<_>, Vec<_>) = entries
@@ -226,12 +275,15 @@ impl PendingFlowCache {
     fn prune_expired_for_template(&mut self, template_id: u16, metrics: &mut CacheMetrics) {
         let Some(ttl) = self.config.ttl else { return };
         // Use peek_mut so pruning alone doesn't promote the key.
-        let should_remove = self
+        let result = self
             .cache
             .peek_mut(&template_id)
-            .is_some_and(|entries| Self::drop_expired_entries(entries, ttl, metrics));
-        if should_remove {
-            self.cache.pop(&template_id);
+            .map(|entries| Self::drop_expired_entries(entries, ttl, metrics));
+        if let Some((is_empty, freed)) = result {
+            self.total_bytes = self.total_bytes.saturating_sub(freed);
+            if is_empty {
+                self.cache.pop(&template_id);
+            }
         }
     }
 
@@ -242,27 +294,32 @@ impl PendingFlowCache {
         let keys: Vec<u16> = self.cache.iter().map(|(&k, _)| k).collect();
         for key in keys {
             // Use peek_mut so sweeping doesn't disturb LRU ordering.
-            let should_remove = self
+            let result = self
                 .cache
                 .peek_mut(&key)
-                .is_some_and(|entries| Self::drop_expired_entries(entries, ttl, metrics));
-            if should_remove {
-                self.cache.pop(&key);
+                .map(|entries| Self::drop_expired_entries(entries, ttl, metrics));
+            if let Some((is_empty, freed)) = result {
+                self.total_bytes = self.total_bytes.saturating_sub(freed);
+                if is_empty {
+                    self.cache.pop(&key);
+                }
             }
         }
     }
 
     /// Retain only non-expired entries, recording `pending_dropped` for each
-    /// removed entry. Returns `true` when the vector is now empty.
+    /// removed entry. Returns `(is_empty, freed_bytes)`.
     fn drop_expired_entries(
         entries: &mut Vec<PendingFlowEntry>,
         ttl: Duration,
         metrics: &mut CacheMetrics,
-    ) -> bool {
-        let before = entries.len();
+    ) -> (bool, usize) {
+        let before_len = entries.len();
+        let before_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
         entries.retain(|e| e.cached_at.elapsed() < ttl);
-        metrics.record_pending_dropped_n((before - entries.len()) as u64);
-        entries.is_empty()
+        let after_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
+        metrics.record_pending_dropped_n((before_len - entries.len()) as u64);
+        (entries.is_empty(), before_bytes - after_bytes)
     }
 
     /// Returns the total number of pending flow entries across all template IDs.
@@ -273,6 +330,7 @@ impl PendingFlowCache {
     /// Clear all pending flows.
     pub(crate) fn clear(&mut self) {
         self.cache.clear();
+        self.total_bytes = 0;
     }
 
     /// Resize the LRU cache, recording `pending_dropped` for every entry
@@ -296,13 +354,16 @@ impl PendingFlowCache {
         // individual pending flow entry is reflected in pending_dropped.
         while self.cache.len() > size.get() {
             if let Some((_, evicted)) = self.cache.pop_lru() {
+                let evicted_bytes: usize = evicted.iter().map(|e| e.raw_data.len()).sum();
+                self.total_bytes = self.total_bytes.saturating_sub(evicted_bytes);
                 metrics.record_pending_dropped_n(evicted.len() as u64);
             }
         }
         self.cache.resize(size);
 
         // Enforce new per-entry and per-template limits on remaining entries.
-        Self::trim_existing_entries(&mut self.cache, &config, metrics);
+        let freed = Self::trim_existing_entries(&mut self.cache, &config, metrics);
+        self.total_bytes = self.total_bytes.saturating_sub(freed);
 
         self.config = config;
         Ok(())
@@ -311,11 +372,13 @@ impl PendingFlowCache {
     /// Drop entries that violate `max_entry_size_bytes` and truncate
     /// per-template vectors that exceed `max_entries_per_template`,
     /// recording `pending_dropped` for each removed entry.
+    /// Returns the total number of bytes freed.
     fn trim_existing_entries(
         cache: &mut LruCache<u16, Vec<PendingFlowEntry>>,
         config: &PendingFlowsConfig,
         metrics: &mut CacheMetrics,
-    ) {
+    ) -> usize {
+        let mut freed = 0usize;
         // Collect keys first to avoid borrowing issues during iteration.
         let keys: Vec<u16> = cache.iter().map(|(&k, _)| k).collect();
         for key in keys {
@@ -325,9 +388,10 @@ impl PendingFlowCache {
             };
 
             // Drop entries whose raw_data exceeds the new size limit.
-            let before = entries.len();
+            let before_len = entries.len();
+            let before_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
             entries.retain(|e| e.raw_data.len() <= config.max_entry_size_bytes);
-            metrics.record_pending_dropped_n((before - entries.len()) as u64);
+            metrics.record_pending_dropped_n((before_len - entries.len()) as u64);
 
             // Truncate to the new per-template cap (keep oldest = front).
             if entries.len() > config.max_entries_per_template {
@@ -336,10 +400,14 @@ impl PendingFlowCache {
                 metrics.record_pending_dropped_n(excess as u64);
             }
 
+            let after_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
+            freed += before_bytes - after_bytes;
+
             // Remove the key entirely if no entries remain.
             if entries.is_empty() {
                 cache.pop(&key);
             }
         }
+        freed
     }
 }

@@ -4,7 +4,7 @@
 //! sources (routers/exporters), ensuring template isolation per source.
 
 use crate::{
-    ConfigError, NetflowError, NetflowPacket, NetflowParser, NetflowParserBuilder,
+    ConfigError, NetflowError, NetflowPacket, NetflowParser, NetflowParserBuilder, ParseResult,
     ParserCacheStats,
 };
 use std::collections::HashMap;
@@ -158,36 +158,47 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     ///
     /// # Returns
     ///
-    /// A vector of parsed NetFlow packets from the given data.
-    pub fn parse_from_source(
-        &mut self,
-        source: K,
-        data: &[u8],
-    ) -> Result<Vec<NetflowPacket>, NetflowError>
+    /// A `ParseResult` containing successfully parsed packets and an optional error.
+    pub fn parse_from_source(&mut self, source: K, data: &[u8]) -> ParseResult
     where
         K: Clone,
     {
         if !self.parsers.contains_key(&source) && self.parsers.len() >= self.max_sources {
-            return Err(NetflowError::Partial {
-                message: format!(
-                    "Max source limit reached ({}). Use remove_source() to free slots.",
-                    self.max_sources
-                ),
-            });
+            return ParseResult {
+                packets: vec![],
+                error: Some(NetflowError::Partial {
+                    message: format!(
+                        "Max source limit reached ({}). Use remove_source() to free slots.",
+                        self.max_sources
+                    ),
+                }),
+            };
         }
-        let parser = self.parsers.entry(source).or_insert_with(|| {
-            if let Some(ref builder) = self.parser_builder {
-                builder
-                    .clone()
-                    .build()
-                    .expect("builder validated in try_with_builder")
-            } else {
-                NetflowParser::default()
+        let parser = match self.parsers.entry(source) {
+            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                let p = if let Some(ref builder) = self.parser_builder {
+                    match builder.clone().build() {
+                        Ok(p) => p,
+                        Err(err) => {
+                            return ParseResult {
+                                packets: vec![],
+                                error: Some(NetflowError::Partial {
+                                    message: format!(
+                                        "Failed to build parser for source: {err}"
+                                    ),
+                                }),
+                            };
+                        }
+                    }
+                } else {
+                    NetflowParser::default()
+                };
+                e.insert(p)
             }
-        });
+        };
 
-        let result = parser.parse_bytes(data);
-        result.error.map_or(Ok(result.packets), Err)
+        parser.parse_bytes(data)
     }
 
     /// Parse NetFlow data from a source using the iterator API.
@@ -219,16 +230,22 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
                 ),
             });
         }
-        let parser = self.parsers.entry(source).or_insert_with(|| {
-            if let Some(ref builder) = self.parser_builder {
-                builder
-                    .clone()
-                    .build()
-                    .expect("builder validated in try_with_builder")
-            } else {
-                NetflowParser::default()
+        let parser = match self.parsers.entry(source) {
+            std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                let p = if let Some(ref builder) = self.parser_builder {
+                    builder
+                        .clone()
+                        .build()
+                        .map_err(|err| NetflowError::Partial {
+                            message: format!("Failed to build parser for source: {err}"),
+                        })?
+                } else {
+                    NetflowParser::default()
+                };
+                e.insert(p)
             }
-        });
+        };
 
         Ok(parser.iter_packets(data))
     }
@@ -560,7 +577,7 @@ impl AutoScopedParser {
     ///
     /// # Returns
     ///
-    /// A vector of parsed NetFlow packets from the given data.
+    /// A `ParseResult` containing successfully parsed packets and an optional error.
     ///
     /// # Examples
     ///
@@ -574,14 +591,17 @@ impl AutoScopedParser {
     ///
     /// let packets = parser.parse_from_source(source, &data);
     /// ```
-    pub fn parse_from_source(
-        &mut self,
-        source: SocketAddr,
-        data: &[u8],
-    ) -> Result<Vec<NetflowPacket>, NetflowError> {
-        let parser = self.get_or_create_parser(source, data)?;
-        let result = parser.parse_bytes(data);
-        result.error.map_or(Ok(result.packets), Err)
+    pub fn parse_from_source(&mut self, source: SocketAddr, data: &[u8]) -> ParseResult {
+        let parser = match self.get_or_create_parser(source, data) {
+            Ok(p) => p,
+            Err(e) => {
+                return ParseResult {
+                    packets: vec![],
+                    error: Some(e),
+                };
+            }
+        };
+        parser.parse_bytes(data)
     }
 
     /// Parse NetFlow data from a source using the iterator API.
@@ -747,36 +767,50 @@ impl AutoScopedParser {
                     addr: source,
                     observation_domain_id,
                 };
-                self.ipfix_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder))
+                match self.ipfix_parsers.entry(key) {
+                    std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        e.insert(Self::build_parser(builder)?)
+                    }
+                }
             }
             ScopingInfo::V9 { source_id } => {
                 let key = V9SourceKey {
                     addr: source,
                     source_id,
                 };
-                self.v9_parsers
-                    .entry(key)
-                    .or_insert_with(|| Self::build_parser(builder))
+                match self.v9_parsers.entry(key) {
+                    std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        e.insert(Self::build_parser(builder)?)
+                    }
+                }
             }
-            ScopingInfo::Legacy | ScopingInfo::Unknown => self
-                .legacy_parsers
-                .entry(source)
-                .or_insert_with(|| Self::build_parser(builder)),
+            ScopingInfo::Legacy | ScopingInfo::Unknown => {
+                match self.legacy_parsers.entry(source) {
+                    std::collections::hash_map::Entry::Occupied(e) => e.into_mut(),
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        e.insert(Self::build_parser(builder)?)
+                    }
+                }
+            }
         };
         Ok(parser)
     }
 
     /// Create a new parser instance using the configured builder or default
-    fn build_parser(builder: Option<&NetflowParserBuilder>) -> NetflowParser {
+    fn build_parser(
+        builder: Option<&NetflowParserBuilder>,
+    ) -> Result<NetflowParser, NetflowError> {
         if let Some(builder) = builder {
             builder
                 .clone()
                 .build()
-                .expect("builder validated in try_with_builder")
+                .map_err(|err| NetflowError::Partial {
+                    message: format!("Failed to build parser for source: {err}"),
+                })
         } else {
-            NetflowParser::default()
+            Ok(NetflowParser::default())
         }
     }
 }

@@ -50,8 +50,21 @@
   - Code calling `V5::parse()` or `V7::parse()` via the nom-derive `Parse` trait must use `V5::parse_direct()` / `V7::parse_direct()` instead
   - The `V5Parser::parse()` and `V7Parser::parse()` entry points are unchanged
 
+* **V5/V7 `count` field now rejects values exceeding specification limits**
+  - V5 rejects `count > 30` with a parse error instead of silently capping
+  - V7 rejects `count > 28` with a parse error instead of silently capping
+
 * **V9 `OptionsDataFields.options_fields` changed from `Vec<Vec<V9FieldPair>>` to `Vec<V9FieldPair>`**
   - Code that iterates nested Vecs must flatten
+
+* **`TemplateHook` signature now returns `Result<(), TemplateHookError>`**
+  - Hooks registered via `on_template_event()` must return `Ok(())` on success
+  - New `TemplateHookError` type for hook error reporting
+  - The parser logs hook errors but continues processing (hooks cannot abort parsing)
+
+* **`RouterScopedParser::parse_from_source` and `AutoScopedParser::parse_from_source` now return `ParseResult` instead of `Result<Vec<NetflowPacket>, NetflowError>`**
+  - Consistent with `NetflowParser::parse_bytes()` return type
+  - Builder errors now return `ParseResult { packets: vec![], error: Some(...) }` instead of `Err(...)`
 
 * **Deprecated APIs**
   - `with_builder()` on `RouterScopedParser` and `AutoScopedParser` — use `try_with_builder()` (returns `Result<Self, ConfigError>`)
@@ -67,7 +80,7 @@
   - `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly
 
 * **New enum variants (exhaustive match impact)**
-  - `ConfigError` gains `InvalidAllowedVersion(u16)`
+  - `ConfigError` gains `InvalidAllowedVersion(u16)`, `InvalidFieldCount(usize)`, `InvalidTemplateTotalSize(usize)`, `InvalidEntriesPerTemplate(usize)`, `InvalidEntrySize(usize)`, `InvalidTtlDuration`, `EmptyAllowedVersions`
 
 * **`RouterScopedParser::iter_packets_from_source` and `AutoScopedParser::iter_packets_from_source` now return `Result`**
   - Return type changed from `impl Iterator` to `Result<impl Iterator, NetflowError>`
@@ -152,6 +165,36 @@
 * **Fixed `Dot1qCustomerSourceMacaddress` (IPFIX field 414) mapped to `String` instead of `MacAddr`**
   - Now consistent with `Dot1qCustomerDestinationMacaddress` (field 415) and the reverse information element entries
 
+* **Fixed `NatEvent` field type mapping in V9 lookup**
+  - V9 field 230 (`NatEvent`) was mapped to `UnsignedDataNumber` instead of `NatEvent`
+  - Now correctly decoded as the structured `NatEvent` enum
+
+* **Fixed `ReverseApplicationId` (IPFIX enterprise field 95) using wrong `FieldDataType`**
+  - Was `FieldDataType::String`, now correctly `FieldDataType::ApplicationId` per RFC 5103
+
+* **Fixed `ReverseForwardingStatus` (IPFIX enterprise field 89) using wrong `FieldDataType`**
+  - Was `FieldDataType::UnsignedDataNumber`, now correctly `FieldDataType::ForwardingStatus` per RFC 5103
+
+* **Fixed `TcpOptions` field length guard checking for 4 bytes instead of 8**
+  - `TcpOptions` is a 64-bit bitmask; the guard now correctly requires `field_length == 8`
+
+* **Fixed `TcpControlBits` field length guard being too permissive**
+  - Changed from `field_length <= 2` to `field_length == 2` to prevent misinterpretation of wider fields
+
+* **Fixed `PendingFlowsConfig::max_entry_size_bytes` default exceeding valid FlowSet length**
+  - Default changed from `u16::MAX` (65535) to `u16::MAX - 4` (65531), the maximum data size that fits within the 16-bit FlowSet length field after the 4-byte header
+
+* **Fixed V9 `serialize_options_data_body` missing 4-byte padding**
+  - RFC 3954 requires all flowsets to be padded to 4-byte boundaries
+  - The V9 OptionsData serializer was the only flowset body that omitted padding
+
+* **Fixed `set_ttl_config()` not validating `Duration::ZERO`**
+  - `set_ttl_config(Some(TtlConfig::new(Duration::ZERO)))` could bypass validation that `add_config()` enforced, causing all templates to instantly expire
+
+* **Fixed IPFIX duplicate field validation for V9-style templates in IPFIX packets**
+  - Added `has_duplicate_fields()` check to V9Template validation in the IPFIX parser
+  - Added `has_duplicate_scope_fields()` and `has_duplicate_option_fields()` checks to V9OptionsTemplate validation
+
 ## Safety and Correctness
 
 * `parse_bytes()` reports a `FilteredVersion` error instead of silently stopping on unallowed versions
@@ -169,7 +212,7 @@
   - New sources are rejected with an error when at capacity
   - Configurable via `with_max_sources()`
 
-* **V5/V7 flow count capping**
+* **V5/V7 flow count validation**
   - V5 `count` field capped at 30 per Cisco specification
   - V7 `count` field capped at 28 per Cisco specification
   - Prevents oversized `Vec::with_capacity` allocations from untrusted input
@@ -192,6 +235,28 @@
 * **IPFIX header length validation**
   - IPFIX messages with `header.length < 16` are now rejected as malformed
   - Previously, `saturating_sub(16)` silently accepted them as valid empty messages
+
+* **IPFIX `FieldParser` infinite loop prevention**
+  - Added progress check (`std::ptr::eq`) in both `parse` and `parse_with_registry` loops
+  - If no bytes are consumed after parsing a full record, the loop breaks instead of spinning forever
+  - Defends against crafted templates with all-zero-length variable-width fields
+
+* **V9 `OptionsTemplate::is_valid()` now rejects all-zero-length fields**
+  - Previously only `Template::is_valid()` checked for at least one non-zero field length
+  - A crafted OptionsTemplate with all `field_length = 0` fields could cause `many0` to loop infinitely
+  - Now requires at least one scope or option field with `field_length > 0`
+
+* **`PendingFlowsConfig` validation hardened**
+  - `max_total_bytes == 0` now returns an error
+  - `max_entry_size_bytes > 65531` now returns an error (exceeds FlowSet length field capacity)
+  - `max_entries_per_template == 0` now returns an error
+
+* **Empty `allowed_versions` rejected at validation time**
+  - `with_allowed_versions(&[])` now returns `ConfigError::EmptyAllowedVersions` instead of silently disabling all parsing
+
+* **Scoped parser builder errors no longer panic**
+  - `RouterScopedParser` and `AutoScopedParser` no longer use `expect()` when building parsers for new sources
+  - Builder failures now return errors through `ParseResult` or `Result` instead of panicking
 
 ## Performance
 
@@ -259,6 +324,13 @@
 * Added concurrent parsing tests (`Arc<Mutex<RouterScopedParser>>` shared across threads, independent parsers per thread)
 * Added memory bounds tests (cache stats within configured limits, error sample size bounded)
 * Added `steady_state_bench` — V9 and IPFIX benchmarks with pre-warmed template cache (5, 10, 30, 100 flows)
+* Added comprehensive round-trip serialization tests (`tests/round_trip.rs`) — 31 tests covering V7, V9 (template + data), IPFIX (template + data), all 13 IANA typed field types, `ApplicationId` variants (1-byte and 4-byte), and `Vec` fallback for wrong-length fields
+
+## Known Limitations
+
+* **IPFIX variable-length field serialization omits length prefix**
+  - `to_be_bytes()` on IPFIX messages containing variable-length fields (template `field_length == 65535`) produces incorrect output: the 1-byte or 3-byte RFC 7011 Section 7 length prefix is not re-emitted
+  - Requires architectural changes to fix (storing template field_length alongside parsed values)
 
 # 0.9.0
 

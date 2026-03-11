@@ -677,6 +677,7 @@ let parser = NetflowParser::builder()
     // Template lifecycle hooks
     .on_template_event(|event| {
         println!("Template event: {:?}", event);
+        Ok(())
     })
 
     .build()

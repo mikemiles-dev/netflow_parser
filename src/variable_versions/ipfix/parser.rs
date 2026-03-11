@@ -56,6 +56,17 @@ impl IPFixParser {
         NonZeroUsize::new(config.max_template_cache_size).ok_or(
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
         )?;
+        if config.max_field_count == 0 {
+            return Err(ConfigError::InvalidFieldCount(0));
+        }
+        if config.max_template_total_size == 0 {
+            return Err(ConfigError::InvalidTemplateTotalSize(0));
+        }
+        if let Some(ref ttl) = config.ttl_config {
+            if ttl.duration.is_zero() {
+                return Err(ConfigError::InvalidTtlDuration);
+            }
+        }
         if let Some(ref pf) = config.pending_flows_config {
             PendingFlowCache::validate_config(pf)?;
         }
@@ -537,6 +548,7 @@ impl FlowSetBody {
                         && !t.fields.is_empty()
                         && t.fields.iter().any(|f| f.field_length > 0)
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
+                        && !t.has_duplicate_fields()
                 },
                 |parser, templates| parser.add_v9_templates(templates),
             ),
@@ -555,6 +567,8 @@ impl FlowSetBody {
                         && scope_count <= p.max_field_count
                         && option_count <= p.max_field_count
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
+                        && !t.has_duplicate_scope_fields()
+                        && !t.has_duplicate_option_fields()
                 },
                 |parser, templates| parser.add_v9_options_templates(templates),
             ),
@@ -639,7 +653,7 @@ impl FlowSetBody {
                             (i.to_vec(), false)
                         } else {
                             let limit = i.len().min(parser.max_error_sample_size);
-                            (i[..limit].to_vec(), i.len() > parser.max_error_sample_size)
+                            (i[..limit].to_vec(), limit < i.len())
                         };
                     let info = NoTemplateInfo {
                         template_id: id,
@@ -733,6 +747,7 @@ impl<'a> FieldParser {
 
         // Try to parse as much as we can, but if it fails, just return what we have so far.
         while !i.is_empty() {
+            let before = i;
             let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {
                 match field.parse_as_field_value(i) {
@@ -744,6 +759,11 @@ impl<'a> FieldParser {
                         return Ok((i, res));
                     }
                 }
+            }
+            // Guard against infinite loops: if no bytes were consumed after
+            // parsing a full record, stop to prevent CPU-bound DoS.
+            if std::ptr::eq(i, before) {
+                break;
             }
             res.push(vec);
         }
@@ -775,6 +795,7 @@ impl<'a> FieldParser {
 
         // Try to parse as much as we can, but if it fails, just return what we have so far.
         while !i.is_empty() {
+            let before = i;
             let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {
                 match field.parse_as_field_value_with_registry(i, registry) {
@@ -786,6 +807,11 @@ impl<'a> FieldParser {
                         return Ok((i, res));
                     }
                 }
+            }
+            // Guard against infinite loops: if no bytes were consumed after
+            // parsing a full record, stop to prevent CPU-bound DoS.
+            if std::ptr::eq(i, before) {
+                break;
             }
             res.push(vec);
         }

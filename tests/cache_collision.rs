@@ -20,8 +20,8 @@ fn test_auto_scoped_parser_no_collisions() {
     ];
 
     // Parse from different sources
-    let packets1 = parser.parse_from_source(source1, &v5_packet).unwrap();
-    let packets2 = parser.parse_from_source(source2, &v5_packet).unwrap();
+    let packets1 = parser.parse_from_source(source1, &v5_packet).packets;
+    let packets2 = parser.parse_from_source(source2, &v5_packet).packets;
 
     assert_eq!(packets1.len(), 1);
     assert_eq!(packets2.len(), 1);
@@ -87,7 +87,7 @@ fn test_scoped_parser_with_builder() {
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    let packets = parser.parse_from_source(source, &v5_packet).unwrap();
+    let packets = parser.parse_from_source(source, &v5_packet).packets;
     assert_eq!(packets.len(), 1);
 }
 

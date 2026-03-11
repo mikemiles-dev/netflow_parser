@@ -531,22 +531,27 @@ impl FieldValue {
                 };
                 (i, FieldValue::String(StringValue { value: s, raw }))
             }
-            FieldDataType::Ip4Addr => {
+            FieldDataType::Ip4Addr if field_length == 4 => {
                 let (i, taken) = be_u32(remaining)?;
                 let ip_addr = Ipv4Addr::from(taken);
                 (i, FieldValue::Ip4Addr(ip_addr))
             }
-            FieldDataType::Ip6Addr => {
+            FieldDataType::Ip6Addr if field_length == 16 => {
                 let (i, taken) = be_u128(remaining)?;
                 let ip_addr = Ipv6Addr::from(taken);
                 (i, FieldValue::Ip6Addr(ip_addr))
             }
-            FieldDataType::MacAddr => {
+            FieldDataType::MacAddr if field_length == 6 => {
                 let (i, taken) = take(6_usize)(remaining)?;
                 let taken: &[u8; 6] = taken
                     .try_into()
                     .map_err(|_| NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))?;
                 (i, FieldValue::MacAddr(*taken))
+            }
+            // Fall back to raw bytes when field_length doesn't match expected size
+            FieldDataType::Ip4Addr | FieldDataType::Ip6Addr | FieldDataType::MacAddr => {
+                let (i, taken) = take(field_length)(remaining)?;
+                (i, FieldValue::Vec(taken.to_vec()))
             }
             FieldDataType::DurationSeconds => {
                 parse_duration(remaining, field_length, |value, width| {
@@ -558,7 +563,7 @@ impl FieldValue {
                     DurationValue::Millis { value, width }
                 })?
             }
-            FieldDataType::DurationMicrosNTP => {
+            FieldDataType::DurationMicrosNTP if field_length == 8 => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
                 (
@@ -566,7 +571,7 @@ impl FieldValue {
                     FieldValue::Duration(DurationValue::MicrosNtp { seconds, fraction }),
                 )
             }
-            FieldDataType::DurationNanosNTP => {
+            FieldDataType::DurationNanosNTP if field_length == 8 => {
                 let (i, seconds) = u32::parse_be(remaining)?;
                 let (i, fraction) = u32::parse_be(i)?;
                 (
@@ -574,65 +579,88 @@ impl FieldValue {
                     FieldValue::Duration(DurationValue::NanosNtp { seconds, fraction }),
                 )
             }
-            FieldDataType::ProtocolType => {
+            FieldDataType::DurationMicrosNTP | FieldDataType::DurationNanosNTP => {
+                let (i, taken) = take(field_length)(remaining)?;
+                (i, FieldValue::Vec(taken.to_vec()))
+            }
+            FieldDataType::ProtocolType if field_length == 1 => {
                 let (i, protocol) = ProtocolTypes::parse(remaining)?;
                 (i, FieldValue::ProtocolType(protocol))
             }
-            FieldDataType::ForwardingStatus => {
+            FieldDataType::ForwardingStatus if field_length == 1 => {
                 let (i, status) = ForwardingStatus::parse(remaining)?;
                 (i, FieldValue::ForwardingStatus(status))
             }
-            FieldDataType::FragmentFlags => {
+            FieldDataType::FragmentFlags if field_length == 1 => {
                 let (i, flags) = FragmentFlags::parse(remaining)?;
                 (i, FieldValue::FragmentFlags(flags))
             }
-            FieldDataType::TcpControlBits => {
+            FieldDataType::TcpControlBits if field_length == 2 => {
                 let (i, bits) = TcpControlBits::parse(remaining)?;
                 (i, FieldValue::TcpControlBits(bits))
             }
-            FieldDataType::Ipv6ExtensionHeaders => {
+            FieldDataType::Ipv6ExtensionHeaders if field_length == 4 => {
                 let (i, headers) = Ipv6ExtensionHeaders::parse(remaining)?;
                 (i, FieldValue::Ipv6ExtensionHeaders(headers))
             }
-            FieldDataType::Ipv4Options => {
+            FieldDataType::Ipv4Options if field_length == 4 => {
                 let (i, opts) = Ipv4Options::parse(remaining)?;
                 (i, FieldValue::Ipv4Options(opts))
             }
-            FieldDataType::TcpOptions => {
+            FieldDataType::TcpOptions if field_length == 8 => {
                 let (i, opts) = TcpOptions::parse(remaining)?;
                 (i, FieldValue::TcpOptions(opts))
             }
-            FieldDataType::IsMulticast => {
+            FieldDataType::IsMulticast if field_length == 1 => {
                 let (i, m) = IsMulticast::parse(remaining)?;
                 (i, FieldValue::IsMulticast(m))
             }
-            FieldDataType::MplsLabelExp => {
+            FieldDataType::MplsLabelExp if field_length == 1 => {
                 let (i, exp) = MplsLabelExp::parse(remaining)?;
                 (i, FieldValue::MplsLabelExp(exp))
             }
-            FieldDataType::FlowEndReason => {
+            FieldDataType::FlowEndReason if field_length == 1 => {
                 let (i, reason) = FlowEndReason::parse(remaining)?;
                 (i, FieldValue::FlowEndReason(reason))
             }
-            FieldDataType::NatEvent => {
+            FieldDataType::NatEvent if field_length == 1 => {
                 let (i, event) = NatEvent::parse(remaining)?;
                 (i, FieldValue::NatEvent(event))
             }
-            FieldDataType::FirewallEvent => {
+            FieldDataType::FirewallEvent if field_length == 1 => {
                 let (i, event) = FirewallEvent::parse(remaining)?;
                 (i, FieldValue::FirewallEvent(event))
             }
-            FieldDataType::MplsTopLabelType => {
+            FieldDataType::MplsTopLabelType if field_length == 1 => {
                 let (i, lt) = MplsTopLabelType::parse(remaining)?;
                 (i, FieldValue::MplsTopLabelType(lt))
             }
-            FieldDataType::NatOriginatingAddressRealm => {
+            FieldDataType::NatOriginatingAddressRealm if field_length == 1 => {
                 let (i, realm) = NatOriginatingAddressRealm::parse(remaining)?;
                 (i, FieldValue::NatOriginatingAddressRealm(realm))
             }
-            FieldDataType::Float64 => {
+            FieldDataType::Float64 if field_length == 8 => {
                 let (i, f) = f64::parse(remaining)?;
                 (i, FieldValue::Float64(f))
+            }
+            // Fall back to raw bytes for typed fields with unexpected length
+            FieldDataType::ProtocolType
+            | FieldDataType::ForwardingStatus
+            | FieldDataType::FragmentFlags
+            | FieldDataType::TcpControlBits
+            | FieldDataType::Ipv6ExtensionHeaders
+            | FieldDataType::Ipv4Options
+            | FieldDataType::TcpOptions
+            | FieldDataType::IsMulticast
+            | FieldDataType::MplsLabelExp
+            | FieldDataType::FlowEndReason
+            | FieldDataType::NatEvent
+            | FieldDataType::FirewallEvent
+            | FieldDataType::MplsTopLabelType
+            | FieldDataType::NatOriginatingAddressRealm
+            | FieldDataType::Float64 => {
+                let (i, taken) = take(field_length)(remaining)?;
+                (i, FieldValue::Vec(taken.to_vec()))
             }
             FieldDataType::Vec => {
                 let (i, taken) = take(field_length)(remaining)?;

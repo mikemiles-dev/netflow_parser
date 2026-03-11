@@ -24,7 +24,7 @@ fn test_shared_scoped_parser_across_threads() {
             let source = format!("router-{}", i);
             for _ in 0..10 {
                 let mut p = parser.lock().unwrap();
-                let packets = p.parse_from_source(source.clone(), &V5_PACKET).unwrap();
+                let packets = p.parse_from_source(source.clone(), &V5_PACKET).packets;
                 assert_eq!(packets.len(), 1);
             }
         }));

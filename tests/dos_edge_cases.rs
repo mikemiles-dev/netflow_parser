@@ -33,33 +33,19 @@ fn test_v9_max_field_count_exceeded() {
         packet.extend_from_slice(&4u16.to_be_bytes()); // Field length
     }
 
-    // Update FlowSet length
-    let flowset_length = (4 + 200 * 4) as u16; // Header + fields
+    // Update FlowSet length: 4 (flowset header) + 4 (template record header) + 200*4 (fields)
+    let flowset_length = (4 + 4 + 200 * 4) as u16;
     packet[22..24].copy_from_slice(&flowset_length.to_be_bytes());
 
-    let result = parser.parse_bytes(&packet);
+    let _result = parser.parse_bytes(&packet);
 
-    // Should have error due to field count limit
+    // The template should be rejected by is_valid() because field_count (200) > max (100).
+    // The parser returns the packet with no data records, but may not set an error since
+    // invalid templates are silently skipped. Verify the template was NOT cached.
     assert!(
-        result.error.is_some(),
-        "Expected error for excessive field count"
+        !parser.has_v9_template(256),
+        "Template with excessive field count should not be cached"
     );
-
-    // Should be a parse error or verify error from nom
-    match result.error {
-        Some(NetflowError::ParseError { context, .. }) => {
-            assert!(
-                context.contains("field") || context.contains("template"),
-                "Error should mention field/template issue: {}",
-                context
-            );
-        }
-        Some(other) => {
-            // Other error types are acceptable (e.g., Incomplete if parser stops early)
-            println!("Got error: {:?}", other);
-        }
-        None => panic!("Expected error for excessive field count"),
-    }
 }
 
 /// Test that excessive field counts in IPFIX templates are handled
@@ -90,27 +76,26 @@ fn test_ipfix_max_field_count_handling() {
         packet.extend_from_slice(&4u16.to_be_bytes()); // Field length
     }
 
-    // Update lengths
-    let set_length = (4 + 100 * 4) as u16; // Header + fields
+    // Update lengths: 4 (set header) + 4 (template record header) + 100*4 (fields)
+    let set_length = (4 + 4 + 100 * 4) as u16;
     packet[18..20].copy_from_slice(&set_length.to_be_bytes());
     let total_length = 16 + set_length; // Message header + set
     packet[2..4].copy_from_slice(&total_length.to_be_bytes());
 
     let result = parser.parse_bytes(&packet);
 
-    // Parser should either reject or handle gracefully
-    // Note: Current implementation may accept large templates if they fit in buffer
-    // The max_field_count is a guideline, not a hard limit in all cases
-    if result.error.is_some() {
-        println!(
-            "Parser rejected large template (expected): {:?}",
-            result.error
-        );
-    } else {
-        println!("Parser accepted large template (also acceptable)");
-    }
+    // The template should be rejected by is_valid() because field_count (100) > max (50).
+    // Verify the template was NOT cached.
+    assert!(
+        !parser.has_ipfix_template(256),
+        "IPFIX template with excessive field count should not be cached"
+    );
 
-    // Test passes if parser doesn't panic or hang
+    // Parser should not error (invalid templates are silently skipped)
+    assert!(
+        result.error.is_none(),
+        "Parser should handle oversized template gracefully without error"
+    );
 }
 
 /// Test template cache eviction when cache fills up

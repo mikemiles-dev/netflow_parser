@@ -67,6 +67,17 @@ impl V9Parser {
         NonZeroUsize::new(config.max_template_cache_size).ok_or(
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
         )?;
+        if config.max_field_count == 0 {
+            return Err(ConfigError::InvalidFieldCount(0));
+        }
+        if config.max_template_total_size == 0 {
+            return Err(ConfigError::InvalidTemplateTotalSize(0));
+        }
+        if let Some(ref ttl) = config.ttl_config {
+            if ttl.duration.is_zero() {
+                return Err(ConfigError::InvalidTtlDuration);
+            }
+        }
         if let Some(ref pf) = config.pending_flows_config {
             PendingFlowCache::validate_config(pf)?;
         }
@@ -438,7 +449,7 @@ impl FlowSetBody {
                             (i.to_vec(), false)
                         } else {
                             let limit = i.len().min(parser.max_error_sample_size);
-                            (i[..limit].to_vec(), i.len() > parser.max_error_sample_size)
+                            (i[..limit].to_vec(), limit < i.len())
                         };
 
                     let info = NoTemplateInfo {
@@ -493,7 +504,7 @@ impl Template {
     }
 
     /// Check if the template has duplicate field type numbers
-    fn has_duplicate_fields(&self) -> bool {
+    pub fn has_duplicate_fields(&self) -> bool {
         let mut seen = std::collections::HashSet::with_capacity(self.fields.len());
         for field in &self.fields {
             if !seen.insert(field.field_type_number) {
@@ -518,6 +529,15 @@ impl OptionsTemplate {
 
         // RFC 3954 requires at least one scope field
         if scope_count == 0 {
+            return false;
+        }
+
+        // Check that at least one field has non-zero length to prevent
+        // infinite loops in many0-based OptionsData parsing (zero-length
+        // fields would cause the parser to succeed without consuming input).
+        if !self.scope_fields.iter().any(|f| f.field_length > 0)
+            && !self.option_fields.iter().any(|f| f.field_length > 0)
+        {
             return false;
         }
 
@@ -559,7 +579,7 @@ impl OptionsTemplate {
     }
 
     /// Check if the template has duplicate scope field type numbers
-    fn has_duplicate_scope_fields(&self) -> bool {
+    pub fn has_duplicate_scope_fields(&self) -> bool {
         use std::collections::HashSet;
         let mut seen = HashSet::with_capacity(self.scope_fields.len());
         for field in &self.scope_fields {
@@ -571,7 +591,7 @@ impl OptionsTemplate {
     }
 
     /// Check if the template has duplicate option field type numbers
-    fn has_duplicate_option_fields(&self) -> bool {
+    pub fn has_duplicate_option_fields(&self) -> bool {
         use std::collections::HashSet;
         let mut seen = HashSet::with_capacity(self.option_fields.len());
         for field in &self.option_fields {

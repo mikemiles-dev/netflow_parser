@@ -27,30 +27,33 @@ fn demo_basic_hooks() {
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
     let parser = NetflowParser::builder()
-        .on_template_event(|event| match event {
-            TemplateEvent::Learned {
-                template_id,
-                protocol,
-            } => println!("  ✓ Learned template {} ({:?})", template_id, protocol),
-            TemplateEvent::Collision {
-                template_id,
-                protocol,
-            } => println!(
-                "  ⚠️  Collision on template {} ({:?})",
-                template_id, protocol
-            ),
-            TemplateEvent::Evicted {
-                template_id,
-                protocol,
-            } => println!("  ♻️  Evicted template {} ({:?})", template_id, protocol),
-            TemplateEvent::Expired {
-                template_id,
-                protocol,
-            } => println!("  ⏰ Expired template {} ({:?})", template_id, protocol),
-            TemplateEvent::MissingTemplate {
-                template_id,
-                protocol,
-            } => println!("  ❌ Missing template {} ({:?})", template_id, protocol),
+        .on_template_event(|event| {
+            match event {
+                TemplateEvent::Learned {
+                    template_id,
+                    protocol,
+                } => println!("  ✓ Learned template {} ({:?})", template_id, protocol),
+                TemplateEvent::Collision {
+                    template_id,
+                    protocol,
+                } => println!(
+                    "  ⚠️  Collision on template {} ({:?})",
+                    template_id, protocol
+                ),
+                TemplateEvent::Evicted {
+                    template_id,
+                    protocol,
+                } => println!("  ♻️  Evicted template {} ({:?})", template_id, protocol),
+                TemplateEvent::Expired {
+                    template_id,
+                    protocol,
+                } => println!("  ⏰ Expired template {} ({:?})", template_id, protocol),
+                TemplateEvent::MissingTemplate {
+                    template_id,
+                    protocol,
+                } => println!("  ❌ Missing template {} ({:?})", template_id, protocol),
+            }
+            Ok(())
         })
         .build()
         .unwrap();
@@ -89,17 +92,20 @@ fn demo_metrics_collection() {
     let mc = missing_count.clone();
 
     let parser = NetflowParser::builder()
-        .on_template_event(move |event| match event {
-            TemplateEvent::Learned { .. } => {
-                lc.fetch_add(1, Ordering::SeqCst);
+        .on_template_event(move |event| {
+            match event {
+                TemplateEvent::Learned { .. } => {
+                    lc.fetch_add(1, Ordering::SeqCst);
+                }
+                TemplateEvent::Collision { .. } => {
+                    cc.fetch_add(1, Ordering::SeqCst);
+                }
+                TemplateEvent::MissingTemplate { .. } => {
+                    mc.fetch_add(1, Ordering::SeqCst);
+                }
+                _ => {}
             }
-            TemplateEvent::Collision { .. } => {
-                cc.fetch_add(1, Ordering::SeqCst);
-            }
-            TemplateEvent::MissingTemplate { .. } => {
-                mc.fetch_add(1, Ordering::SeqCst);
-            }
-            _ => {}
+            Ok(())
         })
         .build()
         .unwrap();
@@ -191,6 +197,7 @@ fn demo_logging_hooks() {
                 ),
             };
             log_clone.lock().unwrap().push(log_entry);
+            Ok(())
         })
         .build()
         .unwrap();
@@ -232,6 +239,7 @@ fn demo_multiple_hooks() {
         // Hook 1: Log all events
         .on_template_event(|event| {
             println!("  [Hook 1] {:?}", event);
+            Ok(())
         })
         // Hook 2: Count critical events
         .on_template_event(move |event| {
@@ -241,12 +249,14 @@ fn demo_multiple_hooks() {
                 }
                 _ => {}
             }
+            Ok(())
         })
         // Hook 3: Custom alerting logic
         .on_template_event(|event| {
             if let TemplateEvent::Collision { template_id, .. } = event {
                 println!("  [Hook 3] 🚨 ALERT: Template {} collision! Check multi-source configuration", template_id);
             }
+            Ok(())
         })
         .build()
         .unwrap();

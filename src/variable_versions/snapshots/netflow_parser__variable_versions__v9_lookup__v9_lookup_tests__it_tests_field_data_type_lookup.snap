@@ -7,7 +7,7 @@ expression: fields
 - UnsignedDataNumber
 - ProtocolType
 - UnsignedDataNumber
-- UnsignedDataNumber
+- TcpControlBits
 - UnsignedDataNumber
 - Ip4Addr
 - UnsignedDataNumber
@@ -65,7 +65,7 @@ expression: fields
 - UnsignedDataNumber
 - Ip6Addr
 - Ip6Addr
-- UnsignedDataNumber
+- Ipv6ExtensionHeaders
 - Unknown
 - Unknown
 - Unknown
@@ -137,7 +137,7 @@ expression: fields
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
-- UnsignedDataNumber
+- FlowEndReason
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
@@ -231,7 +231,7 @@ expression: fields
 - UnsignedDataNumber
 - UnsignedDataNumber
 - Unknown
-- UnsignedDataNumber
+- NatEvent
 - Unknown
 - Unknown
 - Unknown
