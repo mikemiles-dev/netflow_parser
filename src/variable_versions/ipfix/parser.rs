@@ -733,9 +733,12 @@ impl<'a> FieldParser {
             return Ok((i, Vec::new()));
         }
 
-        // Estimate capacity based on input size and template field count
+        // Estimate capacity based on input size and template field count.
+        // Skip variable-length fields (field_length == 65535) which are just
+        // markers, not actual sizes.
         let template_size: usize = template_fields
             .iter()
+            .filter(|f| f.field_length != 65535)
             .map(|f| usize::from(f.field_length))
             .sum();
         let estimated_records = if template_size > 0 {
@@ -781,9 +784,12 @@ impl<'a> FieldParser {
             return Ok((i, Vec::new()));
         }
 
-        // Estimate capacity based on input size and template field count
+        // Estimate capacity based on input size and template field count.
+        // Skip variable-length fields (field_length == 65535) which are just
+        // markers, not actual sizes.
         let template_size: usize = template_fields
             .iter()
+            .filter(|f| f.field_length != 65535)
             .map(|f| usize::from(f.field_length))
             .sum();
         let estimated_records = if template_size > 0 {
