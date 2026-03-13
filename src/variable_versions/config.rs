@@ -4,6 +4,7 @@ use super::pending_flows::{PendingFlowCache, PendingFlowsConfig};
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::ttl::TtlConfig;
 use std::num::NonZeroUsize;
+use std::sync::Arc;
 
 /// Default maximum number of templates to cache per parser
 pub const DEFAULT_MAX_TEMPLATE_CACHE_SIZE: usize = 1000;
@@ -44,7 +45,11 @@ pub struct Config {
     /// Optional TTL configuration for template expiration.
     pub ttl_config: Option<TtlConfig>,
     /// Registry of custom enterprise-specific field definitions for IPFIX.
-    pub enterprise_registry: EnterpriseFieldRegistry,
+    ///
+    /// Wrapped in `Arc` so that cloning a `Config` (e.g., for each new source
+    /// in a scoped parser) shares the registry rather than deep-copying the
+    /// entire `HashMap`.
+    pub enterprise_registry: Arc<EnterpriseFieldRegistry>,
     /// Configuration for pending flow caching. `None` means disabled (default).
     pub pending_flows_config: Option<PendingFlowsConfig>,
 }
@@ -183,7 +188,7 @@ impl Config {
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         }
     }
@@ -202,7 +207,7 @@ impl Config {
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config,
-            enterprise_registry,
+            enterprise_registry: Arc::new(enterprise_registry),
             pending_flows_config: None,
         }
     }

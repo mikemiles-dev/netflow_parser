@@ -7,9 +7,10 @@ use crate::{
     ConfigError, NetflowError, NetflowPacket, NetflowParser, NetflowParserBuilder, ParseResult,
     ParserCacheStats,
 };
-use std::collections::HashMap;
+use lru::LruCache;
 use std::hash::Hash;
 use std::net::SocketAddr;
+use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
 /// Default maximum number of sources tracked by scoped parsers.
@@ -21,6 +22,9 @@ pub const DEFAULT_MAX_SOURCES: usize = 10_000;
 /// This is the recommended pattern for multi-source deployments where different
 /// routers may use the same template IDs for different field definitions. By keeping
 /// separate parser instances per source, templates are properly isolated.
+///
+/// Uses an LRU cache internally for O(1) eviction of the least-recently-used source
+/// when at capacity, preventing DoS attacks via source address flooding.
 ///
 /// # Type Parameter
 ///
@@ -65,12 +69,11 @@ pub const DEFAULT_MAX_SOURCES: usize = 10_000;
 /// ```
 #[derive(Debug)]
 pub struct RouterScopedParser<K: Hash + Eq> {
-    /// Map from source identifier to (parser instance, last seen timestamp)
-    parsers: HashMap<K, (NetflowParser, Instant)>,
+    /// LRU cache from source identifier to (parser instance, last access time)
+    parsers: LruCache<K, (NetflowParser, Instant)>,
     /// Optional builder for creating new parsers with custom configuration
     parser_builder: Option<NetflowParserBuilder>,
-    /// Maximum number of sources to track. When at capacity, the oldest source
-    /// is evicted to make room for new sources.
+    /// Maximum number of sources to track.
     max_sources: usize,
 }
 
@@ -86,7 +89,10 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     /// Each new source will get a parser with default settings.
     pub fn new() -> Self {
         Self {
-            parsers: HashMap::new(),
+            parsers: LruCache::new(
+                NonZeroUsize::new(DEFAULT_MAX_SOURCES)
+                    .expect("DEFAULT_MAX_SOURCES is non-zero"),
+            ),
             parser_builder: None,
             max_sources: DEFAULT_MAX_SOURCES,
         }
@@ -119,7 +125,10 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     pub fn try_with_builder(builder: NetflowParserBuilder) -> Result<Self, ConfigError> {
         builder.validate()?;
         Ok(Self {
-            parsers: HashMap::new(),
+            parsers: LruCache::new(
+                NonZeroUsize::new(DEFAULT_MAX_SOURCES)
+                    .expect("DEFAULT_MAX_SOURCES is non-zero"),
+            ),
             parser_builder: Some(builder),
             max_sources: DEFAULT_MAX_SOURCES,
         })
@@ -127,7 +136,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
 
     /// Set the maximum number of sources to track.
     ///
-    /// When at capacity and a new source arrives, the least-recently-seen
+    /// When at capacity and a new source arrives, the least-recently-used
     /// source is automatically evicted to make room.
     /// Default: 10,000.
     ///
@@ -139,6 +148,8 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             return Err(ConfigError::InvalidMaxSources);
         }
         self.max_sources = max;
+        self.parsers
+            .resize(NonZeroUsize::new(max).expect("max is non-zero"));
         Ok(self)
     }
 
@@ -156,30 +167,11 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         Self::try_with_builder(builder).expect("invalid builder configuration")
     }
 
-    /// Evict the source with the oldest `last_seen` timestamp.
-    /// Returns the key and parser of the evicted source, or `None` if the map is empty.
-    fn evict_oldest(&mut self) -> Option<(K, NetflowParser)>
-    where
-        K: Clone,
-    {
-        let oldest_key = self
-            .parsers
-            .iter()
-            .min_by_key(|(_, (_, last_seen))| *last_seen)
-            .map(|(k, _)| k.clone());
-
-        if let Some(key) = oldest_key {
-            self.parsers.remove(&key).map(|(parser, _)| (key, parser))
-        } else {
-            None
-        }
-    }
-
     /// Parse NetFlow data from a specific source.
     ///
     /// This will automatically create a new parser instance for new sources,
     /// or reuse the existing parser for known sources. When at capacity,
-    /// the least-recently-seen source is evicted to make room.
+    /// the least-recently-used source is automatically evicted by the LRU cache.
     ///
     /// # Arguments
     ///
@@ -193,17 +185,13 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     where
         K: Clone,
     {
-        // If the source already exists, update last_seen and parse.
+        // If the source already exists, LRU get promotes it and we parse.
         if let Some((parser, last_seen)) = self.parsers.get_mut(&source) {
             *last_seen = Instant::now();
             return parser.parse_bytes(data);
         }
 
-        // New source: evict oldest if at capacity.
-        if self.parsers.len() >= self.max_sources {
-            self.evict_oldest();
-        }
-
+        // New source: LRU cache handles eviction automatically via `push`.
         let p = if let Some(ref builder) = self.parser_builder {
             match builder.clone().build() {
                 Ok(p) => p,
@@ -220,8 +208,10 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             NetflowParser::default()
         };
 
-        let entry = self.parsers.entry(source);
-        let (parser, _) = entry.or_insert((p, Instant::now()));
+        let now = Instant::now();
+        self.parsers.push(source.clone(), (p, now));
+        // The entry we just pushed is guaranteed to exist; get_mut promotes it.
+        let (parser, _) = self.parsers.get_mut(&source).expect("just inserted");
         parser.parse_bytes(data)
     }
 
@@ -246,18 +236,14 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     where
         K: Clone,
     {
-        // If the source already exists, update last_seen and return iterator.
-        if self.parsers.contains_key(&source) {
+        // If the source already exists, get promotes it and we return iterator.
+        if self.parsers.contains(&source) {
             let (parser, last_seen) = self.parsers.get_mut(&source).unwrap();
             *last_seen = Instant::now();
             return Ok(parser.iter_packets(data));
         }
 
-        // New source: evict oldest if at capacity.
-        if self.parsers.len() >= self.max_sources {
-            self.evict_oldest();
-        }
-
+        // New source: LRU cache handles eviction automatically via `push`.
         let p = if let Some(ref builder) = self.parser_builder {
             builder
                 .clone()
@@ -269,27 +255,39 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             NetflowParser::default()
         };
 
-        let (parser, _) = self.parsers.entry(source).or_insert((p, Instant::now()));
+        let now = Instant::now();
+        self.parsers.push(source.clone(), (p, now));
+        let (parser, _) = self.parsers.get_mut(&source).expect("just inserted");
         Ok(parser.iter_packets(data))
     }
 
     /// Remove sources not seen within the given duration.
     ///
     /// Returns the number of sources pruned.
-    pub fn prune_idle_sources(&mut self, older_than: Duration) -> usize {
-        let before = self.parsers.len();
-        let now = std::time::Instant::now();
-        self.parsers
-            .retain(|_, (_, last_seen)| now.duration_since(*last_seen) < older_than);
-        before - self.parsers.len()
+    pub fn prune_idle_sources(&mut self, older_than: Duration) -> usize
+    where
+        K: Clone,
+    {
+        let now = Instant::now();
+        let keys_to_remove: Vec<K> = self
+            .parsers
+            .iter()
+            .filter(|(_, (_, last_seen))| now.duration_since(*last_seen) >= older_than)
+            .map(|(k, _)| k.clone())
+            .collect();
+        let count = keys_to_remove.len();
+        for key in keys_to_remove {
+            self.parsers.pop(&key);
+        }
+        count
     }
 
     /// Get statistics for a specific source's template cache.
     ///
     /// Returns `None` if the source hasn't sent any packets yet.
-    pub fn get_source_stats(&self, source: &K) -> Option<ParserCacheStats> {
+    pub fn get_source_stats(&mut self, source: &K) -> Option<ParserCacheStats> {
         self.parsers
-            .get(source)
+            .peek(source)
             .map(|(parser, _)| ParserCacheStats {
                 v9: parser.v9_cache_stats(),
                 ipfix: parser.ipfix_cache_stats(),
@@ -303,7 +301,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
 
     /// List all registered source identifiers.
     pub fn sources(&self) -> Vec<&K> {
-        self.parsers.keys().collect()
+        self.parsers.iter().map(|(k, _)| k).collect()
     }
 
     /// Get statistics for all sources.
@@ -330,7 +328,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     /// This is useful for testing or when you need to force template re-learning
     /// for a specific source.
     pub fn clear_source_templates(&mut self, source: &K) {
-        if let Some((parser, _)) = self.parsers.get_mut(source) {
+        if let Some((parser, _)) = self.parsers.peek_mut(source) {
             parser.clear_v9_templates();
             parser.clear_ipfix_templates();
         }
@@ -338,7 +336,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
 
     /// Clear templates for all sources.
     pub fn clear_all_templates(&mut self) {
-        for (parser, _) in self.parsers.values_mut() {
+        for (_, (parser, _)) in self.parsers.iter_mut() {
             parser.clear_v9_templates();
             parser.clear_ipfix_templates();
         }
@@ -348,21 +346,23 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     ///
     /// This is useful for cleaning up parsers for sources that are no longer active.
     pub fn remove_source(&mut self, source: &K) -> Option<NetflowParser> {
-        self.parsers.remove(source).map(|(parser, _)| parser)
+        self.parsers.pop(source).map(|(parser, _)| parser)
     }
 
     /// Get a reference to a specific source's parser.
     ///
     /// Returns `None` if the source hasn't sent any packets yet.
-    pub fn get_parser(&self, source: &K) -> Option<&NetflowParser> {
-        self.parsers.get(source).map(|(parser, _)| parser)
+    /// Note: This does not promote the entry in the LRU cache.
+    pub fn get_parser(&mut self, source: &K) -> Option<&NetflowParser> {
+        self.parsers.peek(source).map(|(parser, _)| parser)
     }
 
     /// Get a mutable reference to a specific source's parser.
     ///
     /// Returns `None` if the source hasn't sent any packets yet.
+    /// Note: This does not promote the entry in the LRU cache.
     pub fn get_parser_mut(&mut self, source: &K) -> Option<&mut NetflowParser> {
-        self.parsers.get_mut(source).map(|(parser, _)| parser)
+        self.parsers.peek_mut(source).map(|(parser, _)| parser)
     }
 }
 
@@ -485,6 +485,9 @@ pub fn extract_scoping_info(data: &[u8]) -> ScopingInfo {
 /// - **IPFIX**: Uses `(source_addr, observation_domain_id)` per RFC 7011
 /// - **NetFlow v5/v7**: Uses `source_addr` only (these versions have no scoping IDs)
 ///
+/// Uses LRU caches internally for O(1) eviction of the least-recently-used source
+/// when at capacity, preventing DoS attacks via source address flooding.
+///
 /// This is the recommended parser for production deployments as it automatically handles
 /// the complexity of RFC-compliant scoping without requiring manual key management.
 ///
@@ -509,15 +512,15 @@ pub fn extract_scoping_info(data: &[u8]) -> ScopingInfo {
 /// (e.g., `Arc<Mutex<AutoScopedParser>>`) when sharing across threads.
 #[derive(Debug)]
 pub struct AutoScopedParser {
-    /// Parsers for IPFIX sources (scoped by addr + observation_domain_id)
-    ipfix_parsers: HashMap<IpfixSourceKey, (NetflowParser, Instant)>,
-    /// Parsers for NetFlow v9 sources (scoped by addr + source_id)
-    v9_parsers: HashMap<V9SourceKey, (NetflowParser, Instant)>,
-    /// Parsers for legacy NetFlow v5/v7 (scoped by addr only)
-    legacy_parsers: HashMap<SocketAddr, (NetflowParser, Instant)>,
+    /// LRU cache for IPFIX sources (scoped by addr + observation_domain_id)
+    ipfix_parsers: LruCache<IpfixSourceKey, (NetflowParser, Instant)>,
+    /// LRU cache for NetFlow v9 sources (scoped by addr + source_id)
+    v9_parsers: LruCache<V9SourceKey, (NetflowParser, Instant)>,
+    /// LRU cache for legacy NetFlow v5/v7 (scoped by addr only)
+    legacy_parsers: LruCache<SocketAddr, (NetflowParser, Instant)>,
     /// Optional builder for creating new parsers with custom configuration
     parser_builder: Option<NetflowParserBuilder>,
-    /// Maximum number of sources to track across all maps.
+    /// Maximum number of sources to track across all caches.
     max_sources: usize,
 }
 
@@ -532,10 +535,12 @@ impl AutoScopedParser {
     ///
     /// Each new source will get a parser with default settings.
     pub fn new() -> Self {
+        let cap =
+            NonZeroUsize::new(DEFAULT_MAX_SOURCES).expect("DEFAULT_MAX_SOURCES is non-zero");
         Self {
-            ipfix_parsers: HashMap::new(),
-            v9_parsers: HashMap::new(),
-            legacy_parsers: HashMap::new(),
+            ipfix_parsers: LruCache::new(cap),
+            v9_parsers: LruCache::new(cap),
+            legacy_parsers: LruCache::new(cap),
             parser_builder: None,
             max_sources: DEFAULT_MAX_SOURCES,
         }
@@ -567,10 +572,12 @@ impl AutoScopedParser {
     /// ```
     pub fn try_with_builder(builder: NetflowParserBuilder) -> Result<Self, ConfigError> {
         builder.validate()?;
+        let cap =
+            NonZeroUsize::new(DEFAULT_MAX_SOURCES).expect("DEFAULT_MAX_SOURCES is non-zero");
         Ok(Self {
-            ipfix_parsers: HashMap::new(),
-            v9_parsers: HashMap::new(),
-            legacy_parsers: HashMap::new(),
+            ipfix_parsers: LruCache::new(cap),
+            v9_parsers: LruCache::new(cap),
+            legacy_parsers: LruCache::new(cap),
             parser_builder: Some(builder),
             max_sources: DEFAULT_MAX_SOURCES,
         })
@@ -578,7 +585,7 @@ impl AutoScopedParser {
 
     /// Set the maximum number of sources to track across all protocol types.
     ///
-    /// When at capacity and a new source arrives, the least-recently-seen
+    /// When at capacity and a new source arrives, the least-recently-used
     /// source is automatically evicted to make room.
     /// Default: 10,000.
     ///
@@ -590,6 +597,10 @@ impl AutoScopedParser {
             return Err(ConfigError::InvalidMaxSources);
         }
         self.max_sources = max;
+        let cap = NonZeroUsize::new(max).expect("max is non-zero");
+        self.ipfix_parsers.resize(cap);
+        self.v9_parsers.resize(cap);
+        self.legacy_parsers.resize(cap);
         Ok(self)
     }
 
@@ -605,71 +616,6 @@ impl AutoScopedParser {
     )]
     pub fn with_builder(builder: NetflowParserBuilder) -> Self {
         Self::try_with_builder(builder).expect("invalid builder configuration")
-    }
-
-    /// Find the globally oldest `last_seen` timestamp across all three maps
-    /// and evict that entry. Returns true if an entry was evicted.
-    fn evict_oldest(&mut self) -> bool {
-        let ipfix_oldest = self
-            .ipfix_parsers
-            .iter()
-            .min_by_key(|(_, (_, ts))| *ts)
-            .map(|(k, (_, ts))| (*k, *ts));
-
-        let v9_oldest = self
-            .v9_parsers
-            .iter()
-            .min_by_key(|(_, (_, ts))| *ts)
-            .map(|(k, (_, ts))| (*k, *ts));
-
-        let legacy_oldest = self
-            .legacy_parsers
-            .iter()
-            .min_by_key(|(_, (_, ts))| *ts)
-            .map(|(k, (_, ts))| (*k, *ts));
-
-        // Determine which map has the globally oldest entry.
-        #[derive(Clone, Copy)]
-        enum MapKind {
-            Ipfix,
-            V9,
-            Legacy,
-        }
-
-        let candidates = [
-            ipfix_oldest.map(|(_, ts)| (MapKind::Ipfix, ts)),
-            v9_oldest.map(|(_, ts)| (MapKind::V9, ts)),
-            legacy_oldest.map(|(_, ts)| (MapKind::Legacy, ts)),
-        ];
-
-        let oldest = candidates
-            .iter()
-            .flatten()
-            .min_by_key(|(_, ts)| *ts)
-            .map(|(kind, _)| *kind);
-
-        match oldest {
-            Some(MapKind::Ipfix) => {
-                if let Some((key, _)) = ipfix_oldest {
-                    self.ipfix_parsers.remove(&key);
-                    return true;
-                }
-            }
-            Some(MapKind::V9) => {
-                if let Some((key, _)) = v9_oldest {
-                    self.v9_parsers.remove(&key);
-                    return true;
-                }
-            }
-            Some(MapKind::Legacy) => {
-                if let Some((key, _)) = legacy_oldest {
-                    self.legacy_parsers.remove(&key);
-                    return true;
-                }
-            }
-            None => {}
-        }
-        false
     }
 
     /// Parse NetFlow data from a source with automatic RFC-compliant scoping.
@@ -740,15 +686,42 @@ impl AutoScopedParser {
     ///
     /// Returns the number of sources pruned.
     pub fn prune_idle_sources(&mut self, older_than: Duration) -> usize {
-        let before = self.source_count();
-        let now = std::time::Instant::now();
-        self.ipfix_parsers
-            .retain(|_, (_, last_seen)| now.duration_since(*last_seen) < older_than);
-        self.v9_parsers
-            .retain(|_, (_, last_seen)| now.duration_since(*last_seen) < older_than);
-        self.legacy_parsers
-            .retain(|_, (_, last_seen)| now.duration_since(*last_seen) < older_than);
-        before - self.source_count()
+        let now = Instant::now();
+
+        let ipfix_keys: Vec<IpfixSourceKey> = self
+            .ipfix_parsers
+            .iter()
+            .filter(|(_, (_, last_seen))| now.duration_since(*last_seen) >= older_than)
+            .map(|(k, _)| *k)
+            .collect();
+
+        let v9_keys: Vec<V9SourceKey> = self
+            .v9_parsers
+            .iter()
+            .filter(|(_, (_, last_seen))| now.duration_since(*last_seen) >= older_than)
+            .map(|(k, _)| *k)
+            .collect();
+
+        let legacy_keys: Vec<SocketAddr> = self
+            .legacy_parsers
+            .iter()
+            .filter(|(_, (_, last_seen))| now.duration_since(*last_seen) >= older_than)
+            .map(|(k, _)| *k)
+            .collect();
+
+        let count = ipfix_keys.len() + v9_keys.len() + legacy_keys.len();
+
+        for key in ipfix_keys {
+            self.ipfix_parsers.pop(&key);
+        }
+        for key in v9_keys {
+            self.v9_parsers.pop(&key);
+        }
+        for key in legacy_keys {
+            self.legacy_parsers.pop(&key);
+        }
+
+        count
     }
 
     /// Get the total number of registered sources across all scoping types.
@@ -773,30 +746,30 @@ impl AutoScopedParser {
 
     /// Remove an IPFIX source and its parser.
     pub fn remove_ipfix_source(&mut self, key: &IpfixSourceKey) -> Option<NetflowParser> {
-        self.ipfix_parsers.remove(key).map(|(parser, _)| parser)
+        self.ipfix_parsers.pop(key).map(|(parser, _)| parser)
     }
 
     /// Remove a V9 source and its parser.
     pub fn remove_v9_source(&mut self, key: &V9SourceKey) -> Option<NetflowParser> {
-        self.v9_parsers.remove(key).map(|(parser, _)| parser)
+        self.v9_parsers.pop(key).map(|(parser, _)| parser)
     }
 
     /// Remove a legacy source and its parser.
     pub fn remove_legacy_source(&mut self, addr: &SocketAddr) -> Option<NetflowParser> {
-        self.legacy_parsers.remove(addr).map(|(parser, _)| parser)
+        self.legacy_parsers.pop(addr).map(|(parser, _)| parser)
     }
 
     /// Clear templates for all sources.
     pub fn clear_all_templates(&mut self) {
-        for (parser, _) in self.ipfix_parsers.values_mut() {
+        for (_, (parser, _)) in self.ipfix_parsers.iter_mut() {
             parser.clear_v9_templates();
             parser.clear_ipfix_templates();
         }
-        for (parser, _) in self.v9_parsers.values_mut() {
+        for (_, (parser, _)) in self.v9_parsers.iter_mut() {
             parser.clear_v9_templates();
             parser.clear_ipfix_templates();
         }
-        for (parser, _) in self.legacy_parsers.values_mut() {
+        for (_, (parser, _)) in self.legacy_parsers.iter_mut() {
             parser.clear_v9_templates();
             parser.clear_ipfix_templates();
         }
@@ -850,9 +823,7 @@ impl AutoScopedParser {
             .collect()
     }
 
-    /// Get or create a parser for the given source, enforcing the max_sources limit.
-    /// When at capacity and a new source arrives, the least-recently-seen source
-    /// is evicted to make room.
+    /// Get or create a parser for the given source, using LRU eviction when at capacity.
     fn get_or_create_parser(
         &mut self,
         source: SocketAddr,
@@ -862,26 +833,28 @@ impl AutoScopedParser {
         let is_new = match &scoping {
             ScopingInfo::IPFix {
                 observation_domain_id,
-            } => !self.ipfix_parsers.contains_key(&IpfixSourceKey {
+            } => !self.ipfix_parsers.contains(&IpfixSourceKey {
                 addr: source,
                 observation_domain_id: *observation_domain_id,
             }),
-            ScopingInfo::V9 { source_id } => !self.v9_parsers.contains_key(&V9SourceKey {
+            ScopingInfo::V9 { source_id } => !self.v9_parsers.contains(&V9SourceKey {
                 addr: source,
                 source_id: *source_id,
             }),
-            ScopingInfo::Legacy => !self.legacy_parsers.contains_key(&source),
+            ScopingInfo::Legacy => !self.legacy_parsers.contains(&source),
             ScopingInfo::Unknown => false, // malformed packets don't create sources
         };
 
-        // When at capacity with a new source, evict the oldest instead of rejecting.
+        // When at capacity with a new source, evict the LRU entry from the
+        // appropriate cache. Each cache has its own capacity managed by LRU,
+        // but we also enforce a total cross-cache limit.
         if is_new && self.source_count() >= self.max_sources {
-            self.evict_oldest();
+            self.evict_global_lru();
         }
 
         let builder = self.parser_builder.as_ref();
         let now = Instant::now();
-        let (parser, last_seen) = match scoping {
+        match scoping {
             ScopingInfo::IPFix {
                 observation_domain_id,
             } => {
@@ -889,55 +862,89 @@ impl AutoScopedParser {
                     addr: source,
                     observation_domain_id,
                 };
-                match self.ipfix_parsers.entry(key) {
-                    std::collections::hash_map::Entry::Occupied(e) => {
-                        let entry = e.into_mut();
-                        (&mut entry.0, &mut entry.1)
-                    }
-                    std::collections::hash_map::Entry::Vacant(e) => {
-                        let entry = e.insert((Self::build_parser(builder)?, now));
-                        (&mut entry.0, &mut entry.1)
-                    }
+                if !self.ipfix_parsers.contains(&key) {
+                    let parser = Self::build_parser(builder)?;
+                    self.ipfix_parsers.push(key, (parser, now));
                 }
+                let (parser, last_seen) =
+                    self.ipfix_parsers.get_mut(&key).expect("just ensured");
+                *last_seen = now;
+                Ok(parser)
             }
             ScopingInfo::V9 { source_id } => {
                 let key = V9SourceKey {
                     addr: source,
                     source_id,
                 };
-                match self.v9_parsers.entry(key) {
-                    std::collections::hash_map::Entry::Occupied(e) => {
-                        let entry = e.into_mut();
-                        (&mut entry.0, &mut entry.1)
-                    }
-                    std::collections::hash_map::Entry::Vacant(e) => {
-                        let entry = e.insert((Self::build_parser(builder)?, now));
-                        (&mut entry.0, &mut entry.1)
-                    }
+                if !self.v9_parsers.contains(&key) {
+                    let parser = Self::build_parser(builder)?;
+                    self.v9_parsers.push(key, (parser, now));
                 }
+                let (parser, last_seen) = self.v9_parsers.get_mut(&key).expect("just ensured");
+                *last_seen = now;
+                Ok(parser)
             }
-            ScopingInfo::Legacy => match self.legacy_parsers.entry(source) {
-                std::collections::hash_map::Entry::Occupied(e) => {
-                    let entry = e.into_mut();
-                    (&mut entry.0, &mut entry.1)
+            ScopingInfo::Legacy => {
+                if !self.legacy_parsers.contains(&source) {
+                    let parser = Self::build_parser(builder)?;
+                    self.legacy_parsers.push(source, (parser, now));
                 }
-                std::collections::hash_map::Entry::Vacant(e) => {
-                    let entry = e.insert((Self::build_parser(builder)?, now));
-                    (&mut entry.0, &mut entry.1)
-                }
-            },
+                let (parser, last_seen) =
+                    self.legacy_parsers.get_mut(&source).expect("just ensured");
+                *last_seen = now;
+                Ok(parser)
+            }
             ScopingInfo::Unknown => {
                 // Don't create parser instances for malformed/truncated packets.
                 // This prevents source-slot exhaustion attacks where spoofed
                 // truncated packets fill the parser pool and evict legitimate entries.
-                return Err(crate::NetflowError::Incomplete {
+                Err(crate::NetflowError::Incomplete {
                     available: data.len(),
                     context: "packet too short or unrecognized version for scoping".into(),
-                });
+                })
             }
-        };
-        *last_seen = now;
-        Ok(parser)
+        }
+    }
+
+    /// Evict the globally least-recently-used entry across all three caches.
+    /// Uses O(1) peek at the LRU entry of each cache, then pops from the oldest.
+    fn evict_global_lru(&mut self) {
+        let ipfix_ts = self.ipfix_parsers.peek_lru().map(|(_, (_, ts))| *ts);
+        let v9_ts = self.v9_parsers.peek_lru().map(|(_, (_, ts))| *ts);
+        let legacy_ts = self.legacy_parsers.peek_lru().map(|(_, (_, ts))| *ts);
+
+        // Find which cache has the globally oldest LRU entry.
+        #[derive(Clone, Copy)]
+        enum MapKind {
+            Ipfix,
+            V9,
+            Legacy,
+        }
+
+        let candidates = [
+            ipfix_ts.map(|ts| (MapKind::Ipfix, ts)),
+            v9_ts.map(|ts| (MapKind::V9, ts)),
+            legacy_ts.map(|ts| (MapKind::Legacy, ts)),
+        ];
+
+        let oldest = candidates
+            .iter()
+            .flatten()
+            .min_by_key(|(_, ts)| *ts)
+            .map(|(kind, _)| *kind);
+
+        match oldest {
+            Some(MapKind::Ipfix) => {
+                self.ipfix_parsers.pop_lru();
+            }
+            Some(MapKind::V9) => {
+                self.v9_parsers.pop_lru();
+            }
+            Some(MapKind::Legacy) => {
+                self.legacy_parsers.pop_lru();
+            }
+            None => {}
+        }
     }
 
     /// Create a new parser instance using the configured builder or default
@@ -1226,7 +1233,7 @@ mod tests {
         assert!(result.is_err());
     }
 
-    // Verify RouterScopedParser evicts oldest source when at capacity
+    // Verify RouterScopedParser evicts LRU source when at capacity
     #[test]
     fn test_router_scoped_evicts_oldest() {
         let mut scoped = RouterScopedParser::<String>::new()
@@ -1241,7 +1248,7 @@ mod tests {
         let _ = scoped.parse_from_source("B".to_string(), &data);
         assert_eq!(scoped.source_count(), 2);
 
-        // Add source C — should evict the oldest (A, since it was seen first)
+        // Add source C — should evict the LRU (A, since it was used first)
         let _ = scoped.parse_from_source("C".to_string(), &data);
         assert_eq!(scoped.source_count(), 2);
         // A should be gone, B and C should remain
@@ -1250,7 +1257,7 @@ mod tests {
         assert!(scoped.get_parser(&"C".to_string()).is_some());
     }
 
-    // Verify AutoScopedParser evicts oldest source when at capacity
+    // Verify AutoScopedParser evicts LRU source when at capacity
     #[test]
     fn test_auto_scoped_evicts_oldest() {
         let mut parser = AutoScopedParser::new().with_max_sources(2).expect("valid");
@@ -1267,7 +1274,7 @@ mod tests {
         }
         assert_eq!(parser.source_count(), 2);
 
-        // Add a 3rd source — should evict the oldest
+        // Add a 3rd source — should evict the LRU
         let mut data = vec![0u8; 16];
         data[0] = 0x00;
         data[1] = 0x0A;

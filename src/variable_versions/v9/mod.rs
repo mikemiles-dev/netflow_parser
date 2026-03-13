@@ -167,14 +167,24 @@ pub struct TemplateField {
     pub field_length: u16,
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(template: &OptionsTemplate))]
+/// Default record limit for `OptionsData::parse` to prevent unbounded allocation.
+const OPTIONS_DATA_DEFAULT_LIMIT: usize = 10_000;
+
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct OptionsData {
-    #[nom(Parse = "{ many0(complete( |i| OptionsDataFields::parse(i, template))) } ")]
     pub fields: Vec<OptionsDataFields>,
 }
 
 impl OptionsData {
+    /// Parse options data records with a default record limit.
+    ///
+    /// Applies [`OPTIONS_DATA_DEFAULT_LIMIT`] to prevent unbounded allocation
+    /// from malicious or malformed input. Use [`parse_with_limit`](Self::parse_with_limit)
+    /// for a custom limit.
+    pub fn parse<'a>(i: &'a [u8], template: &OptionsTemplate) -> nom::IResult<&'a [u8], Self> {
+        Self::parse_with_limit(i, template, OPTIONS_DATA_DEFAULT_LIMIT)
+    }
+
     /// Parse options data records with a configurable maximum record limit.
     pub(crate) fn parse_with_limit<'a>(
         i: &'a [u8],
@@ -266,6 +276,5 @@ pub struct FlowSetParser;
 
 pub struct FieldParser;
 
-// Nom-derive needs many0 and complete in scope for OptionsData parsing
+// complete is needed by OptionsData::parse_with_limit
 use nom::combinator::complete;
-use nom::multi::many0;

@@ -24,6 +24,7 @@ use variable_versions::v9::{V9, V9Parser};
 
 use nom_derive::{Nom, Parse};
 use serde::Serialize;
+use std::sync::Arc;
 
 // Re-export scoped parser types for convenience
 pub use scoped_parser::{
@@ -614,7 +615,7 @@ impl NetflowParserBuilder {
     pub fn register_enterprise_field(mut self, def: EnterpriseFieldDef) -> Self {
         // Enterprise fields are only used by the IPFIX parser; V9 does not
         // support enterprise bit fields.
-        self.ipfix_config.enterprise_registry.register(def);
+        Arc::make_mut(&mut self.ipfix_config.enterprise_registry).register(def);
         self
     }
 
@@ -650,7 +651,7 @@ impl NetflowParserBuilder {
         // Enterprise fields are only used by the IPFIX parser; V9 does not
         // support enterprise bit fields.
         for def in defs.into_iter() {
-            self.ipfix_config.enterprise_registry.register(def);
+            Arc::make_mut(&mut self.ipfix_config.enterprise_registry).register(def);
         }
 
         self

@@ -44,7 +44,7 @@ expression: fields
 - TotalBytesExp
 - TotalPktsExp
 - TotalFlowsExp
-- Vendor
+- Vendor: 43
 - Ipv4SrcPrefix
 - Ipv4DstPrefix
 - MplsTopLabelType
@@ -52,7 +52,7 @@ expression: fields
 - FlowSamplerId
 - FlowSamplerMode
 - FlowSamplerRandomInterval
-- Vendor
+- Vendor: 51
 - MinTtl
 - MaxTtl
 - Ipv4Ident
@@ -66,11 +66,11 @@ expression: fields
 - Ipv6NextHop
 - BgpIpv6NextHop
 - Ipv6OptionHeaders
-- Vendor
-- Vendor
-- Vendor
-- Vendor
-- Vendor
+- Vendor: 65
+- Vendor: 66
+- Vendor: 67
+- Vendor: 68
+- Vendor: 69
 - MplsLabel1
 - MplsLabel2
 - MplsLabel3
@@ -88,7 +88,7 @@ expression: fields
 - SamplerName
 - InPermanentBytes
 - InPermanentPkts
-- Vendor
+- Vendor: 87
 - FragmentOffset
 - ForwardingStatus
 - MplsPalRd
@@ -98,37 +98,37 @@ expression: fields
 - ApplicationDescription
 - ApplicationTag
 - ApplicationName
-- Unknown
+- Unknown: 97
 - PostipDiffServCodePoint
 - Replicationfactor
 - Deprecated
-- Unknown
+- Unknown: 101
 - Layer2packetSectionOffset
 - Layer2packetSectionSize
 - Layer2packetSectionData
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
+- Unknown: 105
+- Unknown: 106
+- Unknown: 107
+- Unknown: 108
+- Unknown: 109
+- Unknown: 110
+- Unknown: 111
+- Unknown: 112
+- Unknown: 113
+- Unknown: 114
+- Unknown: 115
+- Unknown: 116
+- Unknown: 117
+- Unknown: 118
+- Unknown: 119
+- Unknown: 120
+- Unknown: 121
+- Unknown: 122
+- Unknown: 123
+- Unknown: 124
+- Unknown: 125
+- Unknown: 126
+- Unknown: 127
 - BgpNextAdjacentAsNumber
 - BgpPrevAdjacentAsNumber
 - ExporterIpv4Address
@@ -181,106 +181,106 @@ expression: fields
 - IcmpCodeValue
 - IcmpIpv6TypeValue
 - IcmpIpv6CodeValue
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
+- Unknown: 180
+- Unknown: 181
+- Unknown: 182
+- Unknown: 183
+- Unknown: 184
+- Unknown: 185
+- Unknown: 186
+- Unknown: 187
+- Unknown: 188
+- Unknown: 189
+- Unknown: 190
+- Unknown: 191
+- Unknown: 192
+- Unknown: 193
+- Unknown: 194
+- Unknown: 195
+- Unknown: 196
+- Unknown: 197
+- Unknown: 198
+- Unknown: 199
+- Unknown: 200
+- Unknown: 201
+- Unknown: 202
+- Unknown: 203
+- Unknown: 204
+- Unknown: 205
+- Unknown: 206
+- Unknown: 207
+- Unknown: 208
+- Unknown: 209
+- Unknown: 210
+- Unknown: 211
+- Unknown: 212
+- Unknown: 213
+- Unknown: 214
+- Unknown: 215
+- Unknown: 216
+- Unknown: 217
+- Unknown: 218
+- Unknown: 219
+- Unknown: 220
+- Unknown: 221
+- Unknown: 222
+- Unknown: 223
+- Unknown: 224
 - PostNATSourceIPv4Address
 - PostNATDestinationIPv4Address
 - PostNATTSourceTransportPort
 - PostNATTDestinationTransportPort
-- Unknown
+- Unknown: 229
 - NatEvent
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
-- Unknown
+- Unknown: 231
+- Unknown: 232
+- Unknown: 233
+- Unknown: 234
+- Unknown: 235
+- Unknown: 236
+- Unknown: 237
+- Unknown: 238
+- Unknown: 239
+- Unknown: 240
+- Unknown: 241
+- Unknown: 242
+- Unknown: 243
+- Unknown: 244
+- Unknown: 245
+- Unknown: 246
+- Unknown: 247
+- Unknown: 248
+- Unknown: 249
+- Unknown: 250
+- Unknown: 251
+- Unknown: 252
+- Unknown: 253
+- Unknown: 254
+- Unknown: 255
+- Unknown: 256
+- Unknown: 257
+- Unknown: 258
+- Unknown: 259
+- Unknown: 260
+- Unknown: 261
+- Unknown: 262
+- Unknown: 263
+- Unknown: 264
+- Unknown: 265
+- Unknown: 266
+- Unknown: 267
+- Unknown: 268
+- Unknown: 269
+- Unknown: 270
+- Unknown: 271
+- Unknown: 272
+- Unknown: 273
+- Unknown: 274
+- Unknown: 275
+- Unknown: 276
+- Unknown: 277
+- Unknown: 278
+- Unknown: 279
+- Unknown: 280
 - PostNATSourceIpv6Address
 - PostNATDestinationIpv6Address

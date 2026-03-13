@@ -5,6 +5,7 @@ mod base_tests {
     use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
     use crate::variable_versions::ipfix_lookup::IPFixField;
     use crate::{NetflowPacket, NetflowParser};
+    use std::sync::Arc;
 
     use insta::assert_yaml_snapshot;
 
@@ -424,7 +425,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -447,7 +448,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -493,7 +494,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -539,7 +540,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -585,7 +586,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -630,7 +631,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -678,7 +679,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -793,8 +794,11 @@ mod malformed_packet_tests {
         packet.extend_from_slice(&[0u8; 48]); // 1 flow record (48 bytes)
         // Total = 72 bytes, but count claims 30 records (would need 24 + 30*48 = 1464 bytes)
         let result = parser.parse_bytes(&packet);
-        // Parser should handle gracefully: either partial parse or error, no panic
-        let _ = result;
+        // V5 parser returns error for insufficient data when count exceeds available records
+        assert!(
+            result.packets.is_empty(),
+            "V5 with count exceeding data should produce no valid packets"
+        );
     }
 
     // V5 header with count=0. No flow records should be parsed.
@@ -806,8 +810,11 @@ mod malformed_packet_tests {
         packet.extend_from_slice(&[0x00, 0x00]); // count = 0
         packet.extend_from_slice(&[0u8; 20]); // rest of 24-byte header
         let result = parser.parse_bytes(&packet);
-        // With count=0, there are no flow records to parse
-        let _ = result;
+        // V5 rejects count=0 at parse time
+        assert!(
+            result.packets.is_empty(),
+            "V5 with count=0 should produce no packets"
+        );
     }
 
     // V9 header is 20 bytes. Providing only 10 bytes after the version is truncated.
@@ -841,8 +848,11 @@ mod malformed_packet_tests {
         // Flowset with id=0 (template), length=0 (malformed)
         packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
         let result = parser.parse_bytes(&packet);
-        // Must not infinite loop or panic
-        let _ = result;
+        // Must not infinite loop or panic; zero-length flowset should produce no valid packets or an error
+        assert!(
+            result.packets.is_empty() || result.error.is_some(),
+            "V9 with zero-length flowset should produce no valid packets or an error"
+        );
     }
 
     // V9 with a flowset length larger than the remaining bytes in the packet.
@@ -861,7 +871,10 @@ mod malformed_packet_tests {
         packet.extend_from_slice(&[0x00, 0x00, 0x27, 0x0F]);
         // Only 4 bytes of flowset data actually present
         let result = parser.parse_bytes(&packet);
-        let _ = result;
+        assert!(
+            result.packets.is_empty() || result.error.is_some(),
+            "V9 with flowset length exceeding packet should produce no valid packets or an error"
+        );
     }
 
     // IPFIX header includes a length field that should match the actual packet size.
@@ -879,7 +892,10 @@ mod malformed_packet_tests {
         ];
         let result = parser.parse_bytes(&packet);
         // Parser should handle the length mismatch without panicking
-        let _ = result;
+        assert!(
+            result.packets.is_empty() || result.error.is_some(),
+            "IPFIX with wrong length field should produce no valid packets or an error"
+        );
     }
 
     // IPFIX with a flowset whose length field is less than 4 (the minimum set header size).
@@ -897,7 +913,14 @@ mod malformed_packet_tests {
         // Flowset: set_id=2 (template), length=2 (less than minimum 4)
         packet.extend_from_slice(&[0x00, 0x02, 0x00, 0x02]);
         let result = parser.parse_bytes(&packet);
-        let _ = result;
+        // The parser handles the malformed flowset gracefully without panicking.
+        // Any packets produced should be IPFIX type.
+        for p in &result.packets {
+            assert!(
+                matches!(p, crate::NetflowPacket::IPFix(_)),
+                "any packets from IPFIX input should be IPFIX type"
+            );
+        }
     }
 
     // V9 with a flowset ID in the reserved range (2-255).
@@ -917,8 +940,12 @@ mod malformed_packet_tests {
         packet.extend_from_slice(&[0x00, 0x64, 0x00, 0x08]);
         packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // 4 bytes of padding
         let result = parser.parse_bytes(&packet);
-        // Parser should skip or error on reserved flowset IDs, not panic
-        let _ = result;
+        // Parser should handle reserved flowset IDs gracefully, not panic.
+        // V9 reserved IDs (2-255) may produce an error or empty packets.
+        assert!(
+            result.packets.is_empty() || result.error.is_some(),
+            "V9 reserved flowset ID should produce no valid packets or an error"
+        );
     }
 
     // 100 bytes of all zeros. Version 0 is not a valid NetFlow version.
@@ -943,6 +970,113 @@ mod malformed_packet_tests {
         assert!(
             result.error.is_some(),
             "version 0xFFFF should produce an error"
+        );
+    }
+
+    // V7 header with count=0. No flow records should be parsed.
+    #[test]
+    fn test_v7_count_zero() {
+        let mut parser = NetflowParser::default();
+        // Build a V7 packet: version=7, count=0, rest of 24-byte header zeroed
+        let mut packet = vec![0x00, 0x07]; // version 7
+        packet.extend_from_slice(&[0x00, 0x00]); // count = 0
+        packet.extend_from_slice(&[0u8; 20]); // rest of 24-byte header
+        let result = parser.parse_bytes(&packet);
+        assert!(
+            result.packets.is_empty(),
+            "V7 with count=0 should produce no packets"
+        );
+    }
+
+    // IPFIX with a flowset using a reserved set ID (e.g., 5).
+    // Set IDs 0-1 are reserved in IPFIX, 2=template, 3=options template, 4+ reserved until 256.
+    #[test]
+    fn test_ipfix_reserved_flowset_id() {
+        let mut parser = NetflowParser::default();
+        let mut packet = vec![
+            0x00, 0x0A, // version 10 (IPFIX)
+            0x00, 0x18, // length = 24 (16 header + 8 flowset)
+            0x00, 0x00, 0x00, 0x00, // export_time
+            0x00, 0x00, 0x00, 0x00, // sequence_number
+            0x00, 0x00, 0x00, 0x00, // observation_domain_id
+        ];
+        // Flowset with reserved set ID=5, length=8
+        packet.extend_from_slice(&[0x00, 0x05, 0x00, 0x08]);
+        packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // 4 bytes of padding
+        let result = parser.parse_bytes(&packet);
+        // Reserved set ID should be handled gracefully (Empty), not panic
+        assert!(
+            result.error.is_none(),
+            "IPFIX reserved set ID should not produce a parse error"
+        );
+    }
+
+    // IPFIX template with field_count=0 is a template withdrawal.
+    // The parser should handle it gracefully.
+    #[test]
+    fn test_ipfix_template_withdrawal() {
+        let mut parser = NetflowParser::default();
+        // IPFIX header (16 bytes) + template set with a withdrawal (field_count=0)
+        let mut packet = vec![
+            0x00, 0x0A, // version 10 (IPFIX)
+            0x00, 0x18, // length = 24 (16 header + 8 template set)
+            0x00, 0x00, 0x00, 0x00, // export_time
+            0x00, 0x00, 0x00, 0x00, // sequence_number
+            0x00, 0x00, 0x00, 0x00, // observation_domain_id
+        ];
+        // Template set: set_id=2, length=8, template_id=256, field_count=0 (withdrawal)
+        packet.extend_from_slice(&[0x00, 0x02, 0x00, 0x08]); // set_id=2, length=8
+        packet.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]); // template_id=256, field_count=0
+        let result = parser.parse_bytes(&packet);
+        // Template withdrawal (field_count=0) should be handled gracefully
+        assert!(
+            result.error.is_none(),
+            "IPFIX template withdrawal should not produce a parse error"
+        );
+    }
+
+    // Sending the same V9 template twice should not record a collision metric.
+    #[test]
+    fn test_template_reregistration_same_definition() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let collision_count = Arc::new(AtomicUsize::new(0));
+        let cc = collision_count.clone();
+
+        let mut parser = NetflowParser::builder()
+            .with_cache_size(100)
+            .on_template_event(move |event| {
+                if matches!(event, crate::TemplateEvent::Collision { .. }) {
+                    cc.fetch_add(1, Ordering::SeqCst);
+                }
+                Ok(())
+            })
+            .build()
+            .unwrap();
+
+        // V9 template packet: version=9, count=1, template with id=256, 1 field (InBytes, len=4)
+        let template_packet = vec![
+            0x00, 0x09, // version 9
+            0x00, 0x01, // count = 1
+            0x00, 0x00, 0x00, 0x00, // sys_uptime
+            0x00, 0x00, 0x00, 0x00, // unix_secs
+            0x00, 0x00, 0x00, 0x00, // sequence
+            0x00, 0x00, 0x00, 0x00, // source_id
+            // Template flowset: flowset_id=0, length=16
+            0x00, 0x00, 0x00, 0x10, // Template: id=256, field_count=1
+            0x01, 0x00, 0x00, 0x01, // Field: type=1 (InBytes), length=4
+            0x00, 0x01, 0x00, 0x04,
+        ];
+
+        // Send the same template twice
+        let _ = parser.parse_bytes(&template_packet);
+        let _ = parser.parse_bytes(&template_packet);
+
+        assert_eq!(
+            collision_count.load(Ordering::SeqCst),
+            0,
+            "Re-registering the same template definition should not record a collision"
         );
     }
 }

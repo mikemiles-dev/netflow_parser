@@ -56,7 +56,7 @@ impl Default for V9Parser {
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -293,47 +293,55 @@ impl V9Parser {
         template_id: u16,
         entry: &PendingFlowEntry,
     ) -> bool {
-        // Try regular template
-        if let Some(template) = crate::variable_versions::get_valid_template(
+        // Try regular template (peek to avoid false LRU promotion on failed parse)
+        if let Some(template) = crate::variable_versions::peek_valid_template(
             &mut self.templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) =
-            Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
-        {
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    flowset_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
-                },
-                body: FlowSetBody::Data(data),
-            });
-            return true;
+        ) {
+            if let Ok((_, data)) =
+                Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
+            {
+                self.metrics.record_hit();
+                self.templates.promote(&template_id);
+                flowsets.push(FlowSet {
+                    header: FlowSetHeader {
+                        flowset_id: template_id,
+                        length: u16::try_from(entry.raw_data.len())
+                            .unwrap_or(u16::MAX)
+                            .saturating_add(4),
+                    },
+                    body: FlowSetBody::Data(data),
+                });
+                return true;
+            }
         }
-        // Try options template
-        if let Some(template) = crate::variable_versions::get_valid_template(
+        // Try options template (peek to avoid false LRU promotion on failed parse)
+        if let Some(template) = crate::variable_versions::peek_valid_template(
             &mut self.options_templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, options_data)) = OptionsData::parse_with_limit(
-            &entry.raw_data,
-            &template,
-            self.max_records_per_flowset,
         ) {
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    flowset_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
-                },
-                body: FlowSetBody::OptionsData(options_data),
-            });
-            return true;
+            if let Ok((_, options_data)) = OptionsData::parse_with_limit(
+                &entry.raw_data,
+                &template,
+                self.max_records_per_flowset,
+            ) {
+                self.metrics.record_hit();
+                self.options_templates.promote(&template_id);
+                flowsets.push(FlowSet {
+                    header: FlowSetHeader {
+                        flowset_id: template_id,
+                        length: u16::try_from(entry.raw_data.len())
+                            .unwrap_or(u16::MAX)
+                            .saturating_add(4),
+                    },
+                    body: FlowSetBody::OptionsData(options_data),
+                });
+                return true;
+            }
         }
         false
     }
@@ -709,7 +717,7 @@ impl ScopeDataField {
             ScopeFieldType::LineCard => Ok((new_input, ScopeDataField::LineCard(buf))),
             ScopeFieldType::NetflowCache => Ok((new_input, ScopeDataField::NetFlowCache(buf))),
             ScopeFieldType::Template => Ok((new_input, ScopeDataField::Template(buf))),
-            ScopeFieldType::Unknown => Ok((
+            ScopeFieldType::Unknown(_) => Ok((
                 new_input,
                 ScopeDataField::Unknown(template_field.field_type_number, buf),
             )),
@@ -723,8 +731,10 @@ impl FlowSetParser {
         parser: &mut V9Parser,
         record_count: u16,
     ) -> IResult<&'a [u8], Vec<FlowSet>> {
+        // Cap pre-allocation to avoid memory amplification from untrusted header.count
+        let cap = (record_count as usize).min(64);
         let (remaining, flowsets) = (0..record_count).try_fold(
-            (i, Vec::with_capacity(record_count as usize)),
+            (i, Vec::with_capacity(cap)),
             |(remaining, mut flowsets), _| {
                 if remaining.is_empty() {
                     return Ok((remaining, flowsets));

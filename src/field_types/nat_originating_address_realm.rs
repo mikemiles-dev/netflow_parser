@@ -26,6 +26,16 @@ impl NatOriginatingAddressRealm {
     }
 }
 
+impl std::fmt::Display for NatOriginatingAddressRealm {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NatOriginatingAddressRealm::Private => write!(f, "Private"),
+            NatOriginatingAddressRealm::Public => write!(f, "Public"),
+            NatOriginatingAddressRealm::Unknown(v) => write!(f, "Unknown({v})"),
+        }
+    }
+}
+
 impl From<u8> for NatOriginatingAddressRealm {
     fn from(value: u8) -> Self {
         match value {

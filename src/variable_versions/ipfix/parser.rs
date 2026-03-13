@@ -44,7 +44,7 @@ impl Default for IPFixParser {
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -319,96 +319,117 @@ impl IPFixParser {
         template_id: u16,
         entry: &PendingFlowEntry,
     ) -> bool {
+        // Use peek_valid_template to avoid false LRU promotion on failed parse.
+        // Promote only after successful replay.
+
         // Try IPFIX templates
-        if let Some(template) = crate::variable_versions::get_valid_template(
+        if let Some(template) = crate::variable_versions::peek_valid_template(
             &mut self.templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = Data::parse_with_registry(
-            &entry.raw_data,
-            &template,
-            &self.enterprise_registry,
-            self.max_records_per_flowset,
         ) {
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
-                },
-                body: FlowSetBody::Data(data),
-            });
-            return true;
+            if let Ok((_, data)) = Data::parse_with_registry(
+                &entry.raw_data,
+                &template,
+                &self.enterprise_registry,
+                self.max_records_per_flowset,
+            ) {
+                self.metrics.record_hit();
+                self.templates.promote(&template_id);
+                flowsets.push(FlowSet {
+                    header: FlowSetHeader {
+                        header_id: template_id,
+                        length: u16::try_from(entry.raw_data.len())
+                            .unwrap_or(u16::MAX)
+                            .saturating_add(4),
+                    },
+                    body: FlowSetBody::Data(data),
+                });
+                return true;
+            }
         }
 
         // Try IPFIX options templates
-        if let Some(template) = crate::variable_versions::get_valid_template(
+        if let Some(template) = crate::variable_versions::peek_valid_template(
             &mut self.ipfix_options_templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = OptionsData::parse_with_registry(
-            &entry.raw_data,
-            &template,
-            &self.enterprise_registry,
-            self.max_records_per_flowset,
         ) {
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
-                },
-                body: FlowSetBody::OptionsData(data),
-            });
-            return true;
+            if let Ok((_, data)) = OptionsData::parse_with_registry(
+                &entry.raw_data,
+                &template,
+                &self.enterprise_registry,
+                self.max_records_per_flowset,
+            ) {
+                self.metrics.record_hit();
+                self.ipfix_options_templates.promote(&template_id);
+                flowsets.push(FlowSet {
+                    header: FlowSetHeader {
+                        header_id: template_id,
+                        length: u16::try_from(entry.raw_data.len())
+                            .unwrap_or(u16::MAX)
+                            .saturating_add(4),
+                    },
+                    body: FlowSetBody::OptionsData(data),
+                });
+                return true;
+            }
         }
 
         // Try V9 templates
-        if let Some(template) = crate::variable_versions::get_valid_template(
+        if let Some(template) = crate::variable_versions::peek_valid_template(
             &mut self.v9_templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) =
-            V9Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
-        {
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
-                },
-                body: FlowSetBody::V9Data(data),
-            });
-            return true;
+        ) {
+            if let Ok((_, data)) = V9Data::parse_with_limit(
+                &entry.raw_data,
+                &template,
+                self.max_records_per_flowset,
+            ) {
+                self.metrics.record_hit();
+                self.v9_templates.promote(&template_id);
+                flowsets.push(FlowSet {
+                    header: FlowSetHeader {
+                        header_id: template_id,
+                        length: u16::try_from(entry.raw_data.len())
+                            .unwrap_or(u16::MAX)
+                            .saturating_add(4),
+                    },
+                    body: FlowSetBody::V9Data(data),
+                });
+                return true;
+            }
         }
 
         // Try V9 options templates
-        if let Some(template) = crate::variable_versions::get_valid_template(
+        if let Some(template) = crate::variable_versions::peek_valid_template(
             &mut self.v9_options_templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = V9OptionsData::parse_with_limit(
-            &entry.raw_data,
-            &template,
-            self.max_records_per_flowset,
         ) {
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
-                },
-                body: FlowSetBody::V9OptionsData(data),
-            });
-            return true;
+            if let Ok((_, data)) = V9OptionsData::parse_with_limit(
+                &entry.raw_data,
+                &template,
+                self.max_records_per_flowset,
+            ) {
+                self.metrics.record_hit();
+                self.v9_options_templates.promote(&template_id);
+                flowsets.push(FlowSet {
+                    header: FlowSetHeader {
+                        header_id: template_id,
+                        length: u16::try_from(entry.raw_data.len())
+                            .unwrap_or(u16::MAX)
+                            .saturating_add(4),
+                    },
+                    body: FlowSetBody::V9OptionsData(data),
+                });
+                return true;
+            }
         }
 
         false
@@ -697,6 +718,14 @@ impl FlowSetBody {
             ),
             // Parse Data
             _ => {
+                // NOTE: Template ID collision across cache types is possible and
+                // expected when both IPFIX and V9-style templates coexist in
+                // the same parser (the IPFIX parser accepts both flavors).
+                // The lookup order below defines priority: IPFIX templates >
+                // IPFIX options > V9 templates > V9 options. If the same
+                // template ID appears in multiple caches, only the first
+                // match is used and others are silently shadowed.
+
                 // Try IPFix templates
                 if let Some(template) = crate::variable_versions::get_valid_template(
                     &mut parser.templates,
@@ -789,7 +818,7 @@ impl FlowSetBody {
                         raw_data,
                         truncated,
                     };
-                    Ok((i, FlowSetBody::NoTemplate(info)))
+                    Ok((&[] as &[u8], FlowSetBody::NoTemplate(info)))
                 } else {
                     // Set IDs 4-255 are reserved per RFC 7011; skip gracefully
                     Ok((&[] as &[u8], FlowSetBody::Empty))

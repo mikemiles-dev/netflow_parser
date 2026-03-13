@@ -132,9 +132,11 @@ fn test_pcap_template_caching() {
     let template_ids = parser.ipfix_template_ids();
 
     // IPFIX.pcap should have templates
-    if ipfix_stats.current_size > 0 {
-        assert!(!template_ids.is_empty(), "Should have cached template IDs");
-    }
+    assert!(
+        ipfix_stats.current_size > 0,
+        "IPFIX pcap should produce cached templates"
+    );
+    assert!(!template_ids.is_empty(), "Should have cached template IDs");
 }
 
 // Verify that cache metrics (hits, misses) are recorded when parsing pcap traffic
@@ -173,12 +175,12 @@ fn test_pcap_cache_metrics() {
     let ipfix_stats = parser.ipfix_cache_stats();
     let metrics = &ipfix_stats.metrics;
 
-    // If we parsed templates and data, we should have some cache activity
+    // If we cached templates, we should have some cache lookup activity
     if ipfix_stats.current_size > 0 {
         let total_lookups = metrics.hits + metrics.misses;
         assert!(
-            total_lookups > 0 || metrics.hits == 0,
-            "Should have some cache activity"
+            total_lookups > 0,
+            "Should have cache lookups when templates are cached"
         );
     }
 }
