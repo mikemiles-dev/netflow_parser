@@ -704,6 +704,7 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
+                    parser.metrics.record_hit();
                     if template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     }
@@ -723,6 +724,7 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
+                    parser.metrics.record_hit();
                     if template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     }
@@ -742,6 +744,7 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
+                    parser.metrics.record_hit();
                     let (i, data) =
                         V9Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
                     return Ok((i, FlowSetBody::V9Data(data)));
@@ -754,6 +757,7 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
+                    parser.metrics.record_hit();
                     let (i, data) = V9OptionsData::parse_with_limit(
                         i,
                         &template,
@@ -762,11 +766,8 @@ impl FlowSetBody {
                     return Ok((i, FlowSetBody::V9OptionsData(data)));
                 }
 
-                // Template not found or expired.
-                // Note: record_miss() is called once per flowset (after checking
-                // all template caches), while record_hit() is called per-cache-lookup
-                // inside get_valid_template(). This asymmetry is intentional — one
-                // flowset lookup that fails all caches is semantically one miss.
+                // Template not found or expired — one miss per flowset,
+                // symmetric with one hit per flowset above.
                 parser.metrics.record_miss();
                 if id > 255 {
                     // Store full raw data only when the pending cache is
@@ -913,6 +914,7 @@ impl<'a> FieldParser {
                         i = remaining;
                     }
                     Err(_) => {
+                        i = before;
                         return Ok((i, res));
                     }
                 }

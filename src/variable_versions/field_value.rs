@@ -63,6 +63,7 @@ pub enum DataNumber {
     U128(u128),
     I128(i128),
     I32(i32),
+    Vec(Vec<u8>),
 }
 
 impl DataNumber {
@@ -87,6 +88,7 @@ impl DataNumber {
                 }
             }
             DataNumber::I128(n) => *n,
+            DataNumber::Vec(_) => 0,
         }
     }
 }
@@ -100,6 +102,10 @@ impl PartialOrd for DataNumber {
 impl Ord for DataNumber {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (self, other) {
+            // Vec variants sort after all numeric variants (lexicographic among themselves)
+            (DataNumber::Vec(a), DataNumber::Vec(b)) => a.cmp(b),
+            (DataNumber::Vec(_), _) => std::cmp::Ordering::Greater,
+            (_, DataNumber::Vec(_)) => std::cmp::Ordering::Less,
             (DataNumber::U128(a), DataNumber::U128(b)) => a.cmp(b),
             // U128 values beyond i128::MAX are greater than any other variant
             (DataNumber::U128(n), _) if *n > i128::MAX as u128 => std::cmp::Ordering::Greater,
@@ -299,7 +305,10 @@ impl DataNumber {
             (8, true) => Ok(i64::parse(i)?).map(|(i, j)| (i, Self::I64(j))),
             (16, false) => Ok(u128::parse(i)?).map(|(i, j)| (i, Self::U128(j))),
             (16, true) => Ok(i128::parse(i)?).map(|(i, j)| (i, Self::I128(j))),
-            _ => Err(NomErr::Error(NomError::new(i, ErrorKind::Fail))),
+            _ => {
+                let (i, bytes) = take(field_length)(i)?;
+                Ok((i, Self::Vec(bytes.to_vec())))
+            }
         }
     }
 
@@ -312,6 +321,7 @@ impl DataNumber {
             DataNumber::U32(_) | DataNumber::I32(_) => 4,
             DataNumber::U64(_) | DataNumber::I64(_) => 8,
             DataNumber::U128(_) | DataNumber::I128(_) => 16,
+            DataNumber::Vec(v) => v.len(),
         }
     }
 
@@ -342,6 +352,7 @@ impl DataNumber {
             DataNumber::U128(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::I32(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::I128(n) => buf.extend_from_slice(&n.to_be_bytes()),
+            DataNumber::Vec(v) => buf.extend_from_slice(v),
         }
         Ok(())
     }

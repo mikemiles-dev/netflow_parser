@@ -76,6 +76,10 @@ pub enum ConfigError {
         max_total_bytes: usize,
         max_entry_size_bytes: usize,
     },
+    /// max_sources must be greater than 0
+    InvalidMaxSources,
+    /// max_error_sample_size must be greater than 0
+    InvalidErrorSampleSize,
 }
 
 impl std::error::Error for ConfigError {}
@@ -158,6 +162,12 @@ impl std::fmt::Display for ConfigError {
                     max_total_bytes, max_entry_size_bytes
                 )
             }
+            ConfigError::InvalidMaxSources => {
+                write!(f, "Invalid max_sources: must be greater than 0.")
+            }
+            ConfigError::InvalidErrorSampleSize => {
+                write!(f, "Invalid max_error_sample_size: must be greater than 0.")
+            }
         }
     }
 }
@@ -233,6 +243,9 @@ pub trait ParserConfig: ParserFields {
         }
         if config.max_records_per_flowset == 0 {
             return Err(ConfigError::InvalidRecordsPerFlowset(0));
+        }
+        if config.max_error_sample_size == 0 {
+            return Err(ConfigError::InvalidErrorSampleSize);
         }
         if let Some(ref ttl) = config.ttl_config {
             if ttl.duration.is_zero() {

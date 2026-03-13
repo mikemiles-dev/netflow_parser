@@ -1,5 +1,7 @@
 use std::net::IpAddr;
 
+use serde::Serialize;
+
 use crate::NetflowPacket;
 use crate::protocol::ProtocolTypes;
 use crate::static_versions::{v5::V5, v7::V7};
@@ -13,14 +15,14 @@ use crate::variable_versions::{
 
 #[derive(Debug)]
 pub enum NetflowCommonError {
-    UnknownVersion(NetflowPacket),
+    UnknownVersion(u16),
 }
 
 impl std::fmt::Display for NetflowCommonError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NetflowCommonError::UnknownVersion(pkt) => {
-                write!(f, "unknown or unsupported NetFlow version: {:?}", pkt)
+            NetflowCommonError::UnknownVersion(version) => {
+                write!(f, "unknown or unsupported NetFlow version: {}", version)
             }
         }
     }
@@ -194,7 +196,7 @@ impl Default for IPFixFieldMappingConfig {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 /// Common structure for Netflow
 pub struct NetflowCommon {
     pub version: u16,
@@ -215,7 +217,7 @@ impl TryFrom<&NetflowPacket> for NetflowCommon {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 /// Common flow set structure for Netflow
 pub struct NetflowCommonFlowSet {
     /// Source IP address
@@ -230,9 +232,17 @@ pub struct NetflowCommonFlowSet {
     pub protocol_number: Option<u8>,
     /// IP protocol type itself
     pub protocol_type: Option<ProtocolTypes>,
-    /// Duration of the flow first (milliseconds)
+    /// Timestamp for when the flow was first seen.
+    /// For V5/V7: sysUpTime-relative value in milliseconds (i.e., milliseconds since
+    /// the router booted, as reported in the `first` field).
+    /// For V9/IPFIX: depends on the configured field mapping (e.g., FirstSwitched is
+    /// sysUpTime-relative milliseconds; flowStartMilliseconds is absolute epoch millis).
     pub first_seen: Option<u64>,
-    /// Duration of the flow last (milliseconds)
+    /// Timestamp for when the flow was last seen.
+    /// For V5/V7: sysUpTime-relative value in milliseconds (i.e., milliseconds since
+    /// the router booted, as reported in the `last` field).
+    /// For V9/IPFIX: depends on the configured field mapping (e.g., LastSwitched is
+    /// sysUpTime-relative milliseconds; flowEndMilliseconds is absolute epoch millis).
     pub last_seen: Option<u64>,
     /// Source MAC address
     pub src_mac: Option<String>,
@@ -365,6 +375,7 @@ fn extract_u8(v: &FieldValue) -> Option<u8> {
             DataNumber::I64(n) => u8::try_from(*n).ok(),
             DataNumber::U128(n) => u8::try_from(*n).ok(),
             DataNumber::I128(n) => u8::try_from(*n).ok(),
+            DataNumber::Vec(_) => None,
         },
         _ => None,
     }
@@ -387,6 +398,7 @@ fn extract_u16(v: &FieldValue) -> Option<u16> {
             DataNumber::I64(n) => u16::try_from(*n).ok(),
             DataNumber::U128(n) => u16::try_from(*n).ok(),
             DataNumber::I128(n) => u16::try_from(*n).ok(),
+            DataNumber::Vec(_) => None,
         },
         _ => None,
     }

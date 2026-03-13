@@ -170,6 +170,25 @@ impl PendingFlowCache {
         })
     }
 
+    /// Verify that `total_bytes` matches the actual sum of all entry sizes.
+    ///
+    /// This is a debug-only check to catch drift during development.
+    /// It has no runtime cost in release builds.
+    #[cfg(debug_assertions)]
+    fn debug_verify_total_bytes(&self) {
+        let actual: usize = self
+            .cache
+            .iter()
+            .flat_map(|(_, entries)| entries.iter())
+            .map(|e| e.raw_data.len())
+            .sum();
+        debug_assert_eq!(
+            self.total_bytes, actual,
+            "PendingFlowCache total_bytes drift: tracked={}, actual={}",
+            self.total_bytes, actual
+        );
+    }
+
     /// Cache a pending flow for later replay when its template arrives.
     ///
     /// Returns `None` if the entry was successfully cached.
@@ -260,6 +279,8 @@ impl PendingFlowCache {
         }
         self.total_bytes = self.total_bytes.saturating_add(entry_size);
         metrics.record_pending_cached();
+        #[cfg(debug_assertions)]
+        self.debug_verify_total_bytes();
         None
     }
 
@@ -276,7 +297,7 @@ impl PendingFlowCache {
         let popped_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
         self.total_bytes = self.total_bytes.saturating_sub(popped_bytes);
 
-        if let Some(ttl_duration) = self.config.ttl {
+        let result = if let Some(ttl_duration) = self.config.ttl {
             let (valid, expired): (Vec<_>, Vec<_>) = entries
                 .into_iter()
                 .partition(|e| e.cached_at.elapsed() < ttl_duration);
@@ -284,7 +305,10 @@ impl PendingFlowCache {
             valid
         } else {
             entries
-        }
+        };
+        #[cfg(debug_assertions)]
+        self.debug_verify_total_bytes();
+        result
     }
 
     /// Remove expired entries from a single template's vector.
@@ -389,6 +413,19 @@ impl PendingFlowCache {
         self.total_bytes = self.total_bytes.saturating_sub(freed);
         total_dropped = total_dropped.saturating_add(trimmed);
 
+        // Enforce new max_total_bytes by evicting LRU templates until within budget.
+        while self.total_bytes > config.max_total_bytes {
+            if let Some((_, evicted)) = self.cache.pop_lru() {
+                let evicted_bytes: usize = evicted.iter().map(|e| e.raw_data.len()).sum();
+                self.total_bytes = self.total_bytes.saturating_sub(evicted_bytes);
+                let n = evicted.len() as u64;
+                metrics.record_pending_dropped_n(n);
+                total_dropped = total_dropped.saturating_add(n);
+            } else {
+                break;
+            }
+        }
+
         self.config = config;
         Ok(total_dropped)
     }
@@ -420,10 +457,10 @@ impl PendingFlowCache {
             metrics.record_pending_dropped_n(size_dropped);
             dropped = dropped.saturating_add(size_dropped);
 
-            // Truncate to the new per-template cap (keep oldest = front).
+            // Truncate to the new per-template cap (keep newest = back).
             if entries.len() > config.max_entries_per_template {
                 let excess = (entries.len() - config.max_entries_per_template) as u64;
-                entries.truncate(config.max_entries_per_template);
+                entries.drain(..entries.len() - config.max_entries_per_template);
                 metrics.record_pending_dropped_n(excess);
                 dropped = dropped.saturating_add(excess);
             }
@@ -437,5 +474,263 @@ impl PendingFlowCache {
             }
         }
         (freed, dropped)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::variable_versions::metrics::CacheMetrics;
+
+    fn default_metrics() -> CacheMetrics {
+        CacheMetrics::default()
+    }
+
+    fn small_config(max_flows: usize) -> PendingFlowsConfig {
+        PendingFlowsConfig {
+            max_pending_flows: max_flows,
+            max_entries_per_template: 4,
+            max_entry_size_bytes: 128,
+            max_total_bytes: 1024,
+            ttl: None,
+        }
+    }
+
+    #[test]
+    fn test_cache_and_drain() {
+        let config = small_config(8);
+        let mut cache = PendingFlowCache::new(config).unwrap();
+        let mut metrics = default_metrics();
+
+        let data = vec![1u8, 2, 3, 4];
+        let result = cache.cache(100, data.clone(), &mut metrics);
+        assert!(result.is_none(), "entry should be accepted");
+        assert_eq!(cache.count(), 1);
+        assert_eq!(metrics.pending_cached, 1);
+
+        let drained = cache.drain(100, &mut metrics);
+        assert_eq!(drained.len(), 1);
+        assert_eq!(drained[0].raw_data, data);
+        assert_eq!(cache.count(), 0);
+    }
+
+    #[test]
+    fn test_max_entry_size() {
+        let config = PendingFlowsConfig {
+            max_pending_flows: 8,
+            max_entries_per_template: 4,
+            max_entry_size_bytes: 10,
+            max_total_bytes: 1024,
+            ttl: None,
+        };
+        let mut cache = PendingFlowCache::new(config).unwrap();
+        let mut metrics = default_metrics();
+
+        // Entry exceeding max_entry_size_bytes should be rejected
+        let big_data = vec![0u8; 11];
+        let result = cache.cache(100, big_data.clone(), &mut metrics);
+        assert!(result.is_some(), "oversized entry should be rejected");
+        assert_eq!(result.unwrap(), big_data);
+        assert_eq!(cache.count(), 0);
+        assert_eq!(metrics.pending_dropped, 1);
+    }
+
+    #[test]
+    fn test_per_template_cap() {
+        let config = PendingFlowsConfig {
+            max_pending_flows: 8,
+            max_entries_per_template: 2,
+            max_entry_size_bytes: 128,
+            max_total_bytes: 4096,
+            ttl: None,
+        };
+        let mut cache = PendingFlowCache::new(config).unwrap();
+        let mut metrics = default_metrics();
+
+        // Cache 2 entries for template 100 (at cap)
+        assert!(cache.cache(100, vec![1, 2], &mut metrics).is_none());
+        assert!(cache.cache(100, vec![3, 4], &mut metrics).is_none());
+        assert_eq!(cache.count(), 2);
+
+        // Third entry should be rejected
+        let result = cache.cache(100, vec![5, 6], &mut metrics);
+        assert!(
+            result.is_some(),
+            "should reject when per-template cap reached"
+        );
+        assert_eq!(cache.count(), 2);
+        assert_eq!(metrics.pending_dropped, 1);
+    }
+
+    #[test]
+    fn test_total_byte_limit() {
+        let config = PendingFlowsConfig {
+            max_pending_flows: 8,
+            max_entries_per_template: 100,
+            max_entry_size_bytes: 128,
+            max_total_bytes: 20,
+            ttl: None,
+        };
+        let mut cache = PendingFlowCache::new(config).unwrap();
+        let mut metrics = default_metrics();
+
+        // Cache entries for different templates to trigger LRU eviction
+        assert!(cache.cache(1, vec![0u8; 10], &mut metrics).is_none());
+        assert!(cache.cache(2, vec![0u8; 10], &mut metrics).is_none());
+        assert_eq!(cache.count(), 2);
+
+        // Adding another 10 bytes should evict the LRU template (template 1)
+        assert!(cache.cache(3, vec![0u8; 10], &mut metrics).is_none());
+
+        // Template 1 should have been evicted to make room
+        let drained_1 = cache.drain(1, &mut metrics);
+        assert!(drained_1.is_empty(), "template 1 should have been evicted");
+    }
+
+    #[test]
+    fn test_ttl_expiration() {
+        let config = PendingFlowsConfig {
+            max_pending_flows: 8,
+            max_entries_per_template: 100,
+            max_entry_size_bytes: 128,
+            max_total_bytes: 4096,
+            ttl: Some(Duration::from_millis(1)),
+        };
+        let mut cache = PendingFlowCache::new(config).unwrap();
+        let mut metrics = default_metrics();
+
+        assert!(cache.cache(100, vec![1, 2, 3], &mut metrics).is_none());
+        assert_eq!(cache.count(), 1);
+
+        // Sleep briefly to let the TTL expire
+        std::thread::sleep(Duration::from_millis(10));
+
+        let drained = cache.drain(100, &mut metrics);
+        assert!(
+            drained.is_empty(),
+            "expired entries should be filtered out on drain"
+        );
+    }
+
+    #[test]
+    fn test_resize_shrink() {
+        let config = PendingFlowsConfig {
+            max_pending_flows: 4,
+            max_entries_per_template: 100,
+            max_entry_size_bytes: 128,
+            max_total_bytes: 4096,
+            ttl: None,
+        };
+        let mut cache = PendingFlowCache::new(config).unwrap();
+        let mut metrics = default_metrics();
+
+        // Fill 4 template slots
+        for i in 0..4u16 {
+            assert!(cache.cache(i, vec![i as u8; 4], &mut metrics).is_none());
+        }
+        assert_eq!(cache.count(), 4);
+
+        // Resize to 2 slots
+        let new_config = PendingFlowsConfig {
+            max_pending_flows: 2,
+            max_entries_per_template: 100,
+            max_entry_size_bytes: 128,
+            max_total_bytes: 4096,
+            ttl: None,
+        };
+        let dropped = cache.resize(new_config, &mut metrics).unwrap();
+        assert_eq!(
+            dropped, 2,
+            "should have dropped 2 entries from LRU eviction"
+        );
+        assert_eq!(cache.count(), 2);
+    }
+
+    #[test]
+    fn test_would_accept() {
+        let config = PendingFlowsConfig {
+            max_pending_flows: 8,
+            max_entries_per_template: 2,
+            max_entry_size_bytes: 128,
+            max_total_bytes: 4096,
+            ttl: None,
+        };
+        let mut cache = PendingFlowCache::new(config).unwrap();
+        let mut metrics = default_metrics();
+
+        // No entries yet, should accept
+        assert!(cache.would_accept(100));
+
+        // Fill to cap
+        assert!(cache.cache(100, vec![1], &mut metrics).is_none());
+        assert!(cache.cache(100, vec![2], &mut metrics).is_none());
+
+        // At cap, should not accept
+        assert!(!cache.would_accept(100));
+
+        // Different template should still accept
+        assert!(cache.would_accept(200));
+    }
+
+    #[test]
+    fn test_empty_drain() {
+        let config = small_config(8);
+        let mut cache = PendingFlowCache::new(config).unwrap();
+        let mut metrics = default_metrics();
+
+        let drained = cache.drain(999, &mut metrics);
+        assert!(
+            drained.is_empty(),
+            "draining non-existent template should return empty vec"
+        );
+    }
+
+    #[test]
+    fn test_validate_config() {
+        // Zero max_pending_flows
+        let bad = PendingFlowsConfig {
+            max_pending_flows: 0,
+            ..PendingFlowsConfig::default()
+        };
+        assert!(PendingFlowCache::validate_config(&bad).is_err());
+
+        // Zero max_entries_per_template
+        let bad = PendingFlowsConfig {
+            max_entries_per_template: 0,
+            ..PendingFlowsConfig::default()
+        };
+        assert!(PendingFlowCache::validate_config(&bad).is_err());
+
+        // Zero max_entry_size_bytes
+        let bad = PendingFlowsConfig {
+            max_entry_size_bytes: 0,
+            ..PendingFlowsConfig::default()
+        };
+        assert!(PendingFlowCache::validate_config(&bad).is_err());
+
+        // max_entry_size_bytes exceeding limit
+        let bad = PendingFlowsConfig {
+            max_entry_size_bytes: u16::MAX as usize,
+            ..PendingFlowsConfig::default()
+        };
+        assert!(PendingFlowCache::validate_config(&bad).is_err());
+
+        // Zero max_total_bytes
+        let bad = PendingFlowsConfig {
+            max_total_bytes: 0,
+            ..PendingFlowsConfig::default()
+        };
+        assert!(PendingFlowCache::validate_config(&bad).is_err());
+
+        // max_total_bytes < max_entry_size_bytes
+        let bad = PendingFlowsConfig {
+            max_total_bytes: 10,
+            max_entry_size_bytes: 100,
+            ..PendingFlowsConfig::default()
+        };
+        assert!(PendingFlowCache::validate_config(&bad).is_err());
+
+        // Valid default config should pass
+        assert!(PendingFlowCache::validate_config(&PendingFlowsConfig::default()).is_ok());
     }
 }

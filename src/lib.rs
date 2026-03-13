@@ -612,7 +612,8 @@ impl NetflowParserBuilder {
     /// ```
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn register_enterprise_field(mut self, def: EnterpriseFieldDef) -> Self {
-        self.v9_config.enterprise_registry.register(def.clone());
+        // Enterprise fields are only used by the IPFIX parser; V9 does not
+        // support enterprise bit fields.
         self.ipfix_config.enterprise_registry.register(def);
         self
     }
@@ -646,16 +647,9 @@ impl NetflowParserBuilder {
         mut self,
         defs: impl IntoIterator<Item = EnterpriseFieldDef>,
     ) -> Self {
-        // Collect once to avoid unnecessary cloning
-        let defs: Vec<_> = defs.into_iter().collect();
-
-        // Register clones in V9 registry
-        for def in &defs {
-            self.v9_config.enterprise_registry.register(def.clone());
-        }
-
-        // Move originals into IPFIX registry (no clone needed)
-        for def in defs {
+        // Enterprise fields are only used by the IPFIX parser; V9 does not
+        // support enterprise bit fields.
+        for def in defs.into_iter() {
             self.ipfix_config.enterprise_registry.register(def);
         }
 
@@ -798,10 +792,10 @@ impl NetflowParserBuilder {
     ///     .on_template_event(|event| {
     ///         match event {
     ///             TemplateEvent::Learned { template_id, protocol } => {
-    ///                 println!("Learned template {}", template_id);
+    ///                 println!("Learned template {:?}", template_id);
     ///             }
     ///             TemplateEvent::Collision { template_id, protocol } => {
-    ///                 eprintln!("Template collision: {}", template_id);
+    ///                 eprintln!("Template collision: {:?}", template_id);
     ///             }
     ///             _ => {}
     ///         }
@@ -1441,7 +1435,7 @@ impl NetflowParser {
     ///
     /// let mut parser = NetflowParser::default();
     /// parser.trigger_template_event(TemplateEvent::Learned {
-    ///     template_id: 256,
+    ///     template_id: Some(256),
     ///     protocol: TemplateProtocol::V9,
     /// });
     /// ```
@@ -1649,24 +1643,37 @@ impl NetflowParser {
         after: &variable_versions::metrics::CacheMetrics,
         protocol: TemplateProtocol,
     ) {
-        let new_collisions = after.collisions.saturating_sub(before.collisions);
+        // Cap events per type per parse call to prevent hook amplification from
+        // malicious packets that trigger thousands of collisions/evictions.
+        const MAX_EVENTS_PER_TYPE: u64 = 64;
+
+        let new_collisions = after
+            .collisions
+            .saturating_sub(before.collisions)
+            .min(MAX_EVENTS_PER_TYPE);
         for _ in 0..new_collisions {
             self.template_hooks.trigger(&TemplateEvent::Collision {
-                template_id: 0, // specific ID not available from metrics
+                template_id: None, // specific ID not available from metrics
                 protocol,
             });
         }
-        let new_evictions = after.evictions.saturating_sub(before.evictions);
+        let new_evictions = after
+            .evictions
+            .saturating_sub(before.evictions)
+            .min(MAX_EVENTS_PER_TYPE);
         for _ in 0..new_evictions {
             self.template_hooks.trigger(&TemplateEvent::Evicted {
-                template_id: 0, // specific ID not available from metrics
+                template_id: None, // specific ID not available from metrics
                 protocol,
             });
         }
-        let new_expirations = after.expired.saturating_sub(before.expired);
+        let new_expirations = after
+            .expired
+            .saturating_sub(before.expired)
+            .min(MAX_EVENTS_PER_TYPE);
         for _ in 0..new_expirations {
             self.template_hooks.trigger(&TemplateEvent::Expired {
-                template_id: 0, // specific ID not available from metrics
+                template_id: None, // specific ID not available from metrics
                 protocol,
             });
         }
@@ -1680,7 +1687,7 @@ impl NetflowParser {
                         variable_versions::v9::FlowSetBody::Template(templates) => {
                             for t in &templates.templates {
                                 self.template_hooks.trigger(&TemplateEvent::Learned {
-                                    template_id: t.template_id,
+                                    template_id: Some(t.template_id),
                                     protocol: TemplateProtocol::V9,
                                 });
                             }
@@ -1688,7 +1695,7 @@ impl NetflowParser {
                         variable_versions::v9::FlowSetBody::OptionsTemplate(templates) => {
                             for t in &templates.templates {
                                 self.template_hooks.trigger(&TemplateEvent::Learned {
-                                    template_id: t.template_id,
+                                    template_id: Some(t.template_id),
                                     protocol: TemplateProtocol::V9,
                                 });
                             }
@@ -1696,7 +1703,7 @@ impl NetflowParser {
                         variable_versions::v9::FlowSetBody::NoTemplate(info) => {
                             self.template_hooks
                                 .trigger(&TemplateEvent::MissingTemplate {
-                                    template_id: info.template_id,
+                                    template_id: Some(info.template_id),
                                     protocol: TemplateProtocol::V9,
                                 });
                         }
@@ -1711,56 +1718,56 @@ impl NetflowParser {
                     match &fs.body {
                         variable_versions::ipfix::FlowSetBody::Template(t) => {
                             self.template_hooks.trigger(&TemplateEvent::Learned {
-                                template_id: t.template_id,
+                                template_id: Some(t.template_id),
                                 protocol: TemplateProtocol::Ipfix,
                             });
                         }
                         variable_versions::ipfix::FlowSetBody::Templates(ts) => {
                             for t in ts {
                                 self.template_hooks.trigger(&TemplateEvent::Learned {
-                                    template_id: t.template_id,
+                                    template_id: Some(t.template_id),
                                     protocol: TemplateProtocol::Ipfix,
                                 });
                             }
                         }
                         variable_versions::ipfix::FlowSetBody::V9Template(t) => {
                             self.template_hooks.trigger(&TemplateEvent::Learned {
-                                template_id: t.template_id,
+                                template_id: Some(t.template_id),
                                 protocol: TemplateProtocol::Ipfix,
                             });
                         }
                         variable_versions::ipfix::FlowSetBody::V9Templates(ts) => {
                             for t in ts {
                                 self.template_hooks.trigger(&TemplateEvent::Learned {
-                                    template_id: t.template_id,
+                                    template_id: Some(t.template_id),
                                     protocol: TemplateProtocol::Ipfix,
                                 });
                             }
                         }
                         variable_versions::ipfix::FlowSetBody::OptionsTemplate(t) => {
                             self.template_hooks.trigger(&TemplateEvent::Learned {
-                                template_id: t.template_id,
+                                template_id: Some(t.template_id),
                                 protocol: TemplateProtocol::Ipfix,
                             });
                         }
                         variable_versions::ipfix::FlowSetBody::OptionsTemplates(ts) => {
                             for t in ts {
                                 self.template_hooks.trigger(&TemplateEvent::Learned {
-                                    template_id: t.template_id,
+                                    template_id: Some(t.template_id),
                                     protocol: TemplateProtocol::Ipfix,
                                 });
                             }
                         }
                         variable_versions::ipfix::FlowSetBody::V9OptionsTemplate(t) => {
                             self.template_hooks.trigger(&TemplateEvent::Learned {
-                                template_id: t.template_id,
+                                template_id: Some(t.template_id),
                                 protocol: TemplateProtocol::Ipfix,
                             });
                         }
                         variable_versions::ipfix::FlowSetBody::V9OptionsTemplates(ts) => {
                             for t in ts {
                                 self.template_hooks.trigger(&TemplateEvent::Learned {
-                                    template_id: t.template_id,
+                                    template_id: Some(t.template_id),
                                     protocol: TemplateProtocol::Ipfix,
                                 });
                             }
@@ -1768,7 +1775,7 @@ impl NetflowParser {
                         variable_versions::ipfix::FlowSetBody::NoTemplate(info) => {
                             self.template_hooks
                                 .trigger(&TemplateEvent::MissingTemplate {
-                                    template_id: info.template_id,
+                                    template_id: Some(info.template_id),
                                     protocol: TemplateProtocol::Ipfix,
                                 });
                         }

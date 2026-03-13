@@ -32,26 +32,26 @@ fn demo_basic_hooks() {
                 TemplateEvent::Learned {
                     template_id,
                     protocol,
-                } => println!("  ✓ Learned template {} ({:?})", template_id, protocol),
+                } => println!("  ✓ Learned template {:?} ({:?})", template_id, protocol),
                 TemplateEvent::Collision {
                     template_id,
                     protocol,
                 } => println!(
-                    "  ⚠️  Collision on template {} ({:?})",
+                    "  ⚠️  Collision on template {:?} ({:?})",
                     template_id, protocol
                 ),
                 TemplateEvent::Evicted {
                     template_id,
                     protocol,
-                } => println!("  ♻️  Evicted template {} ({:?})", template_id, protocol),
+                } => println!("  ♻️  Evicted template {:?} ({:?})", template_id, protocol),
                 TemplateEvent::Expired {
                     template_id,
                     protocol,
-                } => println!("  ⏰ Expired template {} ({:?})", template_id, protocol),
+                } => println!("  ⏰ Expired template {:?} ({:?})", template_id, protocol),
                 TemplateEvent::MissingTemplate {
                     template_id,
                     protocol,
-                } => println!("  ❌ Missing template {} ({:?})", template_id, protocol),
+                } => println!("  ❌ Missing template {:?} ({:?})", template_id, protocol),
             }
             Ok(())
         })
@@ -61,19 +61,19 @@ fn demo_basic_hooks() {
     // Simulate template events
     println!("Simulating template events:\n");
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 300,
+        template_id: Some(300),
         protocol: TemplateProtocol::Ipfix,
     });
     parser.trigger_template_event(TemplateEvent::Collision {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
     parser.trigger_template_event(TemplateEvent::MissingTemplate {
-        template_id: 400,
+        template_id: Some(400),
         protocol: TemplateProtocol::Ipfix,
     });
 }
@@ -114,23 +114,23 @@ fn demo_metrics_collection() {
 
     // Simulate various events
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 300,
+        template_id: Some(300),
         protocol: TemplateProtocol::Ipfix,
     });
     parser.trigger_template_event(TemplateEvent::Collision {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
     parser.trigger_template_event(TemplateEvent::MissingTemplate {
-        template_id: 400,
+        template_id: Some(400),
         protocol: TemplateProtocol::Ipfix,
     });
     parser.trigger_template_event(TemplateEvent::MissingTemplate {
-        template_id: 500,
+        template_id: Some(500),
         protocol: TemplateProtocol::V9,
     });
 
@@ -164,35 +164,35 @@ fn demo_logging_hooks() {
                     template_id,
                     protocol,
                 } => format!(
-                    "[INFO]  Template {} learned for protocol {:?}",
+                    "[INFO]  Template {:?} learned for protocol {:?}",
                     template_id, protocol
                 ),
                 TemplateEvent::Collision {
                     template_id,
                     protocol,
                 } => format!(
-                    "[WARN]  Template {} collision detected for protocol {:?}",
+                    "[WARN]  Template {:?} collision detected for protocol {:?}",
                     template_id, protocol
                 ),
                 TemplateEvent::Evicted {
                     template_id,
                     protocol,
                 } => format!(
-                    "[INFO]  Template {} evicted (LRU) for protocol {:?}",
+                    "[INFO]  Template {:?} evicted (LRU) for protocol {:?}",
                     template_id, protocol
                 ),
                 TemplateEvent::Expired {
                     template_id,
                     protocol,
                 } => format!(
-                    "[INFO]  Template {} expired (TTL) for protocol {:?}",
+                    "[INFO]  Template {:?} expired (TTL) for protocol {:?}",
                     template_id, protocol
                 ),
                 TemplateEvent::MissingTemplate {
                     template_id,
                     protocol,
                 } => format!(
-                    "[ERROR] Missing template {} for protocol {:?}",
+                    "[ERROR] Missing template {:?} for protocol {:?}",
                     template_id, protocol
                 ),
             };
@@ -205,19 +205,19 @@ fn demo_logging_hooks() {
     println!("Generating log entries:\n");
 
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
     parser.trigger_template_event(TemplateEvent::Collision {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
     parser.trigger_template_event(TemplateEvent::MissingTemplate {
-        template_id: 300,
+        template_id: Some(300),
         protocol: TemplateProtocol::Ipfix,
     });
     parser.trigger_template_event(TemplateEvent::Evicted {
-        template_id: 128,
+        template_id: Some(128),
         protocol: TemplateProtocol::V9,
     });
 
@@ -254,7 +254,7 @@ fn demo_multiple_hooks() {
         // Hook 3: Custom alerting logic
         .on_template_event(|event| {
             if let TemplateEvent::Collision { template_id, .. } = event {
-                println!("  [Hook 3] 🚨 ALERT: Template {} collision! Check multi-source configuration", template_id);
+                println!("  [Hook 3] 🚨 ALERT: Template {:?} collision! Check multi-source configuration", template_id);
             }
             Ok(())
         })
@@ -264,15 +264,15 @@ fn demo_multiple_hooks() {
     println!("Triggering events with multiple hooks active:\n");
 
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
     parser.trigger_template_event(TemplateEvent::Collision {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
     parser.trigger_template_event(TemplateEvent::MissingTemplate {
-        template_id: 300,
+        template_id: Some(300),
         protocol: TemplateProtocol::Ipfix,
     });
 
