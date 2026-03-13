@@ -1038,8 +1038,8 @@ mod malformed_packet_tests {
     // Sending the same V9 template twice should not record a collision metric.
     #[test]
     fn test_template_reregistration_same_definition() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
         let collision_count = Arc::new(AtomicUsize::new(0));
         let cc = collision_count.clone();
@@ -1064,10 +1064,8 @@ mod malformed_packet_tests {
             0x00, 0x00, 0x00, 0x00, // sequence
             0x00, 0x00, 0x00, 0x00, // source_id
             // Template flowset: flowset_id=0, length=16
-            0x00, 0x00, 0x00, 0x10,
-            // Template: id=256, field_count=1
-            0x01, 0x00, 0x00, 0x01,
-            // Field: type=1 (InBytes), length=4
+            0x00, 0x00, 0x00, 0x10, // Template: id=256, field_count=1
+            0x01, 0x00, 0x00, 0x01, // Field: type=1 (InBytes), length=4
             0x00, 0x01, 0x00, 0x04,
         ];
 

@@ -385,9 +385,11 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         ) {
-            if let Ok((_, data)) =
-                V9Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
-            {
+            if let Ok((_, data)) = V9Data::parse_with_limit(
+                &entry.raw_data,
+                &template,
+                self.max_records_per_flowset,
+            ) {
                 self.metrics.record_hit();
                 self.v9_templates.promote(&template_id);
                 flowsets.push(FlowSet {
