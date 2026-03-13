@@ -5,6 +5,52 @@
 use super::{FlowSetBody, IPFix, TemplateField, calculate_padding};
 use crate::variable_versions::v9::ScopeDataField as V9ScopeDataField;
 
+/// Write an RFC 7011 Section 7 variable-length encoding prefix.
+///
+/// - If `value_len < 255`: writes a single byte with the length.
+/// - If `value_len >= 255`: writes `0xFF` followed by the length as a big-endian `u16`.
+///
+/// Returns an error if `value_len` exceeds `u16::MAX`.
+fn write_varlen_prefix(
+    buf: &mut Vec<u8>,
+    value_len: usize,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if value_len < 255 {
+        buf.push(value_len as u8);
+    } else {
+        let len_u16: u16 = value_len.try_into().map_err(|_| {
+            format!(
+                "IPFIX variable-length field size {} exceeds u16::MAX",
+                value_len
+            )
+        })?;
+        buf.push(255);
+        buf.extend_from_slice(&len_u16.to_be_bytes());
+    }
+    Ok(())
+}
+
+/// Serialize IPFIX or V9 data fields into `result`, emitting RFC 7011
+/// variable-length prefixes for any field whose template length is 65535.
+fn serialize_data_fields(
+    result: &mut Vec<u8>,
+    fields: &[Vec<(impl std::fmt::Debug, crate::variable_versions::field_value::FieldValue)>],
+    template_field_lengths: &[u16],
+) -> Result<(), Box<dyn std::error::Error>> {
+    for item in fields.iter() {
+        for (idx, (_, v)) in item.iter().enumerate() {
+            let is_varlen = template_field_lengths
+                .get(idx)
+                .is_some_and(|&len| len == 65535);
+            if is_varlen {
+                write_varlen_prefix(result, v.byte_len())?;
+            }
+            v.write_be_bytes(result)?;
+        }
+    }
+    Ok(())
+}
+
 impl IPFix {
     /// Write an IPFIX template field, restoring the enterprise bit if needed.
     fn write_ipfix_template_field(buf: &mut Vec<u8>, field: &TemplateField) {
@@ -122,22 +168,15 @@ impl IPFix {
                 Ok(result)
             }
             FlowSetBody::Data(data) => {
-                // TODO: Variable-length fields (template field_length == 65535)
-                // need a 1-byte or 3-byte length prefix per RFC 7011 Section 7.
-                // Currently write_be_bytes emits only raw value bytes without
-                // the prefix, producing corrupt output for variable-length fields.
-                // Fixing this requires storing template field_length alongside
-                // parsed values or passing the template to the serializer.
-                let mut data_content = Vec::new();
-                for item in data.fields.iter() {
-                    for (_, v) in item.iter() {
-                        v.write_be_bytes(&mut data_content)?;
-                    }
-                }
                 let mut result = Vec::new();
-                result.extend_from_slice(&data_content);
+                serialize_data_fields(
+                    &mut result,
+                    &data.fields,
+                    &data.template_field_lengths,
+                )?;
+                let content_len = result.len();
                 let padding = if data.padding.is_empty() {
-                    calculate_padding(data_content.len())
+                    calculate_padding(content_len)
                 } else {
                     &data.padding[..]
                 };
@@ -145,16 +184,15 @@ impl IPFix {
                 Ok(result)
             }
             FlowSetBody::OptionsData(data) => {
-                let mut options_data_content = Vec::new();
-                for item in data.fields.iter() {
-                    for (_, v) in item.iter() {
-                        v.write_be_bytes(&mut options_data_content)?;
-                    }
-                }
                 let mut result = Vec::new();
-                result.extend_from_slice(&options_data_content);
+                serialize_data_fields(
+                    &mut result,
+                    &data.fields,
+                    &data.template_field_lengths,
+                )?;
+                let content_len = result.len();
                 let padding = if data.padding.is_empty() {
-                    calculate_padding(options_data_content.len())
+                    calculate_padding(content_len)
                 } else {
                     &data.padding[..]
                 };
@@ -162,16 +200,15 @@ impl IPFix {
                 Ok(result)
             }
             FlowSetBody::V9Data(data) => {
-                let mut data_content = Vec::new();
+                let mut result = Vec::new();
                 for item in data.fields.iter() {
                     for (_, v) in item.iter() {
-                        v.write_be_bytes(&mut data_content)?;
+                        v.write_be_bytes(&mut result)?;
                     }
                 }
-                let mut result = Vec::new();
-                result.extend_from_slice(&data_content);
+                let content_len = result.len();
                 let padding = if data.padding.is_empty() {
-                    calculate_padding(data_content.len())
+                    calculate_padding(content_len)
                 } else {
                     &data.padding[..]
                 };
@@ -179,7 +216,7 @@ impl IPFix {
                 Ok(result)
             }
             FlowSetBody::V9OptionsData(options_data) => {
-                let mut data_content = Vec::new();
+                let mut result = Vec::new();
                 for options_data_field in options_data.fields.iter() {
                     for field in options_data_field.scope_fields.iter() {
                         match field {
@@ -189,17 +226,16 @@ impl IPFix {
                             | V9ScopeDataField::NetFlowCache(value)
                             | V9ScopeDataField::Template(value)
                             | V9ScopeDataField::Unknown(_, value) => {
-                                data_content.extend_from_slice(value)
+                                result.extend_from_slice(value)
                             }
                         }
                     }
                     for (_field_type, field_value) in options_data_field.options_fields.iter() {
-                        field_value.write_be_bytes(&mut data_content)?;
+                        field_value.write_be_bytes(&mut result)?;
                     }
                 }
-                let mut result = Vec::new();
-                result.extend_from_slice(&data_content);
-                result.extend_from_slice(calculate_padding(data_content.len()));
+                let content_len = result.len();
+                result.extend_from_slice(calculate_padding(content_len));
                 Ok(result)
             }
             FlowSetBody::NoTemplate(_) | FlowSetBody::Empty => {

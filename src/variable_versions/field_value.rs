@@ -207,6 +207,18 @@ impl DataNumber {
         }
     }
 
+    /// Returns the number of bytes this value occupies when serialized.
+    pub fn byte_len(&self) -> usize {
+        match self {
+            DataNumber::U8(_) | DataNumber::I8(_) => 1,
+            DataNumber::U16(_) | DataNumber::I16(_) => 2,
+            DataNumber::U24(_) | DataNumber::I24(_) => 3,
+            DataNumber::U32(_) | DataNumber::I32(_) => 4,
+            DataNumber::U64(_) | DataNumber::I64(_) => 8,
+            DataNumber::U128(_) | DataNumber::I128(_) => 16,
+        }
+    }
+
     /// Write big-endian bytes into a caller-provided buffer.
     pub fn write_be_bytes(&self, buf: &mut Vec<u8>) -> Result<(), std::io::Error> {
         match self {
@@ -425,6 +437,43 @@ impl Serialize for FieldValue {
 }
 
 impl FieldValue {
+    /// Returns the number of bytes this value occupies when serialized.
+    pub fn byte_len(&self) -> usize {
+        match self {
+            FieldValue::ApplicationId(app_id) => {
+                1 + app_id.selector_id.as_ref().map_or(0, |s| s.byte_len())
+            }
+            FieldValue::String(s) => s.raw.len(),
+            FieldValue::DataNumber(d) => d.byte_len(),
+            FieldValue::Float64(_) => 8,
+            FieldValue::Duration(d) => match d {
+                DurationValue::Seconds { width, .. } | DurationValue::Millis { width, .. } => {
+                    if *width == 4 { 4 } else { 8 }
+                }
+                DurationValue::MicrosNtp { .. } | DurationValue::NanosNtp { .. } => 8,
+            },
+            FieldValue::Ip4Addr(_) => 4,
+            FieldValue::Ip6Addr(_) => 16,
+            FieldValue::MacAddr(_) => 6,
+            FieldValue::ProtocolType(_) => 1,
+            FieldValue::ForwardingStatus(_) => 1,
+            FieldValue::FragmentFlags(_) => 1,
+            FieldValue::TcpControlBits(_) => 2,
+            FieldValue::Ipv6ExtensionHeaders(_) => 4,
+            FieldValue::Ipv4Options(_) => 4,
+            FieldValue::TcpOptions(_) => 8,
+            FieldValue::IsMulticast(_) => 1,
+            FieldValue::MplsLabelExp(_) => 1,
+            FieldValue::FlowEndReason(_) => 1,
+            FieldValue::NatEvent(_) => 1,
+            FieldValue::FirewallEvent(_) => 1,
+            FieldValue::MplsTopLabelType(_) => 1,
+            FieldValue::NatOriginatingAddressRealm(_) => 1,
+            FieldValue::Vec(v) => v.len(),
+            FieldValue::Unknown(v) => v.len(),
+        }
+    }
+
     /// Write big-endian bytes into a caller-provided buffer.
     pub fn write_be_bytes(&self, buf: &mut Vec<u8>) -> Result<(), std::io::Error> {
         match self {
@@ -440,7 +489,7 @@ impl FieldValue {
             FieldValue::Duration(d) => match d {
                 DurationValue::Seconds { value, width }
                 | DurationValue::Millis { value, width } => {
-                    if *width <= 4 {
+                    if *width == 4 {
                         let v = u32::try_from(*value).map_err(std::io::Error::other)?;
                         buf.extend_from_slice(&v.to_be_bytes());
                     } else {
@@ -520,15 +569,9 @@ impl FieldValue {
             FieldDataType::String => {
                 let (i, taken) = take(field_length)(remaining)?;
                 let raw = taken.to_vec();
-                let s: String = String::from_utf8_lossy(taken)
-                    .chars()
-                    .filter(|&c| !c.is_control())
-                    .collect();
-                let s = if let Some(stripped) = s.strip_prefix("P4") {
-                    stripped.to_owned()
-                } else {
-                    s
-                };
+                let lossy = String::from_utf8_lossy(taken);
+                let base = lossy.strip_prefix("P4").unwrap_or(&lossy);
+                let s: String = base.chars().filter(|&c| !c.is_control()).collect();
                 (i, FieldValue::String(StringValue { value: s, raw }))
             }
             FieldDataType::Ip4Addr if field_length == 4 => {

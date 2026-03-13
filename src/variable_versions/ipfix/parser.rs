@@ -684,6 +684,15 @@ impl OptionsTemplate {
     }
 }
 
+/// Collect template field lengths only when at least one field is variable-length.
+fn collect_varlen_field_lengths(fields: &[TemplateField]) -> Vec<u16> {
+    if fields.iter().any(|f| f.field_length == 65535) {
+        fields.iter().map(|f| f.field_length).collect()
+    } else {
+        Vec::new()
+    }
+}
+
 impl Data {
     /// Parse Data using the enterprise registry to resolve custom enterprise fields
     pub(super) fn parse_with_registry<'a>(
@@ -691,12 +700,14 @@ impl Data {
         template: &Template,
         registry: &EnterpriseFieldRegistry,
     ) -> IResult<&'a [u8], Self> {
+        let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
         let (i, fields) = FieldParser::parse_with_registry(i, template, registry)?;
         Ok((
             i,
             Self {
                 fields,
                 padding: vec![],
+                template_field_lengths,
             },
         ))
     }
@@ -709,12 +720,14 @@ impl OptionsData {
         template: &OptionsTemplate,
         registry: &EnterpriseFieldRegistry,
     ) -> IResult<&'a [u8], Self> {
+        let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
         let (i, fields) = FieldParser::parse_with_registry(i, template, registry)?;
         Ok((
             i,
             Self {
                 fields,
                 padding: vec![],
+                template_field_lengths,
             },
         ))
     }
@@ -734,12 +747,17 @@ impl<'a> FieldParser {
         }
 
         // Estimate capacity based on input size and template field count.
-        // Skip variable-length fields (field_length == 65535) which are just
-        // markers, not actual sizes.
+        // Variable-length fields (field_length == 65535) are RFC 7011 markers,
+        // not actual sizes — count them as 1 byte minimum for estimation.
         let template_size: usize = template_fields
             .iter()
-            .filter(|f| f.field_length != 65535)
-            .map(|f| usize::from(f.field_length))
+            .map(|f| {
+                if f.field_length == 65535 {
+                    1
+                } else {
+                    usize::from(f.field_length)
+                }
+            })
             .sum();
         let estimated_records = if template_size > 0 {
             (i.len() / template_size).min(1024)
@@ -785,12 +803,17 @@ impl<'a> FieldParser {
         }
 
         // Estimate capacity based on input size and template field count.
-        // Skip variable-length fields (field_length == 65535) which are just
-        // markers, not actual sizes.
+        // Variable-length fields (field_length == 65535) are RFC 7011 markers,
+        // not actual sizes — count them as 1 byte minimum for estimation.
         let template_size: usize = template_fields
             .iter()
-            .filter(|f| f.field_length != 65535)
-            .map(|f| usize::from(f.field_length))
+            .map(|f| {
+                if f.field_length == 65535 {
+                    1
+                } else {
+                    usize::from(f.field_length)
+                }
+            })
             .sum();
         let estimated_records = if template_size > 0 {
             (i.len() / template_size).min(1024)
@@ -846,6 +869,13 @@ impl TemplateField {
                     }
                     Ok((i, full_length))
                 } else {
+                    // RFC 7011 Section 7: length values of 0 are not permitted
+                    if length == 0 {
+                        return Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Verify,
+                        )));
+                    }
                     // Validate length doesn't exceed remaining buffer
                     if (length as usize) > i.len() {
                         return Err(nom::Err::Error(nom::error::Error::new(
