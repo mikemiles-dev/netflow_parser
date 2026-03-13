@@ -564,6 +564,7 @@ impl IPFixParser {
 }
 
 impl FlowSetBody {
+    #[allow(clippy::too_many_arguments)]
     fn parse_templates<'a, T, F>(
         i: &'a [u8],
         parser: &mut IPFixParser,
