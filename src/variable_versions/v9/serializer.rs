@@ -129,7 +129,7 @@ impl V9 {
                 FlowSetBody::OptionsTemplate(o) => Self::serialize_options_template_body(o),
                 FlowSetBody::Data(d) => Self::serialize_data_body(d)?,
                 FlowSetBody::OptionsData(o) => Self::serialize_options_data_body(o)?,
-                FlowSetBody::NoTemplate(_) => continue,
+                FlowSetBody::NoTemplate(_) | FlowSetBody::Empty => continue,
             };
             // Compute flowset length from actual serialized body instead
             // of trusting set.header.length, which can be stale when

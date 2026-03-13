@@ -99,7 +99,7 @@ expression: lookup
 - ApplicationDescription
 - ApplicationId
 - ApplicationName
-- AssignedforNetFlowv9compatibility96
+- AssignedforNetFlowv9compatibility97
 - PostIpDiffServCodePoint
 - MulticastReplicationFactor
 - ClassName

@@ -99,6 +99,8 @@ pub enum FlowSetBody {
     Data(Data),
     OptionsData(OptionsData),
     NoTemplate(NoTemplateInfo),
+    /// Reserved flowset IDs (2-255) that are skipped per RFC 3954.
+    Empty,
 }
 
 /// A collection of V9 template definitions parsed from a template flowset.

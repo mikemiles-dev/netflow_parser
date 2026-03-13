@@ -82,6 +82,9 @@ impl V9Parser {
         if config.max_records_per_flowset == 0 {
             return Err(ConfigError::InvalidRecordsPerFlowset(0));
         }
+        if config.max_error_sample_size == 0 {
+            return Err(ConfigError::InvalidErrorSampleSize);
+        }
         if let Some(ref ttl) = config.ttl_config {
             if ttl.duration.is_zero() {
                 return Err(ConfigError::InvalidTtlDuration);
@@ -239,7 +242,11 @@ impl V9Parser {
                         // Truncate rejected data to diagnostic size so
                         // callers don't hold the full (potentially large)
                         // buffer that was not cached.
+                        let full_len = returned.len();
                         returned.truncate(max_error_sample_size);
+                        if returned.len() < full_len {
+                            info.truncated = true;
+                        }
                         info.raw_data = returned;
                     } else {
                         remove_mask[i] = true;
@@ -303,7 +310,9 @@ impl V9Parser {
             if let Ok((_, data)) =
                 Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
             {
-                self.metrics.record_hit();
+                // Don't record_hit() here — the original flowset already
+                // recorded a miss. Replay success is tracked separately
+                // via record_pending_replayed() in the caller.
                 self.templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
@@ -329,7 +338,6 @@ impl V9Parser {
                 &template,
                 self.max_records_per_flowset,
             ) {
-                self.metrics.record_hit();
                 self.options_templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
@@ -517,10 +525,8 @@ impl FlowSetBody {
                     };
                     Ok((&[] as &[u8], FlowSetBody::NoTemplate(info)))
                 } else {
-                    Err(nom::Err::Error(nom::error::Error::new(
-                        i,
-                        nom::error::ErrorKind::Verify,
-                    )))
+                    // Set IDs 2-255 are reserved per RFC 3954; skip gracefully
+                    Ok((&[] as &[u8], FlowSetBody::Empty))
                 }
             }
         }
@@ -755,7 +761,20 @@ impl<'a> FieldParser {
         template: &Template,
         max_records: usize,
     ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
-        let template_total_size = usize::from(template.get_total_size());
+        // Estimate per-record size for capacity pre-allocation.
+        // Variable-length fields (65535) are counted as 1 byte minimum
+        // to avoid over-allocation from small fixed-size denominators.
+        let template_total_size: usize = template
+            .fields
+            .iter()
+            .map(|f| {
+                if f.field_length == 65535 {
+                    1
+                } else {
+                    usize::from(f.field_length)
+                }
+            })
+            .sum();
         if template_total_size == 0 {
             return Err(nom::Err::Error(NomError::new(input, ErrorKind::Verify)));
         }

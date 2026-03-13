@@ -234,12 +234,13 @@ mod base_tests {
         let packet = hex::decode(hex_template).unwrap();
         let result = parser.parse_bytes(&packet);
         // This packet claims 3 flow sets but only contains template data.
-        // The parser should handle it without panicking; packets may or may not
-        // be produced depending on how the parser handles the count mismatch.
-        // Verify at least that parsing completed and any packets are V9.
-        for p in &result.packets {
-            assert!(p.is_v9(), "all parsed packets should be V9");
-        }
+        // The parser should handle it without panicking; verify any packets are V9.
+        let v9_count = result.packets.iter().filter(|p| p.is_v9()).count();
+        assert_eq!(
+            v9_count,
+            result.packets.len(),
+            "all parsed packets should be V9"
+        );
     }
 
     // Verify that IPFIX data records are parsed using a v9-style template definition
@@ -774,10 +775,14 @@ mod malformed_packet_tests {
         let mut packet = vec![0x00, 0x05];
         packet.extend_from_slice(&[0u8; 10]);
         let result = parser.parse_bytes(&packet);
-        // Should either return an error or empty packets, but must not panic
+        // Should return an error and no valid packets
         assert!(
-            result.packets.is_empty() || result.error.is_some(),
-            "truncated V5 header should not produce valid packets without an error"
+            result.packets.is_empty(),
+            "truncated V5 header should not produce valid packets"
+        );
+        assert!(
+            result.error.is_some(),
+            "truncated V5 header should produce an error"
         );
     }
 
@@ -940,12 +945,15 @@ mod malformed_packet_tests {
         packet.extend_from_slice(&[0x00, 0x64, 0x00, 0x08]);
         packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // 4 bytes of padding
         let result = parser.parse_bytes(&packet);
-        // Parser should handle reserved flowset IDs gracefully, not panic.
-        // V9 reserved IDs (2-255) may produce an error or empty packets.
+        // Parser should handle reserved flowset IDs gracefully per RFC 3954,
+        // skipping them without error (IDs 2-255 are reserved).
         assert!(
-            result.packets.is_empty() || result.error.is_some(),
-            "V9 reserved flowset ID should produce no valid packets or an error"
+            result.error.is_none(),
+            "V9 reserved flowset IDs should be skipped without error"
         );
+        for p in &result.packets {
+            assert!(p.is_v9(), "any packets should be V9");
+        }
     }
 
     // 100 bytes of all zeros. Version 0 is not a valid NetFlow version.

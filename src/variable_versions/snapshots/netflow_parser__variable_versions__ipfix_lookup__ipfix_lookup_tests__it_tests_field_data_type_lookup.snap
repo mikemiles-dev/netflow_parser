@@ -212,7 +212,7 @@ expression: lookup
 - UnsignedDataNumber
 - Ipv4Options
 - TcpOptions
-- String
+- Vec
 - Ip4Addr
 - Ip6Addr
 - UnsignedDataNumber
@@ -264,7 +264,7 @@ expression: lookup
 - UnsignedDataNumber
 - DurationSeconds
 - DurationSeconds
-- String
+- Vec
 - UnsignedDataNumber
 - DurationSeconds
 - DurationSeconds

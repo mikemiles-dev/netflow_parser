@@ -607,7 +607,8 @@ impl NetflowCommon {
                 }
                 V9FlowSetBody::Template(_)
                 | V9FlowSetBody::OptionsTemplate(_)
-                | V9FlowSetBody::NoTemplate(_) => {}
+                | V9FlowSetBody::NoTemplate(_)
+                | V9FlowSetBody::Empty => {}
             }
         }
 
@@ -653,7 +654,8 @@ impl From<&V9> for NetflowCommon {
                 }
                 V9FlowSetBody::Template(_)
                 | V9FlowSetBody::OptionsTemplate(_)
-                | V9FlowSetBody::NoTemplate(_) => {}
+                | V9FlowSetBody::NoTemplate(_)
+                | V9FlowSetBody::Empty => {}
             }
         }
 
