@@ -752,7 +752,7 @@ To gather all flowsets from all packets into a flattened vector:
 ```rust,ignore
 use netflow_parser::NetflowParser;
 
-let flowsets = NetflowParser::default().parse_bytes_as_netflow_common_flowsets(&v5_packet);
+let (flowsets, error) = NetflowParser::default().parse_bytes_as_netflow_common_flowsets(&v5_packet);
 ```
 
 ### Custom Field Mappings for V9 and IPFIX

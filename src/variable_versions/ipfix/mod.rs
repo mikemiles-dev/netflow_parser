@@ -345,9 +345,10 @@ pub(crate) trait CommonTemplate {
         if usize::from(self.get_field_count()) > parser.max_field_count {
             return false;
         }
-        // Check scope field count if applicable (RFC 7011: at least one scope field required)
+        // Check scope field count if applicable (RFC 7011 Section 3.4.2.2:
+        // at least one scope field AND at least one non-scope field required)
         if let Some(scope_count) = self.get_scope_field_count()
-            && (scope_count == 0 || scope_count > self.get_field_count())
+            && (scope_count == 0 || scope_count >= self.get_field_count())
         {
             return false;
         }

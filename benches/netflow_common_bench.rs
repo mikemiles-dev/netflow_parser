@@ -31,7 +31,8 @@ fn criterion_benchmark(c: &mut Criterion) {
             all.extend_from_slice(&v9_packet);
             all.extend_from_slice(&ipfix_packet);
             all.extend_from_slice(&v5_packet);
-            NetflowParser::default().parse_bytes_as_netflow_common_flowsets(black_box(&all));
+            let _ = NetflowParser::default()
+                .parse_bytes_as_netflow_common_flowsets(black_box(&all));
         })
     });
 }

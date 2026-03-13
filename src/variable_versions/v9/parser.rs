@@ -60,7 +60,10 @@ impl Default for V9Parser {
             pending_flows_config: None,
         };
 
-        Self::try_new(config).expect("hardcoded default config is always valid")
+        match Self::try_new(config) {
+            Ok(parser) => parser,
+            Err(e) => unreachable!("hardcoded default config must be valid: {e}"),
+        }
     }
 }
 
@@ -223,6 +226,8 @@ impl V9Parser {
                 FlowSetBody::NoTemplate(info) => {
                     // If raw_data was truncated at parse time (oversized
                     // entry), skip caching — the data can't be replayed.
+                    // The truncated flowset is kept in output as diagnostic
+                    // data (truncated to max_error_sample_size).
                     let body_len = (flowset.header.length as usize).saturating_sub(4);
                     if info.raw_data.len() < body_len {
                         metrics.record_pending_dropped();

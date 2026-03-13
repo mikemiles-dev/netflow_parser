@@ -71,6 +71,11 @@ pub enum ConfigError {
     EmptyAllowedVersions,
     /// Max records per flowset must be greater than 0
     InvalidRecordsPerFlowset(usize),
+    /// Pending flow max_total_bytes must be >= max_entry_size_bytes
+    InvalidPendingTotalBytes {
+        max_total_bytes: usize,
+        max_entry_size_bytes: usize,
+    },
 }
 
 impl std::error::Error for ConfigError {}
@@ -141,6 +146,16 @@ impl std::fmt::Display for ConfigError {
                 write!(
                     f,
                     "Allowed versions list must not be empty. Supported versions are 5, 7, 9, 10."
+                )
+            }
+            ConfigError::InvalidPendingTotalBytes {
+                max_total_bytes,
+                max_entry_size_bytes,
+            } => {
+                write!(
+                    f,
+                    "Invalid pending flow config: max_total_bytes ({}) must be >= max_entry_size_bytes ({}).",
+                    max_total_bytes, max_entry_size_bytes
                 )
             }
         }
