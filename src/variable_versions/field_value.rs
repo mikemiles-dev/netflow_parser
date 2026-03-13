@@ -917,7 +917,7 @@ impl FieldValue {
 /// ```
 ///
 /// [`ProtocolTypes`]: crate::protocol::ProtocolTypes
-#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub enum FieldDataType {
     /// Application identifier field
     ApplicationId,

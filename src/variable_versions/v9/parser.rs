@@ -300,10 +300,10 @@ impl V9Parser {
             &self.ttl_config,
             &mut self.metrics,
         ) {
-            self.metrics.record_hit();
             if let Ok((_, data)) =
                 Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
             {
+                self.metrics.record_hit();
                 self.templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
@@ -324,12 +324,12 @@ impl V9Parser {
             &self.ttl_config,
             &mut self.metrics,
         ) {
-            self.metrics.record_hit();
             if let Ok((_, options_data)) = OptionsData::parse_with_limit(
                 &entry.raw_data,
                 &template,
                 self.max_records_per_flowset,
             ) {
+                self.metrics.record_hit();
                 self.options_templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {

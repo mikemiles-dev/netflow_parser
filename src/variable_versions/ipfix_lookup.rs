@@ -66,7 +66,7 @@ impl IPFixField {
             } => {
                 // Check if this enterprise field is registered
                 if let Some(def) = registry.get(*enterprise_number, *field_number) {
-                    def.data_type.clone()
+                    def.data_type
                 } else {
                     FieldDataType::Unknown
                 }

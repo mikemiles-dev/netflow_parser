@@ -329,13 +329,13 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         ) {
-            self.metrics.record_hit();
             if let Ok((_, data)) = Data::parse_with_registry(
                 &entry.raw_data,
                 &template,
                 &self.enterprise_registry,
                 self.max_records_per_flowset,
             ) {
+                self.metrics.record_hit();
                 self.templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
@@ -357,13 +357,13 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         ) {
-            self.metrics.record_hit();
             if let Ok((_, data)) = OptionsData::parse_with_registry(
                 &entry.raw_data,
                 &template,
                 &self.enterprise_registry,
                 self.max_records_per_flowset,
             ) {
+                self.metrics.record_hit();
                 self.ipfix_options_templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
@@ -385,10 +385,10 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         ) {
-            self.metrics.record_hit();
             if let Ok((_, data)) =
                 V9Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
             {
+                self.metrics.record_hit();
                 self.v9_templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
@@ -410,12 +410,12 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         ) {
-            self.metrics.record_hit();
             if let Ok((_, data)) = V9OptionsData::parse_with_limit(
                 &entry.raw_data,
                 &template,
                 self.max_records_per_flowset,
             ) {
+                self.metrics.record_hit();
                 self.v9_options_templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
