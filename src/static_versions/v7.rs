@@ -29,7 +29,7 @@ impl V7Parser {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub struct V7 {
     /// V7 Header
     pub header: Header,
@@ -122,7 +122,7 @@ impl V7 {
         }
 
         let count = u16::from_be_bytes([input[0], input[1]]);
-        if count > MAX_FLOWS {
+        if count == 0 || count > MAX_FLOWS {
             return Err(nom::Err::Error(Error::new(input, ErrorKind::TooLarge)));
         }
         let header = Header {

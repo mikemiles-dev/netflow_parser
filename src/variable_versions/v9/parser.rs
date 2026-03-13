@@ -56,7 +56,7 @@ impl Default for V9Parser {
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -709,7 +709,7 @@ impl ScopeDataField {
             ScopeFieldType::LineCard => Ok((new_input, ScopeDataField::LineCard(buf))),
             ScopeFieldType::NetflowCache => Ok((new_input, ScopeDataField::NetFlowCache(buf))),
             ScopeFieldType::Template => Ok((new_input, ScopeDataField::Template(buf))),
-            ScopeFieldType::Unknown => Ok((
+            ScopeFieldType::Unknown(_) => Ok((
                 new_input,
                 ScopeDataField::Unknown(template_field.field_type_number, buf),
             )),

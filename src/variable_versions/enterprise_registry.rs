@@ -161,11 +161,16 @@ impl EnterpriseFieldRegistry {
         true
     }
 
-    /// Register multiple enterprise field definitions at once
-    pub fn register_many(&mut self, defs: impl IntoIterator<Item = EnterpriseFieldDef>) {
+    /// Register multiple enterprise field definitions at once.
+    /// Returns the number of definitions successfully registered.
+    pub fn register_many(&mut self, defs: impl IntoIterator<Item = EnterpriseFieldDef>) -> usize {
+        let mut count = 0;
         for def in defs {
-            self.register(def);
+            if self.register(def) {
+                count += 1;
+            }
         }
+        count
     }
 
     /// Look up a field definition by enterprise number and field number

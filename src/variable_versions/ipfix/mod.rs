@@ -73,7 +73,7 @@ pub struct IPFixParser {
     pub(crate) max_template_total_size: usize,
     pub(crate) max_error_sample_size: usize,
     pub(crate) max_records_per_flowset: usize,
-    pub(crate) enterprise_registry: EnterpriseFieldRegistry,
+    pub(crate) enterprise_registry: Arc<EnterpriseFieldRegistry>,
     pub(crate) metrics: CacheMetrics,
     pub(crate) pending_flows: Option<PendingFlowCache>,
 }

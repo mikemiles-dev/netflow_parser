@@ -92,11 +92,16 @@ pub(crate) struct PendingFlowEntry {
 /// LRU cache for pending flows keyed by template ID.
 ///
 /// Provides caching, draining with TTL expiration, and per-template-ID entry limits.
+/// Recalculate `total_bytes` every this many cache/drain operations
+/// to correct any drift from saturating arithmetic.
+const RECALC_INTERVAL: u64 = 1024;
+
 #[derive(Debug)]
 pub(crate) struct PendingFlowCache {
     cache: LruCache<u16, Vec<PendingFlowEntry>>,
     config: PendingFlowsConfig,
     total_bytes: usize,
+    ops_since_recalc: u64,
 }
 
 impl PendingFlowCache {
@@ -167,6 +172,7 @@ impl PendingFlowCache {
             cache: LruCache::new(size),
             config,
             total_bytes: 0,
+            ops_since_recalc: 0,
         })
     }
 
@@ -279,6 +285,11 @@ impl PendingFlowCache {
         }
         self.total_bytes = self.total_bytes.saturating_add(entry_size);
         metrics.record_pending_cached();
+        self.ops_since_recalc += 1;
+        if self.ops_since_recalc >= RECALC_INTERVAL {
+            self.recalculate_total_bytes();
+            self.ops_since_recalc = 0;
+        }
         #[cfg(debug_assertions)]
         self.debug_verify_total_bytes();
         None
@@ -366,6 +377,20 @@ impl PendingFlowCache {
     /// Returns the total number of pending flow entries across all template IDs.
     pub(crate) fn count(&self) -> usize {
         self.cache.iter().map(|(_, entries)| entries.len()).sum()
+    }
+
+    /// Recalculate `total_bytes` from scratch by summing all cached entries.
+    ///
+    /// This corrects any drift that may have accumulated due to saturating
+    /// arithmetic in hot paths. Called automatically every [`RECALC_INTERVAL`]
+    /// operations, but can also be called manually.
+    pub(crate) fn recalculate_total_bytes(&mut self) {
+        self.total_bytes = self
+            .cache
+            .iter()
+            .flat_map(|(_, entries)| entries.iter())
+            .map(|e| e.raw_data.len())
+            .sum();
     }
 
     /// Clear all pending flows.

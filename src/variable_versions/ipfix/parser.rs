@@ -44,7 +44,7 @@ impl Default for IPFixParser {
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -697,6 +697,14 @@ impl FlowSetBody {
             ),
             // Parse Data
             _ => {
+                // NOTE: Template ID collision across cache types is possible and
+                // expected when both IPFIX and V9-style templates coexist in
+                // the same parser (the IPFIX parser accepts both flavors).
+                // The lookup order below defines priority: IPFIX templates >
+                // IPFIX options > V9 templates > V9 options. If the same
+                // template ID appears in multiple caches, only the first
+                // match is used and others are silently shadowed.
+
                 // Try IPFix templates
                 if let Some(template) = crate::variable_versions::get_valid_template(
                     &mut parser.templates,

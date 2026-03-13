@@ -5,6 +5,7 @@ mod base_tests {
     use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
     use crate::variable_versions::ipfix_lookup::IPFixField;
     use crate::{NetflowPacket, NetflowParser};
+    use std::sync::Arc;
 
     use insta::assert_yaml_snapshot;
 
@@ -424,7 +425,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -447,7 +448,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -493,7 +494,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -539,7 +540,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -585,7 +586,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -630,7 +631,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 
@@ -678,7 +679,7 @@ mod base_tests {
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
-            enterprise_registry: EnterpriseFieldRegistry::new(),
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
         };
 

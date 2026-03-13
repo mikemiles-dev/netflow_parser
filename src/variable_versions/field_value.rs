@@ -88,7 +88,7 @@ impl DataNumber {
                 }
             }
             DataNumber::I128(n) => *n,
-            DataNumber::Vec(_) => 0,
+            DataNumber::Vec(v) => v.iter().fold(0i128, |acc, &b| (acc << 8) | b as i128),
         }
     }
 }

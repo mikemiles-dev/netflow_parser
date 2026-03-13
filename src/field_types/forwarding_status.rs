@@ -179,30 +179,40 @@ impl ForwardingStatus {
 impl std::fmt::Display for ForwardingStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ForwardingStatus::Unknown(_) => write!(f, "Unknown"),
-            ForwardingStatus::Forwarded(_)
-            | ForwardingStatus::ForwardedFragmented
-            | ForwardingStatus::ForwardedNotFragmented => write!(f, "Forwarded"),
-            ForwardingStatus::Dropped(_)
-            | ForwardingStatus::DroppedAclDeny
-            | ForwardingStatus::DroppedAclDrop
-            | ForwardingStatus::DroppedUnroutable
-            | ForwardingStatus::DroppedAdjacency
-            | ForwardingStatus::DroppedFragmentationAndDf
-            | ForwardingStatus::DroppedBadHeaderChecksum
-            | ForwardingStatus::DroppedBadTotalLength
-            | ForwardingStatus::DroppedBadHeaderLength
-            | ForwardingStatus::DroppedBadTtl
-            | ForwardingStatus::DroppedPolicer
-            | ForwardingStatus::DroppedWred
-            | ForwardingStatus::DroppedRpf
-            | ForwardingStatus::DroppedForUs
-            | ForwardingStatus::DroppedBadOutputInterface
-            | ForwardingStatus::DroppedHardware => write!(f, "Dropped"),
-            ForwardingStatus::Consumed(_)
-            | ForwardingStatus::ConsumedTerminatedPuntedToControl
-            | ForwardingStatus::ConsumedTerminatedIncompleteAdjacency
-            | ForwardingStatus::ConsumedTerminatedForUs => write!(f, "Consumed"),
+            ForwardingStatus::Unknown(r) => write!(f, "Unknown({r})"),
+            ForwardingStatus::Forwarded(r) => write!(f, "Forwarded({r})"),
+            ForwardingStatus::ForwardedFragmented => write!(f, "Forwarded: Fragmented"),
+            ForwardingStatus::ForwardedNotFragmented => write!(f, "Forwarded: Not Fragmented"),
+            ForwardingStatus::Dropped(r) => write!(f, "Dropped({r})"),
+            ForwardingStatus::DroppedAclDeny => write!(f, "Dropped: ACL Deny"),
+            ForwardingStatus::DroppedAclDrop => write!(f, "Dropped: ACL Drop"),
+            ForwardingStatus::DroppedUnroutable => write!(f, "Dropped: Unroutable"),
+            ForwardingStatus::DroppedAdjacency => write!(f, "Dropped: Adjacency"),
+            ForwardingStatus::DroppedFragmentationAndDf => {
+                write!(f, "Dropped: Fragmentation and DF")
+            }
+            ForwardingStatus::DroppedBadHeaderChecksum => {
+                write!(f, "Dropped: Bad Header Checksum")
+            }
+            ForwardingStatus::DroppedBadTotalLength => write!(f, "Dropped: Bad Total Length"),
+            ForwardingStatus::DroppedBadHeaderLength => write!(f, "Dropped: Bad Header Length"),
+            ForwardingStatus::DroppedBadTtl => write!(f, "Dropped: Bad TTL"),
+            ForwardingStatus::DroppedPolicer => write!(f, "Dropped: Policer"),
+            ForwardingStatus::DroppedWred => write!(f, "Dropped: WRED"),
+            ForwardingStatus::DroppedRpf => write!(f, "Dropped: RPF"),
+            ForwardingStatus::DroppedForUs => write!(f, "Dropped: For Us"),
+            ForwardingStatus::DroppedBadOutputInterface => {
+                write!(f, "Dropped: Bad Output Interface")
+            }
+            ForwardingStatus::DroppedHardware => write!(f, "Dropped: Hardware"),
+            ForwardingStatus::Consumed(r) => write!(f, "Consumed({r})"),
+            ForwardingStatus::ConsumedTerminatedPuntedToControl => {
+                write!(f, "Consumed: Punted to Control")
+            }
+            ForwardingStatus::ConsumedTerminatedIncompleteAdjacency => {
+                write!(f, "Consumed: Incomplete Adjacency")
+            }
+            ForwardingStatus::ConsumedTerminatedForUs => write!(f, "Consumed: For Us"),
         }
     }
 }
@@ -324,12 +334,18 @@ mod forwarding_status_tests {
 
     #[test]
     fn test_display() {
-        assert_eq!(format!("{}", ForwardingStatus::Unknown(0)), "Unknown");
-        assert_eq!(format!("{}", ForwardingStatus::Forwarded(0)), "Forwarded");
-        assert_eq!(format!("{}", ForwardingStatus::DroppedAclDeny), "Dropped");
+        assert_eq!(format!("{}", ForwardingStatus::Unknown(0)), "Unknown(0)");
+        assert_eq!(
+            format!("{}", ForwardingStatus::Forwarded(0)),
+            "Forwarded(0)"
+        );
+        assert_eq!(
+            format!("{}", ForwardingStatus::DroppedAclDeny),
+            "Dropped: ACL Deny"
+        );
         assert_eq!(
             format!("{}", ForwardingStatus::ConsumedTerminatedForUs),
-            "Consumed"
+            "Consumed: For Us"
         );
     }
 }
