@@ -10,22 +10,20 @@ use super::{
 impl V9 {
     /// Serialize Template flowset body to bytes
     fn serialize_template_body(templates: &Templates) -> Vec<u8> {
-        let mut template_content = Vec::new();
+        let mut result = Vec::new();
         for template in templates.templates.iter() {
-            template_content.extend_from_slice(&template.template_id.to_be_bytes());
-            template_content.extend_from_slice(&template.field_count.to_be_bytes());
+            result.extend_from_slice(&template.template_id.to_be_bytes());
+            result.extend_from_slice(&template.field_count.to_be_bytes());
             for field in template.fields.iter() {
-                template_content.extend_from_slice(&field.field_type_number.to_be_bytes());
-                template_content.extend_from_slice(&field.field_length.to_be_bytes());
+                result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                result.extend_from_slice(&field.field_length.to_be_bytes());
             }
         }
 
-        let mut result = Vec::new();
-        result.extend_from_slice(&template_content);
-
+        let content_len = result.len();
         // Auto-calculate padding if not provided (for manually created packets)
         let padding = if templates.padding.is_empty() {
-            calculate_padding(template_content.len())
+            calculate_padding(content_len)
         } else {
             &templates.padding[..]
         };
@@ -35,27 +33,25 @@ impl V9 {
 
     /// Serialize OptionsTemplate flowset body to bytes
     fn serialize_options_template_body(options_templates: &OptionsTemplates) -> Vec<u8> {
-        let mut options_content = Vec::new();
+        let mut result = Vec::new();
         for template in options_templates.templates.iter() {
-            options_content.extend_from_slice(&template.template_id.to_be_bytes());
-            options_content.extend_from_slice(&template.options_scope_length.to_be_bytes());
-            options_content.extend_from_slice(&template.options_length.to_be_bytes());
+            result.extend_from_slice(&template.template_id.to_be_bytes());
+            result.extend_from_slice(&template.options_scope_length.to_be_bytes());
+            result.extend_from_slice(&template.options_length.to_be_bytes());
             for field in template.scope_fields.iter() {
-                options_content.extend_from_slice(&field.field_type_number.to_be_bytes());
-                options_content.extend_from_slice(&field.field_length.to_be_bytes());
+                result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                result.extend_from_slice(&field.field_length.to_be_bytes());
             }
             for field in template.option_fields.iter() {
-                options_content.extend_from_slice(&field.field_type_number.to_be_bytes());
-                options_content.extend_from_slice(&field.field_length.to_be_bytes());
+                result.extend_from_slice(&field.field_type_number.to_be_bytes());
+                result.extend_from_slice(&field.field_length.to_be_bytes());
             }
         }
 
-        let mut result = Vec::new();
-        result.extend_from_slice(&options_content);
-
+        let content_len = result.len();
         // Auto-calculate padding if not provided (for manually created packets)
         let padding = if options_templates.padding.is_empty() {
-            calculate_padding(options_content.len())
+            calculate_padding(content_len)
         } else {
             &options_templates.padding[..]
         };
@@ -65,19 +61,17 @@ impl V9 {
 
     /// Serialize Data flowset body to bytes
     fn serialize_data_body(data: &Data) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        let mut data_content = Vec::new();
+        let mut result = Vec::new();
         for data_field in data.fields.iter() {
             for (_, field_value) in data_field.iter() {
-                field_value.write_be_bytes(&mut data_content)?;
+                field_value.write_be_bytes(&mut result)?;
             }
         }
 
-        let mut result = Vec::new();
-        result.extend_from_slice(&data_content);
-
+        let content_len = result.len();
         // Auto-calculate padding if not provided (for manually created packets)
         let padding = if data.padding.is_empty() {
-            calculate_padding(data_content.len())
+            calculate_padding(content_len)
         } else {
             &data.padding[..]
         };
@@ -89,7 +83,7 @@ impl V9 {
     fn serialize_options_data_body(
         options_data: &OptionsData,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        let mut data_content = Vec::new();
+        let mut result = Vec::new();
         for options_data_field in options_data.fields.iter() {
             for field in options_data_field.scope_fields.iter() {
                 match field {
@@ -99,18 +93,17 @@ impl V9 {
                     | ScopeDataField::NetFlowCache(value)
                     | ScopeDataField::Template(value)
                     | ScopeDataField::Unknown(_, value) => {
-                        data_content.extend_from_slice(value);
+                        result.extend_from_slice(value);
                     }
                 }
             }
             for (_field_type, field_value) in options_data_field.options_fields.iter() {
-                field_value.write_be_bytes(&mut data_content)?;
+                field_value.write_be_bytes(&mut result)?;
             }
         }
 
-        let mut result = Vec::new();
-        result.extend_from_slice(&data_content);
-        result.extend_from_slice(calculate_padding(data_content.len()));
+        let content_len = result.len();
+        result.extend_from_slice(calculate_padding(content_len));
         Ok(result)
     }
 

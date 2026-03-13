@@ -496,10 +496,13 @@ impl Template {
         true
     }
 
-    /// Returns the total size of the template, including the header and all fields.
+    /// Returns the total fixed-length size of the template fields.
+    /// Variable-length sentinel values (65535) are excluded since they
+    /// are RFC 7011 markers, not actual sizes.
     pub fn get_total_size(&self) -> u16 {
         self.fields
             .iter()
+            .filter(|f| f.field_length != 65535)
             .fold(0, |acc, i| acc.saturating_add(i.field_length))
     }
 
@@ -565,15 +568,19 @@ impl OptionsTemplate {
         true
     }
 
-    /// Returns the total size of all fields in the options template
+    /// Returns the total fixed-length size of all fields in the options template.
+    /// Variable-length sentinel values (65535) are excluded since they
+    /// are RFC 7011 markers, not actual sizes.
     pub fn get_total_size(&self) -> u16 {
         let scope_size: u16 = self
             .scope_fields
             .iter()
+            .filter(|f| f.field_length != 65535)
             .fold(0, |acc, f| acc.saturating_add(f.field_length));
         let option_size: u16 = self
             .option_fields
             .iter()
+            .filter(|f| f.field_length != 65535)
             .fold(0, |acc, f| acc.saturating_add(f.field_length));
         scope_size.saturating_add(option_size)
     }

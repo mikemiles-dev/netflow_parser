@@ -164,7 +164,7 @@ pub struct FlowSetHeader {
 }
 
 /// Parsed IPFIX data records decoded using an IPFIX template.
-#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+#[derive(Debug, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(template: &Template))]
 pub struct Data {
     #[nom(
@@ -174,20 +174,70 @@ pub struct Data {
     pub fields: Vec<IPFixFlowRecord>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
+    /// Original template field lengths, used to emit RFC 7011 variable-length
+    /// prefixes during serialization.  Not included in equality comparisons.
+    /// Only populated when the template contains variable-length fields
+    /// (field_length == 65535) to avoid unnecessary allocations.
+    #[serde(skip_serializing)]
+    #[nom(Value({
+        let fields = template.get_fields();
+        if fields.iter().any(|f| f.field_length == 65535) {
+            fields.iter().map(|f| f.field_length).collect::<Vec<u16>>()
+        } else {
+            Vec::new()
+        }
+    }))]
+    pub(crate) template_field_lengths: Vec<u16>,
+}
+
+impl PartialEq for Data {
+    fn eq(&self, other: &Self) -> bool {
+        self.fields == other.fields && self.padding == other.padding
+    }
 }
 
 impl Data {
     /// Creates a new Data instance with the given fields.
+    ///
+    /// The resulting `Data` has no template field length metadata, so
+    /// serialization via [`IPFix::to_be_bytes()`](super::IPFix::to_be_bytes)
+    /// assumes all fields are fixed-length.  Use
+    /// [`Data::with_template_field_lengths`] when the template contains
+    /// variable-length fields (field_length == 65535).
     pub fn new(fields: Vec<IPFixFlowRecord>) -> Self {
         Self {
             fields,
             padding: vec![],
+            template_field_lengths: vec![],
+        }
+    }
+
+    /// Returns `true` if this data record has variable-length field metadata.
+    pub fn has_varlen_metadata(&self) -> bool {
+        !self.template_field_lengths.is_empty()
+    }
+
+    /// Creates a new Data instance with explicit template field lengths.
+    ///
+    /// Required for correct round-trip serialization when the template
+    /// contains variable-length fields (RFC 7011, field_length == 65535).
+    /// Each entry in `template_field_lengths` corresponds to the template
+    /// field at the same index; entries with value 65535 cause an RFC 7011
+    /// variable-length prefix to be emitted during serialization.
+    pub fn with_template_field_lengths(
+        fields: Vec<IPFixFlowRecord>,
+        template_field_lengths: Vec<u16>,
+    ) -> Self {
+        Self {
+            fields,
+            padding: vec![],
+            template_field_lengths,
         }
     }
 }
 
 /// Parsed IPFIX options data records decoded using an IPFIX options template.
-#[derive(Debug, PartialEq, Clone, Serialize, Nom)]
+#[derive(Debug, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(template: &OptionsTemplate))]
 pub struct OptionsData {
     #[nom(
@@ -197,6 +247,25 @@ pub struct OptionsData {
     pub fields: Vec<Vec<IPFixFieldPair>>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
+    /// Original template field lengths, used to emit RFC 7011 variable-length
+    /// prefixes during serialization.  Not included in equality comparisons.
+    /// Only populated when the template contains variable-length fields.
+    #[serde(skip_serializing)]
+    #[nom(Value({
+        let fields = template.get_fields();
+        if fields.iter().any(|f| f.field_length == 65535) {
+            fields.iter().map(|f| f.field_length).collect::<Vec<u16>>()
+        } else {
+            Vec::new()
+        }
+    }))]
+    pub(crate) template_field_lengths: Vec<u16>,
+}
+
+impl PartialEq for OptionsData {
+    fn eq(&self, other: &Self) -> bool {
+        self.fields == other.fields && self.padding == other.padding
+    }
 }
 
 impl OptionsData {
@@ -205,6 +274,19 @@ impl OptionsData {
         Self {
             fields,
             padding: vec![],
+            template_field_lengths: vec![],
+        }
+    }
+
+    /// Creates a new OptionsData instance with explicit template field lengths.
+    pub fn with_template_field_lengths(
+        fields: Vec<Vec<IPFixFieldPair>>,
+        template_field_lengths: Vec<u16>,
+    ) -> Self {
+        Self {
+            fields,
+            padding: vec![],
+            template_field_lengths,
         }
     }
 }
@@ -274,10 +356,12 @@ pub(crate) trait CommonTemplate {
             return false;
         }
 
-        // Check total size limit
+        // Check total size limit (skip variable-length sentinel 65535,
+        // which is an RFC 7011 marker, not an actual size)
         let total_size: usize = self
             .get_fields()
             .iter()
+            .filter(|f| f.field_length != 65535)
             .fold(0, |acc, f| acc.saturating_add(usize::from(f.field_length)));
         if total_size > parser.max_template_total_size {
             return false;

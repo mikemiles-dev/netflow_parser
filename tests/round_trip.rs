@@ -23,8 +23,8 @@ fn test_v7_round_trip() {
     packet[2] = 0;
     packet[3] = 1;
     // Fill remaining header + flowset with deterministic values
-    for i in 4..packet.len() {
-        packet[i] = (i % 256) as u8;
+    for (i, byte) in packet.iter_mut().enumerate().skip(4) {
+        *byte = (i % 256) as u8;
     }
 
     if let NetflowPacket::V7(v7) = NetflowParser::default()
@@ -451,4 +451,231 @@ fn test_field_wrong_length_fallback_round_trips() {
     let mut buf = Vec::new();
     field_value.write_be_bytes(&mut buf).unwrap();
     assert_eq!(buf, raw, "Vec fallback round-trip failed");
+}
+
+// ---------------------------------------------------------------------------
+// IPFIX variable-length field round-trips (RFC 7011 Section 7)
+// ---------------------------------------------------------------------------
+
+/// Build an IPFIX message from raw template set bytes and data set bytes.
+fn build_ipfix_message(export_time: u32, seq: u32, obs_domain: u32, sets: &[u8]) -> Vec<u8> {
+    let total_len = (16 + sets.len()) as u16;
+    let mut msg = Vec::with_capacity(total_len as usize);
+    msg.extend_from_slice(&10u16.to_be_bytes()); // version
+    msg.extend_from_slice(&total_len.to_be_bytes()); // length
+    msg.extend_from_slice(&export_time.to_be_bytes());
+    msg.extend_from_slice(&seq.to_be_bytes());
+    msg.extend_from_slice(&obs_domain.to_be_bytes());
+    msg.extend_from_slice(sets);
+    msg
+}
+
+/// Build an IPFIX template set (Set ID = 2) with the given template_id and
+/// field definitions as (field_type_number, field_length) pairs.
+fn build_ipfix_template_set(template_id: u16, fields: &[(u16, u16)]) -> Vec<u8> {
+    // Set header (4) + template header (4) + fields (4 each)
+    let set_len = (4 + 4 + fields.len() * 4) as u16;
+    let mut set = Vec::with_capacity(set_len as usize);
+    set.extend_from_slice(&2u16.to_be_bytes()); // Set ID = 2 (template)
+    set.extend_from_slice(&set_len.to_be_bytes());
+    set.extend_from_slice(&template_id.to_be_bytes());
+    set.extend_from_slice(&(fields.len() as u16).to_be_bytes());
+    for &(type_num, length) in fields {
+        set.extend_from_slice(&type_num.to_be_bytes());
+        set.extend_from_slice(&length.to_be_bytes());
+    }
+    set
+}
+
+#[test]
+fn test_ipfix_varlen_short_round_trip() {
+    // Template: sourceIPv4Address(8) len=4, applicationDescription(94) len=65535
+    let template_set = build_ipfix_template_set(256, &[(8, 4), (94, 65535)]);
+    let template_msg = build_ipfix_message(0x62A0B1B9, 8, 1, &template_set);
+
+    let mut parser = NetflowParser::builder()
+        .with_cache_size(100)
+        .build()
+        .unwrap();
+
+    let result = parser.parse_bytes(&template_msg);
+    assert!(result.error.is_none(), "Template parse failed");
+
+    // Data: src=192.168.1.1, varlen "abc" (1-byte prefix: 0x03)
+    // Record = 4 + 1 + 3 = 8 bytes (4-byte aligned)
+    let mut data_set = Vec::new();
+    data_set.extend_from_slice(&256u16.to_be_bytes()); // Set ID
+    data_set.extend_from_slice(&12u16.to_be_bytes()); // Set length = 4 header + 8 body
+    data_set.extend_from_slice(&[192, 168, 1, 1]); // sourceIPv4Address
+    data_set.push(3); // varlen prefix: length=3
+    data_set.extend_from_slice(b"abc"); // applicationDescription
+
+    let data_msg = build_ipfix_message(0x62A0B1B9, 9, 1, &data_set);
+    let data_result = parser.parse_bytes(&data_msg);
+    assert!(
+        data_result.error.is_none(),
+        "Data parse failed: {:?}",
+        data_result.error
+    );
+
+    if let Some(NetflowPacket::IPFix(ipfix)) = data_result.packets.first() {
+        let serialized = ipfix
+            .to_be_bytes()
+            .expect("IPFIX varlen serialization failed");
+        assert_eq!(
+            serialized, data_msg,
+            "IPFIX varlen short field round-trip failed"
+        );
+    } else {
+        panic!("Expected IPFIX data packet");
+    }
+}
+
+#[test]
+fn test_ipfix_varlen_long_round_trip() {
+    // Template: single variable-length string field
+    // Using interfaceDescription (83) as a variable-length string field
+    let template_set = build_ipfix_template_set(257, &[(83, 65535)]);
+    let template_msg = build_ipfix_message(0x62A0B1B9, 10, 1, &template_set);
+
+    let mut parser = NetflowParser::builder()
+        .with_cache_size(100)
+        .build()
+        .unwrap();
+
+    let result = parser.parse_bytes(&template_msg);
+    assert!(result.error.is_none(), "Template parse failed");
+
+    // Data with 3-byte prefix (value length = 300 bytes, >= 255)
+    let value_len: u16 = 300;
+    let value: Vec<u8> = (0..value_len).map(|i| (i % 26 + 0x61) as u8).collect(); // "abcdef..."
+
+    let body_len = 3 + value_len as usize; // 3-byte prefix + 300 bytes
+    let padding_needed = (4 - (body_len % 4)) % 4;
+    let set_len = 4 + body_len + padding_needed;
+
+    let mut data_set = Vec::new();
+    data_set.extend_from_slice(&257u16.to_be_bytes()); // Set ID
+    data_set.extend_from_slice(&(set_len as u16).to_be_bytes());
+    data_set.push(255); // varlen marker: length >= 255
+    data_set.extend_from_slice(&value_len.to_be_bytes()); // 2-byte length
+    data_set.extend_from_slice(&value);
+    // Padding
+    for _ in 0..padding_needed {
+        data_set.push(0);
+    }
+
+    let data_msg = build_ipfix_message(0x62A0B1B9, 11, 1, &data_set);
+    let data_result = parser.parse_bytes(&data_msg);
+    assert!(
+        data_result.error.is_none(),
+        "Long varlen data parse failed: {:?}",
+        data_result.error
+    );
+
+    if let Some(NetflowPacket::IPFix(ipfix)) = data_result.packets.first() {
+        let serialized = ipfix
+            .to_be_bytes()
+            .expect("IPFIX long varlen serialization failed");
+        assert_eq!(
+            serialized, data_msg,
+            "IPFIX varlen long field (3-byte prefix) round-trip failed"
+        );
+    } else {
+        panic!("Expected IPFIX data packet");
+    }
+}
+
+#[test]
+fn test_ipfix_mixed_fixed_and_varlen_round_trip() {
+    // Template: fixed(4) + varlen + fixed(4) — varlen field sandwiched between fixed
+    // sourceIPv4Address(8) len=4, applicationDescription(94) len=65535, egressInterface(14) len=4
+    let template_set = build_ipfix_template_set(258, &[(8, 4), (94, 65535), (14, 4)]);
+    let template_msg = build_ipfix_message(0x62A0B1B9, 12, 1, &template_set);
+
+    let mut parser = NetflowParser::builder()
+        .with_cache_size(100)
+        .build()
+        .unwrap();
+
+    let result = parser.parse_bytes(&template_msg);
+    assert!(result.error.is_none(), "Template parse failed");
+
+    // Data: src=10.0.0.1, varlen "test" (4 bytes, 1-byte prefix), egress=42
+    // Record = 4 + 1 + 4 + 4 = 13 bytes → 3 bytes padding to reach 16
+    let mut data_set = Vec::new();
+    data_set.extend_from_slice(&258u16.to_be_bytes());
+    let body_len = 4 + 1 + 4 + 4; // 13
+    let padding = (4 - (body_len % 4)) % 4; // 3
+    let set_len = 4 + body_len + padding;
+    data_set.extend_from_slice(&(set_len as u16).to_be_bytes());
+    data_set.extend_from_slice(&[10, 0, 0, 1]); // sourceIPv4Address
+    data_set.push(4); // varlen prefix: length=4
+    data_set.extend_from_slice(b"test"); // applicationDescription
+    data_set.extend_from_slice(&42u32.to_be_bytes()); // egressInterface
+    for _ in 0..padding {
+        data_set.push(0);
+    }
+
+    let data_msg = build_ipfix_message(0x62A0B1B9, 13, 1, &data_set);
+    let data_result = parser.parse_bytes(&data_msg);
+    assert!(
+        data_result.error.is_none(),
+        "Mixed parse failed: {:?}",
+        data_result.error
+    );
+
+    if let Some(NetflowPacket::IPFix(ipfix)) = data_result.packets.first() {
+        let serialized = ipfix
+            .to_be_bytes()
+            .expect("Mixed varlen serialization failed");
+        assert_eq!(
+            serialized, data_msg,
+            "IPFIX mixed fixed+varlen round-trip failed"
+        );
+    } else {
+        panic!("Expected IPFIX data packet");
+    }
+}
+
+#[test]
+fn test_ipfix_fixed_only_template_no_varlen_overhead() {
+    // Verify that a template with only fixed-length fields does NOT
+    // populate template_field_lengths (optimization check).
+    let hex_template = "000a002862a0b1b9000000086c6a7e11\
+                         000200180100000400080004000c0004000a0004000e0004";
+
+    let mut parser = NetflowParser::builder()
+        .with_cache_size(100)
+        .build()
+        .unwrap();
+
+    let template_bytes = hex::decode(hex_template).unwrap();
+    let _ = parser.parse_bytes(&template_bytes);
+
+    // Parse data
+    let hex_data = "000a002462a0b1b9000000096c6a7e11\
+                    01000014c0a801010a0000010000000a00000014";
+    let data_bytes = hex::decode(hex_data).unwrap();
+    let data_result = parser.parse_bytes(&data_bytes);
+
+    if let Some(NetflowPacket::IPFix(ipfix)) = data_result.packets.first() {
+        // Verify round-trip still works
+        let serialized = ipfix.to_be_bytes().expect("serialization failed");
+        assert_eq!(serialized, data_bytes);
+
+        // Verify template_field_lengths is empty (optimization)
+        for flowset in &ipfix.flowsets {
+            if let netflow_parser::variable_versions::ipfix::FlowSetBody::Data(data) =
+                &flowset.body
+            {
+                assert!(
+                    !data.has_varlen_metadata(),
+                    "template_field_lengths should be empty for fixed-length-only templates"
+                );
+            }
+        }
+    } else {
+        panic!("Expected IPFIX data packet");
+    }
 }

@@ -134,7 +134,9 @@ impl PendingFlowCache {
             ConfigError::InvalidPendingCacheSize(config.max_pending_flows),
         )?;
         if config.max_entries_per_template == 0 {
-            return Err(ConfigError::InvalidEntriesPerTemplate(0));
+            return Err(ConfigError::InvalidEntriesPerTemplate(
+                config.max_entries_per_template,
+            ));
         }
         if config.max_entry_size_bytes == 0
             || config.max_entry_size_bytes > MAX_ENTRY_SIZE_LIMIT
