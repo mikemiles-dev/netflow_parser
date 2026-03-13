@@ -10,6 +10,7 @@ use super::{
     NoTemplateInfo, OPTIONS_TEMPLATE_IPFIX_ID, OptionsData, OptionsTemplate, Template,
     TemplateField,
 };
+use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::metrics::CacheMetrics;
@@ -41,6 +42,7 @@ impl Default for IPFixParser {
             max_field_count: usize::from(MAX_FIELD_COUNT),
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,
@@ -61,6 +63,9 @@ impl IPFixParser {
         }
         if config.max_template_total_size == 0 {
             return Err(ConfigError::InvalidTemplateTotalSize(0));
+        }
+        if config.max_records_per_flowset == 0 {
+            return Err(ConfigError::InvalidRecordsPerFlowset(0));
         }
         if let Some(ref ttl) = config.ttl_config {
             if ttl.duration.is_zero() {
@@ -100,6 +105,7 @@ impl IPFixParser {
             max_field_count: config.max_field_count,
             max_template_total_size: config.max_template_total_size,
             max_error_sample_size: config.max_error_sample_size,
+            max_records_per_flowset: config.max_records_per_flowset,
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetrics::new(),
             pending_flows,
@@ -119,6 +125,9 @@ impl ParserFields for IPFixParser {
     }
     fn set_max_error_sample_size_field(&mut self, size: usize) {
         self.max_error_sample_size = size;
+    }
+    fn set_max_records_per_flowset_field(&mut self, count: usize) {
+        self.max_records_per_flowset = count;
     }
     fn set_ttl_config_field(&mut self, config: Option<TtlConfig>) {
         self.ttl_config = config;
@@ -312,7 +321,7 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         ) && let Ok((_, data)) =
-            Data::parse_with_registry(&entry.raw_data, &template, &self.enterprise_registry)
+            Data::parse_with_registry(&entry.raw_data, &template, &self.enterprise_registry, self.max_records_per_flowset)
         {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
@@ -336,6 +345,7 @@ impl IPFixParser {
             &entry.raw_data,
             &template,
             &self.enterprise_registry,
+            self.max_records_per_flowset,
         ) {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
@@ -355,7 +365,7 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = V9Data::parse(&entry.raw_data, &template)
+        ) && let Ok((_, data)) = V9Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
         {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
@@ -375,7 +385,7 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = V9OptionsData::parse(&entry.raw_data, &template)
+        ) && let Ok((_, data)) = V9OptionsData::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
         {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
@@ -594,7 +604,7 @@ impl FlowSetBody {
                         return Ok((i, FlowSetBody::Empty));
                     }
                     let (i, data) =
-                        Data::parse_with_registry(i, &template, &parser.enterprise_registry)?;
+                        Data::parse_with_registry(i, &template, &parser.enterprise_registry, parser.max_records_per_flowset)?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
 
@@ -612,6 +622,7 @@ impl FlowSetBody {
                         i,
                         &template,
                         &parser.enterprise_registry,
+                        parser.max_records_per_flowset,
                     )?;
                     return Ok((i, FlowSetBody::OptionsData(data)));
                 }
@@ -623,7 +634,7 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
-                    let (i, data) = V9Data::parse(i, &template)?;
+                    let (i, data) = V9Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
                     return Ok((i, FlowSetBody::V9Data(data)));
                 }
 
@@ -634,7 +645,7 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
-                    let (i, data) = V9OptionsData::parse(i, &template)?;
+                    let (i, data) = V9OptionsData::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
                     return Ok((i, FlowSetBody::V9OptionsData(data)));
                 }
 
@@ -699,9 +710,10 @@ impl Data {
         i: &'a [u8],
         template: &Template,
         registry: &EnterpriseFieldRegistry,
+        max_records: usize,
     ) -> IResult<&'a [u8], Self> {
         let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
-        let (i, fields) = FieldParser::parse_with_registry(i, template, registry)?;
+        let (i, fields) = FieldParser::parse_with_registry(i, template, registry, max_records)?;
         Ok((
             i,
             Self {
@@ -719,9 +731,10 @@ impl OptionsData {
         i: &'a [u8],
         template: &OptionsTemplate,
         registry: &EnterpriseFieldRegistry,
+        max_records: usize,
     ) -> IResult<&'a [u8], Self> {
         let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
-        let (i, fields) = FieldParser::parse_with_registry(i, template, registry)?;
+        let (i, fields) = FieldParser::parse_with_registry(i, template, registry, max_records)?;
         Ok((
             i,
             Self {
@@ -740,6 +753,7 @@ impl<'a> FieldParser {
     pub(super) fn parse<T: CommonTemplate>(
         mut i: &'a [u8],
         template: &T,
+        max_records: usize,
     ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
         let template_fields = template.get_fields();
         if template_fields.is_empty() {
@@ -760,14 +774,14 @@ impl<'a> FieldParser {
             })
             .sum();
         let estimated_records = if template_size > 0 {
-            (i.len() / template_size).min(1024)
+            (i.len() / template_size).min(max_records)
         } else {
             0
         };
         let mut res = Vec::with_capacity(estimated_records);
 
         // Try to parse as much as we can, but if it fails, just return what we have so far.
-        while !i.is_empty() {
+        while !i.is_empty() && res.len() < max_records {
             let before = i;
             let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {
@@ -796,6 +810,7 @@ impl<'a> FieldParser {
         mut i: &'a [u8],
         template: &T,
         registry: &EnterpriseFieldRegistry,
+        max_records: usize,
     ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
         let template_fields = template.get_fields();
         if template_fields.is_empty() {
@@ -816,14 +831,14 @@ impl<'a> FieldParser {
             })
             .sum();
         let estimated_records = if template_size > 0 {
-            (i.len() / template_size).min(1024)
+            (i.len() / template_size).min(max_records)
         } else {
             0
         };
         let mut res = Vec::with_capacity(estimated_records);
 
         // Try to parse as much as we can, but if it fails, just return what we have so far.
-        while !i.is_empty() {
+        while !i.is_empty() && res.len() < max_records {
             let before = i;
             let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {

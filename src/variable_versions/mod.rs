@@ -86,7 +86,10 @@ pub mod v9_lookup;
 // Re-export public types to preserve existing import paths
 pub use config::ParserConfig;
 pub(crate) use config::ParserFields;
-pub use config::{Config, ConfigError, DEFAULT_MAX_TEMPLATE_CACHE_SIZE, MAX_FIELD_COUNT};
+pub use config::{
+    Config, ConfigError, DEFAULT_MAX_RECORDS_PER_FLOWSET, DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
+    MAX_FIELD_COUNT,
+};
 pub use pending_flows::PendingFlowsConfig;
 
 // Re-export crate-internal types for use by sibling modules

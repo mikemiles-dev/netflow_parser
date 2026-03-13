@@ -16,6 +16,10 @@ pub(crate) type TemplateId = u16;
 /// This can be configured per-parser via the Config struct
 pub const MAX_FIELD_COUNT: u16 = 10000;
 
+/// Default maximum number of data records to parse per flowset.
+/// This prevents CPU-bound DoS from maliciously large flowsets.
+pub const DEFAULT_MAX_RECORDS_PER_FLOWSET: usize = 1024;
+
 /// Configuration for V9 and IPFIX parsers.
 ///
 /// Controls template cache size, field limits, TTL, enterprise field definitions,
@@ -34,6 +38,9 @@ pub struct Config {
     /// Maximum number of bytes to include in error samples to prevent memory exhaustion.
     /// Defaults to 256 bytes.
     pub max_error_sample_size: usize,
+    /// Maximum number of data records to parse per flowset. Default: 1,024.
+    /// This prevents CPU-bound DoS from maliciously large flowsets.
+    pub max_records_per_flowset: usize,
     /// Optional TTL configuration for template expiration.
     pub ttl_config: Option<TtlConfig>,
     /// Registry of custom enterprise-specific field definitions for IPFIX.
@@ -62,6 +69,8 @@ pub enum ConfigError {
     InvalidTtlDuration,
     /// Allowed versions list must not be empty
     EmptyAllowedVersions,
+    /// Max records per flowset must be greater than 0
+    InvalidRecordsPerFlowset(usize),
 }
 
 impl std::error::Error for ConfigError {}
@@ -121,6 +130,13 @@ impl std::fmt::Display for ConfigError {
             ConfigError::InvalidTtlDuration => {
                 write!(f, "Invalid TTL duration: must be greater than zero.")
             }
+            ConfigError::InvalidRecordsPerFlowset(count) => {
+                write!(
+                    f,
+                    "Invalid max records per flowset: {}. Must be greater than 0.",
+                    count
+                )
+            }
             ConfigError::EmptyAllowedVersions => {
                 write!(
                     f,
@@ -140,6 +156,7 @@ impl Config {
             max_field_count: usize::from(MAX_FIELD_COUNT),
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,
@@ -158,6 +175,7 @@ impl Config {
             max_field_count: usize::from(MAX_FIELD_COUNT),
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config,
             enterprise_registry,
             pending_flows_config: None,
@@ -174,6 +192,7 @@ pub(crate) trait ParserFields {
     fn set_max_field_count_field(&mut self, count: usize);
     fn set_max_template_total_size_field(&mut self, size: usize);
     fn set_max_error_sample_size_field(&mut self, size: usize);
+    fn set_max_records_per_flowset_field(&mut self, count: usize);
     fn set_ttl_config_field(&mut self, config: Option<TtlConfig>);
     fn pending_flows(&self) -> &Option<PendingFlowCache>;
     fn pending_flows_mut(&mut self) -> &mut Option<PendingFlowCache>;
@@ -197,6 +216,9 @@ pub trait ParserConfig: ParserFields {
         if config.max_template_total_size == 0 {
             return Err(ConfigError::InvalidTemplateTotalSize(0));
         }
+        if config.max_records_per_flowset == 0 {
+            return Err(ConfigError::InvalidRecordsPerFlowset(0));
+        }
         if let Some(ref ttl) = config.ttl_config {
             if ttl.duration.is_zero() {
                 return Err(ConfigError::InvalidTtlDuration);
@@ -211,6 +233,7 @@ pub trait ParserConfig: ParserFields {
         self.set_max_field_count_field(config.max_field_count);
         self.set_max_template_total_size_field(config.max_template_total_size);
         self.set_max_error_sample_size_field(config.max_error_sample_size);
+        self.set_max_records_per_flowset_field(config.max_records_per_flowset);
         self.set_ttl_config_field(config.ttl_config);
         self.set_pending_flows_config(config.pending_flows_config)?;
 

@@ -72,6 +72,7 @@ pub struct IPFixParser {
     pub(crate) max_field_count: usize,
     pub(crate) max_template_total_size: usize,
     pub(crate) max_error_sample_size: usize,
+    pub(crate) max_records_per_flowset: usize,
     pub(crate) enterprise_registry: EnterpriseFieldRegistry,
     pub(crate) metrics: CacheMetrics,
     pub(crate) pending_flows: Option<PendingFlowCache>,
@@ -169,7 +170,7 @@ pub struct FlowSetHeader {
 pub struct Data {
     #[nom(
         ErrorIf = "template.get_fields().is_empty() ",
-        Parse = "{ |i| FieldParser::parse::<Template>(i, template) }"
+        Parse = "{ |i| FieldParser::parse::<Template>(i, template, crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET) }"
     )]
     pub fields: Vec<IPFixFlowRecord>,
     #[serde(skip_serializing)]
@@ -242,7 +243,7 @@ impl Data {
 pub struct OptionsData {
     #[nom(
         ErrorIf = "template.get_fields().is_empty() ",
-        Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template) }"
+        Parse = "{ |i| FieldParser::parse::<OptionsTemplate>(i, template, crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET) }"
     )]
     pub fields: Vec<Vec<IPFixFieldPair>>,
     #[serde(skip_serializing)]
