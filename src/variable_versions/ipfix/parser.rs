@@ -494,22 +494,42 @@ impl IPFixParser {
     /// Add templates to the parser by cloning from slice.
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         let ttl_enabled = self.ttl_config.is_some();
-        insert_templates(&mut self.templates, templates, ttl_enabled, &mut self.metrics);
+        insert_templates(
+            &mut self.templates,
+            templates,
+            ttl_enabled,
+            &mut self.metrics,
+        );
     }
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         let ttl_enabled = self.ttl_config.is_some();
-        insert_templates(&mut self.ipfix_options_templates, templates, ttl_enabled, &mut self.metrics);
+        insert_templates(
+            &mut self.ipfix_options_templates,
+            templates,
+            ttl_enabled,
+            &mut self.metrics,
+        );
     }
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         let ttl_enabled = self.ttl_config.is_some();
-        insert_templates(&mut self.v9_templates, templates, ttl_enabled, &mut self.metrics);
+        insert_templates(
+            &mut self.v9_templates,
+            templates,
+            ttl_enabled,
+            &mut self.metrics,
+        );
     }
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         let ttl_enabled = self.ttl_config.is_some();
-        insert_templates(&mut self.v9_options_templates, templates, ttl_enabled, &mut self.metrics);
+        insert_templates(
+            &mut self.v9_options_templates,
+            templates,
+            ttl_enabled,
+            &mut self.metrics,
+        );
     }
 }
 
