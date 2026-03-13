@@ -49,8 +49,7 @@ macro_rules! impl_try_from {
 }
 
 /// Holds our datatypes and values post parsing
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
-#[serde(untagged)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub enum DataNumber {
     U8(u8),
     I8(i8),
@@ -64,6 +63,50 @@ pub enum DataNumber {
     U128(u128),
     I128(i128),
     I32(i32),
+}
+
+impl DataNumber {
+    /// Convert to i128 for numeric comparison across all variants.
+    fn to_i128(&self) -> i128 {
+        match self {
+            DataNumber::U8(n) => i128::from(*n),
+            DataNumber::I8(n) => i128::from(*n),
+            DataNumber::U16(n) => i128::from(*n),
+            DataNumber::I16(n) => i128::from(*n),
+            DataNumber::U24(n) => i128::from(*n),
+            DataNumber::I24(n) => i128::from(*n),
+            DataNumber::U32(n) => i128::from(*n),
+            DataNumber::I32(n) => i128::from(*n),
+            DataNumber::U64(n) => i128::from(*n),
+            DataNumber::I64(n) => i128::from(*n),
+            DataNumber::U128(n) => {
+                if *n > i128::MAX as u128 {
+                    i128::MAX
+                } else {
+                    *n as i128
+                }
+            }
+            DataNumber::I128(n) => *n,
+        }
+    }
+}
+
+impl PartialOrd for DataNumber {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DataNumber {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match (self, other) {
+            (DataNumber::U128(a), DataNumber::U128(b)) => a.cmp(b),
+            // U128 values beyond i128::MAX are greater than any other variant
+            (DataNumber::U128(n), _) if *n > i128::MAX as u128 => std::cmp::Ordering::Greater,
+            (_, DataNumber::U128(n)) if *n > i128::MAX as u128 => std::cmp::Ordering::Less,
+            _ => self.to_i128().cmp(&other.to_i128()),
+        }
+    }
 }
 
 /// Error returned when converting a [`DataNumber`] to a concrete numeric type fails
@@ -91,13 +134,62 @@ impl_try_from!(
     i8 => I8,
     u16 => U16,
     i16 => I16,
-    u32 => U32,
-    i32 => I32,
     u64 => U64,
     i64 => I64,
     u128 => U128,
     i128 => I128;
 );
+
+// Manual TryFrom for u32/i32 to also handle U24/I24 variants
+impl TryFrom<&DataNumber> for u32 {
+    type Error = DataNumberError;
+
+    fn try_from(val: &DataNumber) -> Result<Self, Self::Error> {
+        match val {
+            DataNumber::U32(i) | DataNumber::U24(i) => Ok(*i),
+            _ => Err(DataNumberError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&FieldValue> for u32 {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::DataNumber(d) => {
+                let d: u32 = d.try_into().map_err(|_| FieldValueError::InvalidDataType)?;
+                Ok(d)
+            }
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&DataNumber> for i32 {
+    type Error = DataNumberError;
+
+    fn try_from(val: &DataNumber) -> Result<Self, Self::Error> {
+        match val {
+            DataNumber::I32(i) | DataNumber::I24(i) => Ok(*i),
+            _ => Err(DataNumberError::InvalidDataType),
+        }
+    }
+}
+
+impl TryFrom<&FieldValue> for i32 {
+    type Error = FieldValueError;
+
+    fn try_from(value: &FieldValue) -> Result<Self, Self::Error> {
+        match value {
+            FieldValue::DataNumber(d) => {
+                let d: i32 = d.try_into().map_err(|_| FieldValueError::InvalidDataType)?;
+                Ok(d)
+            }
+            _ => Err(FieldValueError::InvalidDataType),
+        }
+    }
+}
 
 /// Error returned when converting a [`FieldValue`] to a concrete Rust type fails
 /// because the variant does not match the requested type.
@@ -174,6 +266,10 @@ where
     F: Fn(u64, u8) -> DurationValue,
 {
     match field_length {
+        2 => {
+            let (i, value) = u16::parse_be(remaining)?;
+            Ok((i, FieldValue::Duration(make_variant(value.into(), 2))))
+        }
         4 => {
             let (i, value) = u32::parse_be(remaining)?;
             Ok((i, FieldValue::Duration(make_variant(value.into(), 4))))
@@ -227,14 +323,18 @@ impl DataNumber {
             DataNumber::U16(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::I16(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::U24(n) => {
-                buf.push((*n >> 16) as u8);
-                buf.push((*n >> 8) as u8);
-                buf.push(*n as u8);
+                // Mask to 24 bits to prevent silent data loss from out-of-range values
+                let masked = *n & 0x00FF_FFFF;
+                buf.push((masked >> 16) as u8);
+                buf.push((masked >> 8) as u8);
+                buf.push(masked as u8);
             }
             DataNumber::I24(n) => {
-                buf.push((*n >> 16) as u8);
-                buf.push((*n >> 8) as u8);
-                buf.push(*n as u8);
+                // Mask to 24 bits to preserve two's complement representation
+                let masked = *n & 0x00FF_FFFF;
+                buf.push((masked >> 16) as u8);
+                buf.push((masked >> 8) as u8);
+                buf.push(masked as u8);
             }
             DataNumber::U32(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::U64(n) => buf.extend_from_slice(&n.to_be_bytes()),
@@ -339,7 +439,8 @@ pub enum FieldValue {
     ProtocolType(ProtocolTypes),
     ForwardingStatus(ForwardingStatus),
     FragmentFlags(FragmentFlags),
-    TcpControlBits(TcpControlBits),
+    /// TCP control bits with wire width (1 or 2 bytes).
+    TcpControlBits(TcpControlBits, u8),
     Ipv6ExtensionHeaders(Ipv6ExtensionHeaders),
     Ipv4Options(Ipv4Options),
     TcpOptions(TcpOptions),
@@ -400,7 +501,7 @@ impl Serialize for FieldValue {
             FieldValue::FragmentFlags(v) => {
                 serializer.serialize_newtype_variant("FieldValue", 11, "FragmentFlags", v)
             }
-            FieldValue::TcpControlBits(v) => {
+            FieldValue::TcpControlBits(v, _) => {
                 serializer.serialize_newtype_variant("FieldValue", 12, "TcpControlBits", v)
             }
             FieldValue::Ipv6ExtensionHeaders(v) => serializer.serialize_newtype_variant(
@@ -459,11 +560,7 @@ impl FieldValue {
             FieldValue::Float64(_) => 8,
             FieldValue::Duration(d) => match d {
                 DurationValue::Seconds { width, .. } | DurationValue::Millis { width, .. } => {
-                    if *width == 4 {
-                        4
-                    } else {
-                        8
-                    }
+                    *width as usize
                 }
                 DurationValue::MicrosNtp { .. } | DurationValue::NanosNtp { .. } => 8,
             },
@@ -473,7 +570,7 @@ impl FieldValue {
             FieldValue::ProtocolType(_) => 1,
             FieldValue::ForwardingStatus(_) => 1,
             FieldValue::FragmentFlags(_) => 1,
-            FieldValue::TcpControlBits(_) => 2,
+            FieldValue::TcpControlBits(_, w) => *w as usize,
             FieldValue::Ipv6ExtensionHeaders(_) => 4,
             FieldValue::Ipv4Options(_) => 4,
             FieldValue::TcpOptions(_) => 8,
@@ -504,14 +601,24 @@ impl FieldValue {
             FieldValue::Float64(f) => buf.extend_from_slice(&f.to_be_bytes()),
             FieldValue::Duration(d) => match d {
                 DurationValue::Seconds { value, width }
-                | DurationValue::Millis { value, width } => {
-                    if *width == 4 {
+                | DurationValue::Millis { value, width } => match *width {
+                    2 => {
+                        let v = u16::try_from(*value).map_err(std::io::Error::other)?;
+                        buf.extend_from_slice(&v.to_be_bytes());
+                    }
+                    4 => {
                         let v = u32::try_from(*value).map_err(std::io::Error::other)?;
                         buf.extend_from_slice(&v.to_be_bytes());
-                    } else {
+                    }
+                    8 => {
                         buf.extend_from_slice(&value.to_be_bytes());
                     }
-                }
+                    w => {
+                        return Err(std::io::Error::other(format!(
+                            "invalid duration width: {w}"
+                        )));
+                    }
+                },
                 DurationValue::MicrosNtp { seconds, fraction }
                 | DurationValue::NanosNtp { seconds, fraction } => {
                     buf.extend_from_slice(&seconds.to_be_bytes());
@@ -524,8 +631,13 @@ impl FieldValue {
             FieldValue::ProtocolType(p) => buf.push(u8::from(*p)),
             FieldValue::ForwardingStatus(f) => buf.push(u8::from(*f)),
             FieldValue::FragmentFlags(f) => buf.push(u8::from(*f)),
-            FieldValue::TcpControlBits(t) => {
-                buf.extend_from_slice(&u16::from(*t).to_be_bytes())
+            FieldValue::TcpControlBits(t, w) => {
+                let val = u16::from(*t);
+                if *w == 1 {
+                    buf.push(val as u8);
+                } else {
+                    buf.extend_from_slice(&val.to_be_bytes());
+                }
             }
             FieldValue::Ipv6ExtensionHeaders(h) => {
                 buf.extend_from_slice(&u32::from(*h).to_be_bytes())
@@ -656,7 +768,14 @@ impl FieldValue {
             }
             FieldDataType::TcpControlBits if field_length == 2 => {
                 let (i, bits) = TcpControlBits::parse(remaining)?;
-                (i, FieldValue::TcpControlBits(bits))
+                (i, FieldValue::TcpControlBits(bits, 2))
+            }
+            FieldDataType::TcpControlBits if field_length == 1 => {
+                let (i, byte) = u8::parse(remaining)?;
+                (
+                    i,
+                    FieldValue::TcpControlBits(TcpControlBits::from(u16::from(byte)), 1),
+                )
             }
             FieldDataType::Ipv6ExtensionHeaders if field_length == 4 => {
                 let (i, headers) = Ipv6ExtensionHeaders::parse(remaining)?;

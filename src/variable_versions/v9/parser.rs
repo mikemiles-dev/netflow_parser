@@ -389,10 +389,15 @@ impl FlowSetBody {
                             parser.metrics.record_collision();
                         }
                     }
-                    // Use push() to accurately detect LRU evictions
-                    if let Some(_evicted) = parser.templates.push(template.template_id, wrapped)
+                    // push() returns Some in two cases: (1) a different key was LRU-evicted
+                    // to make room, or (2) the same key existed and its value was replaced.
+                    // Only count case (1) as an eviction.
+                    if let Some((evicted_key, _evicted)) =
+                        parser.templates.push(template.template_id, wrapped)
                     {
-                        parser.metrics.record_eviction();
+                        if evicted_key != template.template_id {
+                            parser.metrics.record_eviction();
+                        }
                     }
                     parser.metrics.record_insertion();
                 }
@@ -430,11 +435,15 @@ impl FlowSetBody {
                             parser.metrics.record_collision();
                         }
                     }
-                    // Use push() to accurately detect LRU evictions
-                    if let Some(_evicted) =
+                    // push() returns Some in two cases: (1) a different key was LRU-evicted
+                    // to make room, or (2) the same key existed and its value was replaced.
+                    // Only count case (1) as an eviction.
+                    if let Some((evicted_key, _evicted)) =
                         parser.options_templates.push(template.template_id, wrapped)
                     {
-                        parser.metrics.record_eviction();
+                        if evicted_key != template.template_id {
+                            parser.metrics.record_eviction();
+                        }
                     }
                     parser.metrics.record_insertion();
                 }

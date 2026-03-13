@@ -28,7 +28,7 @@ impl V5Parser {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct V5 {
     /// V5 Header
     pub header: Header,

@@ -29,7 +29,7 @@ impl V7Parser {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct V7 {
     /// V7 Header
     pub header: Header,

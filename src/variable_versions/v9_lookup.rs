@@ -321,7 +321,7 @@ impl From<V9Field> for FieldDataType {
             V9Field::FlowStartDeltaMicroseconds => FieldDataType::UnsignedDataNumber,
             V9Field::FlowEndDeltaMicroseconds => FieldDataType::UnsignedDataNumber,
             V9Field::SystemInitTimeMilliseconds => FieldDataType::DurationMillis,
-            V9Field::FlowDurationMilliseconds => FieldDataType::UnsignedDataNumber,
+            V9Field::FlowDurationMilliseconds => FieldDataType::DurationMillis,
             V9Field::FlowDurationMicroseconds => FieldDataType::UnsignedDataNumber,
             V9Field::ObservedFlowTotalCount => FieldDataType::UnsignedDataNumber,
             V9Field::IgnoredPacketTotalCount => FieldDataType::UnsignedDataNumber,
