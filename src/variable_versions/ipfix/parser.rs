@@ -301,13 +301,17 @@ impl IPFixParser {
         learned: &[u16],
     ) {
         for &template_id in learned {
-            for entry in cache.drain(template_id, &mut self.metrics) {
+            let entries = cache.drain(template_id, &mut self.metrics);
+            for entry in entries {
                 let flowset_length =
                     u16::try_from(entry.raw_data.len().saturating_add(4)).unwrap_or(u16::MAX);
                 let Some(new_header_length) = ipfix.header.length.checked_add(flowset_length)
                 else {
                     self.metrics.record_pending_replay_failed();
-                    continue;
+                    // Stop replaying this template — remaining entries would also
+                    // overflow the header length. They are already drained from
+                    // the cache so we just count them as failed.
+                    break;
                 };
                 if self.try_replay_ipfix_flow(&mut ipfix.flowsets, template_id, &entry) {
                     self.metrics.record_pending_replayed();

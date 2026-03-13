@@ -597,6 +597,10 @@ impl AutoScopedParser {
             return Err(ConfigError::InvalidMaxSources);
         }
         self.max_sources = max;
+        // Size each per-protocol LRU cache to max. The global cross-cache
+        // eviction at `source_count() >= max_sources` enforces the true total
+        // limit; individual caches are capped so their internal LRU eviction
+        // doesn't fire before the global policy.
         let cap = NonZeroUsize::new(max).expect("max is non-zero");
         self.ipfix_parsers.resize(cap);
         self.v9_parsers.resize(cap);

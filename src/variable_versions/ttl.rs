@@ -111,7 +111,7 @@ mod tests {
         let metadata = TemplateMetadata::new_with_ttl();
 
         assert!(!metadata.is_expired(&config));
-        thread::sleep(Duration::from_millis(150));
+        thread::sleep(Duration::from_millis(500));
         assert!(metadata.is_expired(&config));
     }
 

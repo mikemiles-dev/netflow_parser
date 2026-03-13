@@ -1071,10 +1071,11 @@ mod malformed_packet_tests {
             0x00, 0x00, 0x00, 0x00, // unix_secs
             0x00, 0x00, 0x00, 0x00, // sequence
             0x00, 0x00, 0x00, 0x00, // source_id
-            // Template flowset: flowset_id=0, length=16
-            0x00, 0x00, 0x00, 0x10, // Template: id=256, field_count=1
-            0x01, 0x00, 0x00, 0x01, // Field: type=1 (InBytes), length=4
-            0x00, 0x01, 0x00, 0x04,
+            // Template flowset: flowset_id=0, length=16 (4 header + 4 template header + 4 field + 4 padding)
+            0x00, 0x00, 0x00, 0x10, // flowset_id=0, length=16
+            0x01, 0x00, 0x00, 0x01, // template_id=256, field_count=1
+            0x00, 0x01, 0x00, 0x04, // field_type=1 (InBytes), field_length=4
+            0x00, 0x00, 0x00, 0x00, // padding to reach length=16
         ];
 
         // Send the same template twice
