@@ -1708,9 +1708,10 @@ impl NetflowParser {
                                     protocol: TemplateProtocol::V9,
                                 });
                         }
-                        // Data/OptionsData flowsets don't generate template events
+                        // Data/OptionsData/Empty flowsets don't generate template events
                         variable_versions::v9::FlowSetBody::Data(_)
-                        | variable_versions::v9::FlowSetBody::OptionsData(_) => {}
+                        | variable_versions::v9::FlowSetBody::OptionsData(_)
+                        | variable_versions::v9::FlowSetBody::Empty => {}
                     }
                 }
             }

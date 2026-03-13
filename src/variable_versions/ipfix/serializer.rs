@@ -40,6 +40,12 @@ fn serialize_data_fields(
     )>],
     template_field_lengths: &[u16],
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // If template_field_lengths is empty but records have fields, we cannot
+    // determine which fields are variable-length.  This is safe for fixed-length
+    // templates (the common case) but would silently omit the variable-length
+    // prefix for varlen fields.  Log-level diagnostics are impractical here,
+    // so we proceed — callers constructing Data with variable-length fields
+    // must populate template_field_lengths via parse or explicit construction.
     for item in fields.iter() {
         for (idx, (_, v)) in item.iter().enumerate() {
             let is_varlen = template_field_lengths

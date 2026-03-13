@@ -23,7 +23,7 @@ jobs:
     - name: Fmt Check
       run: cargo fmt --check
     - name: Clippy Check
-      run: cargo clippy --all
+      run: cargo clippy --all --all-features
     - name: Build
       run: cargo build --verbose
     - name: Run tests
@@ -85,7 +85,7 @@ jobs:
         # Run each fuzz target
         for target in $(cargo fuzz list); do
           echo "Running fuzzer: $target"
-          cargo fuzz run $target -- -max_total_time=${FUZZ_TIME} || true
+          cargo fuzz run $target -- -max_total_time=${FUZZ_TIME}
         done
 
   security:

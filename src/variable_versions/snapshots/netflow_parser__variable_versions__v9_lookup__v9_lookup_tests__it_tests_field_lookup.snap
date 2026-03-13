@@ -44,7 +44,7 @@ expression: fields
 - TotalBytesExp
 - TotalPktsExp
 - TotalFlowsExp
-- Vendor: 43
+- IanaAssigned: 43
 - Ipv4SrcPrefix
 - Ipv4DstPrefix
 - MplsTopLabelType
@@ -52,7 +52,7 @@ expression: fields
 - FlowSamplerId
 - FlowSamplerMode
 - FlowSamplerRandomInterval
-- Vendor: 51
+- IanaAssigned: 51
 - MinTtl
 - MaxTtl
 - Ipv4Ident
@@ -66,11 +66,11 @@ expression: fields
 - Ipv6NextHop
 - BgpIpv6NextHop
 - Ipv6OptionHeaders
-- Vendor: 65
-- Vendor: 66
-- Vendor: 67
-- Vendor: 68
-- Vendor: 69
+- IanaAssigned: 65
+- IanaAssigned: 66
+- IanaAssigned: 67
+- IanaAssigned: 68
+- IanaAssigned: 69
 - MplsLabel1
 - MplsLabel2
 - MplsLabel3
@@ -88,7 +88,7 @@ expression: fields
 - SamplerName
 - InPermanentBytes
 - InPermanentPkts
-- Vendor: 87
+- IanaAssigned: 87
 - FragmentOffset
 - ForwardingStatus
 - MplsPalRd
@@ -230,17 +230,17 @@ expression: fields
 - PostNATDestinationIPv4Address
 - PostNATTSourceTransportPort
 - PostNATTDestinationTransportPort
-- Unknown: 229
+- NatOriginatingAddressRealm
 - NatEvent
 - Unknown: 231
 - Unknown: 232
-- Unknown: 233
-- Unknown: 234
-- Unknown: 235
+- FirewallEvent
+- IngressVRFID
+- EgressVRFID
 - Unknown: 236
 - Unknown: 237
 - Unknown: 238
-- Unknown: 239
+- BiflowDirection
 - Unknown: 240
 - Unknown: 241
 - Unknown: 242

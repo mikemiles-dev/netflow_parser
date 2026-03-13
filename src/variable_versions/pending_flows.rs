@@ -375,7 +375,7 @@ impl PendingFlowCache {
         let before_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
         entries.retain(|e| e.cached_at.elapsed() < ttl);
         let after_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
-        metrics.record_pending_dropped_n((before_len - entries.len()) as u64);
+        metrics.record_pending_dropped_n(before_len.saturating_sub(entries.len()) as u64);
         (entries.is_empty(), before_bytes.saturating_sub(after_bytes))
     }
 
@@ -483,7 +483,7 @@ impl PendingFlowCache {
             let before_len = entries.len();
             let before_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
             entries.retain(|e| e.raw_data.len() <= config.max_entry_size_bytes);
-            let size_dropped = (before_len - entries.len()) as u64;
+            let size_dropped = before_len.saturating_sub(entries.len()) as u64;
             metrics.record_pending_dropped_n(size_dropped);
             dropped = dropped.saturating_add(size_dropped);
 

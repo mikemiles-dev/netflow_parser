@@ -70,6 +70,9 @@ impl IPFixParser {
         if config.max_records_per_flowset == 0 {
             return Err(ConfigError::InvalidRecordsPerFlowset(0));
         }
+        if config.max_error_sample_size == 0 {
+            return Err(ConfigError::InvalidErrorSampleSize);
+        }
         if let Some(ref ttl) = config.ttl_config {
             if ttl.duration.is_zero() {
                 return Err(ConfigError::InvalidTtlDuration);
@@ -232,7 +235,11 @@ impl IPFixParser {
                         // Truncate rejected data to diagnostic size so
                         // callers don't hold the full (potentially large)
                         // buffer that was not cached.
+                        let full_len = returned.len();
                         returned.truncate(max_error_sample_size);
+                        if returned.len() < full_len {
+                            info.truncated = true;
+                        }
                         info.raw_data = returned;
                     } else {
                         remove_mask[i] = true;
@@ -335,7 +342,8 @@ impl IPFixParser {
                 &self.enterprise_registry,
                 self.max_records_per_flowset,
             ) {
-                self.metrics.record_hit();
+                // Don't record_hit() — the original flowset already recorded
+                // a miss. Replay success is tracked via record_pending_replayed().
                 self.templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
@@ -363,7 +371,6 @@ impl IPFixParser {
                 &self.enterprise_registry,
                 self.max_records_per_flowset,
             ) {
-                self.metrics.record_hit();
                 self.ipfix_options_templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
@@ -390,7 +397,6 @@ impl IPFixParser {
                 &template,
                 self.max_records_per_flowset,
             ) {
-                self.metrics.record_hit();
                 self.v9_templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
@@ -417,7 +423,6 @@ impl IPFixParser {
                 &template,
                 self.max_records_per_flowset,
             ) {
-                self.metrics.record_hit();
                 self.v9_options_templates.promote(&template_id);
                 flowsets.push(FlowSet {
                     header: FlowSetHeader {
