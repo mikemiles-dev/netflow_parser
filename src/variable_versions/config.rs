@@ -163,16 +163,10 @@ impl std::fmt::Display for ConfigError {
                 )
             }
             ConfigError::InvalidMaxSources => {
-                write!(
-                    f,
-                    "Invalid max_sources: must be greater than 0."
-                )
+                write!(f, "Invalid max_sources: must be greater than 0.")
             }
             ConfigError::InvalidErrorSampleSize => {
-                write!(
-                    f,
-                    "Invalid max_error_sample_size: must be greater than 0."
-                )
+                write!(f, "Invalid max_error_sample_size: must be greater than 0.")
             }
         }
     }

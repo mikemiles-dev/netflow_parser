@@ -138,7 +138,9 @@ impl PendingFlowCache {
                 config.max_entries_per_template,
             ));
         }
-        if config.max_entry_size_bytes == 0 || config.max_entry_size_bytes > MAX_ENTRY_SIZE_LIMIT {
+        if config.max_entry_size_bytes == 0
+            || config.max_entry_size_bytes > MAX_ENTRY_SIZE_LIMIT
+        {
             return Err(ConfigError::InvalidEntrySize(config.max_entry_size_bytes));
         }
         if config.max_total_bytes == 0 {
@@ -552,7 +554,10 @@ mod tests {
 
         // Third entry should be rejected
         let result = cache.cache(100, vec![5, 6], &mut metrics);
-        assert!(result.is_some(), "should reject when per-template cap reached");
+        assert!(
+            result.is_some(),
+            "should reject when per-template cap reached"
+        );
         assert_eq!(cache.count(), 2);
         assert_eq!(metrics.pending_dropped, 1);
     }
@@ -634,7 +639,10 @@ mod tests {
             ttl: None,
         };
         let dropped = cache.resize(new_config, &mut metrics).unwrap();
-        assert_eq!(dropped, 2, "should have dropped 2 entries from LRU eviction");
+        assert_eq!(
+            dropped, 2,
+            "should have dropped 2 entries from LRU eviction"
+        );
         assert_eq!(cache.count(), 2);
     }
 

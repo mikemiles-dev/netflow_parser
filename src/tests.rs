@@ -210,8 +210,14 @@ mod base_tests {
 
         let packet = hex::decode(hex_options_template).unwrap();
         let result = parser.parse_bytes(&packet);
-        assert!(!result.packets.is_empty(), "expected packets from options template");
-        assert!(result.error.is_none(), "unexpected error parsing options template");
+        assert!(
+            !result.packets.is_empty(),
+            "expected packets from options template"
+        );
+        assert!(
+            result.error.is_none(),
+            "unexpected error parsing options template"
+        );
     }
 
     // Verify that a v9 template with multiple flowsets is parsed without error
@@ -271,7 +277,10 @@ mod base_tests {
         // so the parser may not produce parsed packets. Verify it doesn't panic
         // and that any produced packets are IPFix.
         for p in &result.packets {
-            assert!(matches!(p, NetflowPacket::IPFix(_)), "expected IPFix packet type");
+            assert!(
+                matches!(p, NetflowPacket::IPFix(_)),
+                "expected IPFix packet type"
+            );
         }
     }
 
@@ -714,8 +723,14 @@ mod malformed_packet_tests {
     fn test_empty_input() {
         let mut parser = NetflowParser::default();
         let result = parser.parse_bytes(&[]);
-        assert!(result.packets.is_empty(), "empty input should produce no packets");
-        assert!(result.error.is_none(), "empty input should produce no error");
+        assert!(
+            result.packets.is_empty(),
+            "empty input should produce no packets"
+        );
+        assert!(
+            result.error.is_none(),
+            "empty input should produce no error"
+        );
     }
 
     // A single byte is too short to contain a version number (2 bytes).
@@ -724,8 +739,14 @@ mod malformed_packet_tests {
     fn test_single_byte() {
         let mut parser = NetflowParser::default();
         let result = parser.parse_bytes(&[0]);
-        assert!(result.packets.is_empty(), "single byte should produce no packets");
-        assert!(result.error.is_some(), "single byte should produce an error");
+        assert!(
+            result.packets.is_empty(),
+            "single byte should produce no packets"
+        );
+        assert!(
+            result.error.is_some(),
+            "single byte should produce an error"
+        );
     }
 
     // Version 99 is not a recognized NetFlow/IPFIX version.
@@ -737,7 +758,10 @@ mod malformed_packet_tests {
         let mut packet = vec![0x00, 0x63];
         packet.extend_from_slice(&[0u8; 18]);
         let result = parser.parse_bytes(&packet);
-        assert!(result.error.is_some(), "unknown version 99 should produce an error");
+        assert!(
+            result.error.is_some(),
+            "unknown version 99 should produce an error"
+        );
     }
 
     // V5 header is 24 bytes. Providing version=5 plus only 10 bytes (12 total)
@@ -903,7 +927,10 @@ mod malformed_packet_tests {
         let mut parser = NetflowParser::default();
         let packet = vec![0u8; 100];
         let result = parser.parse_bytes(&packet);
-        assert!(result.error.is_some(), "all-zeros packet (version 0) should produce an error");
+        assert!(
+            result.error.is_some(),
+            "all-zeros packet (version 0) should produce an error"
+        );
     }
 
     // Maximum version number 0xFFFF is not a valid NetFlow/IPFIX version.
@@ -913,6 +940,9 @@ mod malformed_packet_tests {
         let mut packet = vec![0xFF, 0xFF]; // version = 65535
         packet.extend_from_slice(&[0u8; 18]);
         let result = parser.parse_bytes(&packet);
-        assert!(result.error.is_some(), "version 0xFFFF should produce an error");
+        assert!(
+            result.error.is_some(),
+            "version 0xFFFF should produce an error"
+        );
     }
 }

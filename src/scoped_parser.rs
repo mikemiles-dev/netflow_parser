@@ -169,9 +169,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             .map(|(k, _)| k.clone());
 
         if let Some(key) = oldest_key {
-            self.parsers
-                .remove(&key)
-                .map(|(parser, _)| (key, parser))
+            self.parsers.remove(&key).map(|(parser, _)| (key, parser))
         } else {
             None
         }
@@ -290,10 +288,12 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     ///
     /// Returns `None` if the source hasn't sent any packets yet.
     pub fn get_source_stats(&self, source: &K) -> Option<ParserCacheStats> {
-        self.parsers.get(source).map(|(parser, _)| ParserCacheStats {
-            v9: parser.v9_cache_stats(),
-            ipfix: parser.ipfix_cache_stats(),
-        })
+        self.parsers
+            .get(source)
+            .map(|(parser, _)| ParserCacheStats {
+                v9: parser.v9_cache_stats(),
+                ipfix: parser.ipfix_cache_stats(),
+            })
     }
 
     /// Get the number of registered sources.
@@ -916,18 +916,16 @@ impl AutoScopedParser {
                     }
                 }
             }
-            ScopingInfo::Legacy => {
-                match self.legacy_parsers.entry(source) {
-                    std::collections::hash_map::Entry::Occupied(e) => {
-                        let entry = e.into_mut();
-                        (&mut entry.0, &mut entry.1)
-                    }
-                    std::collections::hash_map::Entry::Vacant(e) => {
-                        let entry = e.insert((Self::build_parser(builder)?, now));
-                        (&mut entry.0, &mut entry.1)
-                    }
+            ScopingInfo::Legacy => match self.legacy_parsers.entry(source) {
+                std::collections::hash_map::Entry::Occupied(e) => {
+                    let entry = e.into_mut();
+                    (&mut entry.0, &mut entry.1)
                 }
-            }
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    let entry = e.insert((Self::build_parser(builder)?, now));
+                    (&mut entry.0, &mut entry.1)
+                }
+            },
             ScopingInfo::Unknown => {
                 // Don't create parser instances for malformed/truncated packets.
                 // This prevents source-slot exhaustion attacks where spoofed
