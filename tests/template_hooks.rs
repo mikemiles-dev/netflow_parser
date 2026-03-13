@@ -34,7 +34,7 @@ fn test_multiple_hooks() {
     let cc = collision_count.clone();
     let ac = all_events_count.clone();
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         .on_template_event(move |event| {
             match event {
                 TemplateEvent::Learned { .. } => {
@@ -84,7 +84,7 @@ fn test_hook_with_default_parser() {
     let event_count = Arc::new(AtomicUsize::new(0));
     let ec = event_count.clone();
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         .on_template_event(move |_event| {
             ec.fetch_add(1, Ordering::SeqCst);
             Ok(())
@@ -110,7 +110,7 @@ fn test_hook_event_details() {
     let cid = captured_id.clone();
     let cp = captured_protocol.clone();
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         .on_template_event(move |event| {
             if let TemplateEvent::Evicted {
                 template_id,
@@ -144,7 +144,7 @@ fn test_hook_builder_chaining() {
     let c1 = counter.clone();
     let c2 = counter.clone();
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         .with_cache_size(2000)
         .on_template_event(move |_| {
             c1.fetch_add(1, Ordering::SeqCst);
@@ -171,7 +171,7 @@ fn test_hook_builder_chaining() {
 #[test]
 fn test_parser_without_hooks() {
     // Parser should work fine without any hooks registered
-    let parser = NetflowParser::default();
+    let mut parser = NetflowParser::default();
 
     // This should not panic or cause issues
     parser.trigger_template_event(TemplateEvent::Learned {
@@ -188,7 +188,7 @@ fn test_hook_with_logging() {
     let log = Arc::new(Mutex::new(Vec::new()));
     let log_clone = log.clone();
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         .on_template_event(move |event| {
             let msg = match event {
                 TemplateEvent::Learned {
@@ -246,7 +246,7 @@ fn test_hook_error_isolation() {
     let counter = Arc::new(AtomicUsize::new(0));
     let c = counter.clone();
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         .on_template_event(|_| Err("hook 1 failed".into()))
         .on_template_event(move |_| {
             c.fetch_add(1, Ordering::SeqCst);

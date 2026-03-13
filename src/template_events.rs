@@ -149,6 +149,8 @@ pub type TemplateHook =
 #[derive(Clone, Default)]
 pub struct TemplateHooks {
     hooks: Vec<TemplateHook>,
+    /// Number of hook errors and panics encountered (observable in release builds).
+    hook_errors: u64,
 }
 
 // Custom Debug implementation to avoid printing closures
@@ -163,7 +165,10 @@ impl std::fmt::Debug for TemplateHooks {
 impl TemplateHooks {
     /// Creates a new empty hook container.
     pub fn new() -> Self {
-        Self { hooks: Vec::new() }
+        Self {
+            hooks: Vec::new(),
+            hook_errors: 0,
+        }
     }
 
     /// Registers a new hook.
@@ -178,21 +183,30 @@ impl TemplateHooks {
     ///
     /// All hooks are called regardless of whether earlier hooks return errors or panic.
     /// Errors and panics from hooks are isolated and do not interrupt other hooks or parsing.
-    pub fn trigger(&self, event: &TemplateEvent) {
+    /// The error count is tracked via [`hook_error_count`](Self::hook_error_count) for
+    /// production observability.
+    pub fn trigger(&mut self, event: &TemplateEvent) {
         for hook in &self.hooks {
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| hook(event))) {
                 Ok(Err(e)) => {
+                    self.hook_errors = self.hook_errors.saturating_add(1);
                     #[cfg(debug_assertions)]
                     eprintln!("template hook error: {e}");
                     let _ = e;
                 }
                 Err(_panic) => {
+                    self.hook_errors = self.hook_errors.saturating_add(1);
                     #[cfg(debug_assertions)]
                     eprintln!("template hook panicked");
                 }
                 Ok(Ok(())) => {}
             }
         }
+    }
+
+    /// Returns the total number of hook errors and panics encountered.
+    pub fn hook_error_count(&self) -> u64 {
+        self.hook_errors
     }
 
     /// Returns the number of registered hooks.

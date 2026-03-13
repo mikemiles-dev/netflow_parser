@@ -117,6 +117,8 @@ impl EnterpriseFieldDef {
 pub struct EnterpriseFieldRegistry {
     // Key: (enterprise_number, field_number)
     fields: HashMap<(u32, u16), EnterpriseFieldDef>,
+    /// Optional maximum number of registered fields to prevent unbounded growth.
+    max_capacity: Option<usize>,
 }
 
 impl EnterpriseFieldRegistry {
@@ -124,16 +126,38 @@ impl EnterpriseFieldRegistry {
     pub fn new() -> Self {
         Self {
             fields: HashMap::new(),
+            max_capacity: None,
+        }
+    }
+
+    /// Create a new empty registry with a maximum capacity.
+    ///
+    /// Once the limit is reached, further [`register`](Self::register) calls
+    /// that would insert new entries are silently ignored. Replacements of
+    /// existing `(enterprise_number, field_number)` pairs are always allowed.
+    pub fn with_max_capacity(max: usize) -> Self {
+        Self {
+            fields: HashMap::new(),
+            max_capacity: Some(max),
         }
     }
 
     /// Register a single enterprise field definition
     ///
     /// If a field with the same enterprise number and field number already exists,
-    /// it will be replaced.
+    /// it will be replaced. If a `max_capacity` is set and the registry is full,
+    /// new (non-replacement) entries are silently dropped.
     pub fn register(&mut self, def: EnterpriseFieldDef) {
-        self.fields
-            .insert((def.enterprise_number, def.field_number), def);
+        let key = (def.enterprise_number, def.field_number);
+        // Always allow replacements of existing keys
+        if !self.fields.contains_key(&key) {
+            if let Some(max) = self.max_capacity {
+                if self.fields.len() >= max {
+                    return;
+                }
+            }
+        }
+        self.fields.insert(key, def);
     }
 
     /// Register multiple enterprise field definitions at once

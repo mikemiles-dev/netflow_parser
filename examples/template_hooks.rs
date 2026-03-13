@@ -26,7 +26,7 @@ fn demo_basic_hooks() {
     println!("📋 Basic Hook Registration");
     println!("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         .on_template_event(|event| {
             match event {
                 TemplateEvent::Learned {
@@ -91,7 +91,7 @@ fn demo_metrics_collection() {
     let cc = collision_count.clone();
     let mc = missing_count.clone();
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         .on_template_event(move |event| {
             match event {
                 TemplateEvent::Learned { .. } => {
@@ -157,7 +157,7 @@ fn demo_logging_hooks() {
     let log_buffer = Arc::new(Mutex::new(Vec::new()));
     let log_clone = log_buffer.clone();
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         .on_template_event(move |event| {
             let log_entry = match event {
                 TemplateEvent::Learned {
@@ -235,7 +235,7 @@ fn demo_multiple_hooks() {
     let alert_count = Arc::new(AtomicUsize::new(0));
     let ac = alert_count.clone();
 
-    let parser = NetflowParser::builder()
+    let mut parser = NetflowParser::builder()
         // Hook 1: Log all events
         .on_template_event(|event| {
             println!("  [Hook 1] {:?}", event);

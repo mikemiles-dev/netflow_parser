@@ -274,11 +274,17 @@ impl DurationValue {
             DurationValue::Seconds { value, .. } => std::time::Duration::from_secs(*value),
             DurationValue::Millis { value, .. } => std::time::Duration::from_millis(*value),
             DurationValue::MicrosNtp { seconds, fraction } => {
+                // NTP fractional part: fraction / 2^32 of a second.
+                // Multiply then right-shift to convert to microseconds.
+                // Precision loss is < 1 microsecond, inherent to this conversion.
                 let micros = ((u64::from(*fraction)).saturating_mul(1_000_000)) >> 32;
                 std::time::Duration::from_secs(u64::from(*seconds))
                     .saturating_add(std::time::Duration::from_micros(micros))
             }
             DurationValue::NanosNtp { seconds, fraction } => {
+                // NTP fractional part: fraction / 2^32 of a second.
+                // Multiply then right-shift to convert to nanoseconds.
+                // Precision loss is < 1 nanosecond, inherent to this conversion.
                 let nanos = ((u64::from(*fraction)).saturating_mul(1_000_000_000)) >> 32;
                 std::time::Duration::from_secs(u64::from(*seconds))
                     .saturating_add(std::time::Duration::from_nanos(nanos))

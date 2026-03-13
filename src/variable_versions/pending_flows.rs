@@ -229,7 +229,10 @@ impl PendingFlowCache {
             if self.cache.len() >= self.cache.cap().get() {
                 self.purge_expired(metrics);
             }
-            // If still at capacity after purging, evict LRU.
+            // If still at capacity after purging, evict LRU to free a slot.
+            // After this pop, push() below should not trigger a second
+            // eviction because the slot was just freed. The push() return
+            // value is still checked defensively in case of key replacement.
             if self.cache.len() >= self.cache.cap().get()
                 && let Some((_, evicted)) = self.cache.pop_lru()
             {
@@ -354,45 +357,53 @@ impl PendingFlowCache {
     /// `max_entry_size_bytes` limits on already-cached entries, dropping
     /// any that exceed the new bounds.
     ///
+    /// Returns the number of individual flow entries that were dropped during
+    /// the resize operation (LRU evictions + limit enforcement).
+    ///
     /// # Errors
     /// Returns `ConfigError::InvalidPendingCacheSize` if `max_pending_flows` is 0.
     pub(crate) fn resize(
         &mut self,
         config: PendingFlowsConfig,
         metrics: &mut CacheMetrics,
-    ) -> Result<(), ConfigError> {
+    ) -> Result<u64, ConfigError> {
         let size = NonZeroUsize::new(config.max_pending_flows).ok_or(
             ConfigError::InvalidPendingCacheSize(config.max_pending_flows),
         )?;
+        let mut total_dropped: u64 = 0;
         // Manually evict LRU entries that exceed the new capacity so each
         // individual pending flow entry is reflected in pending_dropped.
         while self.cache.len() > size.get() {
             if let Some((_, evicted)) = self.cache.pop_lru() {
                 let evicted_bytes: usize = evicted.iter().map(|e| e.raw_data.len()).sum();
                 self.total_bytes = self.total_bytes.saturating_sub(evicted_bytes);
-                metrics.record_pending_dropped_n(evicted.len() as u64);
+                let n = evicted.len() as u64;
+                metrics.record_pending_dropped_n(n);
+                total_dropped = total_dropped.saturating_add(n);
             }
         }
         self.cache.resize(size);
 
         // Enforce new per-entry and per-template limits on remaining entries.
-        let freed = Self::trim_existing_entries(&mut self.cache, &config, metrics);
+        let (freed, trimmed) = Self::trim_existing_entries(&mut self.cache, &config, metrics);
         self.total_bytes = self.total_bytes.saturating_sub(freed);
+        total_dropped = total_dropped.saturating_add(trimmed);
 
         self.config = config;
-        Ok(())
+        Ok(total_dropped)
     }
 
     /// Drop entries that violate `max_entry_size_bytes` and truncate
     /// per-template vectors that exceed `max_entries_per_template`,
     /// recording `pending_dropped` for each removed entry.
-    /// Returns the total number of bytes freed.
+    /// Returns `(bytes_freed, entries_dropped)`.
     fn trim_existing_entries(
         cache: &mut LruCache<u16, Vec<PendingFlowEntry>>,
         config: &PendingFlowsConfig,
         metrics: &mut CacheMetrics,
-    ) -> usize {
+    ) -> (usize, u64) {
         let mut freed = 0usize;
+        let mut dropped: u64 = 0;
         // Collect keys first to avoid borrowing issues during iteration.
         let keys: Vec<u16> = cache.iter().map(|(&k, _)| k).collect();
         for key in keys {
@@ -405,13 +416,16 @@ impl PendingFlowCache {
             let before_len = entries.len();
             let before_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
             entries.retain(|e| e.raw_data.len() <= config.max_entry_size_bytes);
-            metrics.record_pending_dropped_n((before_len - entries.len()) as u64);
+            let size_dropped = (before_len - entries.len()) as u64;
+            metrics.record_pending_dropped_n(size_dropped);
+            dropped = dropped.saturating_add(size_dropped);
 
             // Truncate to the new per-template cap (keep oldest = front).
             if entries.len() > config.max_entries_per_template {
-                let excess = entries.len() - config.max_entries_per_template;
+                let excess = (entries.len() - config.max_entries_per_template) as u64;
                 entries.truncate(config.max_entries_per_template);
-                metrics.record_pending_dropped_n(excess as u64);
+                metrics.record_pending_dropped_n(excess);
+                dropped = dropped.saturating_add(excess);
             }
 
             let after_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
@@ -422,6 +436,6 @@ impl PendingFlowCache {
                 cache.pop(&key);
             }
         }
-        freed
+        (freed, dropped)
     }
 }

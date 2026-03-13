@@ -250,6 +250,8 @@ pub trait ParserConfig: ParserFields {
         self.set_max_error_sample_size_field(config.max_error_sample_size);
         self.set_max_records_per_flowset_field(config.max_records_per_flowset);
         self.set_ttl_config_field(config.ttl_config);
+        // Safety: validate_config above already verified pending_flows_config,
+        // so this call should not fail. The `?` is kept defensively.
         self.set_pending_flows_config(config.pending_flows_config)?;
 
         self.resize_template_caches(cache_size);
