@@ -666,7 +666,8 @@ fn test_ipfix_fixed_only_template_no_varlen_overhead() {
 
         // Verify template_field_lengths is empty (optimization)
         for flowset in &ipfix.flowsets {
-            if let netflow_parser::variable_versions::ipfix::FlowSetBody::Data(data) = &flowset.body
+            if let netflow_parser::variable_versions::ipfix::FlowSetBody::Data(data) =
+                &flowset.body
             {
                 assert!(
                     !data.has_varlen_metadata(),

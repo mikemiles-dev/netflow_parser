@@ -448,7 +448,11 @@ impl FieldValue {
             FieldValue::Float64(_) => 8,
             FieldValue::Duration(d) => match d {
                 DurationValue::Seconds { width, .. } | DurationValue::Millis { width, .. } => {
-                    if *width == 4 { 4 } else { 8 }
+                    if *width == 4 {
+                        4
+                    } else {
+                        8
+                    }
                 }
                 DurationValue::MicrosNtp { .. } | DurationValue::NanosNtp { .. } => 8,
             },

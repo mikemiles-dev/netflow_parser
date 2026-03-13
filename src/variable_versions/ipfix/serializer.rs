@@ -34,7 +34,10 @@ fn write_varlen_prefix(
 /// variable-length prefixes for any field whose template length is 65535.
 fn serialize_data_fields(
     result: &mut Vec<u8>,
-    fields: &[Vec<(impl std::fmt::Debug, crate::variable_versions::field_value::FieldValue)>],
+    fields: &[Vec<(
+        impl std::fmt::Debug,
+        crate::variable_versions::field_value::FieldValue,
+    )>],
     template_field_lengths: &[u16],
 ) -> Result<(), Box<dyn std::error::Error>> {
     for item in fields.iter() {
@@ -169,11 +172,7 @@ impl IPFix {
             }
             FlowSetBody::Data(data) => {
                 let mut result = Vec::new();
-                serialize_data_fields(
-                    &mut result,
-                    &data.fields,
-                    &data.template_field_lengths,
-                )?;
+                serialize_data_fields(&mut result, &data.fields, &data.template_field_lengths)?;
                 let content_len = result.len();
                 let padding = if data.padding.is_empty() {
                     calculate_padding(content_len)
@@ -185,11 +184,7 @@ impl IPFix {
             }
             FlowSetBody::OptionsData(data) => {
                 let mut result = Vec::new();
-                serialize_data_fields(
-                    &mut result,
-                    &data.fields,
-                    &data.template_field_lengths,
-                )?;
+                serialize_data_fields(&mut result, &data.fields, &data.template_field_lengths)?;
                 let content_len = result.len();
                 let padding = if data.padding.is_empty() {
                     calculate_padding(content_len)
