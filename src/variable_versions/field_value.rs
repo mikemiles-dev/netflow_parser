@@ -88,7 +88,12 @@ impl DataNumber {
                 }
             }
             DataNumber::I128(n) => *n,
-            DataNumber::Vec(v) => v.iter().fold(0i128, |acc, &b| (acc << 8) | b as i128),
+            DataNumber::Vec(v) => {
+                // Only interpret up to 16 bytes (128 bits) to avoid silent overflow
+                v.iter()
+                    .take(16)
+                    .fold(0i128, |acc, &b| (acc << 8) | i128::from(b))
+            }
         }
     }
 }

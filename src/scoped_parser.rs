@@ -90,7 +90,8 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     pub fn new() -> Self {
         Self {
             parsers: LruCache::new(
-                NonZeroUsize::new(DEFAULT_MAX_SOURCES).expect("DEFAULT_MAX_SOURCES is non-zero"),
+                NonZeroUsize::new(DEFAULT_MAX_SOURCES)
+                    .expect("DEFAULT_MAX_SOURCES is non-zero"),
             ),
             parser_builder: None,
             max_sources: DEFAULT_MAX_SOURCES,
@@ -125,7 +126,8 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         builder.validate()?;
         Ok(Self {
             parsers: LruCache::new(
-                NonZeroUsize::new(DEFAULT_MAX_SOURCES).expect("DEFAULT_MAX_SOURCES is non-zero"),
+                NonZeroUsize::new(DEFAULT_MAX_SOURCES)
+                    .expect("DEFAULT_MAX_SOURCES is non-zero"),
             ),
             parser_builder: Some(builder),
             max_sources: DEFAULT_MAX_SOURCES,
@@ -907,18 +909,9 @@ impl AutoScopedParser {
     /// Evict the globally least-recently-used entry across all three caches.
     /// Uses O(1) peek at the LRU entry of each cache, then pops from the oldest.
     fn evict_global_lru(&mut self) {
-        let ipfix_ts = self
-            .ipfix_parsers
-            .peek_lru()
-            .map(|(_, (_, ts))| *ts);
-        let v9_ts = self
-            .v9_parsers
-            .peek_lru()
-            .map(|(_, (_, ts))| *ts);
-        let legacy_ts = self
-            .legacy_parsers
-            .peek_lru()
-            .map(|(_, (_, ts))| *ts);
+        let ipfix_ts = self.ipfix_parsers.peek_lru().map(|(_, (_, ts))| *ts);
+        let v9_ts = self.v9_parsers.peek_lru().map(|(_, (_, ts))| *ts);
+        let legacy_ts = self.legacy_parsers.peek_lru().map(|(_, (_, ts))| *ts);
 
         // Find which cache has the globally oldest LRU entry.
         #[derive(Clone, Copy)]

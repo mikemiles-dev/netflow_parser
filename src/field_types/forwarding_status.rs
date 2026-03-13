@@ -246,7 +246,8 @@ impl From<u8> for ForwardingStatus {
             (3, 2) => ForwardingStatus::ConsumedTerminatedIncompleteAdjacency,
             (3, 3) => ForwardingStatus::ConsumedTerminatedForUs,
             (3, r) => ForwardingStatus::Consumed(r),
-            _ => ForwardingStatus::Unknown(0),
+            // status = value >> 6 can only be 0..=3, all covered above
+            _ => unreachable!(),
         }
     }
 }

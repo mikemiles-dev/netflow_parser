@@ -317,6 +317,11 @@ impl PendingFlowCache {
         } else {
             entries
         };
+        self.ops_since_recalc += 1;
+        if self.ops_since_recalc >= RECALC_INTERVAL {
+            self.recalculate_total_bytes();
+            self.ops_since_recalc = 0;
+        }
         #[cfg(debug_assertions)]
         self.debug_verify_total_bytes();
         result
@@ -371,7 +376,7 @@ impl PendingFlowCache {
         entries.retain(|e| e.cached_at.elapsed() < ttl);
         let after_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
         metrics.record_pending_dropped_n((before_len - entries.len()) as u64);
-        (entries.is_empty(), before_bytes - after_bytes)
+        (entries.is_empty(), before_bytes.saturating_sub(after_bytes))
     }
 
     /// Returns the total number of pending flow entries across all template IDs.
@@ -491,7 +496,7 @@ impl PendingFlowCache {
             }
 
             let after_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
-            freed += before_bytes - after_bytes;
+            freed += before_bytes.saturating_sub(after_bytes);
 
             // Remove the key entirely if no entries remain.
             if entries.is_empty() {

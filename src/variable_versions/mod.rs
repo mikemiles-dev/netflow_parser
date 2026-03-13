@@ -166,3 +166,25 @@ pub(crate) fn get_valid_template<T: Clone>(
     }
     None
 }
+
+/// Like `get_valid_template` but does NOT promote the entry in the LRU.
+/// Used in replay paths where the parse may fail — promotion should only
+/// happen on a successful replay (callers promote manually on success).
+pub(crate) fn peek_valid_template<T: Clone>(
+    cache: &mut lru::LruCache<TemplateId, ttl::TemplateWithTtl<std::sync::Arc<T>>>,
+    id: &TemplateId,
+    ttl_config: &Option<TtlConfig>,
+    metrics: &mut CacheMetrics,
+) -> Option<std::sync::Arc<T>> {
+    if let Some(wrapped) = cache.peek(id) {
+        if let Some(config) = ttl_config
+            && wrapped.is_expired(config)
+        {
+            cache.pop(id);
+            metrics.record_expiration();
+            return None;
+        }
+        return Some(std::sync::Arc::clone(&wrapped.template));
+    }
+    None
+}
