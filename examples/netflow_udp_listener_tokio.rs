@@ -87,7 +87,9 @@ async fn main() -> io::Result<()> {
                     println!("\n  {}  [Source ID: {}]", key.addr, key.source_id);
                     println!(
                         "    Templates: {}/{} | Evictions: {}",
-                        stats.v9.current_size, stats.v9.max_size_per_cache, stats.v9.metrics.evictions
+                        stats.v9.current_size,
+                        stats.v9.max_size_per_cache,
+                        stats.v9.metrics.evictions
                     );
                     if let Some(hit_rate) = stats.v9.metrics.hit_rate() {
                         println!(

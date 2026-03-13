@@ -385,7 +385,8 @@ impl FlowSetBody {
                         }
                     }
                     // Use push() to accurately detect LRU evictions
-                    if let Some(_evicted) = parser.templates.push(template.template_id, wrapped) {
+                    if let Some(_evicted) = parser.templates.push(template.template_id, wrapped)
+                    {
                         parser.metrics.record_eviction();
                     }
                     parser.metrics.record_insertion();

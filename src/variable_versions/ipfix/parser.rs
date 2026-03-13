@@ -520,8 +520,10 @@ impl FlowSetBody {
     {
         let (i, templates) = many0(complete(parse_fn))(i)?;
         // Filter to only valid templates; reject if none are valid
-        let valid_templates: Vec<_> =
-            templates.into_iter().filter(|t| validate(t, parser)).collect();
+        let valid_templates: Vec<_> = templates
+            .into_iter()
+            .filter(|t| validate(t, parser))
+            .collect();
         if valid_templates.is_empty() {
             return Err(nom::Err::Error(nom::error::Error::new(
                 i,

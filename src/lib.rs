@@ -1614,10 +1614,18 @@ impl NetflowParser {
             }
             // Fire metric-based events for collisions, evictions, and expirations
             if let Some(before) = v9_metrics_before {
-                self.fire_metric_delta_events(&before, &self.v9_parser.metrics, TemplateProtocol::V9);
+                self.fire_metric_delta_events(
+                    &before,
+                    &self.v9_parser.metrics,
+                    TemplateProtocol::V9,
+                );
             }
             if let Some(before) = ipfix_metrics_before {
-                self.fire_metric_delta_events(&before, &self.ipfix_parser.metrics, TemplateProtocol::Ipfix);
+                self.fire_metric_delta_events(
+                    &before,
+                    &self.ipfix_parser.metrics,
+                    TemplateProtocol::Ipfix,
+                );
             }
         }
 
