@@ -434,78 +434,102 @@ impl IPFixParser {
 // Parsing impl blocks (moved from mod.rs)
 // ---------------------------------------------------------------------------
 
+/// Trait abstracting the template ID accessor needed by the generic insertion helper.
+trait HasTemplateId: Clone + PartialEq {
+    fn template_id(&self) -> u16;
+}
+
+impl HasTemplateId for Template {
+    fn template_id(&self) -> u16 {
+        self.template_id
+    }
+}
+
+impl HasTemplateId for OptionsTemplate {
+    fn template_id(&self) -> u16 {
+        self.template_id
+    }
+}
+
+impl HasTemplateId for V9Template {
+    fn template_id(&self) -> u16 {
+        self.template_id
+    }
+}
+
+impl HasTemplateId for V9OptionsTemplate {
+    fn template_id(&self) -> u16 {
+        self.template_id
+    }
+}
+
+/// Insert templates into an LRU cache, recording collision/eviction/insertion metrics.
+fn insert_templates<T: HasTemplateId>(
+    cache: &mut LruCache<u16, TemplateWithTtl<Arc<T>>>,
+    templates: &[T],
+    ttl_enabled: bool,
+    metrics: &mut CacheMetrics,
+) {
+    for t in templates {
+        let arc_template = Arc::new(t.clone());
+        let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
+        if let Some(existing) = cache.peek(&t.template_id()) {
+            if existing.template.as_ref() != t {
+                metrics.record_collision();
+            }
+        }
+        // push() returns Some in two cases: (1) a different key was LRU-evicted
+        // to make room, or (2) the same key existed and its value was replaced.
+        // Only count case (1) as an eviction.
+        if let Some((evicted_key, _evicted)) = cache.push(t.template_id(), wrapped) {
+            if evicted_key != t.template_id() {
+                metrics.record_eviction();
+            }
+        }
+        metrics.record_insertion();
+    }
+}
+
 impl IPFixParser {
     /// Add templates to the parser by cloning from slice.
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         let ttl_enabled = self.ttl_config.is_some();
-        for t in templates {
-            let arc_template = Arc::new(t.clone());
-            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
-            if let Some(existing) = self.templates.peek(&t.template_id) {
-                if existing.template.as_ref() != t {
-                    self.metrics.record_collision();
-                }
-            }
-            // Use push() to accurately detect LRU evictions
-            if let Some(_evicted) = self.templates.push(t.template_id, wrapped) {
-                self.metrics.record_eviction();
-            }
-            self.metrics.record_insertion();
-        }
+        insert_templates(
+            &mut self.templates,
+            templates,
+            ttl_enabled,
+            &mut self.metrics,
+        );
     }
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         let ttl_enabled = self.ttl_config.is_some();
-        for t in templates {
-            let arc_template = Arc::new(t.clone());
-            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
-            if let Some(existing) = self.ipfix_options_templates.peek(&t.template_id) {
-                if existing.template.as_ref() != t {
-                    self.metrics.record_collision();
-                }
-            }
-            // Use push() to accurately detect LRU evictions
-            if let Some(_evicted) = self.ipfix_options_templates.push(t.template_id, wrapped) {
-                self.metrics.record_eviction();
-            }
-            self.metrics.record_insertion();
-        }
+        insert_templates(
+            &mut self.ipfix_options_templates,
+            templates,
+            ttl_enabled,
+            &mut self.metrics,
+        );
     }
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         let ttl_enabled = self.ttl_config.is_some();
-        for t in templates {
-            let arc_template = Arc::new(t.clone());
-            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
-            if let Some(existing) = self.v9_templates.peek(&t.template_id) {
-                if existing.template.as_ref() != t {
-                    self.metrics.record_collision();
-                }
-            }
-            // Use push() to accurately detect LRU evictions
-            if let Some(_evicted) = self.v9_templates.push(t.template_id, wrapped) {
-                self.metrics.record_eviction();
-            }
-            self.metrics.record_insertion();
-        }
+        insert_templates(
+            &mut self.v9_templates,
+            templates,
+            ttl_enabled,
+            &mut self.metrics,
+        );
     }
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         let ttl_enabled = self.ttl_config.is_some();
-        for t in templates {
-            let arc_template = Arc::new(t.clone());
-            let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
-            if let Some(existing) = self.v9_options_templates.peek(&t.template_id) {
-                if existing.template.as_ref() != t {
-                    self.metrics.record_collision();
-                }
-            }
-            // Use push() to accurately detect LRU evictions
-            if let Some(_evicted) = self.v9_options_templates.push(t.template_id, wrapped) {
-                self.metrics.record_eviction();
-            }
-            self.metrics.record_insertion();
-        }
+        insert_templates(
+            &mut self.v9_options_templates,
+            templates,
+            ttl_enabled,
+            &mut self.metrics,
+        );
     }
 }
 
@@ -782,14 +806,19 @@ impl OptionsData {
 }
 
 impl<'a> FieldParser {
-    /// Takes a byte stream and a cached template.
-    /// Fields get matched to static types.
-    /// Returns BTree of IPFix Types & Fields or IResult Error.
-    pub(super) fn parse<T: CommonTemplate>(
+    /// Core parsing loop shared by `parse` and `parse_with_registry`.
+    ///
+    /// The `parse_field` closure controls how each template field is decoded —
+    /// either using built-in field types or the enterprise registry.
+    fn parse_inner<T: CommonTemplate, F>(
         mut i: &'a [u8],
         template: &T,
         max_records: usize,
-    ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
+        parse_field: F,
+    ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>>
+    where
+        F: Fn(&TemplateField, &'a [u8]) -> IResult<&'a [u8], FieldValue>,
+    {
         let template_fields = template.get_fields();
         if template_fields.is_empty() {
             return Ok((i, Vec::new()));
@@ -820,7 +849,7 @@ impl<'a> FieldParser {
             let before = i;
             let mut vec = Vec::with_capacity(template_fields.len());
             for field in template_fields.iter() {
-                match field.parse_as_field_value(i) {
+                match parse_field(field, i) {
                     Ok((remaining, field_value)) => {
                         vec.push((field.field_type, field_value));
                         i = remaining;
@@ -840,61 +869,29 @@ impl<'a> FieldParser {
         Ok((i, res))
     }
 
+    /// Takes a byte stream and a cached template.
+    /// Fields get matched to static types.
+    /// Returns BTree of IPFix Types & Fields or IResult Error.
+    pub(super) fn parse<T: CommonTemplate>(
+        i: &'a [u8],
+        template: &T,
+        max_records: usize,
+    ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
+        Self::parse_inner(i, template, max_records, |field, input| {
+            field.parse_as_field_value(input)
+        })
+    }
+
     /// Same as parse but uses the enterprise registry to resolve custom enterprise fields
     fn parse_with_registry<T: CommonTemplate>(
-        mut i: &'a [u8],
+        i: &'a [u8],
         template: &T,
         registry: &EnterpriseFieldRegistry,
         max_records: usize,
     ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
-        let template_fields = template.get_fields();
-        if template_fields.is_empty() {
-            return Ok((i, Vec::new()));
-        }
-
-        // Estimate capacity based on input size and template field count.
-        // Variable-length fields (field_length == 65535) are RFC 7011 markers,
-        // not actual sizes — count them as 1 byte minimum for estimation.
-        let template_size: usize = template_fields
-            .iter()
-            .map(|f| {
-                if f.field_length == 65535 {
-                    1
-                } else {
-                    usize::from(f.field_length)
-                }
-            })
-            .sum();
-        let estimated_records = if template_size > 0 {
-            (i.len() / template_size).min(max_records)
-        } else {
-            0
-        };
-        let mut res = Vec::with_capacity(estimated_records);
-
-        // Try to parse as much as we can, but if it fails, just return what we have so far.
-        while !i.is_empty() && res.len() < max_records {
-            let before = i;
-            let mut vec = Vec::with_capacity(template_fields.len());
-            for field in template_fields.iter() {
-                match field.parse_as_field_value_with_registry(i, registry) {
-                    Ok((remaining, field_value)) => {
-                        vec.push((field.field_type, field_value));
-                        i = remaining;
-                    }
-                    Err(_) => {
-                        return Ok((i, res));
-                    }
-                }
-            }
-            // Guard against infinite loops: if no bytes were consumed after
-            // parsing a full record, stop to prevent CPU-bound DoS.
-            if std::ptr::eq(i, before) {
-                break;
-            }
-            res.push(vec);
-        }
-        Ok((i, res))
+        Self::parse_inner(i, template, max_records, |field, input| {
+            field.parse_as_field_value_with_registry(input, registry)
+        })
     }
 }
 

@@ -1439,14 +1439,14 @@ impl NetflowParser {
     /// ```rust
     /// use netflow_parser::{NetflowParser, TemplateEvent, TemplateProtocol};
     ///
-    /// let parser = NetflowParser::default();
+    /// let mut parser = NetflowParser::default();
     /// parser.trigger_template_event(TemplateEvent::Learned {
     ///     template_id: 256,
     ///     protocol: TemplateProtocol::V9,
     /// });
     /// ```
     #[inline]
-    pub fn trigger_template_event(&self, event: TemplateEvent) {
+    pub fn trigger_template_event(&mut self, event: TemplateEvent) {
         self.template_hooks.trigger(&event);
     }
 
@@ -1624,20 +1624,16 @@ impl NetflowParser {
             if let ParsedNetflow::Success { ref packet, .. } = result {
                 self.fire_template_events(packet);
             }
-            // Fire metric-based events for collisions, evictions, and expirations
+            // Fire metric-based events for collisions, evictions, and expirations.
+            // Copy the after-metrics to avoid borrowing self immutably while
+            // fire_metric_delta_events borrows self mutably (for hook_errors).
             if let Some(before) = v9_metrics_before {
-                self.fire_metric_delta_events(
-                    &before,
-                    &self.v9_parser.metrics,
-                    TemplateProtocol::V9,
-                );
+                let after = self.v9_parser.metrics;
+                self.fire_metric_delta_events(&before, &after, TemplateProtocol::V9);
             }
             if let Some(before) = ipfix_metrics_before {
-                self.fire_metric_delta_events(
-                    &before,
-                    &self.ipfix_parser.metrics,
-                    TemplateProtocol::Ipfix,
-                );
+                let after = self.ipfix_parser.metrics;
+                self.fire_metric_delta_events(&before, &after, TemplateProtocol::Ipfix);
             }
         }
 
@@ -1645,7 +1641,7 @@ impl NetflowParser {
     }
 
     fn fire_metric_delta_events(
-        &self,
+        &mut self,
         before: &variable_versions::metrics::CacheMetrics,
         after: &variable_versions::metrics::CacheMetrics,
         protocol: TemplateProtocol,
@@ -1673,7 +1669,7 @@ impl NetflowParser {
         }
     }
 
-    fn fire_template_events(&self, packet: &NetflowPacket) {
+    fn fire_template_events(&mut self, packet: &NetflowPacket) {
         match packet {
             NetflowPacket::V9(v9) => {
                 for fs in &v9.flowsets {
