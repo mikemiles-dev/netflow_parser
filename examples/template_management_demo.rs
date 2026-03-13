@@ -57,11 +57,11 @@ fn demo_cache_metrics() {
     println!("\nV9 Cache Statistics:");
     println!(
         "  Current size: {}/{}",
-        v9_stats.current_size, v9_stats.max_size
+        v9_stats.current_size, v9_stats.max_size_per_cache
     );
     println!(
         "  Utilization: {:.1}%",
-        (v9_stats.current_size as f64 / v9_stats.max_size as f64) * 100.0
+        (v9_stats.current_size as f64 / v9_stats.max_size_per_cache as f64) * 100.0
     );
 
     let metrics = &v9_stats.metrics;
@@ -119,11 +119,11 @@ fn demo_multi_source() {
         println!("\n  Router: {}", source);
         println!(
             "    V9 templates:    {}/{}",
-            stats.v9.current_size, stats.v9.max_size
+            stats.v9.current_size, stats.v9.max_size_per_cache
         );
         println!(
             "    IPFIX templates: {}/{}",
-            stats.ipfix.current_size, stats.ipfix.max_size
+            stats.ipfix.current_size, stats.ipfix.max_size_per_cache
         );
         println!(
             "    V9 hit rate:     {:.2}%",
@@ -260,7 +260,7 @@ fn demo_template_lifecycle() {
     println!("  Templates after clear:  {}", stats_after.current_size);
 
     println!("\nCache Configuration:");
-    println!("  Max cache size: {}", stats_before.max_size);
+    println!("  Max cache size: {}", stats_before.max_size_per_cache);
     if let Some(ttl_config) = &stats_before.ttl_config {
         println!("  TTL configured: {:?}", ttl_config.duration);
     } else {

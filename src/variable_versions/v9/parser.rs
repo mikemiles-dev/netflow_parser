@@ -60,7 +60,7 @@ impl Default for V9Parser {
             pending_flows_config: None,
         };
 
-        Self::try_new(config).unwrap()
+        Self::try_new(config).expect("hardcoded default config is always valid")
     }
 }
 
@@ -360,17 +360,21 @@ impl FlowSetBody {
         match id {
             DATA_TEMPLATE_V9_ID => {
                 let (i, templates) = Templates::parse(i)?;
-                // Validate templates before storing
-                if templates.templates.is_empty()
-                    || templates.templates.iter().any(|t| !t.is_valid(parser))
-                {
+                // Filter to only valid templates; reject if none are valid
+                let valid_templates: Vec<_> = templates
+                    .templates
+                    .iter()
+                    .filter(|t| t.is_valid(parser))
+                    .cloned()
+                    .collect();
+                if valid_templates.is_empty() {
                     return Err(nom::Err::Error(nom::error::Error::new(
                         i,
                         nom::error::ErrorKind::Verify,
                     )));
                 }
                 let ttl_enabled = parser.ttl_config.is_some();
-                for template in &templates.templates {
+                for template in &valid_templates {
                     let arc_template = Arc::new(template.clone());
                     let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
                     // Check for collision (same ID, different definition)
@@ -380,24 +384,28 @@ impl FlowSetBody {
                             parser.metrics.record_collision();
                         }
                     }
-                    // Check if we're evicting an old template
-                    else if parser.templates.len() >= parser.max_template_cache_size {
+                    // Use push() to accurately detect LRU evictions
+                    if let Some(_evicted) = parser.templates.push(template.template_id, wrapped) {
                         parser.metrics.record_eviction();
                     }
-                    parser.templates.put(template.template_id, wrapped);
                     parser.metrics.record_insertion();
                 }
-                Ok((i, FlowSetBody::Template(templates)))
+                let result = Templates {
+                    templates: valid_templates,
+                    padding: templates.padding,
+                };
+                Ok((i, FlowSetBody::Template(result)))
             }
             OPTIONS_TEMPLATE_V9_ID => {
                 let (i, options_templates) = OptionsTemplates::parse(i)?;
-                // Validate templates before storing
-                if options_templates.templates.is_empty()
-                    || options_templates
-                        .templates
-                        .iter()
-                        .any(|t| !t.is_valid(parser))
-                {
+                // Filter to only valid templates; reject if none are valid
+                let valid_templates: Vec<_> = options_templates
+                    .templates
+                    .iter()
+                    .filter(|t| t.is_valid(parser))
+                    .cloned()
+                    .collect();
+                if valid_templates.is_empty() {
                     return Err(nom::Err::Error(nom::error::Error::new(
                         i,
                         nom::error::ErrorKind::Verify,
@@ -405,7 +413,7 @@ impl FlowSetBody {
                 }
                 // Store templates efficiently using Arc for zero-cost sharing
                 let ttl_enabled = parser.ttl_config.is_some();
-                for template in &options_templates.templates {
+                for template in &valid_templates {
                     let arc_template = Arc::new(template.clone());
                     let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
                     // Check for collision (same ID, different definition)
@@ -416,14 +424,19 @@ impl FlowSetBody {
                             parser.metrics.record_collision();
                         }
                     }
-                    // Check if we're evicting an old template
-                    else if parser.options_templates.len() >= parser.max_template_cache_size {
+                    // Use push() to accurately detect LRU evictions
+                    if let Some(_evicted) =
+                        parser.options_templates.push(template.template_id, wrapped)
+                    {
                         parser.metrics.record_eviction();
                     }
-                    parser.options_templates.put(template.template_id, wrapped);
                     parser.metrics.record_insertion();
                 }
-                Ok((i, FlowSetBody::OptionsTemplate(options_templates)))
+                let result = OptionsTemplates {
+                    templates: valid_templates,
+                    padding: options_templates.padding,
+                };
+                Ok((i, FlowSetBody::OptionsTemplate(result)))
             }
             _ => {
                 // Try regular templates
@@ -453,7 +466,12 @@ impl FlowSetBody {
                     return Ok((i, FlowSetBody::OptionsData(options_data)));
                 }
 
-                // Template not found or expired
+                // Template not found or expired.
+                // Note: record_miss() is called once per flowset (after checking
+                // both templates and options_templates caches), while record_hit()
+                // is called per-cache-lookup inside get_valid_template(). This
+                // asymmetry is intentional — one flowset lookup that fails both
+                // caches is semantically one miss, not two.
                 parser.metrics.record_miss();
                 if id > 255 {
                     // Store full raw data only when the pending cache is
@@ -563,8 +581,11 @@ impl OptionsTemplate {
             return false;
         }
 
-        // Check field count limits
-        if scope_count > parser.max_field_count || option_count > parser.max_field_count {
+        // Check field count limits (individually and combined)
+        if scope_count > parser.max_field_count
+            || option_count > parser.max_field_count
+            || scope_count.saturating_add(option_count) > parser.max_field_count
+        {
             return false;
         }
 
@@ -721,6 +742,7 @@ impl<'a> FieldParser {
         let mut res = Vec::with_capacity(record_count);
 
         for _ in 0..record_count {
+            let before = input;
             match Self::parse_data_fields(input, template) {
                 Ok((remaining, record)) => {
                     input = remaining;
@@ -728,6 +750,11 @@ impl<'a> FieldParser {
                 }
                 Err(_) => return Ok((input, res)),
             };
+            // Guard against infinite loops: if no bytes were consumed after
+            // parsing a full record, stop to prevent CPU-bound DoS.
+            if std::ptr::eq(input, before) {
+                break;
+            }
         }
 
         Ok((input, res))

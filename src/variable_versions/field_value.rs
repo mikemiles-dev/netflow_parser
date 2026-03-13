@@ -574,8 +574,7 @@ impl FieldValue {
                 let (i, taken) = take(field_length)(remaining)?;
                 let raw = taken.to_vec();
                 let lossy = String::from_utf8_lossy(taken);
-                let base = lossy.strip_prefix("P4").unwrap_or(&lossy);
-                let s: String = base.chars().filter(|&c| !c.is_control()).collect();
+                let s: String = lossy.chars().filter(|&c| !c.is_control()).collect();
                 (i, FieldValue::String(StringValue { value: s, raw }))
             }
             FieldDataType::Ip4Addr if field_length == 4 => {

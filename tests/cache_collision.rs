@@ -98,9 +98,9 @@ fn test_cache_stats_initial_state() {
 
     let v9_stats = parser.v9_cache_stats();
     assert_eq!(v9_stats.current_size, 0);
-    assert_eq!(v9_stats.max_size, 1000);
+    assert_eq!(v9_stats.max_size_per_cache, 1000);
 
     let ipfix_stats = parser.ipfix_cache_stats();
     assert_eq!(ipfix_stats.current_size, 0);
-    assert_eq!(ipfix_stats.max_size, 1000);
+    assert_eq!(ipfix_stats.max_size_per_cache, 1000);
 }

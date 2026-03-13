@@ -9,4 +9,26 @@ expression: ipfix
       export_time: 1654698425
       sequence_number: 8
       observation_domain_id: 1818918417
-    flowsets: []
+    flowsets:
+      - header:
+          header_id: 2
+          length: 32
+        body:
+          Templates:
+            - template_id: 49320
+              field_count: 1
+              fields:
+                - field_type_number: 16552
+                  field_length: 2
+                  enterprise_number: 65537
+                  field_type:
+                    Enterprise:
+                      enterprise_number: 65537
+                      field_number: 16552
+            - template_id: 0
+              field_count: 1
+              fields:
+                - field_type_number: 0
+                  field_length: 5
+                  field_type:
+                    IANA: Reserved

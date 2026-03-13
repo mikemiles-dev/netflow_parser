@@ -73,8 +73,8 @@ pub enum TemplateEvent {
     /// that different routers are using the same template ID with potentially
     /// different schemas. Use `AutoScopedParser` to avoid this issue.
     ///
-    /// **Note:** This event is not yet fired by the parser. It is reserved for
-    /// future use when the template cache reports collisions to the hook system.
+    /// **Note:** The `template_id` field is set to 0 because specific IDs are not
+    /// available from the metrics layer. Use cache metrics for detailed tracking.
     Collision {
         /// The template ID that collided
         template_id: u16,
@@ -89,8 +89,8 @@ pub enum TemplateEvent {
     /// may indicate that the cache size is too small or that there are too
     /// many active templates.
     ///
-    /// **Note:** This event is not yet fired by the parser. It is reserved for
-    /// future use when the template cache reports evictions to the hook system.
+    /// **Note:** The `template_id` field is set to 0 because specific IDs are not
+    /// available from the metrics layer. Use cache metrics for detailed tracking.
     Evicted {
         /// The template ID that was evicted
         template_id: u16,
@@ -105,8 +105,8 @@ pub enum TemplateEvent {
     /// the cache. This is useful for handling exporters that may change their
     /// template definitions without notification.
     ///
-    /// **Note:** This event is not yet fired by the parser. It is reserved for
-    /// future use when the template cache reports expirations to the hook system.
+    /// **Note:** The `template_id` field is set to 0 because specific IDs are not
+    /// available from the metrics layer. Use cache metrics for detailed tracking.
     Expired {
         /// The template ID that expired
         template_id: u16,

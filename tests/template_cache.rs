@@ -10,11 +10,11 @@ fn test_template_cache_initial_state() {
 
     let v9_stats = parser.v9_cache_stats();
     assert_eq!(v9_stats.current_size, 0);
-    assert_eq!(v9_stats.max_size, 1000); // Default cache size
+    assert_eq!(v9_stats.max_size_per_cache, 1000); // Default cache size
 
     let ipfix_stats = parser.ipfix_cache_stats();
     assert_eq!(ipfix_stats.current_size, 0);
-    assert_eq!(ipfix_stats.max_size, 1000);
+    assert_eq!(ipfix_stats.max_size_per_cache, 1000);
 }
 
 // Verify that all cache metrics (hits, misses, evictions, collisions, expired) start at zero
@@ -87,10 +87,10 @@ fn test_custom_cache_size() {
         .expect("Failed to build parser");
 
     let v9_stats = parser.v9_cache_stats();
-    assert_eq!(v9_stats.max_size, 500);
+    assert_eq!(v9_stats.max_size_per_cache, 500);
 
     let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.max_size, 500);
+    assert_eq!(ipfix_stats.max_size_per_cache, 500);
 }
 
 // Verify that V9 and IPFIX cache sizes can be configured independently
@@ -103,8 +103,8 @@ fn test_different_cache_sizes() {
         .expect("Failed to build parser");
 
     let v9_stats = parser.v9_cache_stats();
-    assert_eq!(v9_stats.max_size, 750);
+    assert_eq!(v9_stats.max_size_per_cache, 750);
 
     let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.max_size, 1500);
+    assert_eq!(ipfix_stats.max_size_per_cache, 1500);
 }

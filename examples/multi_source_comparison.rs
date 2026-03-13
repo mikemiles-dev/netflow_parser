@@ -48,11 +48,11 @@ fn demo_single_parser(sources: &[&str]) {
     println!("\nCache Statistics:");
     println!(
         "  V9 Templates:    {}/{}",
-        v9_stats.current_size, v9_stats.max_size
+        v9_stats.current_size, v9_stats.max_size_per_cache
     );
     println!(
         "  IPFIX Templates: {}/{}",
-        ipfix_stats.current_size, ipfix_stats.max_size
+        ipfix_stats.current_size, ipfix_stats.max_size_per_cache
     );
     println!("  V9 Collisions:   {}", v9_stats.metrics.collisions);
     println!("  IPFIX Collisions: {}", ipfix_stats.metrics.collisions);

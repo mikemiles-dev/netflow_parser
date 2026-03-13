@@ -886,7 +886,7 @@ parser.parse_bytes(&data);
 
 // Get cache statistics
 let v9_stats = parser.v9_cache_stats();
-println!("V9 Cache: {}/{} templates", v9_stats.current_size, v9_stats.max_size);
+println!("V9 Cache: {}/{} templates", v9_stats.current_size, v9_stats.max_size_per_cache);
 
 // Access performance metrics
 let metrics = &v9_stats.metrics;
@@ -1066,10 +1066,10 @@ let parser = NetflowParser::default();
 
 // Get cache statistics
 let v9_stats = parser.v9_cache_stats();
-println!("V9 cache: {}/{} templates", v9_stats.current_size, v9_stats.max_size);
+println!("V9 cache: {}/{} templates", v9_stats.current_size, v9_stats.max_size_per_cache);
 
 let ipfix_stats = parser.ipfix_cache_stats();
-println!("IPFIX cache: {}/{} templates", ipfix_stats.current_size, ipfix_stats.max_size);
+println!("IPFIX cache: {}/{} templates", ipfix_stats.current_size, ipfix_stats.max_size_per_cache);
 
 // List all cached template IDs
 let v9_templates = parser.v9_template_ids();
@@ -1116,7 +1116,7 @@ scoped_parser.clear_all_templates();
 3. **Configure appropriate cache size**
    - Default: 1000 templates per source
    - Increase for routers that define many templates
-   - Monitor `current_size` vs `max_size` to right-size
+   - Monitor `current_size` vs `max_size_per_cache` to right-size
 
 4. **Use TTL for long-running parsers**
    - Prevents stale templates in 24/7 collectors

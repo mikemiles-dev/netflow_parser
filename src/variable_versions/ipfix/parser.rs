@@ -48,7 +48,7 @@ impl Default for IPFixParser {
             pending_flows_config: None,
         };
 
-        Self::try_new(config).unwrap()
+        Self::try_new(config).expect("hardcoded default config is always valid")
     }
 }
 
@@ -440,10 +440,11 @@ impl IPFixParser {
                 if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
-            } else if self.templates.len() >= self.max_template_cache_size {
+            }
+            // Use push() to accurately detect LRU evictions
+            if let Some(_evicted) = self.templates.push(t.template_id, wrapped) {
                 self.metrics.record_eviction();
             }
-            self.templates.put(t.template_id, wrapped);
             self.metrics.record_insertion();
         }
     }
@@ -457,10 +458,11 @@ impl IPFixParser {
                 if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
-            } else if self.ipfix_options_templates.len() >= self.max_template_cache_size {
+            }
+            // Use push() to accurately detect LRU evictions
+            if let Some(_evicted) = self.ipfix_options_templates.push(t.template_id, wrapped) {
                 self.metrics.record_eviction();
             }
-            self.ipfix_options_templates.put(t.template_id, wrapped);
             self.metrics.record_insertion();
         }
     }
@@ -474,10 +476,11 @@ impl IPFixParser {
                 if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
-            } else if self.v9_templates.len() >= self.max_template_cache_size {
+            }
+            // Use push() to accurately detect LRU evictions
+            if let Some(_evicted) = self.v9_templates.push(t.template_id, wrapped) {
                 self.metrics.record_eviction();
             }
-            self.v9_templates.put(t.template_id, wrapped);
             self.metrics.record_insertion();
         }
     }
@@ -491,10 +494,11 @@ impl IPFixParser {
                 if existing.template.as_ref() != t {
                     self.metrics.record_collision();
                 }
-            } else if self.v9_options_templates.len() >= self.max_template_cache_size {
+            }
+            // Use push() to accurately detect LRU evictions
+            if let Some(_evicted) = self.v9_options_templates.push(t.template_id, wrapped) {
                 self.metrics.record_eviction();
             }
-            self.v9_options_templates.put(t.template_id, wrapped);
             self.metrics.record_insertion();
         }
     }
@@ -515,17 +519,20 @@ impl FlowSetBody {
         F: Fn(&'a [u8]) -> IResult<&'a [u8], T>,
     {
         let (i, templates) = many0(complete(parse_fn))(i)?;
-        if templates.is_empty() || templates.iter().any(|t| !validate(t, parser)) {
+        // Filter to only valid templates; reject if none are valid
+        let valid_templates: Vec<_> =
+            templates.into_iter().filter(|t| validate(t, parser)).collect();
+        if valid_templates.is_empty() {
             return Err(nom::Err::Error(nom::error::Error::new(
                 i,
                 nom::error::ErrorKind::Verify,
             )));
         }
         // Pass slice to add_templates to clone only what's needed
-        add_templates(parser, &templates);
-        match templates.len() {
+        add_templates(parser, &valid_templates);
+        match valid_templates.len() {
             1 => {
-                if let Some(template) = templates.into_iter().next() {
+                if let Some(template) = valid_templates.into_iter().next() {
                     Ok((i, single_variant(template)))
                 } else {
                     Err(nom::Err::Error(nom::error::Error::new(
@@ -534,7 +541,7 @@ impl FlowSetBody {
                     )))
                 }
             }
-            _ => Ok((i, multi_variant(templates))),
+            _ => Ok((i, multi_variant(valid_templates))),
         }
     }
 
@@ -583,6 +590,7 @@ impl FlowSetBody {
                         && scope_count > 0
                         && scope_count <= p.max_field_count
                         && option_count <= p.max_field_count
+                        && scope_count.saturating_add(option_count) <= p.max_field_count
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
                         && !t.has_duplicate_scope_fields()
                         && !t.has_duplicate_option_fields()
@@ -665,7 +673,11 @@ impl FlowSetBody {
                     return Ok((i, FlowSetBody::V9OptionsData(data)));
                 }
 
-                // Template not found or expired
+                // Template not found or expired.
+                // Note: record_miss() is called once per flowset (after checking
+                // all template caches), while record_hit() is called per-cache-lookup
+                // inside get_valid_template(). This asymmetry is intentional — one
+                // flowset lookup that fails all caches is semantically one miss.
                 parser.metrics.record_miss();
                 if id > 255 {
                     // Store full raw data only when the pending cache is
