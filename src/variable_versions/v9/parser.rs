@@ -392,7 +392,8 @@ impl FlowSetBody {
                     // push() returns Some in two cases: (1) a different key was LRU-evicted
                     // to make room, or (2) the same key existed and its value was replaced.
                     // Only count case (1) as an eviction.
-                    if let Some((evicted_key, _evicted)) = parser.templates.push(template.template_id, wrapped)
+                    if let Some((evicted_key, _evicted)) =
+                        parser.templates.push(template.template_id, wrapped)
                     {
                         if evicted_key != template.template_id {
                             parser.metrics.record_eviction();

@@ -772,7 +772,10 @@ impl FieldValue {
             }
             FieldDataType::TcpControlBits if field_length == 1 => {
                 let (i, byte) = u8::parse(remaining)?;
-                (i, FieldValue::TcpControlBits(TcpControlBits::from(u16::from(byte)), 1))
+                (
+                    i,
+                    FieldValue::TcpControlBits(TcpControlBits::from(u16::from(byte)), 1),
+                )
             }
             FieldDataType::Ipv6ExtensionHeaders if field_length == 4 => {
                 let (i, headers) = Ipv6ExtensionHeaders::parse(remaining)?;
