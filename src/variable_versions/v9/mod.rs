@@ -228,7 +228,9 @@ pub enum ScopeDataField {
 #[nom(ExtraArgs(template: &Template))]
 pub struct Data {
     // Data Fields
-    #[nom(Parse = "{ |i| FieldParser::parse(i, template, crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET) }")]
+    #[nom(
+        Parse = "{ |i| FieldParser::parse(i, template, crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET) }"
+    )]
     pub fields: Vec<V9FlowRecord>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
@@ -250,7 +252,13 @@ impl Data {
         max_records: usize,
     ) -> nom::IResult<&'a [u8], Self> {
         let (i, fields) = FieldParser::parse(i, template, max_records)?;
-        Ok((i, Self { fields, padding: vec![] }))
+        Ok((
+            i,
+            Self {
+                fields,
+                padding: vec![],
+            },
+        ))
     }
 }
 

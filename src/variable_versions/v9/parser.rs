@@ -294,7 +294,8 @@ impl V9Parser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
+        ) && let Ok((_, data)) =
+            Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
         {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
@@ -313,8 +314,11 @@ impl V9Parser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, options_data)) = OptionsData::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
-        {
+        ) && let Ok((_, options_data)) = OptionsData::parse_with_limit(
+            &entry.raw_data,
+            &template,
+            self.max_records_per_flowset,
+        ) {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     flowset_id: template_id,
@@ -429,7 +433,8 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
-                    let (i, data) = Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    let (i, data) =
+                        Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
 
@@ -440,7 +445,11 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
-                    let (i, options_data) = OptionsData::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    let (i, options_data) = OptionsData::parse_with_limit(
+                        i,
+                        &template,
+                        parser.max_records_per_flowset,
+                    )?;
                     return Ok((i, FlowSetBody::OptionsData(options_data)));
                 }
 

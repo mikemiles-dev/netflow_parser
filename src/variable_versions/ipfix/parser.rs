@@ -320,9 +320,12 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) =
-            Data::parse_with_registry(&entry.raw_data, &template, &self.enterprise_registry, self.max_records_per_flowset)
-        {
+        ) && let Ok((_, data)) = Data::parse_with_registry(
+            &entry.raw_data,
+            &template,
+            &self.enterprise_registry,
+            self.max_records_per_flowset,
+        ) {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     header_id: template_id,
@@ -365,7 +368,8 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = V9Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
+        ) && let Ok((_, data)) =
+            V9Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
         {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
@@ -385,8 +389,11 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = V9OptionsData::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
-        {
+        ) && let Ok((_, data)) = V9OptionsData::parse_with_limit(
+            &entry.raw_data,
+            &template,
+            self.max_records_per_flowset,
+        ) {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     header_id: template_id,
@@ -603,8 +610,12 @@ impl FlowSetBody {
                     if template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     }
-                    let (i, data) =
-                        Data::parse_with_registry(i, &template, &parser.enterprise_registry, parser.max_records_per_flowset)?;
+                    let (i, data) = Data::parse_with_registry(
+                        i,
+                        &template,
+                        &parser.enterprise_registry,
+                        parser.max_records_per_flowset,
+                    )?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
 
@@ -634,7 +645,8 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
-                    let (i, data) = V9Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    let (i, data) =
+                        V9Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
                     return Ok((i, FlowSetBody::V9Data(data)));
                 }
 
@@ -645,7 +657,11 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
-                    let (i, data) = V9OptionsData::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    let (i, data) = V9OptionsData::parse_with_limit(
+                        i,
+                        &template,
+                        parser.max_records_per_flowset,
+                    )?;
                     return Ok((i, FlowSetBody::V9OptionsData(data)));
                 }
 

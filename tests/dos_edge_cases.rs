@@ -474,12 +474,19 @@ fn test_v9_max_records_per_flowset() {
     }
 
     let result = parser.parse_bytes(&data_packet);
-    assert!(result.error.is_none(), "Data parse failed: {:?}", result.error);
+    assert!(
+        result.error.is_none(),
+        "Data parse failed: {:?}",
+        result.error
+    );
 
     if let Some(NetflowPacket::V9(v9)) = result.packets.first() {
         // Find the data flowset
         let data_flowset = v9.flowsets.iter().find(|fs| {
-            matches!(fs.body, netflow_parser::variable_versions::v9::FlowSetBody::Data(_))
+            matches!(
+                fs.body,
+                netflow_parser::variable_versions::v9::FlowSetBody::Data(_)
+            )
         });
         assert!(data_flowset.is_some(), "Expected data flowset");
         if let netflow_parser::variable_versions::v9::FlowSetBody::Data(data) =
@@ -544,7 +551,11 @@ fn test_ipfix_max_records_per_flowset() {
     data_packet[2..4].copy_from_slice(&len.to_be_bytes());
 
     let result = parser.parse_bytes(&data_packet);
-    assert!(result.error.is_none(), "Data parse failed: {:?}", result.error);
+    assert!(
+        result.error.is_none(),
+        "Data parse failed: {:?}",
+        result.error
+    );
 
     if let Some(NetflowPacket::IPFix(ipfix)) = result.packets.first() {
         let data_flowset = ipfix.flowsets.iter().find(|fs| {
