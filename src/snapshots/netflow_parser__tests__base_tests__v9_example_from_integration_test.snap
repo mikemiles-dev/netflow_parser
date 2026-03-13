@@ -18,11 +18,14 @@ expression: "parser.parse_bytes(&hex::decode(hex_hex1).unwrap()).packets"
           Data:
             fields:
               - - - InBytes
-                  - DataNumber: 175114506
+                  - DataNumber:
+                      U32: 175114506
                 - - InPkts
-                  - DataNumber: 175114507
+                  - DataNumber:
+                      U32: 175114507
                 - - InputSnmp
-                  - DataNumber: 1
+                  - DataNumber:
+                      U32: 1
                 - - Protocol
                   - Vec:
                       - 0

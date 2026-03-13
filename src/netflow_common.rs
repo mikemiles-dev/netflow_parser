@@ -346,18 +346,77 @@ impl<'a> V9FieldCache<'a> {
     }
 }
 
+/// Extract a u8 from a FieldValue, handling both DataNumber and ProtocolType variants.
+/// Supports numeric downcasting for DataNumber values that fit in u8.
+fn extract_u8(v: &FieldValue) -> Option<u8> {
+    use crate::variable_versions::field_value::DataNumber;
+    match v {
+        FieldValue::ProtocolType(p) => Some(u8::from(*p)),
+        FieldValue::DataNumber(d) => match d {
+            DataNumber::U8(n) => Some(*n),
+            DataNumber::I8(n) => u8::try_from(*n).ok(),
+            DataNumber::U16(n) => u8::try_from(*n).ok(),
+            DataNumber::I16(n) => u8::try_from(*n).ok(),
+            DataNumber::U24(n) => u8::try_from(*n).ok(),
+            DataNumber::I24(n) => u8::try_from(*n).ok(),
+            DataNumber::U32(n) => u8::try_from(*n).ok(),
+            DataNumber::I32(n) => u8::try_from(*n).ok(),
+            DataNumber::U64(n) => u8::try_from(*n).ok(),
+            DataNumber::I64(n) => u8::try_from(*n).ok(),
+            DataNumber::U128(n) => u8::try_from(*n).ok(),
+            DataNumber::I128(n) => u8::try_from(*n).ok(),
+        },
+        _ => None,
+    }
+}
+
+/// Extract a u16 from a FieldValue, supporting numeric downcasting.
+fn extract_u16(v: &FieldValue) -> Option<u16> {
+    use crate::variable_versions::field_value::DataNumber;
+    match v {
+        FieldValue::DataNumber(d) => match d {
+            DataNumber::U8(n) => Some(u16::from(*n)),
+            DataNumber::I8(n) => u16::try_from(*n).ok(),
+            DataNumber::U16(n) => Some(*n),
+            DataNumber::I16(n) => u16::try_from(*n).ok(),
+            DataNumber::U24(n) => u16::try_from(*n).ok(),
+            DataNumber::I24(n) => u16::try_from(*n).ok(),
+            DataNumber::U32(n) => u16::try_from(*n).ok(),
+            DataNumber::I32(n) => u16::try_from(*n).ok(),
+            DataNumber::U64(n) => u16::try_from(*n).ok(),
+            DataNumber::I64(n) => u16::try_from(*n).ok(),
+            DataNumber::U128(n) => u16::try_from(*n).ok(),
+            DataNumber::I128(n) => u16::try_from(*n).ok(),
+        },
+        _ => None,
+    }
+}
+
 /// Extract a timestamp value (in milliseconds) from a FieldValue.
 /// Handles both DataNumber (unsigned integers) and Duration variants.
 fn extract_timestamp_millis(v: &FieldValue) -> Option<u64> {
+    use crate::variable_versions::field_value::DataNumber;
     match v {
         FieldValue::DataNumber(d) => {
-            // Try to extract as u64 first, then u32
+            // Try to extract as u64 first, then u32, then handle signed variants
             if let Ok(val) = u64::try_from(d) {
                 Some(val)
             } else if let Ok(val) = u32::try_from(d) {
                 Some(u64::from(val))
             } else {
-                None
+                // Handle remaining variants (small unsigned + all signed)
+                match d {
+                    DataNumber::U8(n) => Some(u64::from(*n)),
+                    DataNumber::U16(n) => Some(u64::from(*n)),
+                    DataNumber::I8(n) => u64::try_from(*n).ok(),
+                    DataNumber::I16(n) => u64::try_from(*n).ok(),
+                    DataNumber::I24(n) => u64::try_from(*n).ok(),
+                    DataNumber::I32(n) => u64::try_from(*n).ok(),
+                    DataNumber::I64(n) => u64::try_from(*n).ok(),
+                    DataNumber::I128(n) => u64::try_from(*n).ok(),
+                    DataNumber::U128(n) => u64::try_from(*n).ok(),
+                    _ => None,
+                }
             }
         }
         FieldValue::Duration(d) => match d {
@@ -396,14 +455,13 @@ macro_rules! create_common_flowset_with_ip_versions {
                 .$dst_v4
                 .or($cache.$dst_v6)
                 .and_then(|v| v.try_into().ok()),
-            src_port: $cache.src_port.and_then(|v| v.try_into().ok()),
-            dst_port: $cache.dst_port.and_then(|v| v.try_into().ok()),
-            protocol_number: $cache.protocol.and_then(|v| v.try_into().ok()),
-            protocol_type: $cache.protocol.and_then(|v| {
-                v.try_into()
-                    .ok()
-                    .map(|proto: u8| ProtocolTypes::from(proto))
-            }),
+            src_port: $cache.src_port.and_then(|v| extract_u16(v)),
+            dst_port: $cache.dst_port.and_then(|v| extract_u16(v)),
+            protocol_number: $cache.protocol.and_then(|v| extract_u8(v)),
+            protocol_type: $cache
+                .protocol
+                .and_then(|v| extract_u8(v))
+                .map(ProtocolTypes::from),
             first_seen: $cache.first_seen.and_then(extract_timestamp_millis),
             last_seen: $cache.last_seen.and_then(extract_timestamp_millis),
             src_mac: $cache.src_mac.and_then(|v| v.try_into().ok()),
@@ -418,14 +476,13 @@ macro_rules! create_common_flowset {
         NetflowCommonFlowSet {
             src_addr: $cache.src_addr.and_then(|v| v.try_into().ok()),
             dst_addr: $cache.dst_addr.and_then(|v| v.try_into().ok()),
-            src_port: $cache.src_port.and_then(|v| v.try_into().ok()),
-            dst_port: $cache.dst_port.and_then(|v| v.try_into().ok()),
-            protocol_number: $cache.protocol.and_then(|v| v.try_into().ok()),
-            protocol_type: $cache.protocol.and_then(|v| {
-                v.try_into()
-                    .ok()
-                    .map(|proto: u8| ProtocolTypes::from(proto))
-            }),
+            src_port: $cache.src_port.and_then(|v| extract_u16(v)),
+            dst_port: $cache.dst_port.and_then(|v| extract_u16(v)),
+            protocol_number: $cache.protocol.and_then(|v| extract_u8(v)),
+            protocol_type: $cache
+                .protocol
+                .and_then(|v| extract_u8(v))
+                .map(ProtocolTypes::from),
             first_seen: $cache.first_seen.and_then(extract_timestamp_millis),
             last_seen: $cache.last_seen.and_then(extract_timestamp_millis),
             src_mac: $cache.src_mac.and_then(|v| v.try_into().ok()),

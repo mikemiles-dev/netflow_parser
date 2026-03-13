@@ -39,6 +39,8 @@ impl TcpControlBits {
 
 impl From<u16> for TcpControlBits {
     fn from(value: u16) -> Self {
+        // Only bits 0-8 are defined TCP flags; mask off any upper bits
+        let value = value & 0x01FF;
         Self {
             fin: value & 0x0001 != 0,
             syn: value & 0x0002 != 0,
@@ -116,6 +118,19 @@ mod tcp_control_bits_tests {
                 && all.cwr
                 && all.ns
         );
+    }
+
+    #[test]
+    fn test_upper_bits_masked() {
+        // Bits 9-15 should be silently masked off
+        let bits = TcpControlBits::from(0xFFFFu16);
+        let back = u16::from(bits);
+        assert_eq!(back, 0x01FF, "upper bits should be masked to 0x01FF");
+
+        // Value with only upper bits set should produce all-false flags
+        let bits = TcpControlBits::from(0xFE00u16);
+        let back = u16::from(bits);
+        assert_eq!(back, 0x0000, "upper-only bits should produce 0x0000");
     }
 
     #[test]

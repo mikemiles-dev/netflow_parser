@@ -162,7 +162,7 @@ expression: fields
 - UnsignedDataNumber
 - UnsignedDataNumber
 - DurationMillis
-- UnsignedDataNumber
+- DurationMillis
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber

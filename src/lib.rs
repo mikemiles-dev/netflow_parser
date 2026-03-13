@@ -49,7 +49,7 @@ pub use variable_versions::ipfix::{Ipfix, IpfixFieldPair, IpfixFlowRecord, Ipfix
 pub use variable_versions::ipfix_lookup::IpfixField;
 
 /// Enum of supported Netflow Versions
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum NetflowPacket {
     /// Version 5
     V5(V5),
@@ -899,7 +899,7 @@ pub enum ParsedNetflow<'a> {
 ///
 /// Provides rich context about parsing failures including offset, error kind,
 /// and relevant data for debugging.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum NetflowError {
     /// Incomplete data - more bytes needed to parse a complete packet.
     ///
@@ -1590,10 +1590,13 @@ impl NetflowParser {
                     10 => self.ipfix_parser.parse(remaining),
                     // The outer guard ensures only versions with allowed_versions[v]==true
                     // reach here, and only 5/7/9/10 can be set to true via the builder.
-                    _ => unreachable!(
-                        "version {} passed allowed_versions guard but has no parser",
-                        header.version
-                    ),
+                    _ => ParsedNetflow::Error {
+                        error: NetflowError::UnsupportedVersion {
+                            version: header.version,
+                            offset: 0,
+                            sample: remaining[..remaining.len().min(32)].to_vec(),
+                        },
+                    },
                 }
             }
             Ok((_, header)) if matches!(header.version, 5 | 7 | 9 | 10) => {

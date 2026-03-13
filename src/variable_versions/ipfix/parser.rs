@@ -434,14 +434,21 @@ impl IPFixParser {
 // Parsing impl blocks (moved from mod.rs)
 // ---------------------------------------------------------------------------
 
-/// Trait abstracting the template ID accessor needed by the generic insertion helper.
+/// Trait abstracting the template ID and field count accessors needed by the
+/// generic insertion helper and template withdrawal detection.
 trait HasTemplateId: Clone + PartialEq {
     fn template_id(&self) -> u16;
+    /// Returns the declared field count. A field count of 0 signals template
+    /// withdrawal per RFC 7011 Section 3.4.3.
+    fn field_count(&self) -> u16;
 }
 
 impl HasTemplateId for Template {
     fn template_id(&self) -> u16 {
         self.template_id
+    }
+    fn field_count(&self) -> u16 {
+        self.field_count
     }
 }
 
@@ -449,17 +456,30 @@ impl HasTemplateId for OptionsTemplate {
     fn template_id(&self) -> u16 {
         self.template_id
     }
+    fn field_count(&self) -> u16 {
+        self.field_count
+    }
 }
 
 impl HasTemplateId for V9Template {
     fn template_id(&self) -> u16 {
         self.template_id
     }
+    fn field_count(&self) -> u16 {
+        self.field_count
+    }
 }
 
 impl HasTemplateId for V9OptionsTemplate {
     fn template_id(&self) -> u16 {
         self.template_id
+    }
+    fn field_count(&self) -> u16 {
+        // V9 options templates don't support withdrawal
+        // Return combined field count (non-zero for valid templates)
+        let scope = self.options_scope_length / 4;
+        let option = self.options_length / 4;
+        scope.saturating_add(option)
     }
 }
 
@@ -531,6 +551,16 @@ impl IPFixParser {
             &mut self.metrics,
         );
     }
+
+    /// Remove an IPFIX template by ID (RFC 7011 Section 3.4.3 template withdrawal).
+    fn withdraw_ipfix_template(&mut self, template_id: u16) {
+        self.templates.pop(&template_id);
+    }
+
+    /// Remove an IPFIX options template by ID (template withdrawal).
+    fn withdraw_ipfix_options_template(&mut self, template_id: u16) {
+        self.ipfix_options_templates.pop(&template_id);
+    }
 }
 
 impl FlowSetBody {
@@ -542,18 +572,37 @@ impl FlowSetBody {
         multi_variant: fn(Vec<T>) -> FlowSetBody,
         validate: fn(&T, &IPFixParser) -> bool,
         add_templates: fn(&mut IPFixParser, &[T]),
+        withdraw_template: Option<fn(&mut IPFixParser, u16)>,
     ) -> IResult<&'a [u8], FlowSetBody>
     where
-        T: Clone,
+        T: Clone + HasTemplateId,
         F: Fn(&'a [u8]) -> IResult<&'a [u8], T>,
     {
         let (i, templates) = many0(complete(parse_fn))(i)?;
-        // Filter to only valid templates; reject if none are valid
+
+        // Handle template withdrawals (RFC 7011 Section 3.4.3):
+        // Templates with field_count=0 signal withdrawal from the cache.
+        let mut had_withdrawals = false;
+        if let Some(withdraw_fn) = withdraw_template {
+            for t in &templates {
+                if t.field_count() == 0 {
+                    withdraw_fn(parser, t.template_id());
+                    had_withdrawals = true;
+                }
+            }
+        }
+
+        // Filter to only valid templates (withdrawals will be filtered out
+        // since they have empty fields, failing the is_valid check)
         let valid_templates: Vec<_> = templates
             .into_iter()
             .filter(|t| validate(t, parser))
             .collect();
         if valid_templates.is_empty() {
+            // If we processed withdrawals, return Empty instead of error
+            if had_withdrawals {
+                return Ok((i, FlowSetBody::Empty));
+            }
             return Err(nom::Err::Error(nom::error::Error::new(
                 i,
                 nom::error::ErrorKind::Verify,
@@ -590,6 +639,7 @@ impl FlowSetBody {
                 FlowSetBody::Templates,
                 |t: &Template, p: &IPFixParser| t.is_valid(p),
                 |parser, templates| parser.add_ipfix_templates(templates),
+                Some(|parser: &mut IPFixParser, id| parser.withdraw_ipfix_template(id)),
             ),
             DATA_TEMPLATE_V9_ID => Self::parse_templates(
                 i,
@@ -606,6 +656,7 @@ impl FlowSetBody {
                         && !t.has_duplicate_fields()
                 },
                 |parser, templates| parser.add_v9_templates(templates),
+                None, // V9 doesn't support template withdrawal
             ),
             OPTIONS_TEMPLATE_V9_ID => Self::parse_templates(
                 i,
@@ -625,8 +676,13 @@ impl FlowSetBody {
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
                         && !t.has_duplicate_scope_fields()
                         && !t.has_duplicate_option_fields()
+                        // Reject templates where all fields have zero length to prevent
+                        // zero-byte-per-record parsing issues
+                        && (t.scope_fields.iter().any(|f| f.field_length > 0)
+                            || t.option_fields.iter().any(|f| f.field_length > 0))
                 },
                 |parser, templates| parser.add_v9_options_templates(templates),
+                None, // V9 doesn't support template withdrawal
             ),
             OPTIONS_TEMPLATE_IPFIX_ID => Self::parse_templates(
                 i,
@@ -636,6 +692,7 @@ impl FlowSetBody {
                 FlowSetBody::OptionsTemplates,
                 |t: &OptionsTemplate, p: &IPFixParser| t.is_valid(p),
                 |parser, templates| parser.add_ipfix_options_templates(templates),
+                Some(|parser: &mut IPFixParser, id| parser.withdraw_ipfix_options_template(id)),
             ),
             // Parse Data
             _ => {
