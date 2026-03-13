@@ -1019,6 +1019,7 @@ mod common_tests {
                         ),
                     ])],
                     padding: vec![],
+                    template_field_lengths: vec![],
                 }),
             }],
         };
@@ -1144,6 +1145,7 @@ mod common_tests {
                         ),
                     ])],
                     padding: vec![],
+                    template_field_lengths: vec![],
                 }),
             }],
         };
