@@ -176,14 +176,21 @@ impl TemplateHooks {
 
     /// Triggers all registered hooks with the given event.
     ///
-    /// All hooks are called regardless of whether earlier hooks return errors.
-    /// Errors from hooks are collected but do not interrupt other hooks or parsing.
+    /// All hooks are called regardless of whether earlier hooks return errors or panic.
+    /// Errors and panics from hooks are isolated and do not interrupt other hooks or parsing.
     pub fn trigger(&self, event: &TemplateEvent) {
         for hook in &self.hooks {
-            if let Err(e) = hook(event) {
-                #[cfg(debug_assertions)]
-                eprintln!("template hook error: {e}");
-                let _ = e;
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| hook(event))) {
+                Ok(Err(e)) => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("template hook error: {e}");
+                    let _ = e;
+                }
+                Err(_panic) => {
+                    #[cfg(debug_assertions)]
+                    eprintln!("template hook panicked");
+                }
+                Ok(Ok(())) => {}
             }
         }
     }

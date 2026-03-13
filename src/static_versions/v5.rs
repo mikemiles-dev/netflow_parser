@@ -182,9 +182,11 @@ impl V5 {
 
     /// Convert the V5 struct to a `Vec<u8>` of bytes in big-endian order for exporting
     pub fn to_be_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::with_capacity(24 + self.flowsets.len() * FLOW_SIZE);
-
-        let count = u16::try_from(self.flowsets.len()).unwrap_or(u16::MAX);
+        // V5 packets hold at most MAX_FLOWS (30) records per the Cisco spec.
+        // Serialize up to that limit so count and body stay in sync.
+        let to_emit = self.flowsets.len().min(MAX_FLOWS as usize);
+        let mut result = Vec::with_capacity(24 + to_emit * FLOW_SIZE);
+        let count = to_emit as u16;
         result.extend_from_slice(&self.header.version.to_be_bytes());
         result.extend_from_slice(&count.to_be_bytes());
         result.extend_from_slice(&self.header.sys_up_time.to_be_bytes());
@@ -195,7 +197,7 @@ impl V5 {
         result.extend_from_slice(&self.header.engine_id.to_be_bytes());
         result.extend_from_slice(&self.header.sampling_interval.to_be_bytes());
 
-        for set in &self.flowsets {
+        for set in self.flowsets.iter().take(to_emit) {
             result.extend_from_slice(&set.src_addr.octets());
             result.extend_from_slice(&set.dst_addr.octets());
             result.extend_from_slice(&set.next_hop.octets());

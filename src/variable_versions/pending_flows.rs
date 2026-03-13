@@ -146,6 +146,12 @@ impl PendingFlowCache {
         if config.max_total_bytes == 0 {
             return Err(ConfigError::InvalidPendingCacheSize(0));
         }
+        if config.max_total_bytes < config.max_entry_size_bytes {
+            return Err(ConfigError::InvalidPendingTotalBytes {
+                max_total_bytes: config.max_total_bytes,
+                max_entry_size_bytes: config.max_entry_size_bytes,
+            });
+        }
         Ok(())
     }
 
@@ -231,13 +237,19 @@ impl PendingFlowCache {
                 self.total_bytes = self.total_bytes.saturating_sub(evicted_bytes);
                 metrics.record_pending_dropped_n(evicted.len() as u64);
             }
-            self.cache.put(
+            // Use push() instead of put() so we capture any entry evicted
+            // due to LRU capacity overflow and can update total_bytes.
+            if let Some((_, evicted)) = self.cache.push(
                 template_id,
                 vec![PendingFlowEntry {
                     raw_data,
                     cached_at: Instant::now(),
                 }],
-            );
+            ) {
+                let evicted_bytes: usize = evicted.iter().map(|e| e.raw_data.len()).sum();
+                self.total_bytes = self.total_bytes.saturating_sub(evicted_bytes);
+                metrics.record_pending_dropped_n(evicted.len() as u64);
+            }
             false
         };
         if needs_promote {

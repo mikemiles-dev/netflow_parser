@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use crate::NetflowPacket;
 use crate::protocol::ProtocolTypes;
 use crate::static_versions::{v5::V5, v7::V7};
-use crate::variable_versions::field_value::FieldValue;
+use crate::variable_versions::field_value::{DurationValue, FieldValue};
 use crate::variable_versions::ipfix_lookup::{IANAIPFixField, IPFixField};
 use crate::variable_versions::v9_lookup::V9Field;
 use crate::variable_versions::{
@@ -230,10 +230,10 @@ pub struct NetflowCommonFlowSet {
     pub protocol_number: Option<u8>,
     /// IP protocol type itself
     pub protocol_type: Option<ProtocolTypes>,
-    /// Duration of the flow first
-    pub first_seen: Option<u32>,
-    /// Duration of the flow last
-    pub last_seen: Option<u32>,
+    /// Duration of the flow first (milliseconds)
+    pub first_seen: Option<u64>,
+    /// Duration of the flow last (milliseconds)
+    pub last_seen: Option<u64>,
     /// Source MAC address
     pub src_mac: Option<String>,
     /// Destination MAC address
@@ -256,8 +256,8 @@ impl From<&V5> for NetflowCommon {
                     dst_port: Some(set.dst_port),
                     protocol_number: Some(set.protocol_number),
                     protocol_type: Some(set.protocol_type),
-                    first_seen: Some(set.first),
-                    last_seen: Some(set.last),
+                    first_seen: Some(u64::from(set.first)),
+                    last_seen: Some(u64::from(set.last)),
                     src_mac: None,
                     dst_mac: None,
                 })
@@ -282,8 +282,8 @@ impl From<&V7> for NetflowCommon {
                     dst_port: Some(set.dst_port),
                     protocol_number: Some(set.protocol_number),
                     protocol_type: Some(set.protocol_type),
-                    first_seen: Some(set.first),
-                    last_seen: Some(set.last),
+                    first_seen: Some(u64::from(set.first)),
+                    last_seen: Some(u64::from(set.last)),
                     src_mac: None,
                     dst_mac: None,
                 })
@@ -346,6 +346,36 @@ impl<'a> V9FieldCache<'a> {
     }
 }
 
+/// Extract a timestamp value (in milliseconds) from a FieldValue.
+/// Handles both DataNumber (unsigned integers) and Duration variants.
+fn extract_timestamp_millis(v: &FieldValue) -> Option<u64> {
+    match v {
+        FieldValue::DataNumber(d) => {
+            // Try to extract as u64 first, then u32
+            if let Ok(val) = u64::try_from(d) {
+                Some(val)
+            } else if let Ok(val) = u32::try_from(d) {
+                Some(u64::from(val))
+            } else {
+                None
+            }
+        }
+        FieldValue::Duration(d) => match d {
+            DurationValue::Millis { value, .. } => Some(*value),
+            DurationValue::Seconds { value, .. } => value.checked_mul(1000),
+            DurationValue::MicrosNtp { seconds, fraction } => {
+                let millis = ((u64::from(*fraction)).saturating_mul(1_000)) >> 32;
+                Some(u64::from(*seconds).saturating_mul(1000).saturating_add(millis))
+            }
+            DurationValue::NanosNtp { seconds, fraction } => {
+                let millis = ((u64::from(*fraction)).saturating_mul(1_000)) >> 32;
+                Some(u64::from(*seconds).saturating_mul(1000).saturating_add(millis))
+            }
+        },
+        _ => None,
+    }
+}
+
 /// Macro to create NetflowCommonFlowSet from a cache structure with separate v4/v6 fields
 macro_rules! create_common_flowset_with_ip_versions {
     ($cache:expr, $src_v4:ident, $src_v6:ident, $dst_v4:ident, $dst_v6:ident) => {
@@ -366,8 +396,8 @@ macro_rules! create_common_flowset_with_ip_versions {
                     .ok()
                     .map(|proto: u8| ProtocolTypes::from(proto))
             }),
-            first_seen: $cache.first_seen.and_then(|v| v.try_into().ok()),
-            last_seen: $cache.last_seen.and_then(|v| v.try_into().ok()),
+            first_seen: $cache.first_seen.and_then(extract_timestamp_millis),
+            last_seen: $cache.last_seen.and_then(extract_timestamp_millis),
             src_mac: $cache.src_mac.and_then(|v| v.try_into().ok()),
             dst_mac: $cache.dst_mac.and_then(|v| v.try_into().ok()),
         }
@@ -388,8 +418,8 @@ macro_rules! create_common_flowset {
                     .ok()
                     .map(|proto: u8| ProtocolTypes::from(proto))
             }),
-            first_seen: $cache.first_seen.and_then(|v| v.try_into().ok()),
-            last_seen: $cache.last_seen.and_then(|v| v.try_into().ok()),
+            first_seen: $cache.first_seen.and_then(extract_timestamp_millis),
+            last_seen: $cache.last_seen.and_then(extract_timestamp_millis),
             src_mac: $cache.src_mac.and_then(|v| v.try_into().ok()),
             dst_mac: $cache.dst_mac.and_then(|v| v.try_into().ok()),
         }
@@ -480,12 +510,27 @@ impl NetflowCommon {
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
-            if let V9FlowSetBody::Data(data) = &flowset.body {
-                for data_field in &data.fields {
-                    // Single pass through fields to collect all values with config
-                    let cache = V9ConfigFieldCache::from_fields_with_config(data_field, config);
-                    flowsets.push(create_common_flowset!(cache));
+            match &flowset.body {
+                V9FlowSetBody::Data(data) => {
+                    for data_field in &data.fields {
+                        // Single pass through fields to collect all values with config
+                        let cache =
+                            V9ConfigFieldCache::from_fields_with_config(data_field, config);
+                        flowsets.push(create_common_flowset!(cache));
+                    }
                 }
+                V9FlowSetBody::OptionsData(opts_data) => {
+                    for record in &opts_data.fields {
+                        let cache = V9ConfigFieldCache::from_fields_with_config(
+                            &record.options_fields,
+                            config,
+                        );
+                        flowsets.push(create_common_flowset!(cache));
+                    }
+                }
+                V9FlowSetBody::Template(_)
+                | V9FlowSetBody::OptionsTemplate(_)
+                | V9FlowSetBody::NoTemplate(_) => {}
             }
         }
 
@@ -503,18 +548,35 @@ impl From<&V9> for NetflowCommon {
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
-            if let V9FlowSetBody::Data(data) = &flowset.body {
-                for data_field in &data.fields {
-                    // Single pass through fields to collect all values
-                    let cache = V9FieldCache::from_fields(data_field);
-                    flowsets.push(create_common_flowset_with_ip_versions!(
-                        cache,
-                        src_addr_v4,
-                        src_addr_v6,
-                        dst_addr_v4,
-                        dst_addr_v6
-                    ));
+            match &flowset.body {
+                V9FlowSetBody::Data(data) => {
+                    for data_field in &data.fields {
+                        // Single pass through fields to collect all values
+                        let cache = V9FieldCache::from_fields(data_field);
+                        flowsets.push(create_common_flowset_with_ip_versions!(
+                            cache,
+                            src_addr_v4,
+                            src_addr_v6,
+                            dst_addr_v4,
+                            dst_addr_v6
+                        ));
+                    }
                 }
+                V9FlowSetBody::OptionsData(opts_data) => {
+                    for record in &opts_data.fields {
+                        let cache = V9FieldCache::from_fields(&record.options_fields);
+                        flowsets.push(create_common_flowset_with_ip_versions!(
+                            cache,
+                            src_addr_v4,
+                            src_addr_v6,
+                            dst_addr_v4,
+                            dst_addr_v6
+                        ));
+                    }
+                }
+                V9FlowSetBody::Template(_)
+                | V9FlowSetBody::OptionsTemplate(_)
+                | V9FlowSetBody::NoTemplate(_) => {}
             }
         }
 
@@ -669,6 +731,10 @@ impl NetflowCommon {
     /// This allows you to specify which IPFIX fields should be used for each
     /// NetflowCommonFlowSet field, including fallback fields.
     ///
+    /// **Note:** Embedded V9-style data flowsets (`V9Data`, `V9OptionsData`) use V9 field
+    /// types rather than IPFIX field types, so the custom `config` is not applied to them.
+    /// Those flowsets are converted using the default V9 field mapping instead.
+    ///
     /// # Example
     ///
     /// ```rust
@@ -686,13 +752,57 @@ impl NetflowCommon {
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
-            if let IPFixFlowSetBody::Data(data) = &flowset.body {
-                for data_field in &data.fields {
-                    // Single pass through fields to collect all values with config
-                    let cache =
-                        IPFixConfigFieldCache::from_fields_with_config(data_field, config);
-                    flowsets.push(create_common_flowset!(cache));
+            match &flowset.body {
+                IPFixFlowSetBody::Data(data) => {
+                    for data_field in &data.fields {
+                        let cache =
+                            IPFixConfigFieldCache::from_fields_with_config(data_field, config);
+                        flowsets.push(create_common_flowset!(cache));
+                    }
                 }
+                IPFixFlowSetBody::OptionsData(opts_data) => {
+                    for data_field in &opts_data.fields {
+                        let cache =
+                            IPFixConfigFieldCache::from_fields_with_config(data_field, config);
+                        flowsets.push(create_common_flowset!(cache));
+                    }
+                }
+                IPFixFlowSetBody::V9Data(v9_data) => {
+                    // V9Data embedded in IPFIX uses V9 field types; use default V9 field mapping
+                    for data_field in &v9_data.fields {
+                        let cache = V9FieldCache::from_fields(data_field);
+                        flowsets.push(create_common_flowset_with_ip_versions!(
+                            cache,
+                            src_addr_v4,
+                            src_addr_v6,
+                            dst_addr_v4,
+                            dst_addr_v6
+                        ));
+                    }
+                }
+                IPFixFlowSetBody::V9OptionsData(v9_opts_data) => {
+                    // V9OptionsData embedded in IPFIX uses V9 field types; use default V9 field mapping
+                    for record in &v9_opts_data.fields {
+                        let cache = V9FieldCache::from_fields(&record.options_fields);
+                        flowsets.push(create_common_flowset_with_ip_versions!(
+                            cache,
+                            src_addr_v4,
+                            src_addr_v6,
+                            dst_addr_v4,
+                            dst_addr_v6
+                        ));
+                    }
+                }
+                IPFixFlowSetBody::Template(_)
+                | IPFixFlowSetBody::Templates(_)
+                | IPFixFlowSetBody::V9Template(_)
+                | IPFixFlowSetBody::V9Templates(_)
+                | IPFixFlowSetBody::OptionsTemplate(_)
+                | IPFixFlowSetBody::OptionsTemplates(_)
+                | IPFixFlowSetBody::V9OptionsTemplate(_)
+                | IPFixFlowSetBody::V9OptionsTemplates(_)
+                | IPFixFlowSetBody::NoTemplate(_)
+                | IPFixFlowSetBody::Empty => {}
             }
         }
 
@@ -710,18 +820,65 @@ impl From<&IPFix> for NetflowCommon {
         let mut flowsets = vec![];
 
         for flowset in &value.flowsets {
-            if let IPFixFlowSetBody::Data(data) = &flowset.body {
-                for data_field in &data.fields {
-                    // Single pass through fields to collect all values
-                    let cache = IPFixFieldCache::from_fields(data_field);
-                    flowsets.push(create_common_flowset_with_ip_versions!(
-                        cache,
-                        src_addr_v4,
-                        src_addr_v6,
-                        dst_addr_v4,
-                        dst_addr_v6
-                    ));
+            match &flowset.body {
+                IPFixFlowSetBody::Data(data) => {
+                    for data_field in &data.fields {
+                        let cache = IPFixFieldCache::from_fields(data_field);
+                        flowsets.push(create_common_flowset_with_ip_versions!(
+                            cache,
+                            src_addr_v4,
+                            src_addr_v6,
+                            dst_addr_v4,
+                            dst_addr_v6
+                        ));
+                    }
                 }
+                IPFixFlowSetBody::OptionsData(opts_data) => {
+                    for data_field in &opts_data.fields {
+                        let cache = IPFixFieldCache::from_fields(data_field);
+                        flowsets.push(create_common_flowset_with_ip_versions!(
+                            cache,
+                            src_addr_v4,
+                            src_addr_v6,
+                            dst_addr_v4,
+                            dst_addr_v6
+                        ));
+                    }
+                }
+                IPFixFlowSetBody::V9Data(v9_data) => {
+                    for data_field in &v9_data.fields {
+                        let cache = V9FieldCache::from_fields(data_field);
+                        flowsets.push(create_common_flowset_with_ip_versions!(
+                            cache,
+                            src_addr_v4,
+                            src_addr_v6,
+                            dst_addr_v4,
+                            dst_addr_v6
+                        ));
+                    }
+                }
+                IPFixFlowSetBody::V9OptionsData(v9_opts_data) => {
+                    for record in &v9_opts_data.fields {
+                        let cache = V9FieldCache::from_fields(&record.options_fields);
+                        flowsets.push(create_common_flowset_with_ip_versions!(
+                            cache,
+                            src_addr_v4,
+                            src_addr_v6,
+                            dst_addr_v4,
+                            dst_addr_v6
+                        ));
+                    }
+                }
+                IPFixFlowSetBody::Template(_)
+                | IPFixFlowSetBody::Templates(_)
+                | IPFixFlowSetBody::V9Template(_)
+                | IPFixFlowSetBody::V9Templates(_)
+                | IPFixFlowSetBody::OptionsTemplate(_)
+                | IPFixFlowSetBody::OptionsTemplates(_)
+                | IPFixFlowSetBody::V9OptionsTemplate(_)
+                | IPFixFlowSetBody::V9OptionsTemplates(_)
+                | IPFixFlowSetBody::NoTemplate(_)
+                | IPFixFlowSetBody::Empty => {}
             }
         }
 
@@ -744,11 +901,13 @@ mod common_tests {
     use crate::variable_versions::ipfix::{
         Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody as IPFixFlowSetBody,
         FlowSetHeader as IPFixFlowSetHeader, Header as IPFixHeader, IPFix,
+        OptionsData as IPFixOptionsData,
     };
     use crate::variable_versions::ipfix_lookup::{IANAIPFixField, IPFixField};
     use crate::variable_versions::v9::{
         Data as V9Data, FlowSet as V9FlowSet, FlowSetBody as V9FlowSetBody,
-        FlowSetHeader as V9FlowSetHeader, Header as V9Header, V9,
+        FlowSetHeader as V9FlowSetHeader, Header as V9Header, OptionsData as V9OptionsData,
+        OptionsDataFields as V9OptionsDataFields, ScopeDataField, V9,
     };
     use crate::variable_versions::v9_lookup::V9Field;
 
@@ -1051,6 +1210,64 @@ mod common_tests {
     }
 
     #[test]
+    fn it_converts_v9_duration_timestamps_to_common() {
+        // Verify that Duration-typed timestamp fields (DurationMillis) are
+        // correctly extracted. This is the real wire format — FirstSwitched
+        // and LastSwitched are typed as DurationMillis in v9_lookup.rs.
+        use crate::variable_versions::field_value::DurationValue;
+
+        let v9 = V9 {
+            header: V9Header {
+                version: 9,
+                count: 1,
+                sys_up_time: 100,
+                unix_secs: 1609459200,
+                sequence_number: 1,
+                source_id: 0,
+            },
+            flowsets: vec![V9FlowSet {
+                header: V9FlowSetHeader {
+                    flowset_id: 0,
+                    length: 0,
+                },
+                body: V9FlowSetBody::Data(V9Data {
+                    padding: vec![],
+                    fields: vec![Vec::from([
+                        (
+                            V9Field::Ipv4SrcAddr,
+                            FieldValue::Ip4Addr(Ipv4Addr::new(10, 0, 0, 1)),
+                        ),
+                        (
+                            V9Field::Ipv4DstAddr,
+                            FieldValue::Ip4Addr(Ipv4Addr::new(10, 0, 0, 2)),
+                        ),
+                        (
+                            V9Field::FirstSwitched,
+                            FieldValue::Duration(DurationValue::Millis {
+                                value: 50000,
+                                width: 4,
+                            }),
+                        ),
+                        (
+                            V9Field::LastSwitched,
+                            FieldValue::Duration(DurationValue::Millis {
+                                value: 60000,
+                                width: 4,
+                            }),
+                        ),
+                    ])],
+                }),
+            }],
+        };
+
+        let common: NetflowCommon = NetflowCommon::from(&v9);
+        assert_eq!(common.flowsets.len(), 1);
+        let flowset = &common.flowsets[0];
+        assert_eq!(flowset.first_seen.unwrap(), 50000);
+        assert_eq!(flowset.last_seen.unwrap(), 60000);
+    }
+
+    #[test]
     fn it_converts_v9_to_common_with_custom_config() {
         use crate::netflow_common::V9FieldMappingConfig;
         use std::net::Ipv6Addr;
@@ -1211,5 +1428,190 @@ mod common_tests {
             common.flowsets[0].src_addr.unwrap(),
             IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))
         );
+    }
+
+    #[test]
+    fn it_converts_v9_options_data_to_common() {
+        let v9 = V9 {
+            header: V9Header {
+                version: 9,
+                count: 1,
+                sys_up_time: 100,
+                unix_secs: 1609459200,
+                sequence_number: 1,
+                source_id: 0,
+            },
+            flowsets: vec![V9FlowSet {
+                header: V9FlowSetHeader {
+                    flowset_id: 0,
+                    length: 0,
+                },
+                body: V9FlowSetBody::OptionsData(V9OptionsData {
+                    fields: vec![V9OptionsDataFields {
+                        scope_fields: vec![ScopeDataField::System(vec![0, 0, 0, 1])],
+                        options_fields: vec![
+                            (
+                                V9Field::Ipv4SrcAddr,
+                                FieldValue::Ip4Addr(Ipv4Addr::new(10, 1, 2, 3)),
+                            ),
+                            (
+                                V9Field::L4SrcPort,
+                                FieldValue::DataNumber(DataNumber::U16(443)),
+                            ),
+                        ],
+                    }],
+                }),
+            }],
+        };
+
+        let common: NetflowCommon = NetflowCommon::from(&v9);
+        assert_eq!(common.version, 9);
+        assert_eq!(common.flowsets.len(), 1);
+        let flowset = &common.flowsets[0];
+        assert_eq!(
+            flowset.src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(10, 1, 2, 3))
+        );
+        assert_eq!(flowset.src_port.unwrap(), 443);
+    }
+
+    #[test]
+    fn it_converts_ipfix_options_data_to_common() {
+        let ipfix = IPFix {
+            header: IPFixHeader {
+                version: 10,
+                length: 0,
+                export_time: 200,
+                sequence_number: 1,
+                observation_domain_id: 0,
+            },
+            flowsets: vec![IPFixFlowSet {
+                header: IPFixFlowSetHeader {
+                    header_id: 0,
+                    length: 0,
+                },
+                body: IPFixFlowSetBody::OptionsData(IPFixOptionsData::new(vec![vec![
+                    (
+                        IPFixField::IANA(IANAIPFixField::SourceIpv4address),
+                        FieldValue::Ip4Addr(Ipv4Addr::new(172, 16, 0, 1)),
+                    ),
+                    (
+                        IPFixField::IANA(IANAIPFixField::DestinationTransportPort),
+                        FieldValue::DataNumber(DataNumber::U16(8080)),
+                    ),
+                ]])),
+            }],
+        };
+
+        let common: NetflowCommon = NetflowCommon::from(&ipfix);
+        assert_eq!(common.version, 10);
+        assert_eq!(common.timestamp, 200);
+        assert_eq!(common.flowsets.len(), 1);
+        let flowset = &common.flowsets[0];
+        assert_eq!(
+            flowset.src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(172, 16, 0, 1))
+        );
+        assert_eq!(flowset.dst_port.unwrap(), 8080);
+    }
+
+    #[test]
+    fn it_converts_ipfix_v9data_to_common() {
+        // V9Data embedded inside an IPFIX message
+        let ipfix = IPFix {
+            header: IPFixHeader {
+                version: 10,
+                length: 0,
+                export_time: 300,
+                sequence_number: 1,
+                observation_domain_id: 0,
+            },
+            flowsets: vec![IPFixFlowSet {
+                header: IPFixFlowSetHeader {
+                    header_id: 0,
+                    length: 0,
+                },
+                body: IPFixFlowSetBody::V9Data(V9Data {
+                    padding: vec![],
+                    fields: vec![Vec::from([
+                        (
+                            V9Field::Ipv4SrcAddr,
+                            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 10, 1)),
+                        ),
+                        (
+                            V9Field::Ipv4DstAddr,
+                            FieldValue::Ip4Addr(Ipv4Addr::new(192, 168, 10, 2)),
+                        ),
+                        (
+                            V9Field::Protocol,
+                            FieldValue::DataNumber(DataNumber::U8(17)),
+                        ),
+                    ])],
+                }),
+            }],
+        };
+
+        let common: NetflowCommon = NetflowCommon::from(&ipfix);
+        assert_eq!(common.version, 10);
+        assert_eq!(common.timestamp, 300);
+        assert_eq!(common.flowsets.len(), 1);
+        let flowset = &common.flowsets[0];
+        assert_eq!(
+            flowset.src_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 10, 1))
+        );
+        assert_eq!(
+            flowset.dst_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(192, 168, 10, 2))
+        );
+        assert_eq!(flowset.protocol_number.unwrap(), 17);
+    }
+
+    #[test]
+    fn it_converts_ipfix_v9_options_data_to_common() {
+        // V9OptionsData embedded inside an IPFIX message
+        let ipfix = IPFix {
+            header: IPFixHeader {
+                version: 10,
+                length: 0,
+                export_time: 400,
+                sequence_number: 1,
+                observation_domain_id: 0,
+            },
+            flowsets: vec![IPFixFlowSet {
+                header: IPFixFlowSetHeader {
+                    header_id: 0,
+                    length: 0,
+                },
+                body: IPFixFlowSetBody::V9OptionsData(V9OptionsData {
+                    fields: vec![V9OptionsDataFields {
+                        scope_fields: vec![ScopeDataField::Interface(vec![0, 0, 0, 2])],
+                        options_fields: vec![
+                            (
+                                V9Field::Ipv4DstAddr,
+                                FieldValue::Ip4Addr(Ipv4Addr::new(10, 10, 10, 1)),
+                            ),
+                            (
+                                V9Field::L4DstPort,
+                                FieldValue::DataNumber(DataNumber::U16(53)),
+                            ),
+                        ],
+                    }],
+                }),
+            }],
+        };
+
+        let common: NetflowCommon = NetflowCommon::from(&ipfix);
+        assert_eq!(common.version, 10);
+        assert_eq!(common.timestamp, 400);
+        assert_eq!(common.flowsets.len(), 1);
+        let flowset = &common.flowsets[0];
+        assert_eq!(
+            flowset.dst_addr.unwrap(),
+            IpAddr::V4(Ipv4Addr::new(10, 10, 10, 1))
+        );
+        assert_eq!(flowset.dst_port.unwrap(), 53);
+        // Scope fields should be ignored (they're metadata, not flow data)
+        assert!(flowset.src_addr.is_none());
     }
 }

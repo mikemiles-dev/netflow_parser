@@ -234,9 +234,16 @@ pub struct NetflowParser {
 /// Statistics about template cache utilization.
 #[derive(Debug, Clone)]
 pub struct CacheStats {
-    /// Current number of cached templates (summed across all internal caches)
+    /// Current number of cached templates (summed across all internal caches).
+    ///
+    /// This is the total across `num_caches` independent LRU caches. The theoretical
+    /// maximum is `max_size_per_cache * num_caches`, since each cache enforces
+    /// `max_size_per_cache` independently.
     pub current_size: usize,
-    /// Maximum cache size per internal cache (each template type has its own LRU cache)
+    /// Maximum cache size per internal cache (each template type has its own LRU cache).
+    ///
+    /// Each of the `num_caches` internal caches can hold up to this many templates
+    /// independently.
     pub max_size_per_cache: usize,
     /// Number of internal caches (V9 has 2: templates + options; IPFIX has 4)
     pub num_caches: usize,
@@ -289,10 +296,15 @@ pub struct NetflowParserBuilder {
 }
 
 /// Helper to create a `[bool; 11]` allowed_versions array from a set of version numbers.
+///
+/// Only valid NetFlow versions (5, 7, 9, 10) are accepted; invalid version numbers
+/// are recorded so that [`NetflowParserBuilder::validate`] can report them.
 fn versions_to_array(versions: &[u16]) -> [bool; 11] {
     let mut arr = [false; 11];
     for &v in versions {
-        if (v as usize) < arr.len() {
+        // Only set entries for valid NetFlow versions; all others
+        // (including 0) are caught by validate() via requested_versions.
+        if matches!(v, 5 | 7 | 9 | 10) {
             arr[v as usize] = true;
         }
     }
@@ -1116,10 +1128,12 @@ impl<'a> Iterator for NetflowPacketIterator<'a> {
             }
             ParsedNetflow::UnallowedVersion { version } => {
                 self.errored = true;
+                self.remaining = &[];
                 Some(Err(NetflowError::FilteredVersion { version }))
             }
             ParsedNetflow::Error { error } => {
                 self.errored = true;
+                self.remaining = &[];
                 Some(Err(error))
             }
         }
@@ -1574,14 +1588,12 @@ impl NetflowParser {
                     7 => V7Parser::parse(remaining),
                     9 => self.v9_parser.parse(remaining),
                     10 => self.ipfix_parser.parse(remaining),
-                    _ => ParsedNetflow::Error {
-                        error: NetflowError::UnsupportedVersion {
-                            version: header.version,
-                            offset: 0,
-                            sample: packet[..packet.len().min(self.max_error_sample_size)]
-                                .to_vec(),
-                        },
-                    },
+                    // The outer guard ensures only versions with allowed_versions[v]==true
+                    // reach here, and only 5/7/9/10 can be set to true via the builder.
+                    _ => unreachable!(
+                        "version {} passed allowed_versions guard but has no parser",
+                        header.version
+                    ),
                 }
             }
             Ok((_, header)) if matches!(header.version, 5 | 7 | 9 | 10) => {
@@ -1689,7 +1701,9 @@ impl NetflowParser {
                                     protocol: TemplateProtocol::V9,
                                 });
                         }
-                        _ => {}
+                        // Data/OptionsData flowsets don't generate template events
+                        variable_versions::v9::FlowSetBody::Data(_)
+                        | variable_versions::v9::FlowSetBody::OptionsData(_) => {}
                     }
                 }
             }
@@ -1759,30 +1773,38 @@ impl NetflowParser {
                                     protocol: TemplateProtocol::Ipfix,
                                 });
                         }
-                        _ => {}
+                        // Data flowsets and empty sets don't generate template events
+                        variable_versions::ipfix::FlowSetBody::Data(_)
+                        | variable_versions::ipfix::FlowSetBody::OptionsData(_)
+                        | variable_versions::ipfix::FlowSetBody::V9Data(_)
+                        | variable_versions::ipfix::FlowSetBody::V9OptionsData(_)
+                        | variable_versions::ipfix::FlowSetBody::Empty => {}
                     }
                 }
             }
-            _ => {}
+            // V5/V7 are static versions with no template system
+            NetflowPacket::V5(_) | NetflowPacket::V7(_) => {}
         }
     }
 
-    /// Takes a Netflow packet slice and returns a vector of Parsed NetflowCommonFlowSet.
+    /// Takes a Netflow packet slice and returns parsed [`NetflowCommonFlowSet`]s
+    /// along with any parse error.
     ///
-    /// **Note:** Packets that fail `as_netflow_common()` conversion (e.g., V9/IPFIX
-    /// data flowsets without matching templates) are silently skipped. Use
-    /// [`parse_bytes`](Self::parse_bytes) directly if you need full error visibility.
+    /// Packets that fail `as_netflow_common()` conversion (e.g., V9/IPFIX data
+    /// flowsets without matching templates) are skipped. The returned error, if
+    /// any, comes from the underlying [`parse_bytes`](Self::parse_bytes) call.
     #[cfg(feature = "netflow_common")]
     #[inline]
     pub fn parse_bytes_as_netflow_common_flowsets(
         &mut self,
         packet: &[u8],
-    ) -> Vec<NetflowCommonFlowSet> {
+    ) -> (Vec<NetflowCommonFlowSet>, Option<NetflowError>) {
         let netflow_packets = self.parse_bytes(packet);
-        netflow_packets
+        let flowsets = netflow_packets
             .packets
             .iter()
             .flat_map(|n| n.as_netflow_common().unwrap_or_default().flowsets)
-            .collect()
+            .collect();
+        (flowsets, netflow_packets.error)
     }
 }

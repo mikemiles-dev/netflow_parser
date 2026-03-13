@@ -48,7 +48,10 @@ impl Default for IPFixParser {
             pending_flows_config: None,
         };
 
-        Self::try_new(config).expect("hardcoded default config is always valid")
+        match Self::try_new(config) {
+            Ok(parser) => parser,
+            Err(e) => unreachable!("hardcoded default config must be valid: {e}"),
+        }
     }
 }
 
@@ -216,6 +219,8 @@ impl IPFixParser {
                 FlowSetBody::NoTemplate(info) => {
                     // If raw_data was truncated at parse time (oversized
                     // entry), skip caching — the data can't be replayed.
+                    // The truncated flowset is kept in output as diagnostic
+                    // data (truncated to max_error_sample_size).
                     let body_len = (flowset.header.length as usize).saturating_sub(4);
                     if info.raw_data.len() < body_len {
                         metrics.record_pending_dropped();
@@ -904,8 +909,14 @@ impl TemplateField {
                 let (i, length) = be_u8(i)?;
                 if length == 255 {
                     let (i, full_length) = be_u16(i)?;
+                    // RFC 7011 Section 7: length values of 0 are not permitted
+                    if full_length == 0 {
+                        return Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Verify,
+                        )));
+                    }
                     // Validate length doesn't exceed remaining buffer
-                    // Note: full_length is u16, so max is 65535 (u16::MAX)
                     if (full_length as usize) > i.len() {
                         return Err(nom::Err::Error(nom::error::Error::new(
                             i,
