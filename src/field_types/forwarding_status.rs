@@ -37,8 +37,8 @@ use serde::Serialize;
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 pub enum ForwardingStatus {
     // -- Status 0: Unknown --
-    /// Unknown status with unknown reason.
-    Unknown,
+    /// Unknown status, preserving the reason byte (lower 6 bits).
+    Unknown(u8),
 
     // -- Status 1: Forwarded --
     /// Forwarded, with a reason code (0 = unknown).
@@ -118,7 +118,7 @@ impl ForwardingStatus {
     /// Returns the status category (0=Unknown, 1=Forwarded, 2=Dropped, 3=Consumed).
     pub fn status_category(&self) -> u8 {
         match self {
-            ForwardingStatus::Unknown => 0,
+            ForwardingStatus::Unknown(_) => 0,
             ForwardingStatus::Forwarded(_)
             | ForwardingStatus::ForwardedFragmented
             | ForwardingStatus::ForwardedNotFragmented => 1,
@@ -148,7 +148,7 @@ impl ForwardingStatus {
     /// Returns the reason code (lower 6 bits).
     pub fn reason_code(&self) -> u8 {
         match self {
-            ForwardingStatus::Unknown => 0,
+            ForwardingStatus::Unknown(r) => *r,
             ForwardingStatus::Forwarded(r)
             | ForwardingStatus::Dropped(r)
             | ForwardingStatus::Consumed(r) => *r,
@@ -176,12 +176,43 @@ impl ForwardingStatus {
     }
 }
 
+impl std::fmt::Display for ForwardingStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ForwardingStatus::Unknown(_) => write!(f, "Unknown"),
+            ForwardingStatus::Forwarded(_)
+            | ForwardingStatus::ForwardedFragmented
+            | ForwardingStatus::ForwardedNotFragmented => write!(f, "Forwarded"),
+            ForwardingStatus::Dropped(_)
+            | ForwardingStatus::DroppedAclDeny
+            | ForwardingStatus::DroppedAclDrop
+            | ForwardingStatus::DroppedUnroutable
+            | ForwardingStatus::DroppedAdjacency
+            | ForwardingStatus::DroppedFragmentationAndDf
+            | ForwardingStatus::DroppedBadHeaderChecksum
+            | ForwardingStatus::DroppedBadTotalLength
+            | ForwardingStatus::DroppedBadHeaderLength
+            | ForwardingStatus::DroppedBadTtl
+            | ForwardingStatus::DroppedPolicer
+            | ForwardingStatus::DroppedWred
+            | ForwardingStatus::DroppedRpf
+            | ForwardingStatus::DroppedForUs
+            | ForwardingStatus::DroppedBadOutputInterface
+            | ForwardingStatus::DroppedHardware => write!(f, "Dropped"),
+            ForwardingStatus::Consumed(_)
+            | ForwardingStatus::ConsumedTerminatedPuntedToControl
+            | ForwardingStatus::ConsumedTerminatedIncompleteAdjacency
+            | ForwardingStatus::ConsumedTerminatedForUs => write!(f, "Consumed"),
+        }
+    }
+}
+
 impl From<u8> for ForwardingStatus {
     fn from(value: u8) -> Self {
         let status = value >> 6;
         let reason = value & 0x3F;
         match (status, reason) {
-            (0, _) => ForwardingStatus::Unknown,
+            (0, r) => ForwardingStatus::Unknown(r),
             (1, 1) => ForwardingStatus::ForwardedFragmented,
             (1, 2) => ForwardingStatus::ForwardedNotFragmented,
             (1, r) => ForwardingStatus::Forwarded(r),
@@ -205,7 +236,7 @@ impl From<u8> for ForwardingStatus {
             (3, 2) => ForwardingStatus::ConsumedTerminatedIncompleteAdjacency,
             (3, 3) => ForwardingStatus::ConsumedTerminatedForUs,
             (3, r) => ForwardingStatus::Consumed(r),
-            _ => ForwardingStatus::Unknown,
+            _ => ForwardingStatus::Unknown(0),
         }
     }
 }
@@ -223,20 +254,14 @@ mod forwarding_status_tests {
 
     #[test]
     fn test_round_trip() {
-        // Status categories 1-3 round-trip exactly.
-        // Status 0 (Unknown) collapses all reason bits to 0, so only 0x00 round-trips.
+        // All bytes should now round-trip exactly, including status=0 with reason bits.
         for byte in 0..=255u8 {
             let status = ForwardingStatus::from(byte);
             let back = u8::from(status);
-            if byte >> 6 == 0 {
-                // All status-0 values map to Unknown (0x00)
-                assert_eq!(back, 0, "status-0 byte {byte:#04x} should map to 0x00");
-            } else {
-                assert_eq!(
-                    byte, back,
-                    "round-trip failed for {byte:#04x} -> {status:?}"
-                );
-            }
+            assert_eq!(
+                byte, back,
+                "round-trip failed for {byte:#04x} -> {status:?}"
+            );
         }
     }
 
@@ -244,7 +269,11 @@ mod forwarding_status_tests {
     fn test_known_values() {
         assert_eq!(
             ForwardingStatus::from(0b00_000000),
-            ForwardingStatus::Unknown
+            ForwardingStatus::Unknown(0)
+        );
+        assert_eq!(
+            ForwardingStatus::from(0b00_000101),
+            ForwardingStatus::Unknown(5)
         );
         assert_eq!(
             ForwardingStatus::from(0b01_000000),
@@ -284,12 +313,23 @@ mod forwarding_status_tests {
 
     #[test]
     fn test_status_category() {
-        assert_eq!(ForwardingStatus::Unknown.status_category(), 0);
+        assert_eq!(ForwardingStatus::Unknown(0).status_category(), 0);
         assert_eq!(ForwardingStatus::ForwardedFragmented.status_category(), 1);
         assert_eq!(ForwardingStatus::DroppedAclDeny.status_category(), 2);
         assert_eq!(
             ForwardingStatus::ConsumedTerminatedForUs.status_category(),
             3
+        );
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!(format!("{}", ForwardingStatus::Unknown(0)), "Unknown");
+        assert_eq!(format!("{}", ForwardingStatus::Forwarded(0)), "Forwarded");
+        assert_eq!(format!("{}", ForwardingStatus::DroppedAclDeny), "Dropped");
+        assert_eq!(
+            format!("{}", ForwardingStatus::ConsumedTerminatedForUs),
+            "Consumed"
         );
     }
 }

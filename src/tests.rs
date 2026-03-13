@@ -209,33 +209,9 @@ mod base_tests {
             .unwrap();
 
         let packet = hex::decode(hex_options_template).unwrap();
-        let _ = parser.parse_bytes(&packet).packets;
-    }
-
-    // Verify that a custom NetFlow v9 container struct with optional fields can be instantiated
-    #[test]
-    fn options_in_struct() {
-        #[derive(Debug, Clone, Default)]
-        #[allow(dead_code)]
-        struct NetflowV9Container {
-            pub src_addr: Option<u32>,
-            pub dst_addr: Option<u32>,
-            pub src_port: Option<u16>,
-            pub dst_port: Option<u16>,
-            pub protocol: Option<u8>,
-            pub direction: Option<u8>,
-            pub engine_id: Option<u8>,
-            pub engine_type: Option<u8>,
-            pub sampling_interval: Option<u16>,
-            pub input_snmp: Option<u32>,
-            pub output_snmp: Option<u32>,
-            pub router_sc: Option<u32>,
-            pub in_bytes: Option<u64>,
-            pub in_pkts: Option<u64>,
-            pub tos: Option<u8>,
-            pub tcp_flags: Option<u8>,
-        }
-        let _ = NetflowV9Container::default();
+        let result = parser.parse_bytes(&packet);
+        assert!(!result.packets.is_empty(), "expected packets from options template");
+        assert!(result.error.is_none(), "unexpected error parsing options template");
     }
 
     // Verify that a v9 template with multiple flowsets is parsed without error
@@ -249,7 +225,14 @@ mod base_tests {
             .unwrap();
 
         let packet = hex::decode(hex_template).unwrap();
-        let _ = parser.parse_bytes(&packet).packets;
+        let result = parser.parse_bytes(&packet);
+        // This packet claims 3 flow sets but only contains template data.
+        // The parser should handle it without panicking; packets may or may not
+        // be produced depending on how the parser handles the count mismatch.
+        // Verify at least that parsing completed and any packets are V9.
+        for p in &result.packets {
+            assert!(p.is_v9(), "all parsed packets should be V9");
+        }
     }
 
     // Verify that IPFIX data records are parsed using a v9-style template definition
@@ -283,7 +266,13 @@ mod base_tests {
             .unwrap();
 
         let packet = hex::decode(hex).unwrap();
-        let _ = parser.parse_bytes(&packet).packets;
+        let result = parser.parse_bytes(&packet);
+        // This IPFIX packet has data records but no previously cached template,
+        // so the parser may not produce parsed packets. Verify it doesn't panic
+        // and that any produced packets are IPFix.
+        for p in &result.packets {
+            assert!(matches!(p, NetflowPacket::IPFix(_)), "expected IPFix packet type");
+        }
     }
 
     // Verify that v9 options template followed by a zeroed-out data record parses correctly
@@ -316,7 +305,13 @@ mod base_tests {
             .unwrap();
 
         let packet = hex::decode(hex).unwrap();
-        let _ = parser.parse_bytes(&packet);
+        let result = parser.parse_bytes(&packet);
+        // This packet contains both a template and data in the same packet.
+        // The parser may or may not produce packets depending on processing order.
+        // Verify no panic and any packets produced are V9.
+        for p in &result.packets {
+            assert!(p.is_v9(), "all parsed packets should be V9");
+        }
     }
 
     // Verify that v9 template followed by data in separate packets produces correct output
@@ -367,9 +362,17 @@ mod base_tests {
                 .unwrap();
 
             let packet = hex::decode(hex).unwrap();
+            let mut count = 0;
             for packet in parser.iter_packets(&packet).flatten() {
-                if packet.is_v9() {}
+                count += 1;
+                // Any packets produced from this v9 template data should be V9
+                assert!(packet.is_v9(), "expected V9 packet type");
+                assert!(!packet.is_v5(), "v9 packet should not be identified as v5");
             }
+            // This is a v9 template-only packet, so iter_packets may yield
+            // zero packets (templates are cached, not returned as data).
+            // The important assertion is that iteration completes without panic.
+            let _ = count;
         }
     }
 
@@ -387,9 +390,15 @@ mod base_tests {
                 .unwrap();
 
             let packet = hex::decode(hex).unwrap();
+            let mut count = 0;
             for packet in parser.iter_packets(&packet).flatten() {
-                if packet.is_v5() {}
+                count += 1;
+                // Any packets produced should not be v5 (this is v9 data)
+                assert!(!packet.is_v5(), "v9 packet should not be identified as v5");
             }
+            // Template-only packets may not produce iterable data packets.
+            // Verify iteration completed without panic.
+            let _ = count;
         }
     }
 
@@ -693,5 +702,217 @@ mod base_tests {
         };
 
         assert!(template.is_valid(&parser));
+    }
+}
+
+#[cfg(test)]
+mod malformed_packet_tests {
+    use crate::NetflowParser;
+
+    // Empty input should return empty packets with no error and no panic.
+    #[test]
+    fn test_empty_input() {
+        let mut parser = NetflowParser::default();
+        let result = parser.parse_bytes(&[]);
+        assert!(result.packets.is_empty(), "empty input should produce no packets");
+        assert!(result.error.is_none(), "empty input should produce no error");
+    }
+
+    // A single byte is too short to contain a version number (2 bytes).
+    // The parser should not panic and should return an error.
+    #[test]
+    fn test_single_byte() {
+        let mut parser = NetflowParser::default();
+        let result = parser.parse_bytes(&[0]);
+        assert!(result.packets.is_empty(), "single byte should produce no packets");
+        assert!(result.error.is_some(), "single byte should produce an error");
+    }
+
+    // Version 99 is not a recognized NetFlow/IPFIX version.
+    // The parser should return an error without panicking.
+    #[test]
+    fn test_unknown_version() {
+        let mut parser = NetflowParser::default();
+        // Version = 99 (0x00, 0x63), followed by 18 zero bytes to form a 20-byte packet
+        let mut packet = vec![0x00, 0x63];
+        packet.extend_from_slice(&[0u8; 18]);
+        let result = parser.parse_bytes(&packet);
+        assert!(result.error.is_some(), "unknown version 99 should produce an error");
+    }
+
+    // V5 header is 24 bytes. Providing version=5 plus only 10 bytes (12 total)
+    // is a truncated header. The parser should not panic.
+    #[test]
+    fn test_v5_truncated_header() {
+        let mut parser = NetflowParser::default();
+        // Version 5 (0x00, 0x05) + 10 bytes of zeros = 12 bytes total (less than 24-byte header)
+        let mut packet = vec![0x00, 0x05];
+        packet.extend_from_slice(&[0u8; 10]);
+        let result = parser.parse_bytes(&packet);
+        // Should either return an error or empty packets, but must not panic
+        assert!(
+            result.packets.is_empty() || result.error.is_some(),
+            "truncated V5 header should not produce valid packets without an error"
+        );
+    }
+
+    // V5 header with count=30 but only enough data for about 1 flow record.
+    // Each V5 flow record is 48 bytes; 24 (header) + 48 = 72 bytes for 1 record.
+    // We provide 72 bytes but claim count=30.
+    #[test]
+    fn test_v5_count_exceeds_data() {
+        let mut parser = NetflowParser::default();
+        // Build a V5 packet: version=5, count=30
+        let mut packet = vec![0x00, 0x05]; // version 5
+        packet.extend_from_slice(&[0x00, 0x1E]); // count = 30
+        packet.extend_from_slice(&[0u8; 20]); // rest of 24-byte header
+        packet.extend_from_slice(&[0u8; 48]); // 1 flow record (48 bytes)
+        // Total = 72 bytes, but count claims 30 records (would need 24 + 30*48 = 1464 bytes)
+        let result = parser.parse_bytes(&packet);
+        // Parser should handle gracefully: either partial parse or error, no panic
+        let _ = result;
+    }
+
+    // V5 header with count=0. No flow records should be parsed.
+    #[test]
+    fn test_v5_count_zero() {
+        let mut parser = NetflowParser::default();
+        // Build a V5 packet: version=5, count=0
+        let mut packet = vec![0x00, 0x05]; // version 5
+        packet.extend_from_slice(&[0x00, 0x00]); // count = 0
+        packet.extend_from_slice(&[0u8; 20]); // rest of 24-byte header
+        let result = parser.parse_bytes(&packet);
+        // With count=0, there are no flow records to parse
+        let _ = result;
+    }
+
+    // V9 header is 20 bytes. Providing only 10 bytes after the version is truncated.
+    #[test]
+    fn test_v9_truncated_header() {
+        let mut parser = NetflowParser::default();
+        // Version 9 (0x00, 0x09) + 8 bytes = 10 total (less than 20-byte header)
+        let mut packet = vec![0x00, 0x09];
+        packet.extend_from_slice(&[0u8; 8]);
+        let result = parser.parse_bytes(&packet);
+        assert!(
+            result.packets.is_empty() || result.error.is_some(),
+            "truncated V9 header should not produce valid packets without an error"
+        );
+    }
+
+    // V9 with a flowset whose length field is 0.
+    // A zero-length flowset could cause an infinite loop if not handled.
+    #[test]
+    fn test_v9_flowset_length_zero() {
+        let mut parser = NetflowParser::default();
+        // V9 header: version=9, count=1, sysuptime=0, unix_secs=0, sequence=0, source_id=0
+        let mut packet = vec![
+            0x00, 0x09, // version 9
+            0x00, 0x01, // count = 1
+            0x00, 0x00, 0x00, 0x00, // sys_uptime
+            0x00, 0x00, 0x00, 0x00, // unix_secs
+            0x00, 0x00, 0x00, 0x00, // sequence
+            0x00, 0x00, 0x00, 0x00, // source_id
+        ];
+        // Flowset with id=0 (template), length=0 (malformed)
+        packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
+        let result = parser.parse_bytes(&packet);
+        // Must not infinite loop or panic
+        let _ = result;
+    }
+
+    // V9 with a flowset length larger than the remaining bytes in the packet.
+    #[test]
+    fn test_v9_flowset_length_exceeds_packet() {
+        let mut parser = NetflowParser::default();
+        let mut packet = vec![
+            0x00, 0x09, // version 9
+            0x00, 0x01, // count = 1
+            0x00, 0x00, 0x00, 0x00, // sys_uptime
+            0x00, 0x00, 0x00, 0x00, // unix_secs
+            0x00, 0x00, 0x00, 0x00, // sequence
+            0x00, 0x00, 0x00, 0x00, // source_id
+        ];
+        // Flowset with id=0 (template), length=9999 (far exceeds remaining data)
+        packet.extend_from_slice(&[0x00, 0x00, 0x27, 0x0F]);
+        // Only 4 bytes of flowset data actually present
+        let result = parser.parse_bytes(&packet);
+        let _ = result;
+    }
+
+    // IPFIX header includes a length field that should match the actual packet size.
+    // Here we set it to a wrong value.
+    #[test]
+    fn test_ipfix_length_field_wrong() {
+        let mut parser = NetflowParser::default();
+        // IPFIX header: version=10, length=9999 (wrong), export_time, sequence, observation_domain
+        let packet = vec![
+            0x00, 0x0A, // version 10 (IPFIX)
+            0x27, 0x0F, // length = 9999 (actual packet is only 16 bytes)
+            0x00, 0x00, 0x00, 0x00, // export_time
+            0x00, 0x00, 0x00, 0x00, // sequence_number
+            0x00, 0x00, 0x00, 0x00, // observation_domain_id
+        ];
+        let result = parser.parse_bytes(&packet);
+        // Parser should handle the length mismatch without panicking
+        let _ = result;
+    }
+
+    // IPFIX with a flowset whose length field is less than 4 (the minimum set header size).
+    #[test]
+    fn test_ipfix_flowset_length_less_than_4() {
+        let mut parser = NetflowParser::default();
+        // IPFIX header (16 bytes) + a flowset with length < 4
+        let mut packet = vec![
+            0x00, 0x0A, // version 10
+            0x00, 0x14, // length = 20 (16 header + 4 flowset header)
+            0x00, 0x00, 0x00, 0x00, // export_time
+            0x00, 0x00, 0x00, 0x00, // sequence_number
+            0x00, 0x00, 0x00, 0x00, // observation_domain_id
+        ];
+        // Flowset: set_id=2 (template), length=2 (less than minimum 4)
+        packet.extend_from_slice(&[0x00, 0x02, 0x00, 0x02]);
+        let result = parser.parse_bytes(&packet);
+        let _ = result;
+    }
+
+    // V9 with a flowset ID in the reserved range (2-255).
+    // Flowset IDs 0=template, 1=options template, 256+=data. IDs 2-255 are reserved.
+    #[test]
+    fn test_v9_reserved_flowset_id() {
+        let mut parser = NetflowParser::default();
+        let mut packet = vec![
+            0x00, 0x09, // version 9
+            0x00, 0x01, // count = 1
+            0x00, 0x00, 0x00, 0x00, // sys_uptime
+            0x00, 0x00, 0x00, 0x00, // unix_secs
+            0x00, 0x00, 0x00, 0x00, // sequence
+            0x00, 0x00, 0x00, 0x00, // source_id
+        ];
+        // Flowset with reserved ID=100 (0x0064), length=8
+        packet.extend_from_slice(&[0x00, 0x64, 0x00, 0x08]);
+        packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // 4 bytes of padding
+        let result = parser.parse_bytes(&packet);
+        // Parser should skip or error on reserved flowset IDs, not panic
+        let _ = result;
+    }
+
+    // 100 bytes of all zeros. Version 0 is not a valid NetFlow version.
+    #[test]
+    fn test_all_zeros() {
+        let mut parser = NetflowParser::default();
+        let packet = vec![0u8; 100];
+        let result = parser.parse_bytes(&packet);
+        assert!(result.error.is_some(), "all-zeros packet (version 0) should produce an error");
+    }
+
+    // Maximum version number 0xFFFF is not a valid NetFlow/IPFIX version.
+    #[test]
+    fn test_max_version_number() {
+        let mut parser = NetflowParser::default();
+        let mut packet = vec![0xFF, 0xFF]; // version = 65535
+        packet.extend_from_slice(&[0u8; 18]);
+        let result = parser.parse_bytes(&packet);
+        assert!(result.error.is_some(), "version 0xFFFF should produce an error");
     }
 }

@@ -258,7 +258,11 @@ impl IPFix {
                 continue;
             }
 
-            let flowset_bytes = Self::serialize_flowset_body(&flow.body)?;
+            let mut flowset_bytes = Self::serialize_flowset_body(&flow.body)?;
+
+            // Ensure 4-byte alignment per RFC 7011 Section 3.3.1
+            let padding = crate::variable_versions::calculate_padding(flowset_bytes.len());
+            flowset_bytes.extend_from_slice(padding);
 
             // Compute set length from actual serialized body instead of
             // trusting flow.header.length, which can be stale when

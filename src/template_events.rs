@@ -21,10 +21,10 @@
 //!     .on_template_event(|event| {
 //!         match event {
 //!             TemplateEvent::Learned { template_id, protocol } => {
-//!                 println!("Learned template {} for {:?}", template_id, protocol);
+//!                 println!("Learned template {:?} for {:?}", template_id, protocol);
 //!             }
 //!             TemplateEvent::Collision { template_id, protocol } => {
-//!                 eprintln!("Collision on template {} for {:?}", template_id, protocol);
+//!                 eprintln!("Collision on template {:?} for {:?}", template_id, protocol);
 //!             }
 //!             _ => {}
 //!         }
@@ -57,7 +57,7 @@ pub enum TemplateEvent {
     /// and the template is inserted into the cache for the first time.
     Learned {
         /// The template ID that was learned
-        template_id: u16,
+        template_id: Option<u16>,
         /// The protocol (V9 or IPFIX)
         protocol: TemplateProtocol,
     },
@@ -73,11 +73,11 @@ pub enum TemplateEvent {
     /// that different routers are using the same template ID with potentially
     /// different schemas. Use `AutoScopedParser` to avoid this issue.
     ///
-    /// **Note:** The `template_id` field is set to 0 because specific IDs are not
-    /// available from the metrics layer. Use cache metrics for detailed tracking.
+    /// **Note:** The `template_id` field is `None` when this event is derived from
+    /// metric deltas, because specific IDs are not available from the metrics layer.
     Collision {
-        /// The template ID that collided
-        template_id: u16,
+        /// The template ID that collided (None when derived from metric deltas)
+        template_id: Option<u16>,
         /// The protocol (V9 or IPFIX)
         protocol: TemplateProtocol,
     },
@@ -89,11 +89,11 @@ pub enum TemplateEvent {
     /// may indicate that the cache size is too small or that there are too
     /// many active templates.
     ///
-    /// **Note:** The `template_id` field is set to 0 because specific IDs are not
-    /// available from the metrics layer. Use cache metrics for detailed tracking.
+    /// **Note:** The `template_id` field is `None` when this event is derived from
+    /// metric deltas, because specific IDs are not available from the metrics layer.
     Evicted {
-        /// The template ID that was evicted
-        template_id: u16,
+        /// The template ID that was evicted (None when derived from metric deltas)
+        template_id: Option<u16>,
         /// The protocol (V9 or IPFIX)
         protocol: TemplateProtocol,
     },
@@ -105,11 +105,11 @@ pub enum TemplateEvent {
     /// the cache. This is useful for handling exporters that may change their
     /// template definitions without notification.
     ///
-    /// **Note:** The `template_id` field is set to 0 because specific IDs are not
-    /// available from the metrics layer. Use cache metrics for detailed tracking.
+    /// **Note:** The `template_id` field is `None` when this event is derived from
+    /// metric deltas, because specific IDs are not available from the metrics layer.
     Expired {
-        /// The template ID that expired
-        template_id: u16,
+        /// The template ID that expired (None when derived from metric deltas)
+        template_id: Option<u16>,
         /// The protocol (V9 or IPFIX)
         protocol: TemplateProtocol,
     },
@@ -124,7 +124,7 @@ pub enum TemplateEvent {
     /// Users can implement retry logic or buffering strategies based on this event.
     MissingTemplate {
         /// The template ID that was not found
-        template_id: u16,
+        template_id: Option<u16>,
         /// The protocol (V9 or IPFIX)
         protocol: TemplateProtocol,
     },
@@ -146,11 +146,20 @@ pub type TemplateHook =
     Arc<dyn Fn(&TemplateEvent) -> Result<(), TemplateHookError> + Send + Sync + 'static>;
 
 /// Container for registered template event hooks.
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct TemplateHooks {
     hooks: Vec<TemplateHook>,
     /// Number of hook errors and panics encountered (observable in release builds).
     hook_errors: u64,
+}
+
+impl Clone for TemplateHooks {
+    fn clone(&self) -> Self {
+        Self {
+            hooks: self.hooks.clone(),
+            hook_errors: 0, // Reset error counter for cloned instances
+        }
+    }
 }
 
 // Custom Debug implementation to avoid printing closures
@@ -251,7 +260,7 @@ mod tests {
         });
 
         let event = TemplateEvent::Learned {
-            template_id: 256,
+            template_id: Some(256),
             protocol: TemplateProtocol::V9,
         };
 
@@ -283,7 +292,7 @@ mod tests {
         });
 
         let event = TemplateEvent::Collision {
-            template_id: 300,
+            template_id: Some(300),
             protocol: TemplateProtocol::Ipfix,
         };
 
@@ -317,15 +326,15 @@ mod tests {
         });
 
         hooks.trigger(&TemplateEvent::Learned {
-            template_id: 256,
+            template_id: Some(256),
             protocol: TemplateProtocol::V9,
         });
         hooks.trigger(&TemplateEvent::Collision {
-            template_id: 300,
+            template_id: Some(300),
             protocol: TemplateProtocol::Ipfix,
         });
         hooks.trigger(&TemplateEvent::Learned {
-            template_id: 400,
+            template_id: Some(400),
             protocol: TemplateProtocol::V9,
         });
 
@@ -337,7 +346,7 @@ mod tests {
     #[test]
     fn test_template_event_clone() {
         let event = TemplateEvent::Evicted {
-            template_id: 500,
+            template_id: Some(500),
             protocol: TemplateProtocol::Ipfix,
         };
 

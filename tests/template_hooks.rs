@@ -56,17 +56,17 @@ fn test_multiple_hooks() {
 
     // Manually trigger some events to test the hooks
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
 
     parser.trigger_template_event(TemplateEvent::Collision {
-        template_id: 300,
+        template_id: Some(300),
         protocol: TemplateProtocol::Ipfix,
     });
 
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 400,
+        template_id: Some(400),
         protocol: TemplateProtocol::V9,
     });
 
@@ -94,7 +94,7 @@ fn test_hook_with_default_parser() {
 
     // Trigger an event
     parser.trigger_template_event(TemplateEvent::MissingTemplate {
-        template_id: 500,
+        template_id: Some(500),
         protocol: TemplateProtocol::Ipfix,
     });
 
@@ -117,7 +117,7 @@ fn test_hook_event_details() {
                 protocol,
             } = event
             {
-                cid.store(*template_id as usize, Ordering::SeqCst);
+                cid.store(template_id.unwrap_or(0) as usize, Ordering::SeqCst);
                 *cp.lock().unwrap() = Some(*protocol);
             }
             Ok(())
@@ -126,7 +126,7 @@ fn test_hook_event_details() {
         .unwrap();
 
     parser.trigger_template_event(TemplateEvent::Evicted {
-        template_id: 1024,
+        template_id: Some(1024),
         protocol: TemplateProtocol::V9,
     });
 
@@ -159,7 +159,7 @@ fn test_hook_builder_chaining() {
         .unwrap();
 
     parser.trigger_template_event(TemplateEvent::Expired {
-        template_id: 200,
+        template_id: Some(200),
         protocol: TemplateProtocol::Ipfix,
     });
 
@@ -175,7 +175,7 @@ fn test_parser_without_hooks() {
 
     // This should not panic or cause issues
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 100,
+        template_id: Some(100),
         protocol: TemplateProtocol::V9,
     });
 }
@@ -194,23 +194,23 @@ fn test_hook_with_logging() {
                 TemplateEvent::Learned {
                     template_id,
                     protocol,
-                } => format!("Learned template {} ({:?})", template_id, protocol),
+                } => format!("Learned template {:?} ({:?})", template_id, protocol),
                 TemplateEvent::Collision {
                     template_id,
                     protocol,
-                } => format!("Collision on template {} ({:?})", template_id, protocol),
+                } => format!("Collision on template {:?} ({:?})", template_id, protocol),
                 TemplateEvent::Evicted {
                     template_id,
                     protocol,
-                } => format!("Evicted template {} ({:?})", template_id, protocol),
+                } => format!("Evicted template {:?} ({:?})", template_id, protocol),
                 TemplateEvent::Expired {
                     template_id,
                     protocol,
-                } => format!("Expired template {} ({:?})", template_id, protocol),
+                } => format!("Expired template {:?} ({:?})", template_id, protocol),
                 TemplateEvent::MissingTemplate {
                     template_id,
                     protocol,
-                } => format!("Missing template {} ({:?})", template_id, protocol),
+                } => format!("Missing template {:?} ({:?})", template_id, protocol),
             };
             log_clone.lock().unwrap().push(msg);
             Ok(())
@@ -219,25 +219,25 @@ fn test_hook_with_logging() {
         .unwrap();
 
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
 
     parser.trigger_template_event(TemplateEvent::Collision {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
 
     parser.trigger_template_event(TemplateEvent::MissingTemplate {
-        template_id: 300,
+        template_id: Some(300),
         protocol: TemplateProtocol::Ipfix,
     });
 
     let logged = log.lock().unwrap();
     assert_eq!(logged.len(), 3);
-    assert!(logged[0].contains("Learned template 256"));
-    assert!(logged[1].contains("Collision on template 256"));
-    assert!(logged[2].contains("Missing template 300"));
+    assert!(logged[0].contains("Learned template Some(256)"));
+    assert!(logged[1].contains("Collision on template Some(256)"));
+    assert!(logged[2].contains("Missing template Some(300)"));
 }
 
 // Verify that hook errors don't prevent subsequent hooks from firing
@@ -256,7 +256,7 @@ fn test_hook_error_isolation() {
         .unwrap();
 
     parser.trigger_template_event(TemplateEvent::Learned {
-        template_id: 256,
+        template_id: Some(256),
         protocol: TemplateProtocol::V9,
     });
 

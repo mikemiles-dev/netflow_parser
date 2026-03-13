@@ -461,6 +461,7 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
+                    parser.metrics.record_hit();
                     let (i, data) =
                         Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
                     return Ok((i, FlowSetBody::Data(data)));
@@ -473,6 +474,7 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
+                    parser.metrics.record_hit();
                     let (i, options_data) = OptionsData::parse_with_limit(
                         i,
                         &template,
@@ -481,12 +483,8 @@ impl FlowSetBody {
                     return Ok((i, FlowSetBody::OptionsData(options_data)));
                 }
 
-                // Template not found or expired.
-                // Note: record_miss() is called once per flowset (after checking
-                // both templates and options_templates caches), while record_hit()
-                // is called per-cache-lookup inside get_valid_template(). This
-                // asymmetry is intentional — one flowset lookup that fails both
-                // caches is semantically one miss, not two.
+                // Template not found or expired — one miss per flowset,
+                // symmetric with one hit per flowset above.
                 parser.metrics.record_miss();
                 if id > 255 {
                     // Store full raw data only when the pending cache is
@@ -763,7 +761,10 @@ impl<'a> FieldParser {
                     input = remaining;
                     res.push(record);
                 }
-                Err(_) => return Ok((input, res)),
+                Err(_) => {
+                    input = before;
+                    return Ok((input, res));
+                }
             };
             // Guard against infinite loops: if no bytes were consumed after
             // parsing a full record, stop to prevent CPU-bound DoS.

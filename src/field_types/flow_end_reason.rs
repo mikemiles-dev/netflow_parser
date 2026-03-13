@@ -58,6 +58,19 @@ impl From<FlowEndReason> for u8 {
     }
 }
 
+impl std::fmt::Display for FlowEndReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FlowEndReason::IdleTimeout => write!(f, "Idle timeout"),
+            FlowEndReason::ActiveTimeout => write!(f, "Active timeout"),
+            FlowEndReason::EndOfFlow => write!(f, "End of flow"),
+            FlowEndReason::ForcedEnd => write!(f, "Forced end"),
+            FlowEndReason::LackOfResources => write!(f, "Lack of resources"),
+            FlowEndReason::Unknown(v) => write!(f, "Unknown({})", v),
+        }
+    }
+}
+
 impl PartialOrd for FlowEndReason {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -95,5 +108,12 @@ mod flow_end_reason_tests {
     fn test_all_flow_end_reasons() {
         let reasons: Vec<_> = (0..=10u8).map(FlowEndReason::from).collect();
         assert_yaml_snapshot!(reasons);
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!(format!("{}", FlowEndReason::IdleTimeout), "Idle timeout");
+        assert_eq!(format!("{}", FlowEndReason::EndOfFlow), "End of flow");
+        assert_eq!(format!("{}", FlowEndReason::Unknown(42)), "Unknown(42)");
     }
 }

@@ -69,6 +69,44 @@ impl From<TcpControlBits> for u16 {
     }
 }
 
+impl std::fmt::Display for TcpControlBits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut flags = Vec::new();
+        if self.ns {
+            flags.push("NS");
+        }
+        if self.cwr {
+            flags.push("CWR");
+        }
+        if self.ece {
+            flags.push("ECE");
+        }
+        if self.urg {
+            flags.push("URG");
+        }
+        if self.ack {
+            flags.push("ACK");
+        }
+        if self.psh {
+            flags.push("PSH");
+        }
+        if self.rst {
+            flags.push("RST");
+        }
+        if self.syn {
+            flags.push("SYN");
+        }
+        if self.fin {
+            flags.push("FIN");
+        }
+        if flags.is_empty() {
+            write!(f, "none")
+        } else {
+            write!(f, "{}", flags.join("|"))
+        }
+    }
+}
+
 impl PartialOrd for TcpControlBits {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -142,5 +180,16 @@ mod tcp_control_bits_tests {
         .map(|&v| TcpControlBits::from(v))
         .collect();
         assert_yaml_snapshot!(flags);
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!(format!("{}", TcpControlBits::from(0x0000u16)), "none");
+        assert_eq!(format!("{}", TcpControlBits::from(0x0002u16)), "SYN");
+        assert_eq!(format!("{}", TcpControlBits::from(0x0012u16)), "ACK|SYN");
+        assert_eq!(
+            format!("{}", TcpControlBits::from(0x0013u16)),
+            "ACK|SYN|FIN"
+        );
     }
 }

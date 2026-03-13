@@ -179,12 +179,16 @@ impl V7 {
         Ok((&input[total..], V7 { header, flowsets }))
     }
 
-    /// Convert the V7 struct to a `Vec<u8>` of bytes in big-endian order for exporting
+    /// Convert the V7 struct to a `Vec<u8>` of bytes in big-endian order for exporting.
+    ///
+    /// The output includes the 2-byte version prefix. To re-parse, use the top-level
+    /// `NetflowParser::parse_bytes` (not `V7::parse_direct`, which expects the version
+    /// to already be consumed).
     pub fn to_be_bytes(&self) -> Vec<u8> {
         // V7 packets hold at most MAX_FLOWS (28) records per the Cisco spec.
         // Serialize up to that limit so count and body stay in sync.
         let to_emit = self.flowsets.len().min(MAX_FLOWS as usize);
-        let mut result = Vec::with_capacity(24 + to_emit * FLOW_SIZE);
+        let mut result = Vec::with_capacity(2 + HEADER_SIZE + to_emit * FLOW_SIZE);
         let count = to_emit as u16;
         result.extend_from_slice(&self.header.version.to_be_bytes());
         result.extend_from_slice(&count.to_be_bytes());

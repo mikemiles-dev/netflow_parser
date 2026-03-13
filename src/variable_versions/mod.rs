@@ -130,12 +130,14 @@ impl PartialEq for NoTemplateInfo {
     }
 }
 
-/// Calculate padding needed to align to 4-byte boundary.
-/// Returns a static slice of zero bytes with the appropriate length.
-pub(crate) fn calculate_padding(content_size: usize) -> &'static [u8] {
+/// Calculate padding needed to align `body_size` to a 4-byte boundary.
+/// `body_size` should be the flowset body length *excluding* the 4-byte set header
+/// (since the header is already aligned, `(header + body) % 4 == body % 4`).
+/// Returns a static slice of zero bytes with the appropriate length (0-3).
+pub(crate) fn calculate_padding(body_size: usize) -> &'static [u8] {
     const PADDING: [u8; 3] = [0u8; 3];
     const PADDING_SIZES: [usize; 4] = [0, 3, 2, 1];
-    let padding_len = PADDING_SIZES[content_size % 4];
+    let padding_len = PADDING_SIZES[body_size % 4];
     &PADDING[..padding_len]
 }
 
@@ -156,7 +158,7 @@ pub(crate) fn get_valid_template<T: Clone>(
             metrics.record_expiration();
             return None;
         }
-        metrics.record_hit();
+        // Hit is recorded by the caller at the flowset level, not per-cache-probe
         // Promote to most-recently-used only after confirming non-expired
         let template = std::sync::Arc::clone(&wrapped.template);
         cache.promote(id);

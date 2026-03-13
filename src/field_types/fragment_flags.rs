@@ -4,6 +4,7 @@
 //! - Bit 0: Reserved
 //! - Bit 1: Don't Fragment (DF)
 //! - Bit 2: More Fragments (MF)
+//! - Bits 3-7: Other bits (preserved for round-trip fidelity)
 
 use nom::IResult;
 use nom_derive::Parse;
@@ -15,6 +16,8 @@ pub struct FragmentFlags {
     pub reserved: bool,
     pub dont_fragment: bool,
     pub more_fragments: bool,
+    /// Upper 5 bits (bits 3-7), preserved for round-trip fidelity.
+    pub other_bits: u8,
 }
 
 impl FragmentFlags {
@@ -31,6 +34,7 @@ impl From<u8> for FragmentFlags {
             reserved: value & 0x01 != 0,
             dont_fragment: value & 0x02 != 0,
             more_fragments: value & 0x04 != 0,
+            other_bits: (value >> 3) & 0x1F,
         }
     }
 }
@@ -40,6 +44,7 @@ impl From<FragmentFlags> for u8 {
         (flags.reserved as u8)
             | ((flags.dont_fragment as u8) << 1)
             | ((flags.more_fragments as u8) << 2)
+            | ((flags.other_bits & 0x1F) << 3)
     }
 }
 
@@ -65,7 +70,7 @@ mod fragment_flags_tests {
         for byte in 0..=255u8 {
             let flags = FragmentFlags::from(byte);
             let back = u8::from(flags);
-            assert_eq!(byte & 0x07, back, "round-trip failed for {byte:#04x}");
+            assert_eq!(byte, back, "round-trip failed for {byte:#04x}");
         }
     }
 
@@ -76,7 +81,8 @@ mod fragment_flags_tests {
             FragmentFlags {
                 reserved: false,
                 dont_fragment: false,
-                more_fragments: false
+                more_fragments: false,
+                other_bits: 0,
             }
         );
         assert_eq!(
@@ -84,7 +90,8 @@ mod fragment_flags_tests {
             FragmentFlags {
                 reserved: false,
                 dont_fragment: true,
-                more_fragments: false
+                more_fragments: false,
+                other_bits: 0,
             }
         );
         assert_eq!(
@@ -92,7 +99,8 @@ mod fragment_flags_tests {
             FragmentFlags {
                 reserved: false,
                 dont_fragment: false,
-                more_fragments: true
+                more_fragments: true,
+                other_bits: 0,
             }
         );
         assert_eq!(
@@ -100,7 +108,17 @@ mod fragment_flags_tests {
             FragmentFlags {
                 reserved: true,
                 dont_fragment: true,
-                more_fragments: true
+                more_fragments: true,
+                other_bits: 0,
+            }
+        );
+        assert_eq!(
+            FragmentFlags::from(0xFF),
+            FragmentFlags {
+                reserved: true,
+                dont_fragment: true,
+                more_fragments: true,
+                other_bits: 0x1F,
             }
         );
     }

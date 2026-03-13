@@ -110,6 +110,32 @@ impl From<NatEvent> for u8 {
     }
 }
 
+impl std::fmt::Display for NatEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NatEvent::NatTranslationCreate => write!(f, "NAT translation create"),
+            NatEvent::NatTranslationDelete => write!(f, "NAT translation delete"),
+            NatEvent::NatAddressesExhausted => write!(f, "NAT addresses exhausted"),
+            NatEvent::Nat44SessionCreate => write!(f, "NAT44 session create"),
+            NatEvent::Nat44SessionDelete => write!(f, "NAT44 session delete"),
+            NatEvent::Nat64SessionCreate => write!(f, "NAT64 session create"),
+            NatEvent::Nat64SessionDelete => write!(f, "NAT64 session delete"),
+            NatEvent::Nat44BibCreate => write!(f, "NAT44 BIB create"),
+            NatEvent::Nat44BibDelete => write!(f, "NAT44 BIB delete"),
+            NatEvent::Nat64BibCreate => write!(f, "NAT64 BIB create"),
+            NatEvent::Nat64BibDelete => write!(f, "NAT64 BIB delete"),
+            NatEvent::NatPortsExhausted => write!(f, "NAT ports exhausted"),
+            NatEvent::QuotaExceeded => write!(f, "Quota exceeded"),
+            NatEvent::AddressBindingCreate => write!(f, "Address binding create"),
+            NatEvent::AddressBindingDelete => write!(f, "Address binding delete"),
+            NatEvent::PortBlockAllocation => write!(f, "Port block allocation"),
+            NatEvent::PortBlockDeAllocation => write!(f, "Port block de-allocation"),
+            NatEvent::ThresholdReached => write!(f, "Threshold reached"),
+            NatEvent::Unknown(v) => write!(f, "Unknown({})", v),
+        }
+    }
+}
+
 impl PartialOrd for NatEvent {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -147,5 +173,18 @@ mod nat_event_tests {
     fn test_all_nat_events() {
         let events: Vec<_> = (0..=20u8).map(NatEvent::from).collect();
         assert_yaml_snapshot!(events);
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!(
+            format!("{}", NatEvent::NatTranslationCreate),
+            "NAT translation create"
+        );
+        assert_eq!(
+            format!("{}", NatEvent::Nat44SessionCreate),
+            "NAT44 session create"
+        );
+        assert_eq!(format!("{}", NatEvent::Unknown(99)), "Unknown(99)");
     }
 }

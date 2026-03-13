@@ -61,6 +61,20 @@ impl From<FirewallEvent> for u8 {
     }
 }
 
+impl std::fmt::Display for FirewallEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FirewallEvent::Ignore => write!(f, "Ignore"),
+            FirewallEvent::FlowCreated => write!(f, "Flow created"),
+            FirewallEvent::FlowDeleted => write!(f, "Flow deleted"),
+            FirewallEvent::FlowDenied => write!(f, "Flow denied"),
+            FirewallEvent::FlowAlert => write!(f, "Flow alert"),
+            FirewallEvent::FlowUpdate => write!(f, "Flow update"),
+            FirewallEvent::Unknown(v) => write!(f, "Unknown({})", v),
+        }
+    }
+}
+
 impl PartialOrd for FirewallEvent {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
@@ -99,5 +113,12 @@ mod firewall_event_tests {
     fn test_all_firewall_events() {
         let events: Vec<_> = (0..=8u8).map(FirewallEvent::from).collect();
         assert_yaml_snapshot!(events);
+    }
+
+    #[test]
+    fn test_display() {
+        assert_eq!(format!("{}", FirewallEvent::Ignore), "Ignore");
+        assert_eq!(format!("{}", FirewallEvent::FlowCreated), "Flow created");
+        assert_eq!(format!("{}", FirewallEvent::Unknown(99)), "Unknown(99)");
     }
 }
