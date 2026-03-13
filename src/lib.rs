@@ -234,10 +234,12 @@ pub struct NetflowParser {
 /// Statistics about template cache utilization.
 #[derive(Debug, Clone)]
 pub struct CacheStats {
-    /// Current number of cached templates
+    /// Current number of cached templates (summed across all internal caches)
     pub current_size: usize,
-    /// Maximum cache size before LRU eviction
-    pub max_size: usize,
+    /// Maximum cache size per internal cache (each template type has its own LRU cache)
+    pub max_size_per_cache: usize,
+    /// Number of internal caches (V9 has 2: templates + options; IPFIX has 4)
+    pub num_caches: usize,
     /// TTL configuration (if enabled)
     pub ttl_config: Option<variable_versions::ttl::TtlConfig>,
     /// Performance metrics snapshot
@@ -417,6 +419,34 @@ impl NetflowParserBuilder {
         self
     }
 
+    /// Sets the maximum total size (in bytes) of all fields in a template for both V9 and IPFIX parsers.
+    ///
+    /// This prevents DoS attacks via templates with excessive total field lengths. Default: u16::MAX (65535).
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - Maximum total size in bytes (must be > 0)
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_max_template_total_size(mut self, size: usize) -> Self {
+        self.v9_config.max_template_total_size = size;
+        self.ipfix_config.max_template_total_size = size;
+        self
+    }
+
+    /// Sets the V9 parser maximum template total size independently.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_v9_max_template_total_size(mut self, size: usize) -> Self {
+        self.v9_config.max_template_total_size = size;
+        self
+    }
+
+    /// Sets the IPFIX parser maximum template total size independently.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_ipfix_max_template_total_size(mut self, size: usize) -> Self {
+        self.ipfix_config.max_template_total_size = size;
+        self
+    }
+
     /// Sets the TTL configuration for both V9 and IPFIX parsers.
     ///
     /// # Arguments
@@ -437,8 +467,8 @@ impl NetflowParserBuilder {
     /// ```
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_ttl(mut self, ttl: variable_versions::ttl::TtlConfig) -> Self {
-        self.v9_config.ttl_config = Some(ttl.clone());
-        self.ipfix_config.ttl_config = Some(ttl);
+        self.ipfix_config.ttl_config = Some(ttl.clone());
+        self.v9_config.ttl_config = Some(ttl);
         self
     }
 
@@ -497,6 +527,9 @@ impl NetflowParserBuilder {
     ///     .expect("Failed to build parser");
     /// ```
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    // Note: size=0 is intentionally allowed — it disables error diagnostic
+    // data collection, which is a valid configuration for performance-sensitive
+    // deployments that don't need error samples.
     pub fn with_max_error_sample_size(mut self, size: usize) -> Self {
         self.max_error_sample_size = size;
         self.v9_config.max_error_sample_size = size;
@@ -514,6 +547,20 @@ impl NetflowParserBuilder {
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_max_records_per_flowset(mut self, count: usize) -> Self {
         self.v9_config.max_records_per_flowset = count;
+        self.ipfix_config.max_records_per_flowset = count;
+        self
+    }
+
+    /// Sets the V9 parser maximum records per flowset independently.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_v9_max_records_per_flowset(mut self, count: usize) -> Self {
+        self.v9_config.max_records_per_flowset = count;
+        self
+    }
+
+    /// Sets the IPFIX parser maximum records per flowset independently.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_ipfix_max_records_per_flowset(mut self, count: usize) -> Self {
         self.ipfix_config.max_records_per_flowset = count;
         self
     }
@@ -625,8 +672,8 @@ impl NetflowParserBuilder {
     /// ```
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_pending_flows(mut self, config: PendingFlowsConfig) -> Self {
-        self.v9_config.pending_flows_config = Some(config.clone());
-        self.ipfix_config.pending_flows_config = Some(config);
+        self.ipfix_config.pending_flows_config = Some(config.clone());
+        self.v9_config.pending_flows_config = Some(config);
         self
     }
 
@@ -1161,13 +1208,14 @@ impl NetflowParser {
     ///
     /// let parser = NetflowParser::default();
     /// let stats = parser.v9_cache_stats();
-    /// println!("V9 cache: {}/{} templates", stats.current_size, stats.max_size);
+    /// println!("V9 cache: {}/{} templates", stats.current_size, stats.max_size_per_cache);
     /// ```
     pub fn v9_cache_stats(&self) -> CacheStats {
         CacheStats {
             current_size: self.v9_parser.templates.len()
                 + self.v9_parser.options_templates.len(),
-            max_size: self.v9_parser.max_template_cache_size,
+            max_size_per_cache: self.v9_parser.max_template_cache_size,
+            num_caches: 2,
             ttl_config: self.v9_parser.ttl_config.clone(),
             metrics: self.v9_parser.metrics.snapshot(),
             pending_flow_count: self.v9_parser.pending_flow_count(),
@@ -1183,7 +1231,7 @@ impl NetflowParser {
     ///
     /// let parser = NetflowParser::default();
     /// let stats = parser.ipfix_cache_stats();
-    /// println!("IPFIX cache: {}/{} templates", stats.current_size, stats.max_size);
+    /// println!("IPFIX cache: {}/{} templates", stats.current_size, stats.max_size_per_cache);
     /// ```
     pub fn ipfix_cache_stats(&self) -> CacheStats {
         CacheStats {
@@ -1191,7 +1239,8 @@ impl NetflowParser {
                 + self.ipfix_parser.v9_templates.len()
                 + self.ipfix_parser.ipfix_options_templates.len()
                 + self.ipfix_parser.v9_options_templates.len(),
-            max_size: self.ipfix_parser.max_template_cache_size,
+            max_size_per_cache: self.ipfix_parser.max_template_cache_size,
+            num_caches: 4,
             ttl_config: self.ipfix_parser.ttl_config.clone(),
             metrics: self.ipfix_parser.metrics.snapshot(),
             pending_flow_count: self.ipfix_parser.pending_flow_count(),
@@ -1502,6 +1551,19 @@ impl NetflowParser {
 
     #[inline]
     fn parse_packet_by_version<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+        // Snapshot metrics before parsing to detect collisions/evictions/expirations
+        let hooks_active = !self.template_hooks.is_empty();
+        let v9_metrics_before = if hooks_active {
+            Some(self.v9_parser.metrics)
+        } else {
+            None
+        };
+        let ipfix_metrics_before = if hooks_active {
+            Some(self.ipfix_parser.metrics)
+        } else {
+            None
+        };
+
         let result = match GenericNetflowHeader::parse(packet) {
             Ok((remaining, header))
                 if (header.version as usize) < self.allowed_versions.len()
@@ -1546,13 +1608,57 @@ impl NetflowParser {
             },
         };
 
-        if !self.template_hooks.is_empty() {
+        if hooks_active {
             if let ParsedNetflow::Success { ref packet, .. } = result {
                 self.fire_template_events(packet);
+            }
+            // Fire metric-based events for collisions, evictions, and expirations
+            if let Some(before) = v9_metrics_before {
+                self.fire_metric_delta_events(
+                    &before,
+                    &self.v9_parser.metrics,
+                    TemplateProtocol::V9,
+                );
+            }
+            if let Some(before) = ipfix_metrics_before {
+                self.fire_metric_delta_events(
+                    &before,
+                    &self.ipfix_parser.metrics,
+                    TemplateProtocol::Ipfix,
+                );
             }
         }
 
         result
+    }
+
+    fn fire_metric_delta_events(
+        &self,
+        before: &variable_versions::metrics::CacheMetrics,
+        after: &variable_versions::metrics::CacheMetrics,
+        protocol: TemplateProtocol,
+    ) {
+        let new_collisions = after.collisions.saturating_sub(before.collisions);
+        for _ in 0..new_collisions {
+            self.template_hooks.trigger(&TemplateEvent::Collision {
+                template_id: 0, // specific ID not available from metrics
+                protocol,
+            });
+        }
+        let new_evictions = after.evictions.saturating_sub(before.evictions);
+        for _ in 0..new_evictions {
+            self.template_hooks.trigger(&TemplateEvent::Evicted {
+                template_id: 0, // specific ID not available from metrics
+                protocol,
+            });
+        }
+        let new_expirations = after.expired.saturating_sub(before.expired);
+        for _ in 0..new_expirations {
+            self.template_hooks.trigger(&TemplateEvent::Expired {
+                template_id: 0, // specific ID not available from metrics
+                protocol,
+            });
+        }
     }
 
     fn fire_template_events(&self, packet: &NetflowPacket) {
@@ -1661,7 +1767,11 @@ impl NetflowParser {
         }
     }
 
-    /// Takes a Netflow packet slice and returns a vector of Parsed NetflowCommonFlowSet
+    /// Takes a Netflow packet slice and returns a vector of Parsed NetflowCommonFlowSet.
+    ///
+    /// **Note:** Packets that fail `as_netflow_common()` conversion (e.g., V9/IPFIX
+    /// data flowsets without matching templates) are silently skipped. Use
+    /// [`parse_bytes`](Self::parse_bytes) directly if you need full error visibility.
     #[cfg(feature = "netflow_common")]
     #[inline]
     pub fn parse_bytes_as_netflow_common_flowsets(

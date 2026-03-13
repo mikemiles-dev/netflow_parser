@@ -135,7 +135,7 @@ fn test_template_cache_eviction() {
     // Check cache stats - should show evictions occurred
     let stats = parser.v9_cache_stats();
     assert_eq!(stats.current_size, 5, "Cache should be at max size");
-    assert_eq!(stats.max_size, 5, "Max size should be 5");
+    assert_eq!(stats.max_size_per_cache, 5, "Max size should be 5");
 
     // Verify first template (256) was evicted by trying to use it
     let data_packet = vec![

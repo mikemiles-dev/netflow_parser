@@ -54,7 +54,7 @@ fn main() {
                     // V9 stats
                     println!(
                         "    V9 Cache: {}/{} templates",
-                        stats.v9.current_size, stats.v9.max_size
+                        stats.v9.current_size, stats.v9.max_size_per_cache
                     );
                     let v9_metrics = &stats.v9.metrics;
                     if let Some(hit_rate) = v9_metrics.hit_rate() {
@@ -72,7 +72,7 @@ fn main() {
                     // IPFIX stats
                     println!(
                         "    IPFIX Cache: {}/{} templates",
-                        stats.ipfix.current_size, stats.ipfix.max_size
+                        stats.ipfix.current_size, stats.ipfix.max_size_per_cache
                     );
                     let ipfix_metrics = &stats.ipfix.metrics;
                     if let Some(hit_rate) = ipfix_metrics.hit_rate() {

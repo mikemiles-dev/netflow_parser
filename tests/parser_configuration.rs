@@ -26,10 +26,10 @@ fn test_parser_builder_with_cache_size() {
         .expect("Failed to build parser");
 
     let stats = parser.v9_cache_stats();
-    assert_eq!(stats.max_size, 2000);
+    assert_eq!(stats.max_size_per_cache, 2000);
 
     let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.max_size, 2000);
+    assert_eq!(ipfix_stats.max_size_per_cache, 2000);
 }
 
 // Verify builder can set independent cache sizes for V9 and IPFIX
@@ -42,10 +42,10 @@ fn test_parser_builder_with_different_cache_sizes() {
         .expect("Failed to build parser");
 
     let v9_stats = parser.v9_cache_stats();
-    assert_eq!(v9_stats.max_size, 1000);
+    assert_eq!(v9_stats.max_size_per_cache, 1000);
 
     let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.max_size, 3000);
+    assert_eq!(ipfix_stats.max_size_per_cache, 3000);
 }
 
 // Verify builder accepts a TTL configuration and creates a valid parser
@@ -114,10 +114,10 @@ fn test_parser_builder_comprehensive() {
         .expect("Failed to build parser");
 
     let v9_stats = parser.v9_cache_stats();
-    assert_eq!(v9_stats.max_size, 1500);
+    assert_eq!(v9_stats.max_size_per_cache, 1500);
 
     let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.max_size, 2500);
+    assert_eq!(ipfix_stats.max_size_per_cache, 2500);
 
     assert!(parser.allowed_versions()[5]);
     assert!(parser.allowed_versions()[9]);
