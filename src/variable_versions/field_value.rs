@@ -740,12 +740,12 @@ impl FieldValue {
                 let (i, taken) = take(field_length)(remaining)?;
                 (i, FieldValue::Vec(taken.to_vec()))
             }
-            FieldDataType::DurationSeconds => {
+            FieldDataType::DurationSeconds if matches!(field_length, 2 | 4 | 8) => {
                 parse_duration(remaining, field_length, |value, width| {
                     DurationValue::Seconds { value, width }
                 })?
             }
-            FieldDataType::DurationMillis => {
+            FieldDataType::DurationMillis if matches!(field_length, 2 | 4 | 8) => {
                 parse_duration(remaining, field_length, |value, width| {
                     DurationValue::Millis { value, width }
                 })?
@@ -852,7 +852,9 @@ impl FieldValue {
             | FieldDataType::FirewallEvent
             | FieldDataType::MplsTopLabelType
             | FieldDataType::NatOriginatingAddressRealm
-            | FieldDataType::Float64 => {
+            | FieldDataType::Float64
+            | FieldDataType::DurationSeconds
+            | FieldDataType::DurationMillis => {
                 let (i, taken) = take(field_length)(remaining)?;
                 (i, FieldValue::Vec(taken.to_vec()))
             }

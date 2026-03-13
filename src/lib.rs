@@ -540,9 +540,6 @@ impl NetflowParserBuilder {
     ///     .expect("Failed to build parser");
     /// ```
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
-    // Note: size=0 is intentionally allowed — it disables error diagnostic
-    // data collection, which is a valid configuration for performance-sensitive
-    // deployments that don't need error samples.
     pub fn with_max_error_sample_size(mut self, size: usize) -> Self {
         self.max_error_sample_size = size;
         self.v9_config.max_error_sample_size = size;
@@ -1273,6 +1270,7 @@ impl NetflowParser {
         let mut ids: Vec<u16> = self.v9_parser.templates.iter().map(|(id, _)| *id).collect();
         ids.extend(self.v9_parser.options_templates.iter().map(|(id, _)| *id));
         ids.sort_unstable();
+        ids.dedup();
         ids
     }
 
@@ -1310,6 +1308,7 @@ impl NetflowParser {
                 .map(|(id, _)| *id),
         );
         ids.sort_unstable();
+        ids.dedup();
         ids
     }
 
