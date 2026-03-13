@@ -11,6 +11,7 @@ use super::{
     OptionsTemplateScopeField, OptionsTemplates, ScopeDataField, ScopeParser, Template,
     TemplateField, TemplateId, Templates, V9, V9FieldPair, V9FlowRecord,
 };
+use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::metrics::CacheMetrics;
@@ -40,6 +41,7 @@ pub struct V9Parser {
     pub(crate) max_field_count: usize,
     pub(crate) max_template_total_size: usize,
     pub(crate) max_error_sample_size: usize,
+    pub(crate) max_records_per_flowset: usize,
     pub(crate) metrics: CacheMetrics,
     pub(crate) pending_flows: Option<PendingFlowCache>,
 }
@@ -52,6 +54,7 @@ impl Default for V9Parser {
             max_field_count: usize::from(MAX_FIELD_COUNT),
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,
@@ -72,6 +75,9 @@ impl V9Parser {
         }
         if config.max_template_total_size == 0 {
             return Err(ConfigError::InvalidTemplateTotalSize(0));
+        }
+        if config.max_records_per_flowset == 0 {
+            return Err(ConfigError::InvalidRecordsPerFlowset(0));
         }
         if let Some(ref ttl) = config.ttl_config {
             if ttl.duration.is_zero() {
@@ -109,6 +115,7 @@ impl V9Parser {
             max_field_count: config.max_field_count,
             max_template_total_size: config.max_template_total_size,
             max_error_sample_size: config.max_error_sample_size,
+            max_records_per_flowset: config.max_records_per_flowset,
             metrics: CacheMetrics::new(),
             pending_flows,
         })
@@ -127,6 +134,9 @@ impl ParserFields for V9Parser {
     }
     fn set_max_error_sample_size_field(&mut self, size: usize) {
         self.max_error_sample_size = size;
+    }
+    fn set_max_records_per_flowset_field(&mut self, count: usize) {
+        self.max_records_per_flowset = count;
     }
     fn set_ttl_config_field(&mut self, config: Option<TtlConfig>) {
         self.ttl_config = config;
@@ -284,7 +294,8 @@ impl V9Parser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = Data::parse(&entry.raw_data, &template)
+        ) && let Ok((_, data)) =
+            Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
         {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
@@ -303,8 +314,11 @@ impl V9Parser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, options_data)) = OptionsData::parse(&entry.raw_data, &template)
-        {
+        ) && let Ok((_, options_data)) = OptionsData::parse_with_limit(
+            &entry.raw_data,
+            &template,
+            self.max_records_per_flowset,
+        ) {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     flowset_id: template_id,
@@ -419,7 +433,8 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
-                    let (i, data) = Data::parse(i, &template)?;
+                    let (i, data) =
+                        Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
 
@@ -430,7 +445,11 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
-                    let (i, options_data) = OptionsData::parse(i, &template)?;
+                    let (i, options_data) = OptionsData::parse_with_limit(
+                        i,
+                        &template,
+                        parser.max_records_per_flowset,
+                    )?;
                     return Ok((i, FlowSetBody::OptionsData(options_data)));
                 }
 
@@ -690,6 +709,7 @@ impl<'a> FieldParser {
     pub(super) fn parse(
         mut input: &'a [u8],
         template: &Template,
+        max_records: usize,
     ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
         let template_total_size = usize::from(template.get_total_size());
         if template_total_size == 0 {
@@ -697,7 +717,7 @@ impl<'a> FieldParser {
         }
 
         // Calculate how many complete records we can parse based on input length
-        let record_count = (input.len() / template_total_size).min(1024);
+        let record_count = (input.len() / template_total_size).min(max_records);
         let mut res = Vec::with_capacity(record_count);
 
         for _ in 0..record_count {

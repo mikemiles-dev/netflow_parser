@@ -403,6 +403,8 @@ mod base_tests {
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,
@@ -424,6 +426,8 @@ mod base_tests {
             max_field_count: 2, // Very low limit for testing
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,
@@ -468,6 +472,8 @@ mod base_tests {
             max_field_count: 10000,
             max_template_total_size: 10, // Very low limit for testing
             max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,
@@ -512,6 +518,8 @@ mod base_tests {
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,
@@ -556,6 +564,8 @@ mod base_tests {
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,
@@ -599,6 +609,8 @@ mod base_tests {
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,
@@ -645,6 +657,8 @@ mod base_tests {
             max_field_count: 10000,
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config: None,
             enterprise_registry: EnterpriseFieldRegistry::new(),
             pending_flows_config: None,

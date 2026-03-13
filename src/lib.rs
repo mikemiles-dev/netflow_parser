@@ -40,7 +40,9 @@ pub use template_events::{
 pub use variable_versions::enterprise_registry::{EnterpriseFieldDef, EnterpriseFieldRegistry};
 pub use variable_versions::metrics::{CacheMetrics, CacheMetricsSnapshot};
 pub use variable_versions::ttl::TtlConfig;
-pub use variable_versions::{Config, ConfigError, NoTemplateInfo, PendingFlowsConfig};
+pub use variable_versions::{
+    Config, ConfigError, DEFAULT_MAX_RECORDS_PER_FLOWSET, NoTemplateInfo, PendingFlowsConfig,
+};
 
 // Rust-idiomatic naming aliases
 pub use variable_versions::ipfix::{Ipfix, IpfixFieldPair, IpfixFlowRecord, IpfixParser};
@@ -499,6 +501,20 @@ impl NetflowParserBuilder {
         self.max_error_sample_size = size;
         self.v9_config.max_error_sample_size = size;
         self.ipfix_config.max_error_sample_size = size;
+        self
+    }
+
+    /// Sets the maximum number of data records to parse per flowset.
+    ///
+    /// This prevents CPU-bound DoS from maliciously large flowsets. Default: 1,024.
+    ///
+    /// # Arguments
+    ///
+    /// * `count` - Maximum number of records per flowset
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_max_records_per_flowset(mut self, count: usize) -> Self {
+        self.v9_config.max_records_per_flowset = count;
+        self.ipfix_config.max_records_per_flowset = count;
         self
     }
 

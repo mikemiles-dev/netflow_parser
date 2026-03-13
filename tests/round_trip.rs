@@ -561,9 +561,7 @@ fn test_ipfix_varlen_long_round_trip() {
     data_set.extend_from_slice(&value_len.to_be_bytes()); // 2-byte length
     data_set.extend_from_slice(&value);
     // Padding
-    for _ in 0..padding_needed {
-        data_set.push(0);
-    }
+    data_set.extend(std::iter::repeat_n(0u8, padding_needed));
 
     let data_msg = build_ipfix_message(0x62A0B1B9, 11, 1, &data_set);
     let data_result = parser.parse_bytes(&data_msg);
@@ -613,9 +611,7 @@ fn test_ipfix_mixed_fixed_and_varlen_round_trip() {
     data_set.push(4); // varlen prefix: length=4
     data_set.extend_from_slice(b"test"); // applicationDescription
     data_set.extend_from_slice(&42u32.to_be_bytes()); // egressInterface
-    for _ in 0..padding {
-        data_set.push(0);
-    }
+    data_set.extend(std::iter::repeat_n(0u8, padding));
 
     let data_msg = build_ipfix_message(0x62A0B1B9, 13, 1, &data_set);
     let data_result = parser.parse_bytes(&data_msg);

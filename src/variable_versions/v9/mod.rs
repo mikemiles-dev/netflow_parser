@@ -174,6 +174,31 @@ pub struct OptionsData {
     pub fields: Vec<OptionsDataFields>,
 }
 
+impl OptionsData {
+    /// Parse options data records with a configurable maximum record limit.
+    pub(crate) fn parse_with_limit<'a>(
+        i: &'a [u8],
+        template: &OptionsTemplate,
+        max_records: usize,
+    ) -> nom::IResult<&'a [u8], Self> {
+        let mut fields = Vec::new();
+        let mut remaining = i;
+        while !remaining.is_empty() && fields.len() < max_records {
+            match complete(|i| OptionsDataFields::parse(i, template))(remaining) {
+                Ok((i, record)) => {
+                    if std::ptr::eq(i, remaining) {
+                        break;
+                    }
+                    remaining = i;
+                    fields.push(record);
+                }
+                Err(_) => break,
+            }
+        }
+        Ok((remaining, Self { fields }))
+    }
+}
+
 pub struct ScopeParser;
 
 pub struct OptionsFieldParser;
@@ -203,7 +228,9 @@ pub enum ScopeDataField {
 #[nom(ExtraArgs(template: &Template))]
 pub struct Data {
     // Data Fields
-    #[nom(Parse = "{ |i| FieldParser::parse(i, template) }")]
+    #[nom(
+        Parse = "{ |i| FieldParser::parse(i, template, crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET) }"
+    )]
     pub fields: Vec<V9FlowRecord>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
@@ -216,6 +243,22 @@ impl Data {
             fields,
             padding: vec![],
         }
+    }
+
+    /// Parse data records with a configurable maximum record limit.
+    pub(crate) fn parse_with_limit<'a>(
+        i: &'a [u8],
+        template: &Template,
+        max_records: usize,
+    ) -> nom::IResult<&'a [u8], Self> {
+        let (i, fields) = FieldParser::parse(i, template, max_records)?;
+        Ok((
+            i,
+            Self {
+                fields,
+                padding: vec![],
+            },
+        ))
     }
 }
 

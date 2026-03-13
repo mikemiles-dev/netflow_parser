@@ -426,3 +426,165 @@ fn test_malformed_flowset_length() {
         "Should handle malformed length gracefully"
     );
 }
+
+/// Test that max_records_per_flowset limits V9 data record parsing
+#[test]
+fn test_v9_max_records_per_flowset() {
+    // First, send a V9 template: template_id=256, 1 field (IN_BYTES=1, len=4)
+    let template_packet = vec![
+        0x00, 0x09, // Version 9
+        0x00, 0x01, // Count = 1
+        0x00, 0x00, 0x00, 0x01, // SysUptime
+        0x00, 0x00, 0x00, 0x01, // Unix seconds
+        0x00, 0x00, 0x00, 0x01, // Sequence
+        0x00, 0x00, 0x00, 0x01, // Source ID
+        // Template FlowSet
+        0x00, 0x00, // FlowSet ID = 0 (template)
+        0x00, 0x0C, // Length = 12
+        0x01, 0x00, // Template ID = 256
+        0x00, 0x01, // Field count = 1
+        0x00, 0x01, // Field type = IN_BYTES
+        0x00, 0x04, // Field length = 4
+    ];
+
+    let mut parser = NetflowParser::builder()
+        .with_max_records_per_flowset(2) // Only allow 2 records per flowset
+        .build()
+        .expect("Failed to build parser");
+
+    // Parse template
+    let result = parser.parse_bytes(&template_packet);
+    assert!(result.error.is_none(), "Template parse failed");
+
+    // Data flowset with 5 records (5 * 4 bytes = 20 bytes of data)
+    let mut data_packet = vec![
+        0x00, 0x09, // Version 9
+        0x00, 0x01, // Count = 1
+        0x00, 0x00, 0x00, 0x02, // SysUptime
+        0x00, 0x00, 0x00, 0x02, // Unix seconds
+        0x00, 0x00, 0x00, 0x02, // Sequence
+        0x00, 0x00, 0x00, 0x01, // Source ID
+        // Data FlowSet
+        0x01, 0x00, // FlowSet ID = 256 (matches template)
+        0x00, 0x18, // Length = 24 (4 header + 20 data)
+    ];
+    // 5 records, 4 bytes each
+    for i in 0u32..5 {
+        data_packet.extend_from_slice(&(i + 1).to_be_bytes());
+    }
+
+    let result = parser.parse_bytes(&data_packet);
+    assert!(
+        result.error.is_none(),
+        "Data parse failed: {:?}",
+        result.error
+    );
+
+    if let Some(NetflowPacket::V9(v9)) = result.packets.first() {
+        // Find the data flowset
+        let data_flowset = v9.flowsets.iter().find(|fs| {
+            matches!(
+                fs.body,
+                netflow_parser::variable_versions::v9::FlowSetBody::Data(_)
+            )
+        });
+        assert!(data_flowset.is_some(), "Expected data flowset");
+        if let netflow_parser::variable_versions::v9::FlowSetBody::Data(data) =
+            &data_flowset.unwrap().body
+        {
+            assert_eq!(
+                data.fields.len(),
+                2,
+                "Expected 2 records (limited by max_records_per_flowset), got {}",
+                data.fields.len()
+            );
+        }
+    } else {
+        panic!("Expected V9 packet");
+    }
+}
+
+/// Test that max_records_per_flowset limits IPFIX data record parsing
+#[test]
+fn test_ipfix_max_records_per_flowset() {
+    // IPFIX template: template_id=256, 1 field (octetDeltaCount=1, len=4)
+    let mut template_packet = vec![
+        0x00, 0x0A, // Version 10 (IPFIX)
+        0x00, 0x00, // Length (will fill)
+        0x00, 0x00, 0x00, 0x01, // Export time
+        0x00, 0x00, 0x00, 0x01, // Sequence
+        0x00, 0x00, 0x00, 0x01, // Observation Domain ID
+        // Template Set
+        0x00, 0x02, // Set ID = 2 (template)
+        0x00, 0x0C, // Length = 12
+        0x01, 0x00, // Template ID = 256
+        0x00, 0x01, // Field count = 1
+        0x00, 0x01, // Field type = octetDeltaCount
+        0x00, 0x04, // Field length = 4
+    ];
+    let len = template_packet.len() as u16;
+    template_packet[2..4].copy_from_slice(&len.to_be_bytes());
+
+    let mut parser = NetflowParser::builder()
+        .with_max_records_per_flowset(3) // Only allow 3 records
+        .build()
+        .expect("Failed to build parser");
+
+    let result = parser.parse_bytes(&template_packet);
+    assert!(result.error.is_none(), "Template parse failed");
+
+    // Data set with 6 records (6 * 4 = 24 bytes data)
+    let mut data_packet = vec![
+        0x00, 0x0A, // Version 10
+        0x00, 0x00, // Length (will fill)
+        0x00, 0x00, 0x00, 0x02, // Export time
+        0x00, 0x00, 0x00, 0x02, // Sequence
+        0x00, 0x00, 0x00, 0x01, // Observation Domain ID
+        // Data Set
+        0x01, 0x00, // Set ID = 256
+        0x00, 0x1C, // Length = 28 (4 header + 24 data)
+    ];
+    for i in 0u32..6 {
+        data_packet.extend_from_slice(&(i + 1).to_be_bytes());
+    }
+    let len = data_packet.len() as u16;
+    data_packet[2..4].copy_from_slice(&len.to_be_bytes());
+
+    let result = parser.parse_bytes(&data_packet);
+    assert!(
+        result.error.is_none(),
+        "Data parse failed: {:?}",
+        result.error
+    );
+
+    if let Some(NetflowPacket::IPFix(ipfix)) = result.packets.first() {
+        let data_flowset = ipfix.flowsets.iter().find(|fs| {
+            matches!(
+                fs.body,
+                netflow_parser::variable_versions::ipfix::FlowSetBody::Data(_)
+            )
+        });
+        assert!(data_flowset.is_some(), "Expected data flowset");
+        if let netflow_parser::variable_versions::ipfix::FlowSetBody::Data(data) =
+            &data_flowset.unwrap().body
+        {
+            assert_eq!(
+                data.fields.len(),
+                3,
+                "Expected 3 records (limited by max_records_per_flowset), got {}",
+                data.fields.len()
+            );
+        }
+    } else {
+        panic!("Expected IPFIX packet");
+    }
+}
+
+/// Test that max_records_per_flowset of 0 is rejected
+#[test]
+fn test_zero_max_records_per_flowset_rejected() {
+    let result = NetflowParser::builder()
+        .with_max_records_per_flowset(0)
+        .build();
+    assert!(result.is_err(), "Should reject max_records_per_flowset = 0");
+}
