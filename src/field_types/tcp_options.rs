@@ -56,6 +56,16 @@ mod tcp_options_tests {
     use super::TcpOptions;
 
     #[test]
+    fn test_display() {
+        assert_eq!(TcpOptions::from(0u64).to_string(), "0x0000000000000000");
+        assert_eq!(TcpOptions::from(0xFFu64).to_string(), "0x00000000000000FF");
+        assert_eq!(
+            TcpOptions::from(0xFFFF_FFFF_FFFF_FFFFu64).to_string(),
+            "0xFFFFFFFFFFFFFFFF"
+        );
+    }
+
+    #[test]
     fn test_round_trip() {
         for value in [0u64, 1, 0xFF, 0xFFFF_FFFF_FFFF_FFFF] {
             let opts = TcpOptions::from(value);

@@ -108,6 +108,14 @@ mod ipv6_extension_headers_tests {
     use super::Ipv6ExtensionHeaders;
 
     #[test]
+    fn test_display() {
+        assert_eq!(Ipv6ExtensionHeaders::from(0u32).to_string(), "none");
+        assert_eq!(Ipv6ExtensionHeaders::from(1u32).to_string(), "DST");
+        assert_eq!(Ipv6ExtensionHeaders::from(0x03u32).to_string(), "DST|FRAG");
+        assert_eq!(Ipv6ExtensionHeaders::from(0x3Fu32).to_string(), "DST|FRAG|HBH|RT|AH|ESP");
+    }
+
+    #[test]
     fn test_round_trip() {
         for value in [0u32, 1, 2, 4, 8, 16, 32, 0x3F, 0xFFFF_FFFF, 0x40, 0x100] {
             let h = Ipv6ExtensionHeaders::from(value);

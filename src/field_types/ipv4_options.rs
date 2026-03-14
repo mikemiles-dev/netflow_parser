@@ -229,6 +229,14 @@ mod ipv4_options_tests {
     use super::Ipv4Options;
 
     #[test]
+    fn test_display() {
+        assert_eq!(Ipv4Options::from(0u32).to_string(), "none");
+        assert_eq!(Ipv4Options::from(1u32).to_string(), "RR");
+        assert_eq!(Ipv4Options::from(0x60u32).to_string(), "SEC|NOP");
+        assert_eq!(Ipv4Options::from(0x7Fu32).to_string(), "RR|CIPSO|E-SEC|TS|LSR|SEC|NOP");
+    }
+
+    #[test]
     fn test_round_trip() {
         for value in [0u32, 1, 0x10, 0x80000, 0x007F_FFFF, 0xFFFF_FFFF] {
             let opts = Ipv4Options::from(value);

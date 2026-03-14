@@ -50,6 +50,12 @@ mod mpls_label_exp_tests {
     use super::MplsLabelExp;
 
     #[test]
+    fn test_display() {
+        assert_eq!(MplsLabelExp::from(0).to_string(), "0");
+        assert_eq!(MplsLabelExp::from(7).to_string(), "7");
+    }
+
+    #[test]
     fn test_round_trip() {
         for value in 0..=7u8 {
             let exp = MplsLabelExp::from(value);

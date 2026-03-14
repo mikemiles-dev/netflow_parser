@@ -73,6 +73,13 @@ mod nat_originating_address_realm_tests {
     use super::NatOriginatingAddressRealm;
 
     #[test]
+    fn test_display() {
+        assert_eq!(NatOriginatingAddressRealm::from(1).to_string(), "Private");
+        assert_eq!(NatOriginatingAddressRealm::from(2).to_string(), "Public");
+        assert_eq!(NatOriginatingAddressRealm::from(0).to_string(), "Unknown(0)");
+    }
+
+    #[test]
     fn test_round_trip() {
         for byte in 0..=255u8 {
             let realm = NatOriginatingAddressRealm::from(byte);

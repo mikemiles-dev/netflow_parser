@@ -119,6 +119,15 @@ mod mpls_top_label_type_tests {
     use insta::assert_yaml_snapshot;
 
     #[test]
+    fn test_display() {
+        assert_eq!(MplsTopLabelType::from(0).to_string(), "Unknown");
+        assert_eq!(MplsTopLabelType::from(1).to_string(), "TE-MIDPT");
+        assert_eq!(MplsTopLabelType::from(5).to_string(), "LDP");
+        assert_eq!(MplsTopLabelType::from(10).to_string(), "BGP-SR-Prefix-SID");
+        assert_eq!(MplsTopLabelType::from(20).to_string(), "Unassigned(20)");
+    }
+
+    #[test]
     fn test_round_trip() {
         for byte in 0..=255u8 {
             let lt = MplsTopLabelType::from(byte);
