@@ -13,7 +13,7 @@ use std::net::Ipv4Addr;
 pub struct V5Parser;
 
 impl V5Parser {
-    pub fn parse(packet: &[u8]) -> ParsedNetflow<'_> {
+    pub(crate) fn parse(packet: &[u8]) -> ParsedNetflow<'_> {
         match V5::parse_direct(packet) {
             Ok((remaining, v5)) => ParsedNetflow::Success {
                 packet: NetflowPacket::V5(v5),

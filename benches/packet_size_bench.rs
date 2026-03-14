@@ -106,7 +106,7 @@ fn create_v9_packet(flow_count: u16) -> Vec<u8> {
 
 /// Helper to create IPFIX template + data packet with N flow records
 fn create_ipfix_packet(flow_count: u16) -> Vec<u8> {
-    let template_set_length = 20u16; // Header + 4 fields
+    let template_set_length = 24u16; // Set header (4) + template header (4) + 4 fields (16)
     let data_record_size = 12u16; // 4+4+2+2
     let data_set_length = 4 + (flow_count * data_record_size);
     let total_length = 16 + template_set_length + data_set_length;
@@ -132,7 +132,7 @@ fn create_ipfix_packet(flow_count: u16) -> Vec<u8> {
         0x00,
         0x02, // Set ID = 2 (template)
         0x00,
-        0x14, // Length = 20
+        0x18, // Length = 24
         0x01,
         0x00, // Template ID = 256
         0x00,

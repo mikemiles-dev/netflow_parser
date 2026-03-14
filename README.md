@@ -427,7 +427,7 @@ for packet in &result2.packets {
 **Configuration options:**
 - `max_pending_flows` - Maximum number of template IDs to track in the LRU cache (default: 256)
 - `max_entries_per_template` - Maximum number of pending flow entries per template ID, preventing unbounded memory growth (default: 1024)
-- `max_entry_size_bytes` - Maximum size in bytes of a single pending flow entry's raw data. Entries exceeding this limit are dropped to prevent memory exhaustion from oversized flowset bodies (default: 65535)
+- `max_entry_size_bytes` - Maximum size in bytes of a single pending flow entry's raw data. Entries exceeding this limit are dropped to prevent memory exhaustion from oversized flowset bodies (default: 65531)
 - `ttl` - Optional TTL for pending flows. `None` means flows never expire (only evicted by LRU or per-template cap)
 
 **Notes:**
@@ -454,7 +454,7 @@ assert!(parser.is_version_allowed(9));
 assert!(parser.is_version_allowed(10));
 ```
 
-Packets with versions not in the allowed list will be ignored (returns empty Vec).
+Packets with versions not in the allowed list will return a `FilteredVersion` error.
 
 ### Error Handling & ParseResult
 
@@ -466,13 +466,14 @@ use netflow_parser::{NetflowParser, ParseResult};
 let result = parser.parse_bytes(&buffer);
 
 // Always get successfully parsed packets, even if an error occurred later
+let packet_count = result.packets.len();
 for packet in result.packets {
     // Process packet
 }
 
 // Check for errors
 if let Some(e) = result.error {
-    eprintln!("Error after {} packets: {}", result.packets.len(), e);
+    eprintln!("Error after {} packets: {}", packet_count, e);
 }
 ```
 
@@ -684,7 +685,7 @@ let parser = NetflowParser::builder()
     .expect("Failed to build parser");
 
 // For multi-source deployments, use AutoScopedParser instead:
-// let scoped_parser = NetflowParser::builder()./* config */.multi_source();
+// let scoped_parser = NetflowParser::builder()./* config */.try_multi_source().expect("valid config");
 ```
 
 ## Netflow Common
@@ -991,15 +992,18 @@ use netflow_parser::variable_versions::ttl::TtlConfig;
 use std::time::Duration;
 
 // Configure AutoScopedParser
-let builder = NetflowParser::builder()
+let auto_builder = NetflowParser::builder()
     .with_cache_size(5000)
     .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
 
-let mut parser = AutoScopedParser::try_with_builder(builder).expect("valid config");
+let mut parser = AutoScopedParser::try_with_builder(auto_builder).expect("valid config");
 
 // Or configure RouterScopedParser for custom scoping
 use netflow_parser::RouterScopedParser;
-let mut scoped = RouterScopedParser::<String>::try_with_builder(builder).expect("valid config");
+let router_builder = NetflowParser::builder()
+    .with_cache_size(5000)
+    .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
+let mut scoped = RouterScopedParser::<String>::try_with_builder(router_builder).expect("valid config");
 ```
 
 ### Template Collision Detection

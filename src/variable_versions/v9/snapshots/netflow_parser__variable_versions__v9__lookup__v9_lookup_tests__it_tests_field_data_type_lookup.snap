@@ -1,5 +1,5 @@
 ---
-source: src/variable_versions/v9_lookup.rs
+source: src/variable_versions/v9/lookup.rs
 expression: fields
 ---
 - UnsignedDataNumber
@@ -96,7 +96,7 @@ expression: fields
 - UnsignedDataNumber
 - UnsignedDataNumber
 - String
-- Vec
+- ApplicationId
 - String
 - Unknown
 - UnsignedDataNumber

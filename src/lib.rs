@@ -874,7 +874,7 @@ impl NetflowParserBuilder {
 }
 
 #[derive(Debug, Clone)]
-pub enum ParsedNetflow<'a> {
+pub(crate) enum ParsedNetflow<'a> {
     Success {
         packet: NetflowPacket,
         remaining: &'a [u8],
@@ -1023,13 +1023,6 @@ impl std::fmt::Display for NetflowError {
 }
 
 impl std::error::Error for NetflowError {}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct PartialParse {
-    pub version: u16,
-    pub remaining: Vec<u8>,
-    pub error: String,
-}
 
 /// Iterator that yields NetflowPacket items from a byte buffer without allocating a Vec.
 /// Maintains parser state for template caching (V9/IPFIX).
@@ -1588,7 +1581,9 @@ impl NetflowParser {
                         error: NetflowError::UnsupportedVersion {
                             version: header.version,
                             offset: 0,
-                            sample: remaining[..remaining.len().min(32)].to_vec(),
+                            sample: remaining
+                                [..remaining.len().min(self.max_error_sample_size)]
+                                .to_vec(),
                         },
                     },
                 }

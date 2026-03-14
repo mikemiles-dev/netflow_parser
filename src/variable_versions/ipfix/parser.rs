@@ -73,10 +73,10 @@ impl IPFixParser {
         if config.max_error_sample_size == 0 {
             return Err(ConfigError::InvalidErrorSampleSize);
         }
-        if let Some(ref ttl) = config.ttl_config {
-            if ttl.duration.is_zero() {
-                return Err(ConfigError::InvalidTtlDuration);
-            }
+        if let Some(ref ttl) = config.ttl_config
+            && ttl.duration.is_zero()
+        {
+            return Err(ConfigError::InvalidTtlDuration);
         }
         if let Some(ref pf) = config.pending_flows_config {
             PendingFlowCache::validate_config(pf)?;
@@ -179,7 +179,7 @@ impl ParserConfig for IPFixParser {
 
 impl IPFixParser {
     /// Parse an IPFIX message from raw bytes, using cached templates to decode data records.
-    pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+    pub(crate) fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match IPFix::parse(packet, self) {
             Ok((remaining, mut ipfix)) => {
                 self.process_pending_flows(&mut ipfix);
@@ -344,27 +344,25 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
+        ) && let Ok((_, data)) = Data::parse_with_registry(
+            &entry.raw_data,
+            &template,
+            &self.enterprise_registry,
+            self.max_records_per_flowset,
         ) {
-            if let Ok((_, data)) = Data::parse_with_registry(
-                &entry.raw_data,
-                &template,
-                &self.enterprise_registry,
-                self.max_records_per_flowset,
-            ) {
-                // Don't record_hit() — the original flowset already recorded
-                // a miss. Replay success is tracked via record_pending_replayed().
-                self.templates.promote(&template_id);
-                flowsets.push(FlowSet {
-                    header: FlowSetHeader {
-                        header_id: template_id,
-                        length: u16::try_from(entry.raw_data.len())
-                            .unwrap_or(u16::MAX)
-                            .saturating_add(4),
-                    },
-                    body: FlowSetBody::Data(data),
-                });
-                return true;
-            }
+            // Don't record_hit() — the original flowset already recorded
+            // a miss. Replay success is tracked via record_pending_replayed().
+            self.templates.promote(&template_id);
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    header_id: template_id,
+                    length: u16::try_from(entry.raw_data.len())
+                        .unwrap_or(u16::MAX)
+                        .saturating_add(4),
+                },
+                body: FlowSetBody::Data(data),
+            });
+            return true;
         }
 
         // Try IPFIX options templates
@@ -373,25 +371,23 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
+        ) && let Ok((_, data)) = OptionsData::parse_with_registry(
+            &entry.raw_data,
+            &template,
+            &self.enterprise_registry,
+            self.max_records_per_flowset,
         ) {
-            if let Ok((_, data)) = OptionsData::parse_with_registry(
-                &entry.raw_data,
-                &template,
-                &self.enterprise_registry,
-                self.max_records_per_flowset,
-            ) {
-                self.ipfix_options_templates.promote(&template_id);
-                flowsets.push(FlowSet {
-                    header: FlowSetHeader {
-                        header_id: template_id,
-                        length: u16::try_from(entry.raw_data.len())
-                            .unwrap_or(u16::MAX)
-                            .saturating_add(4),
-                    },
-                    body: FlowSetBody::OptionsData(data),
-                });
-                return true;
-            }
+            self.ipfix_options_templates.promote(&template_id);
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    header_id: template_id,
+                    length: u16::try_from(entry.raw_data.len())
+                        .unwrap_or(u16::MAX)
+                        .saturating_add(4),
+                },
+                body: FlowSetBody::OptionsData(data),
+            });
+            return true;
         }
 
         // Try V9 templates
@@ -400,24 +396,20 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) {
-            if let Ok((_, data)) = V9Data::parse_with_limit(
-                &entry.raw_data,
-                &template,
-                self.max_records_per_flowset,
-            ) {
-                self.v9_templates.promote(&template_id);
-                flowsets.push(FlowSet {
-                    header: FlowSetHeader {
-                        header_id: template_id,
-                        length: u16::try_from(entry.raw_data.len())
-                            .unwrap_or(u16::MAX)
-                            .saturating_add(4),
-                    },
-                    body: FlowSetBody::V9Data(data),
-                });
-                return true;
-            }
+        ) && let Ok((_, data)) =
+            V9Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
+        {
+            self.v9_templates.promote(&template_id);
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    header_id: template_id,
+                    length: u16::try_from(entry.raw_data.len())
+                        .unwrap_or(u16::MAX)
+                        .saturating_add(4),
+                },
+                body: FlowSetBody::V9Data(data),
+            });
+            return true;
         }
 
         // Try V9 options templates
@@ -426,24 +418,22 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
+        ) && let Ok((_, data)) = V9OptionsData::parse_with_limit(
+            &entry.raw_data,
+            &template,
+            self.max_records_per_flowset,
         ) {
-            if let Ok((_, data)) = V9OptionsData::parse_with_limit(
-                &entry.raw_data,
-                &template,
-                self.max_records_per_flowset,
-            ) {
-                self.v9_options_templates.promote(&template_id);
-                flowsets.push(FlowSet {
-                    header: FlowSetHeader {
-                        header_id: template_id,
-                        length: u16::try_from(entry.raw_data.len())
-                            .unwrap_or(u16::MAX)
-                            .saturating_add(4),
-                    },
-                    body: FlowSetBody::V9OptionsData(data),
-                });
-                return true;
-            }
+            self.v9_options_templates.promote(&template_id);
+            flowsets.push(FlowSet {
+                header: FlowSetHeader {
+                    header_id: template_id,
+                    length: u16::try_from(entry.raw_data.len())
+                        .unwrap_or(u16::MAX)
+                        .saturating_add(4),
+                },
+                body: FlowSetBody::V9OptionsData(data),
+            });
+            return true;
         }
 
         false
@@ -528,18 +518,18 @@ fn insert_templates<T: HasTemplateId>(
     for t in templates {
         let arc_template = Arc::new(t.clone());
         let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
-        if let Some(existing) = cache.peek(&t.template_id()) {
-            if existing.template.as_ref() != t {
-                metrics.record_collision();
-            }
+        if let Some(existing) = cache.peek(&t.template_id())
+            && existing.template.as_ref() != t
+        {
+            metrics.record_collision();
         }
         // push() returns Some in two cases: (1) a different key was LRU-evicted
         // to make room, or (2) the same key existed and its value was replaced.
         // Only count case (1) as an eviction.
-        if let Some((evicted_key, _evicted)) = cache.push(t.template_id(), wrapped) {
-            if evicted_key != t.template_id() {
-                metrics.record_eviction();
-            }
+        if let Some((evicted_key, _evicted)) = cache.push(t.template_id(), wrapped)
+            && evicted_key != t.template_id()
+        {
+            metrics.record_eviction();
         }
         metrics.record_insertion();
     }

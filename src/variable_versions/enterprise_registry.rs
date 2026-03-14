@@ -156,12 +156,11 @@ impl EnterpriseFieldRegistry {
     pub fn register(&mut self, def: EnterpriseFieldDef) -> bool {
         let key = (def.enterprise_number, def.field_number);
         // Always allow replacements of existing keys
-        if !self.fields.contains_key(&key) {
-            if let Some(max) = self.max_capacity {
-                if self.fields.len() >= max {
-                    return false;
-                }
-            }
+        if !self.fields.contains_key(&key)
+            && let Some(max) = self.max_capacity
+            && self.fields.len() >= max
+        {
+            return false;
         }
         self.fields.insert(key, def);
         true
