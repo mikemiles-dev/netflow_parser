@@ -113,7 +113,7 @@ fn test_parser_builder_with_field_count_limits() {
         0x00, 0x07, 0x00, 0x02, // field: src_port (2 bytes)
     ];
 
-    let result = parser.parse_bytes(&v9_3field_template);
+    let _result = parser.parse_bytes(&v9_3field_template);
     // Template should be rejected — parser should not have it cached
     assert!(
         !parser.has_v9_template(256),
