@@ -127,4 +127,3 @@ fn test_scoped_parser_with_builder() {
     let packets = parser.parse_from_source(source, &v5_packet).packets;
     assert_eq!(packets.len(), 1);
 }
-

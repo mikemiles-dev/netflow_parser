@@ -115,7 +115,6 @@ impl CacheMetrics {
             pending_replay_failed: self.pending_replay_failed,
         }
     }
-
 }
 
 /// A point-in-time snapshot of cache metrics.
@@ -217,5 +216,4 @@ mod tests {
         assert_eq!(snapshot.miss_rate(), Some(0.25));
         assert_eq!(snapshot.total_lookups(), 4);
     }
-
 }

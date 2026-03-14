@@ -293,7 +293,8 @@ fn test_rapid_template_collisions() {
             .flowsets
             .iter()
             .filter_map(|fs| {
-                if let netflow_parser::variable_versions::v9::FlowSetBody::Data(data) = &fs.body {
+                if let netflow_parser::variable_versions::v9::FlowSetBody::Data(data) = &fs.body
+                {
                     Some(data)
                 } else {
                     None
