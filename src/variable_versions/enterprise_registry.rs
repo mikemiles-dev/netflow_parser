@@ -158,9 +158,10 @@ impl EnterpriseFieldRegistry {
         // Always allow replacements of existing keys
         if !self.fields.contains_key(&key)
             && let Some(max) = self.max_capacity
-                && self.fields.len() >= max {
-                    return false;
-                }
+            && self.fields.len() >= max
+        {
+            return false;
+        }
         self.fields.insert(key, def);
         true
     }

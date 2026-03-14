@@ -255,9 +255,10 @@ pub trait ParserConfig: ParserFields {
             return Err(ConfigError::InvalidErrorSampleSize);
         }
         if let Some(ref ttl) = config.ttl_config
-            && ttl.duration.is_zero() {
-                return Err(ConfigError::InvalidTtlDuration);
-            }
+            && ttl.duration.is_zero()
+        {
+            return Err(ConfigError::InvalidTtlDuration);
+        }
         if let Some(ref pf) = config.pending_flows_config {
             PendingFlowCache::validate_config(pf)?;
         }
@@ -289,9 +290,10 @@ pub trait ParserConfig: ParserFields {
     /// Set the TTL configuration for templates
     fn set_ttl_config(&mut self, ttl_config: Option<TtlConfig>) -> Result<(), ConfigError> {
         if let Some(ref ttl) = ttl_config
-            && ttl.duration.is_zero() {
-                return Err(ConfigError::InvalidTtlDuration);
-            }
+            && ttl.duration.is_zero()
+        {
+            return Err(ConfigError::InvalidTtlDuration);
+        }
         self.set_ttl_config_field(ttl_config);
         Ok(())
     }
