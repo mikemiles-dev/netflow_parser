@@ -73,10 +73,7 @@ fn test_error_sample_size_bounded() {
                 max_sample
             );
         }
-        other => panic!(
-            "expected UnsupportedVersion error, got {:?}",
-            other
-        ),
+        other => panic!("expected UnsupportedVersion error, got {:?}", other),
     }
 }
 
