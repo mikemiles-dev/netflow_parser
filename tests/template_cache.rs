@@ -127,3 +127,59 @@ fn test_different_cache_sizes() {
     let ipfix_stats = parser.ipfix_cache_stats();
     assert_eq!(ipfix_stats.max_size_per_cache, 1500);
 }
+
+// Verify that template_ids() returns cached template IDs after parsing a template
+#[test]
+fn test_template_ids_after_parsing() {
+    let mut parser = NetflowParser::default();
+
+    // V9 template packet: template ID 256 with 1 field (IN_BYTES, 4 bytes)
+    let v9_template_packet: Vec<u8> = vec![
+        0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 12, 1, 0, 0, 1, 0,
+        1, 0, 4,
+    ];
+    let _ = parser.parse_bytes(&v9_template_packet);
+
+    let v9_templates = parser.v9_template_ids();
+    assert!(
+        v9_templates.contains(&256),
+        "V9 template IDs should include 256 after parsing template"
+    );
+    assert!(
+        parser.has_v9_template(256),
+        "has_v9_template(256) should return true after caching"
+    );
+}
+
+// Verify that hit_rate returns a meaningful value after hits and misses
+#[test]
+fn test_hit_rate_after_activity() {
+    let mut parser = NetflowParser::default();
+
+    // V9 template packet: template ID 256 with 1 field (IN_BYTES, 4 bytes)
+    let v9_template_packet: Vec<u8> = vec![
+        0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 12, 1, 0, 0, 1, 0,
+        1, 0, 4,
+    ];
+    let _ = parser.parse_bytes(&v9_template_packet);
+
+    // V9 data packet using template 256 (should hit)
+    let v9_data_packet: Vec<u8> = vec![
+        0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1,
+        0, // flowset_id = 256
+        0, 8, // length = 8
+        0, 0, 0, 42, // IN_BYTES = 42
+    ];
+    let _ = parser.parse_bytes(&v9_data_packet);
+
+    let stats = parser.v9_cache_stats();
+    let hit_rate = stats.metrics.hit_rate();
+    assert!(
+        hit_rate.is_some(),
+        "hit_rate should return Some after cache activity"
+    );
+    assert!(
+        hit_rate.unwrap() > 0.0,
+        "hit_rate should be positive after a cache hit"
+    );
+}

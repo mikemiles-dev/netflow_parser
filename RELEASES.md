@@ -235,7 +235,7 @@
 * **`NetflowPacketIterator` now implements `Debug`**
   - Shows `remaining_bytes` count and `errored` state for easier debugging
 
-* **Added `rust-version = "1.87"` to `Cargo.toml`**
+* **Added `rust-version = "1.88"` to `Cargo.toml`**
   - Documents the minimum supported Rust version required by the crate
 
 * **IPFIX header length validation**

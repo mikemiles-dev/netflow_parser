@@ -128,6 +128,8 @@ impl PartialEq for NoTemplateInfo {
     }
 }
 
+impl Eq for NoTemplateInfo {}
+
 /// Calculate padding needed to align `body_size` to a 4-byte boundary.
 /// `body_size` should be the flowset body length *excluding* the 4-byte set header
 /// (since the header is already aligned, `(header + body) % 4 == body % 4`).

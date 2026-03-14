@@ -539,4 +539,24 @@ mod protocol_lookup_tests {
         let protocols = (0..=144).map(ProtocolTypes::from).collect::<Vec<_>>();
         assert_yaml_snapshot!(protocols);
     }
+
+    #[test]
+    fn it_tests_unknown_and_reserved_protocols() {
+        // Values 145-254 should all map to Unknown(n)
+        for i in 145..=254u8 {
+            assert_eq!(ProtocolTypes::from(i), ProtocolTypes::Unknown(i));
+        }
+        // Value 255 should map to Reserved
+        assert_eq!(ProtocolTypes::from(255u8), ProtocolTypes::Reserved);
+    }
+
+    #[test]
+    fn it_tests_protocol_round_trip() {
+        // Every u8 value should round-trip: u8 -> ProtocolTypes -> u8
+        for i in 0..=255u8 {
+            let protocol = ProtocolTypes::from(i);
+            let back: u8 = protocol.into();
+            assert_eq!(i, back, "round-trip failed for protocol {i}");
+        }
+    }
 }

@@ -27,8 +27,8 @@ use nom::combinator::map_res;
 use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
-pub const DATA_TEMPLATE_V9_ID: u16 = 0;
-pub const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
+pub(crate) const DATA_TEMPLATE_V9_ID: u16 = 0;
+pub(crate) const OPTIONS_TEMPLATE_V9_ID: u16 = 1;
 
 use super::calculate_padding;
 use super::{DEFAULT_MAX_TEMPLATE_CACHE_SIZE, MAX_FIELD_COUNT, TemplateId};
@@ -171,7 +171,8 @@ pub struct TemplateField {
 }
 
 /// Default record limit for `OptionsData::parse` to prevent unbounded allocation.
-const OPTIONS_DATA_DEFAULT_LIMIT: usize = 10_000;
+const OPTIONS_DATA_DEFAULT_LIMIT: usize =
+    crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct OptionsData {
@@ -212,9 +213,9 @@ impl OptionsData {
     }
 }
 
-pub struct ScopeParser;
+pub(crate) struct ScopeParser;
 
-pub struct OptionsFieldParser;
+pub(crate) struct OptionsFieldParser;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(template: &OptionsTemplate))]
@@ -275,9 +276,9 @@ impl Data {
     }
 }
 
-pub struct FlowSetParser;
+pub(crate) struct FlowSetParser;
 
-pub struct FieldParser;
+pub(crate) struct FieldParser;
 
 // complete is needed by OptionsData::parse_with_limit
 use nom::combinator::complete;

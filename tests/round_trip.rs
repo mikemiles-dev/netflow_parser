@@ -181,6 +181,178 @@ fn test_ipfix_template_only_round_trip() {
 }
 
 // ---------------------------------------------------------------------------
+// V9 options template + data round-trip
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_v9_options_template_and_data_round_trip() {
+    // V9 options template: flowset_id=1
+    // Template ID=257, scope_length=4 (1 scope field), options_length=4 (1 option field)
+    // Scope field: System(1), length=4
+    // Option field: TotalFlowsExp(42), length=4
+    //
+    // V9 header (20 bytes) + options template flowset:
+    //   flowset_id=1, flowset_length=18 (4 header + 6 template header + 8 fields) + 2 padding = 20
+    let mut parser = NetflowParser::builder()
+        .with_cache_size(100)
+        .build()
+        .unwrap();
+
+    // Build options template packet manually
+    let mut template_packet = Vec::new();
+    // V9 header
+    template_packet.extend_from_slice(&9u16.to_be_bytes()); // version
+    template_packet.extend_from_slice(&1u16.to_be_bytes()); // count=1
+    template_packet.extend_from_slice(&0u32.to_be_bytes()); // sys_up_time
+    template_packet.extend_from_slice(&0u32.to_be_bytes()); // unix_secs
+    template_packet.extend_from_slice(&1u32.to_be_bytes()); // seq
+    template_packet.extend_from_slice(&1u32.to_be_bytes()); // source_id
+    // Options template flowset
+    template_packet.extend_from_slice(&1u16.to_be_bytes()); // flowset_id=1 (options template)
+    template_packet.extend_from_slice(&20u16.to_be_bytes()); // length=20 (4 header + 14 body + 2 padding)
+    // template body: template_id + scope_length + options_length + scope_fields + option_fields
+    template_packet.extend_from_slice(&257u16.to_be_bytes()); // template_id=257
+    template_packet.extend_from_slice(&4u16.to_be_bytes()); // options_scope_length=4 (1 field * 4 bytes)
+    template_packet.extend_from_slice(&4u16.to_be_bytes()); // options_length=4 (1 field * 4 bytes)
+    template_packet.extend_from_slice(&1u16.to_be_bytes()); // scope field type=1 (System)
+    template_packet.extend_from_slice(&4u16.to_be_bytes()); // scope field length=4
+    template_packet.extend_from_slice(&42u16.to_be_bytes()); // option field type=42 (TotalFlowsExp)
+    template_packet.extend_from_slice(&4u16.to_be_bytes()); // option field length=4
+    // 2 bytes padding to 4-byte alignment (14 body bytes -> need 2 padding)
+    template_packet.extend_from_slice(&[0u8; 2]);
+
+    let result = parser.parse_bytes(&template_packet);
+    assert!(
+        result.error.is_none(),
+        "V9 options template parse failed: {:?}",
+        result.error
+    );
+
+    if let Some(NetflowPacket::V9(v9)) = result.packets.first() {
+        let serialized = v9
+            .to_be_bytes()
+            .expect("V9 options template serialization failed");
+        assert_eq!(
+            serialized, template_packet,
+            "V9 options template round-trip failed"
+        );
+    } else {
+        panic!("Expected V9 options template packet");
+    }
+
+    // Now send options data using template 257
+    let mut data_packet = Vec::new();
+    // V9 header
+    data_packet.extend_from_slice(&9u16.to_be_bytes()); // version
+    data_packet.extend_from_slice(&1u16.to_be_bytes()); // count=1
+    data_packet.extend_from_slice(&0u32.to_be_bytes()); // sys_up_time
+    data_packet.extend_from_slice(&0u32.to_be_bytes()); // unix_secs
+    data_packet.extend_from_slice(&2u32.to_be_bytes()); // seq
+    data_packet.extend_from_slice(&1u32.to_be_bytes()); // source_id
+    // Options data flowset
+    data_packet.extend_from_slice(&257u16.to_be_bytes()); // flowset_id=257
+    data_packet.extend_from_slice(&12u16.to_be_bytes()); // length=12 (4 header + 8 data)
+    // scope data: 4 bytes for System scope
+    data_packet.extend_from_slice(&[0x01, 0x02, 0x03, 0x04]);
+    // option data: 4 bytes for TotalFlowsExp
+    data_packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x2A]);
+
+    let data_result = parser.parse_bytes(&data_packet);
+    assert!(
+        data_result.error.is_none(),
+        "V9 options data parse failed: {:?}",
+        data_result.error
+    );
+
+    if let Some(NetflowPacket::V9(v9)) = data_result.packets.first() {
+        let serialized = v9
+            .to_be_bytes()
+            .expect("V9 options data serialization failed");
+        assert_eq!(serialized, data_packet, "V9 options data round-trip failed");
+    } else {
+        panic!("Expected V9 options data packet");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// IPFIX options template + data round-trip
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_ipfix_options_template_and_data_round_trip() {
+    // IPFIX options template: Set ID=3
+    // Template ID=258, field_count=2, scope_field_count=1
+    // Scope field: sourceIPv4Address(8) len=4
+    // Non-scope field: egressInterface(14) len=4
+    let mut parser = NetflowParser::builder()
+        .with_cache_size(100)
+        .build()
+        .unwrap();
+
+    let template_set = {
+        let mut set = Vec::new();
+        set.extend_from_slice(&3u16.to_be_bytes()); // Set ID=3 (options template)
+        set.extend_from_slice(&20u16.to_be_bytes()); // length=20 (4 header + 14 body + 2 padding)
+        set.extend_from_slice(&258u16.to_be_bytes()); // template_id
+        set.extend_from_slice(&2u16.to_be_bytes()); // field_count=2
+        set.extend_from_slice(&1u16.to_be_bytes()); // scope_field_count=1
+        set.extend_from_slice(&8u16.to_be_bytes()); // field: sourceIPv4Address
+        set.extend_from_slice(&4u16.to_be_bytes()); // length=4
+        set.extend_from_slice(&14u16.to_be_bytes()); // field: egressInterface
+        set.extend_from_slice(&4u16.to_be_bytes()); // length=4
+        set.extend_from_slice(&[0u8; 2]); // padding to 4-byte alignment
+        set
+    };
+
+    let template_msg = build_ipfix_message(0x62A0B1B9, 20, 1, &template_set);
+    let result = parser.parse_bytes(&template_msg);
+    assert!(
+        result.error.is_none(),
+        "IPFIX options template parse failed: {:?}",
+        result.error
+    );
+
+    if let Some(NetflowPacket::IPFix(ipfix)) = result.packets.first() {
+        let serialized = ipfix
+            .to_be_bytes()
+            .expect("IPFIX options template serialization failed");
+        assert_eq!(
+            serialized, template_msg,
+            "IPFIX options template round-trip failed"
+        );
+    } else {
+        panic!("Expected IPFIX options template packet");
+    }
+
+    // Now send options data using template 258
+    let data_set = {
+        let mut set = Vec::new();
+        set.extend_from_slice(&258u16.to_be_bytes()); // Set ID=258
+        set.extend_from_slice(&12u16.to_be_bytes()); // length=12 (4 header + 8 data)
+        set.extend_from_slice(&[192, 168, 1, 1]); // sourceIPv4Address (scope)
+        set.extend_from_slice(&42u32.to_be_bytes()); // egressInterface (non-scope)
+        set
+    };
+
+    let data_msg = build_ipfix_message(0x62A0B1B9, 21, 1, &data_set);
+    let data_result = parser.parse_bytes(&data_msg);
+    assert!(
+        data_result.error.is_none(),
+        "IPFIX options data parse failed: {:?}",
+        data_result.error
+    );
+
+    if let Some(NetflowPacket::IPFix(ipfix)) = data_result.packets.first() {
+        let serialized = ipfix
+            .to_be_bytes()
+            .expect("IPFIX options data serialization failed");
+        assert_eq!(serialized, data_msg, "IPFIX options data round-trip failed");
+    } else {
+        panic!("Expected IPFIX options data packet");
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Individual IANA field type round-trips via FieldValue
 // ---------------------------------------------------------------------------
 

@@ -408,7 +408,7 @@ impl CommonTemplate for OptionsTemplate {
     }
 }
 
-pub struct FieldParser;
+pub(crate) struct FieldParser;
 
 // Rust-idiomatic naming aliases (additive, non-breaking)
 

@@ -1437,6 +1437,14 @@ impl NetflowParser {
         self.template_hooks.trigger(&event);
     }
 
+    /// Returns the total number of hook errors and panics encountered.
+    ///
+    /// Useful for monitoring hook health in production without affecting parsing.
+    #[inline]
+    pub fn hook_error_count(&self) -> u64 {
+        self.template_hooks.hook_error_count()
+    }
+
     /// Parses NetFlow packets from a byte slice, preserving all successfully parsed packets.
     ///
     /// This function parses packets in sequence and returns a [`ParseResult`] containing both
