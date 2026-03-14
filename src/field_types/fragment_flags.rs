@@ -48,6 +48,26 @@ impl From<FragmentFlags> for u8 {
     }
 }
 
+impl std::fmt::Display for FragmentFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut flags = Vec::new();
+        if self.dont_fragment {
+            flags.push("DF");
+        }
+        if self.more_fragments {
+            flags.push("MF");
+        }
+        if self.reserved {
+            flags.push("R");
+        }
+        if flags.is_empty() {
+            write!(f, "none")
+        } else {
+            write!(f, "{}", flags.join("|"))
+        }
+    }
+}
+
 impl PartialOrd for FragmentFlags {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))

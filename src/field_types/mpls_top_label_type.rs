@@ -44,6 +44,25 @@ impl MplsTopLabelType {
     }
 }
 
+impl std::fmt::Display for MplsTopLabelType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MplsTopLabelType::Unknown => write!(f, "Unknown"),
+            MplsTopLabelType::TeMidpoint => write!(f, "TE-MIDPT"),
+            MplsTopLabelType::Pseudowire => write!(f, "Pseudowire"),
+            MplsTopLabelType::Vpn => write!(f, "VPN"),
+            MplsTopLabelType::Bgp => write!(f, "BGP"),
+            MplsTopLabelType::Ldp => write!(f, "LDP"),
+            MplsTopLabelType::PathComputationElement => write!(f, "PCE"),
+            MplsTopLabelType::OspfV2SegmentRouting => write!(f, "OSPFv2-SR"),
+            MplsTopLabelType::OspfV3SegmentRouting => write!(f, "OSPFv3-SR"),
+            MplsTopLabelType::IsIsSegmentRouting => write!(f, "IS-IS-SR"),
+            MplsTopLabelType::BgpSegmentRoutingPrefixSid => write!(f, "BGP-SR-Prefix-SID"),
+            MplsTopLabelType::Unassigned(v) => write!(f, "Unassigned({v})"),
+        }
+    }
+}
+
 impl From<u8> for MplsTopLabelType {
     fn from(value: u8) -> Self {
         match value {

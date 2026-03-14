@@ -33,6 +33,12 @@ impl TcpOptions {
     }
 }
 
+impl std::fmt::Display for TcpOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "0x{:016X}", self.0)
+    }
+}
+
 impl From<u64> for TcpOptions {
     fn from(value: u64) -> Self {
         Self(value)

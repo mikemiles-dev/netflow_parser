@@ -457,6 +457,8 @@ impl PendingFlowCache {
         }
 
         self.config = config;
+        // Recalculate to correct any drift from cascaded saturating_sub operations.
+        self.recalculate_total_bytes();
         Ok(total_dropped)
     }
 

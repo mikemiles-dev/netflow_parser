@@ -138,6 +138,9 @@ impl ParserFields for IPFixParser {
     fn set_ttl_config_field(&mut self, config: Option<TtlConfig>) {
         self.ttl_config = config;
     }
+    fn set_enterprise_registry(&mut self, registry: Arc<EnterpriseFieldRegistry>) {
+        self.enterprise_registry = registry;
+    }
     fn pending_flows(&self) -> &Option<PendingFlowCache> {
         &self.pending_flows
     }
@@ -302,18 +305,20 @@ impl IPFixParser {
     ) {
         for &template_id in learned {
             let entries = cache.drain(template_id, &mut self.metrics);
-            for entry in entries {
+            let total_entries = entries.len();
+            for (processed, entry) in entries.iter().enumerate() {
                 let flowset_length =
                     u16::try_from(entry.raw_data.len().saturating_add(4)).unwrap_or(u16::MAX);
                 let Some(new_header_length) = ipfix.header.length.checked_add(flowset_length)
                 else {
-                    self.metrics.record_pending_replay_failed();
-                    // Stop replaying this template — remaining entries would also
-                    // overflow the header length. They are already drained from
-                    // the cache so we just count them as failed.
+                    // Count this entry plus all remaining as failed.
+                    let remaining = (total_entries - processed) as u64;
+                    for _ in 0..remaining {
+                        self.metrics.record_pending_replay_failed();
+                    }
                     break;
                 };
-                if self.try_replay_ipfix_flow(&mut ipfix.flowsets, template_id, &entry) {
+                if self.try_replay_ipfix_flow(&mut ipfix.flowsets, template_id, entry) {
                     self.metrics.record_pending_replayed();
                     ipfix.header.length = new_header_length;
                 } else {
@@ -583,13 +588,30 @@ impl IPFixParser {
     }
 
     /// Remove an IPFIX template by ID (RFC 7011 Section 3.4.3 template withdrawal).
+    /// Also purges any pending flows cached under this template ID to prevent
+    /// stale data from being replayed against a replacement template.
     fn withdraw_ipfix_template(&mut self, template_id: u16) {
         self.templates.pop(&template_id);
+        if let Some(ref mut cache) = self.pending_flows {
+            let drained = cache.drain(template_id, &mut self.metrics);
+            let n = drained.len() as u64;
+            if n > 0 {
+                self.metrics.record_pending_dropped_n(n);
+            }
+        }
     }
 
     /// Remove an IPFIX options template by ID (template withdrawal).
+    /// Also purges any pending flows cached under this template ID.
     fn withdraw_ipfix_options_template(&mut self, template_id: u16) {
         self.ipfix_options_templates.pop(&template_id);
+        if let Some(ref mut cache) = self.pending_flows {
+            let drained = cache.drain(template_id, &mut self.metrics);
+            let n = drained.len() as u64;
+            if n > 0 {
+                self.metrics.record_pending_dropped_n(n);
+            }
+        }
     }
 }
 

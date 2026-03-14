@@ -13,8 +13,13 @@ pub struct TtlConfig {
 }
 
 impl TtlConfig {
-    /// Create a new TTL configuration with the specified duration
+    /// Create a new TTL configuration with the specified duration.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `duration` is zero. Use a non-zero duration.
     pub fn new(duration: Duration) -> Self {
+        assert!(!duration.is_zero(), "TTL duration must be greater than zero");
         Self { duration }
     }
 }

@@ -135,7 +135,13 @@ impl EnterpriseFieldRegistry {
     /// Once the limit is reached, further [`register`](Self::register) calls
     /// that would insert new entries are silently ignored. Replacements of
     /// existing `(enterprise_number, field_number)` pairs are always allowed.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `max` is 0. A zero-capacity registry would silently drop
+    /// every registration attempt.
     pub fn with_max_capacity(max: usize) -> Self {
+        assert!(max > 0, "EnterpriseFieldRegistry max_capacity must be > 0");
         Self {
             fields: HashMap::new(),
             max_capacity: Some(max),

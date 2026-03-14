@@ -132,6 +132,40 @@ impl From<Ipv4Options> for u32 {
     }
 }
 
+impl std::fmt::Display for Ipv4Options {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut opts = Vec::new();
+        if self.rr { opts.push("RR"); }
+        if self.cipso { opts.push("CIPSO"); }
+        if self.e_sec { opts.push("E-SEC"); }
+        if self.ts { opts.push("TS"); }
+        if self.lsr { opts.push("LSR"); }
+        if self.sec { opts.push("SEC"); }
+        if self.nop { opts.push("NOP"); }
+        if self.eool { opts.push("EOOL"); }
+        if self.encode { opts.push("ENCODE"); }
+        if self.visa { opts.push("VISA"); }
+        if self.finn { opts.push("FINN"); }
+        if self.mtur { opts.push("MTUR"); }
+        if self.mtup { opts.push("MTUP"); }
+        if self.zsu { opts.push("ZSU"); }
+        if self.ssr { opts.push("SSR"); }
+        if self.sid { opts.push("SID"); }
+        if self.dps { opts.push("DPS"); }
+        if self.nsapa { opts.push("NSAPA"); }
+        if self.sdb { opts.push("SDB"); }
+        if self.rtralt { opts.push("RTRALT"); }
+        if self.tr { opts.push("TR"); }
+        if self.eip { opts.push("EIP"); }
+        if self.imitd { opts.push("IMITD"); }
+        if opts.is_empty() {
+            write!(f, "none")
+        } else {
+            write!(f, "{}", opts.join("|"))
+        }
+    }
+}
+
 impl PartialOrd for Ipv4Options {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
