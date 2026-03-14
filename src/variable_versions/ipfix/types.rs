@@ -356,10 +356,7 @@ pub(crate) trait CommonTemplate {
         // share the same (field_type_number, enterprise_number) — they live in
         // different conceptual arrays.  For regular Templates (no scope fields),
         // this degenerates to a single-pass check over all fields.
-        let scope_count = self
-            .get_scope_field_count()
-            .map(usize::from)
-            .unwrap_or(0);
+        let scope_count = self.get_scope_field_count().map(usize::from).unwrap_or(0);
         let fields = self.get_fields();
 
         let mut seen = std::collections::HashSet::with_capacity(fields.len());

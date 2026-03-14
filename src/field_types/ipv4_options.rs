@@ -233,7 +233,10 @@ mod ipv4_options_tests {
         assert_eq!(Ipv4Options::from(0u32).to_string(), "none");
         assert_eq!(Ipv4Options::from(1u32).to_string(), "RR");
         assert_eq!(Ipv4Options::from(0x60u32).to_string(), "SEC|NOP");
-        assert_eq!(Ipv4Options::from(0x7Fu32).to_string(), "RR|CIPSO|E-SEC|TS|LSR|SEC|NOP");
+        assert_eq!(
+            Ipv4Options::from(0x7Fu32).to_string(),
+            "RR|CIPSO|E-SEC|TS|LSR|SEC|NOP"
+        );
     }
 
     #[test]

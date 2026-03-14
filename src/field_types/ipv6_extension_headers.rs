@@ -112,7 +112,10 @@ mod ipv6_extension_headers_tests {
         assert_eq!(Ipv6ExtensionHeaders::from(0u32).to_string(), "none");
         assert_eq!(Ipv6ExtensionHeaders::from(1u32).to_string(), "DST");
         assert_eq!(Ipv6ExtensionHeaders::from(0x03u32).to_string(), "DST|FRAG");
-        assert_eq!(Ipv6ExtensionHeaders::from(0x3Fu32).to_string(), "DST|FRAG|HBH|RT|AH|ESP");
+        assert_eq!(
+            Ipv6ExtensionHeaders::from(0x3Fu32).to_string(),
+            "DST|FRAG|HBH|RT|AH|ESP"
+        );
     }
 
     #[test]

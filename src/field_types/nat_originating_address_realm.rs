@@ -76,7 +76,10 @@ mod nat_originating_address_realm_tests {
     fn test_display() {
         assert_eq!(NatOriginatingAddressRealm::from(1).to_string(), "Private");
         assert_eq!(NatOriginatingAddressRealm::from(2).to_string(), "Public");
-        assert_eq!(NatOriginatingAddressRealm::from(0).to_string(), "Unknown(0)");
+        assert_eq!(
+            NatOriginatingAddressRealm::from(0).to_string(),
+            "Unknown(0)"
+        );
     }
 
     #[test]
