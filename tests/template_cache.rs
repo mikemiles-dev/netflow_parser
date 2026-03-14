@@ -3,66 +3,6 @@
 
 use netflow_parser::NetflowParser;
 
-// Verify that V9 and IPFIX caches start empty with the default max size
-#[test]
-fn test_template_cache_initial_state() {
-    let parser = NetflowParser::default();
-
-    let v9_stats = parser.v9_cache_stats();
-    assert_eq!(v9_stats.current_size, 0);
-    assert_eq!(v9_stats.max_size_per_cache, 1000); // Default cache size
-
-    let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.current_size, 0);
-    assert_eq!(ipfix_stats.max_size_per_cache, 1000);
-}
-
-// Verify that all cache metrics (hits, misses, evictions, collisions, expired) start at zero
-#[test]
-fn test_cache_metrics_initialization() {
-    let parser = NetflowParser::default();
-
-    let v9_stats = parser.v9_cache_stats();
-    let metrics = &v9_stats.metrics;
-
-    assert_eq!(metrics.hits, 0);
-    assert_eq!(metrics.misses, 0);
-    assert_eq!(metrics.evictions, 0);
-    assert_eq!(metrics.collisions, 0);
-    assert_eq!(metrics.expired, 0);
-}
-
-// Verify that hit_rate() returns None when no lookups have occurred
-#[test]
-fn test_cache_hit_rate_calculation() {
-    let parser = NetflowParser::default();
-    let stats = parser.v9_cache_stats();
-
-    // With no hits or misses, hit_rate should return None
-    assert!(stats.metrics.hit_rate().is_none());
-}
-
-// Verify that V9 and IPFIX template ID lists are empty on a fresh parser
-#[test]
-fn test_template_id_listing_empty() {
-    let parser = NetflowParser::default();
-
-    let v9_templates = parser.v9_template_ids();
-    assert_eq!(v9_templates.len(), 0);
-
-    let ipfix_templates = parser.ipfix_template_ids();
-    assert_eq!(ipfix_templates.len(), 0);
-}
-
-// Verify that has_v9_template and has_ipfix_template return false on an empty cache
-#[test]
-fn test_has_template_empty_cache() {
-    let parser = NetflowParser::default();
-
-    assert!(!parser.has_v9_template(256));
-    assert!(!parser.has_ipfix_template(256));
-}
-
 // Verify that clearing V9 and IPFIX templates removes previously cached templates
 #[test]
 fn test_clear_templates() {

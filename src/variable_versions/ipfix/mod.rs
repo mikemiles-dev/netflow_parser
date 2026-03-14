@@ -353,8 +353,13 @@ pub(crate) trait CommonTemplate {
         {
             return false;
         }
-        // Check fields are not empty and have at least one non-zero length field
-        if self.get_fields().is_empty() || !self.get_fields().iter().any(|f| f.field_length > 0)
+        // Check fields are not empty and no field has zero length
+        // (field_length=65535 is the RFC 7011 variable-length sentinel, which is valid)
+        if self.get_fields().is_empty()
+            || self
+                .get_fields()
+                .iter()
+                .any(|f| f.field_length == 0)
         {
             return false;
         }

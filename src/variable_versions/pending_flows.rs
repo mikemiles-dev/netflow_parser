@@ -17,6 +17,7 @@ use std::time::{Duration, Instant};
 /// re-parsed and included in the output.
 ///
 /// Disabled by default; enable via the builder pattern.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct PendingFlowsConfig {
     /// Maximum number of template IDs to track in the LRU pending cache.
@@ -421,6 +422,8 @@ impl PendingFlowCache {
         config: PendingFlowsConfig,
         metrics: &mut CacheMetrics,
     ) -> Result<u64, ConfigError> {
+        // Validate the full config, not just max_pending_flows
+        Self::validate_config(&config)?;
         let size = NonZeroUsize::new(config.max_pending_flows).ok_or(
             ConfigError::InvalidPendingCacheSize(config.max_pending_flows),
         )?;

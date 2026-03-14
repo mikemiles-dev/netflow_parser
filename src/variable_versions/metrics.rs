@@ -36,67 +36,67 @@ impl CacheMetrics {
 
     /// Record a cache hit
     #[inline]
-    pub fn record_hit(&mut self) {
+    pub(crate) fn record_hit(&mut self) {
         self.hits = self.hits.saturating_add(1);
     }
 
     /// Record a cache miss
     #[inline]
-    pub fn record_miss(&mut self) {
+    pub(crate) fn record_miss(&mut self) {
         self.misses = self.misses.saturating_add(1);
     }
 
     /// Record a template eviction
     #[inline]
-    pub fn record_eviction(&mut self) {
+    pub(crate) fn record_eviction(&mut self) {
         self.evictions = self.evictions.saturating_add(1);
     }
 
     /// Record a template expiration
     #[inline]
-    pub fn record_expiration(&mut self) {
+    pub(crate) fn record_expiration(&mut self) {
         self.expired = self.expired.saturating_add(1);
     }
 
     /// Record a template insertion
     #[inline]
-    pub fn record_insertion(&mut self) {
+    pub(crate) fn record_insertion(&mut self) {
         self.insertions = self.insertions.saturating_add(1);
     }
 
     /// Record a template collision (same ID, different definition)
     #[inline]
-    pub fn record_collision(&mut self) {
+    pub(crate) fn record_collision(&mut self) {
         self.collisions = self.collisions.saturating_add(1);
     }
 
     /// Record a flow cached as pending (awaiting template)
     #[inline]
-    pub fn record_pending_cached(&mut self) {
+    pub(crate) fn record_pending_cached(&mut self) {
         self.pending_cached = self.pending_cached.saturating_add(1);
     }
 
     /// Record a pending flow successfully replayed
     #[inline]
-    pub fn record_pending_replayed(&mut self) {
+    pub(crate) fn record_pending_replayed(&mut self) {
         self.pending_replayed = self.pending_replayed.saturating_add(1);
     }
 
     /// Record a pending flow dropped (expired or evicted)
     #[inline]
-    pub fn record_pending_dropped(&mut self) {
+    pub(crate) fn record_pending_dropped(&mut self) {
         self.pending_dropped = self.pending_dropped.saturating_add(1);
     }
 
     /// Record multiple pending flows dropped at once
     #[inline]
-    pub fn record_pending_dropped_n(&mut self, n: u64) {
+    pub(crate) fn record_pending_dropped_n(&mut self, n: u64) {
         self.pending_dropped = self.pending_dropped.saturating_add(n);
     }
 
     /// Record a pending flow that failed to replay (parse error)
     #[inline]
-    pub fn record_pending_replay_failed(&mut self) {
+    pub(crate) fn record_pending_replay_failed(&mut self) {
         self.pending_replay_failed = self.pending_replay_failed.saturating_add(1);
     }
 
@@ -116,16 +116,13 @@ impl CacheMetrics {
         }
     }
 
-    /// Reset all metrics to zero
-    pub fn reset(&mut self) {
-        *self = Self::default();
-    }
 }
 
 /// A point-in-time snapshot of cache metrics.
 ///
 /// This provides a consistent view of metrics without requiring atomic operations
 /// for each field access.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CacheMetricsSnapshot {
     /// Number of successful template lookups (cache hits)
@@ -221,17 +218,4 @@ mod tests {
         assert_eq!(snapshot.total_lookups(), 4);
     }
 
-    // Verify reset zeroes all counters
-    #[test]
-    fn test_reset() {
-        let mut metrics = CacheMetrics::new();
-
-        metrics.record_hit();
-        metrics.record_miss();
-        metrics.reset();
-
-        let snapshot = metrics.snapshot();
-        assert_eq!(snapshot.hits, 0);
-        assert_eq!(snapshot.misses, 0);
-    }
 }

@@ -145,7 +145,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     /// Returns `ConfigError::InvalidMaxSources` if `max` is 0.
     pub fn with_max_sources(mut self, max: usize) -> Result<Self, ConfigError> {
         if max == 0 {
-            return Err(ConfigError::InvalidMaxSources);
+            return Err(ConfigError::InvalidMaxSources(0));
         }
         self.max_sources = max;
         self.parsers
@@ -598,7 +598,7 @@ impl AutoScopedParser {
     /// Returns `ConfigError::InvalidMaxSources` if `max` is 0.
     pub fn with_max_sources(mut self, max: usize) -> Result<Self, ConfigError> {
         if max == 0 {
-            return Err(ConfigError::InvalidMaxSources);
+            return Err(ConfigError::InvalidMaxSources(0));
         }
         self.max_sources = max;
         // Size each per-protocol LRU cache to max. The global cross-cache

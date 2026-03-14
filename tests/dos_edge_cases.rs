@@ -286,6 +286,34 @@ fn test_rapid_template_collisions() {
         "Data packet should parse with new template"
     );
     assert_eq!(result3.packets.len(), 1, "Should have parsed 1 packet");
+
+    // Verify the parsed data actually uses the overridden 2-field template
+    if let NetflowPacket::V9(v9) = &result3.packets[0] {
+        let data_flowsets: Vec<_> = v9
+            .flowsets
+            .iter()
+            .filter_map(|fs| {
+                if let netflow_parser::variable_versions::v9::FlowSetBody::Data(data) = &fs.body {
+                    Some(data)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        assert_eq!(data_flowsets.len(), 1, "Should have 1 data flowset");
+        assert_eq!(
+            data_flowsets[0].fields.len(),
+            1,
+            "Should have 1 data record"
+        );
+        assert_eq!(
+            data_flowsets[0].fields[0].len(),
+            2,
+            "Record should have 2 fields (from the overridden template)"
+        );
+    } else {
+        panic!("Expected V9 packet");
+    }
 }
 
 /// Test cache metrics accuracy under load
@@ -422,8 +450,8 @@ fn test_malformed_flowset_length() {
 
     // Should handle gracefully (incomplete or parse error)
     assert!(
-        result.error.is_some() || result.packets.is_empty(),
-        "Should handle malformed length gracefully"
+        result.error.is_some(),
+        "Malformed flowset length must produce an error"
     );
 }
 

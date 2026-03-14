@@ -70,30 +70,7 @@ impl Default for V9Parser {
 impl V9Parser {
     /// Validates a configuration without allocating parser internals.
     pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
-        NonZeroUsize::new(config.max_template_cache_size).ok_or(
-            ConfigError::InvalidCacheSize(config.max_template_cache_size),
-        )?;
-        if config.max_field_count == 0 {
-            return Err(ConfigError::InvalidFieldCount(0));
-        }
-        if config.max_template_total_size == 0 {
-            return Err(ConfigError::InvalidTemplateTotalSize(0));
-        }
-        if config.max_records_per_flowset == 0 {
-            return Err(ConfigError::InvalidRecordsPerFlowset(0));
-        }
-        if config.max_error_sample_size == 0 {
-            return Err(ConfigError::InvalidErrorSampleSize);
-        }
-        if let Some(ref ttl) = config.ttl_config
-            && ttl.duration.is_zero()
-        {
-            return Err(ConfigError::InvalidTtlDuration);
-        }
-        if let Some(ref pf) = config.pending_flows_config {
-            PendingFlowCache::validate_config(pf)?;
-        }
-        Ok(())
+        config.validate()
     }
 
     /// Create a new V9 with a custom template cache size and optional TTL configuration.
@@ -534,8 +511,9 @@ impl Template {
             return false;
         }
 
-        // Check fields are not empty and have at least one non-zero length field
-        if self.fields.is_empty() || !self.fields.iter().any(|f| f.field_length > 0) {
+        // Check fields are not empty and all fields have non-zero length
+        // (V9 does not support variable-length fields, so every field must have a concrete size)
+        if self.fields.is_empty() || self.fields.iter().any(|f| f.field_length == 0) {
             return false;
         }
 

@@ -49,6 +49,11 @@ pub use variable_versions::{
 pub use variable_versions::ipfix::lookup::IpfixField;
 pub use variable_versions::ipfix::{Ipfix, IpfixFieldPair, IpfixFlowRecord, IpfixParser};
 
+// Re-export commonly used field/data types
+pub use variable_versions::field_value::{DataNumber, FieldDataType, FieldValue};
+pub use variable_versions::v9::lookup::V9Field;
+pub use variable_versions::v9::{V9FieldPair, V9FlowRecord};
+
 /// Enum of supported Netflow Versions
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum NetflowPacket {
@@ -233,6 +238,7 @@ pub struct NetflowParser {
 }
 
 /// Statistics about template cache utilization.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct CacheStats {
     /// Current number of cached templates (summed across all internal caches).
@@ -260,6 +266,7 @@ pub struct CacheStats {
 ///
 /// This struct provides named fields instead of positional tuples,
 /// making it clear which stats belong to V9 vs IPFIX.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct ParserCacheStats {
     /// V9 template cache statistics
@@ -891,6 +898,7 @@ pub(crate) enum ParsedNetflow<'a> {
 ///
 /// Provides rich context about parsing failures including offset, error kind,
 /// and relevant data for debugging.
+#[non_exhaustive]
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum NetflowError {
     /// Incomplete data - more bytes needed to parse a complete packet.
@@ -923,22 +931,6 @@ pub enum NetflowError {
     FilteredVersion {
         /// The version number that was filtered
         version: u16,
-    },
-
-    /// Template definition is required but not found in cache.
-    ///
-    /// For V9 and IPFIX, data packets reference template IDs that must be
-    /// learned from template packets. This error occurs when data arrives
-    /// before (or without) its corresponding template.
-    MissingTemplate {
-        /// The template ID that was not found
-        template_id: u16,
-        /// The protocol (V9 or IPFIX)
-        protocol: TemplateProtocol,
-        /// List of currently cached template IDs for this protocol
-        available_templates: Vec<u16>,
-        /// Raw packet data that couldn't be parsed
-        raw_data: Vec<u8>,
     },
 
     /// Parsing error with detailed context.
@@ -989,18 +981,6 @@ impl std::fmt::Display for NetflowError {
                     f,
                     "NetFlow version {} filtered out by allowed_versions configuration",
                     version
-                )
-            }
-            NetflowError::MissingTemplate {
-                template_id,
-                protocol,
-                available_templates,
-                ..
-            } => {
-                write!(
-                    f,
-                    "Missing template {} for {:?} (available: {:?})",
-                    template_id, protocol, available_templates
                 )
             }
             NetflowError::ParseError {
@@ -1380,6 +1360,7 @@ impl NetflowParser {
     pub fn clear_v9_templates(&mut self) {
         self.v9_parser.templates.clear();
         self.v9_parser.options_templates.clear();
+        self.v9_parser.clear_pending_flows();
     }
 
     /// Clears all cached IPFIX templates.
@@ -1399,6 +1380,7 @@ impl NetflowParser {
         self.ipfix_parser.v9_templates.clear();
         self.ipfix_parser.ipfix_options_templates.clear();
         self.ipfix_parser.v9_options_templates.clear();
+        self.ipfix_parser.clear_pending_flows();
     }
 
     /// Clears all pending V9 flows.

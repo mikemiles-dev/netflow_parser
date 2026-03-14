@@ -26,6 +26,7 @@ pub const DEFAULT_MAX_RECORDS_PER_FLOWSET: usize = 1024;
 /// Controls template cache size, field limits, TTL, enterprise field definitions,
 /// and pending flow caching. Use [`Config::new`] for defaults or construct directly
 /// for full control.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Maximum number of templates to keep in the LRU cache.
@@ -54,6 +55,7 @@ pub struct Config {
     pub pending_flows_config: Option<PendingFlowsConfig>,
 }
 
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfigError {
     /// Template cache size must be greater than 0
@@ -82,9 +84,9 @@ pub enum ConfigError {
         max_entry_size_bytes: usize,
     },
     /// max_sources must be greater than 0
-    InvalidMaxSources,
+    InvalidMaxSources(usize),
     /// max_error_sample_size must be greater than 0
-    InvalidErrorSampleSize,
+    InvalidErrorSampleSize(usize),
 }
 
 impl std::error::Error for ConfigError {}
@@ -167,11 +169,15 @@ impl std::fmt::Display for ConfigError {
                     max_total_bytes, max_entry_size_bytes
                 )
             }
-            ConfigError::InvalidMaxSources => {
-                write!(f, "Invalid max_sources: must be greater than 0.")
+            ConfigError::InvalidMaxSources(size) => {
+                write!(f, "Invalid max_sources: {}. Must be greater than 0.", size)
             }
-            ConfigError::InvalidErrorSampleSize => {
-                write!(f, "Invalid max_error_sample_size: must be greater than 0.")
+            ConfigError::InvalidErrorSampleSize(size) => {
+                write!(
+                    f,
+                    "Invalid max_error_sample_size: {}. Must be greater than 0.",
+                    size
+                )
             }
         }
     }
@@ -233,7 +239,7 @@ impl Config {
             return Err(ConfigError::InvalidRecordsPerFlowset(0));
         }
         if self.max_error_sample_size == 0 {
-            return Err(ConfigError::InvalidErrorSampleSize);
+            return Err(ConfigError::InvalidErrorSampleSize(0));
         }
         if let Some(ref ttl) = self.ttl_config
             && ttl.duration.is_zero()
@@ -286,7 +292,7 @@ pub trait ParserConfig: ParserFields {
             return Err(ConfigError::InvalidRecordsPerFlowset(0));
         }
         if config.max_error_sample_size == 0 {
-            return Err(ConfigError::InvalidErrorSampleSize);
+            return Err(ConfigError::InvalidErrorSampleSize(0));
         }
         if let Some(ref ttl) = config.ttl_config
             && ttl.duration.is_zero()

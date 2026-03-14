@@ -489,7 +489,7 @@ for result in parser.iter_packets(&buffer) {
 }
 ```
 
-**Error types**: `Incomplete`, `UnsupportedVersion`, `Partial`, `MissingTemplate`, `ParseError`. All implement `Display` and `std::error::Error`.
+**Error types**: `Incomplete`, `UnsupportedVersion`, `FilteredVersion`, `ParseError`, `Partial`. All implement `Display` and `std::error::Error`.
 
 #### Error Sample Size Configuration
 
@@ -1173,7 +1173,7 @@ This library includes several performance optimizations:
 
 Examples have been included mainly for those who want to use this parser to read from a Socket and parse netflow.  In those cases with V9/IPFix it is best to create a new parser for each router.  There are both single threaded and multi-threaded examples in the examples directory.
 
-Examples that listen on a specific port use 9995 by default, however netflow can be configured to use a variety of URP ports:
+Examples that listen on a specific port use 9995 by default, however netflow can be configured to use a variety of UDP ports:
 * **2055**: The most widely recognized default for NetFlow.
 * **9995 / 9996**: Popular alternatives, especially with Cisco devices.
 * **9025, 9026**: Other recognized port options.
