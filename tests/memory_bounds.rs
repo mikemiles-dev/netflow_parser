@@ -64,14 +64,19 @@ fn test_error_sample_size_bounded() {
     let garbage = vec![0xFFu8; 256];
     let result = parser.parse_bytes(&garbage);
 
-    if let Some(netflow_parser::NetflowError::UnsupportedVersion { sample, .. }) = result.error
-    {
-        assert!(
-            sample.len() <= max_sample,
-            "error sample {} bytes exceeds max {}",
-            sample.len(),
-            max_sample
-        );
+    match result.error {
+        Some(netflow_parser::NetflowError::UnsupportedVersion { sample, .. }) => {
+            assert!(
+                sample.len() <= max_sample,
+                "error sample {} bytes exceeds max {}",
+                sample.len(),
+                max_sample
+            );
+        }
+        other => panic!(
+            "expected UnsupportedVersion error, got {:?}",
+            other
+        ),
     }
 }
 

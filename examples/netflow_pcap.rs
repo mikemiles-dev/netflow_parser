@@ -75,11 +75,8 @@ fn main() {
     for data in pcap_data.iter() {
         for result in parser.iter_packets(data) {
             match result {
-                Ok(packet) => match packet {
-                    NetflowPacket::V5(ref _v5) => parsed_packets.push(packet),
-                    NetflowPacket::V7(ref _v7) => parsed_packets.push(packet),
-                    NetflowPacket::V9(ref _v9) => parsed_packets.push(packet),
-                    NetflowPacket::IPFix(ref ipfix) => {
+                Ok(packet) => match &packet {
+                    NetflowPacket::IPFix(ipfix) => {
                         let has_no_template = ipfix
                             .flowsets
                             .iter()
@@ -90,6 +87,7 @@ fn main() {
                             parsed_packets.push(packet);
                         }
                     }
+                    _ => parsed_packets.push(packet),
                 },
                 Err(e) => println!("Error parsing packet: {:?}", e),
             }

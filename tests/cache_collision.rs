@@ -39,7 +39,7 @@ fn test_auto_scoped_parser_template_isolation() {
     assert_eq!(result2_data.packets.len(), 1);
 
     // Source2 should have a miss, source1 should not
-    assert!(parser.source_count() >= 2);
+    assert_eq!(parser.source_count(), 2);
 }
 
 // Verify that a single NetflowParser produces consistent results across repeated V5 parses

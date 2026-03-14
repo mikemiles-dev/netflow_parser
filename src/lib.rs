@@ -66,6 +66,7 @@ pub use variable_versions::v9::lookup::V9Field;
 pub use variable_versions::v9::{V9FieldPair, V9FlowRecord};
 
 /// Enum of supported Netflow Versions
+#[non_exhaustive]
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum NetflowPacket {
     /// Version 5
@@ -127,6 +128,7 @@ impl NetflowPacket {
 ///     eprintln!("Parsing stopped: {}", error);
 /// }
 /// ```
+#[non_exhaustive]
 #[derive(Debug, Clone, Serialize)]
 #[must_use = "parsing results should not be discarded; check .packets and .error"]
 pub struct ParseResult {

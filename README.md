@@ -82,39 +82,39 @@ println!("{}", json!(result.packets).to_string());
   {
     "V5": {
       "header": {
+        "version": 5,
         "count": 1,
-        "engine_id": 7,
-        "engine_type": 6,
-        "flow_sequence": 33752069,
-        "sampling_interval": 2057,
-        "sys_up_time": { "nanos": 672000000, "secs": 50332 },
-        "unix_nsecs": 134807553,
+        "sys_up_time": 50332672,
         "unix_secs": 83887623,
-        "version": 5
+        "unix_nsecs": 134807553,
+        "flow_sequence": 33752069,
+        "engine_type": 6,
+        "engine_id": 7,
+        "sampling_interval": 2057
       },
-      "sets": [
+      "flowsets": [
         {
-          "d_octets": 66051,
-          "d_pkts": 101124105,
+          "src_addr": "0.1.2.3",
           "dst_addr": "4.5.6.7",
-          "dst_as": 515,
-          "dst_mask": 5,
-          "dst_port": 1029,
-          "first": { "nanos": 87000000, "secs": 67438 },
-          "input": 515,
-          "last": { "nanos": 553000000, "secs": 134807 },
           "next_hop": "8.9.0.1",
+          "input": 515,
           "output": 1029,
+          "d_pkts": 101124105,
+          "d_octets": 66051,
+          "first": 67438087,
+          "last": 134807553,
+          "src_port": 515,
+          "dst_port": 1029,
           "pad1": 6,
-          "pad2": 1543,
+          "tcp_flags": 7,
           "protocol_number": 8,
           "protocol_type": "Egp",
-          "src_addr": "0.1.2.3",
+          "tos": 9,
           "src_as": 1,
+          "dst_as": 515,
           "src_mask": 4,
-          "src_port": 515,
-          "tcp_flags": 7,
-          "tos": 9
+          "dst_mask": 5,
+          "pad2": 1543
         }
       ]
     }

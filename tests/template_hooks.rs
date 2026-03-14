@@ -211,6 +211,7 @@ fn test_hook_with_logging() {
                     template_id,
                     protocol,
                 } => format!("Missing template {:?} ({:?})", template_id, protocol),
+                _ => "Unknown event".to_string(),
             };
             log_clone.lock().unwrap().push(msg);
             Ok(())
@@ -256,6 +257,7 @@ fn test_hooks_fire_during_parsing() {
                 TemplateEvent::MissingTemplate { .. } => "MissingTemplate",
                 TemplateEvent::Evicted { .. } => "Evicted",
                 TemplateEvent::Expired { .. } => "Expired",
+                _ => "Unknown",
             };
             events_clone.lock().unwrap().push(name.to_string());
             Ok(())

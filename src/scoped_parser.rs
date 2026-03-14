@@ -371,6 +371,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
 }
 
 /// Information extracted from NetFlow packet headers for RFC-compliant scoping.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ScopingInfo {
     /// NetFlow v9 packet with source ID
@@ -443,6 +444,7 @@ pub struct V9SourceKey {
 ///     ScopingInfo::Unknown => {
 ///         println!("Invalid or truncated packet");
 ///     }
+///     _ => {}
 /// }
 /// ```
 pub fn extract_scoping_info(data: &[u8]) -> ScopingInfo {
