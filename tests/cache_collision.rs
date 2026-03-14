@@ -53,14 +53,12 @@ fn test_single_parser_multi_source() {
 
 // Verify that V9 and IPFIX cache metrics start at zero on a fresh parser
 #[test]
-fn test_collision_rate_calculation() {
+fn test_initial_metrics_are_zero() {
     let parser = NetflowParser::default();
 
-    // Get stats
     let v9_stats = parser.v9_cache_stats();
     let ipfix_stats = parser.ipfix_cache_stats();
 
-    // Initial metrics should be zero
     assert_eq!(v9_stats.metrics.collisions, 0);
     assert_eq!(v9_stats.metrics.hits, 0);
     assert_eq!(v9_stats.metrics.misses, 0);
@@ -68,6 +66,34 @@ fn test_collision_rate_calculation() {
     assert_eq!(ipfix_stats.metrics.collisions, 0);
     assert_eq!(ipfix_stats.metrics.hits, 0);
     assert_eq!(ipfix_stats.metrics.misses, 0);
+}
+
+// Verify that V9 cache records hits when data uses a cached template
+#[test]
+fn test_cache_hit_tracking() {
+    let mut parser = NetflowParser::default();
+
+    // V9 template packet: template ID 256 with 1 field (IN_BYTES, 4 bytes)
+    let v9_template_packet: Vec<u8> = vec![
+        0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 12, 1, 0, 0, 1, 0,
+        1, 0, 4,
+    ];
+    let _ = parser.parse_bytes(&v9_template_packet);
+
+    // V9 data packet using template 256
+    let v9_data_packet: Vec<u8> = vec![
+        0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 1,
+        0, // flowset_id = 256
+        0, 8, // length = 8 (header(4) + 1 record of 4 bytes)
+        0, 0, 0, 42, // IN_BYTES = 42
+    ];
+    let _ = parser.parse_bytes(&v9_data_packet);
+
+    let v9_stats = parser.v9_cache_stats();
+    assert!(
+        v9_stats.metrics.hits > 0,
+        "V9 cache should record hits after parsing data with a cached template"
+    );
 }
 
 // Verify that AutoScopedParser can be created with a custom builder configuration

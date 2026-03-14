@@ -62,6 +62,35 @@ impl From<Ipv6ExtensionHeaders> for u32 {
     }
 }
 
+impl std::fmt::Display for Ipv6ExtensionHeaders {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut headers = Vec::new();
+        if self.destination_options {
+            headers.push("DST");
+        }
+        if self.fragment {
+            headers.push("FRAG");
+        }
+        if self.hop_by_hop {
+            headers.push("HBH");
+        }
+        if self.routing {
+            headers.push("RT");
+        }
+        if self.authentication {
+            headers.push("AH");
+        }
+        if self.esp {
+            headers.push("ESP");
+        }
+        if headers.is_empty() {
+            write!(f, "none")
+        } else {
+            write!(f, "{}", headers.join("|"))
+        }
+    }
+}
+
 impl PartialOrd for Ipv6ExtensionHeaders {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))

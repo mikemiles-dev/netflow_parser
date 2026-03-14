@@ -42,7 +42,7 @@ fn create_v5_packet(flow_count: u16) -> Vec<u8> {
         0x00, 0x00, 0x00, 0x01, // first
         0x00, 0x00, 0x00, 0x02, // last
         0x00, 0x50, 0x00, 0x51, // src_port/dst_port
-        0x00, 0x06, 0x00, 0x00, // pad1/tcp_flags/protocol/tos
+        0x00, 0x00, 0x06, 0x00, // pad1/tcp_flags/protocol(TCP=6)/tos
         0x00, 0x01, 0x00, 0x02, // src_as/dst_as
         0x18, 0x18, 0x00, 0x00, // src_mask/dst_mask/pad2
     ];
@@ -184,7 +184,8 @@ fn create_ipfix_packet(flow_count: u16) -> Vec<u8> {
 fn bench_v5_packet_sizes(c: &mut Criterion) {
     let mut group = c.benchmark_group("V5 Packet Sizes");
 
-    for flow_count in [1, 10, 30, 100].iter() {
+    // V5 max is 30 flows per packet (MAX_FLOWS). Don't benchmark invalid counts.
+    for flow_count in [1, 10, 30].iter() {
         let packet = create_v5_packet(*flow_count);
         let size = packet.len();
 

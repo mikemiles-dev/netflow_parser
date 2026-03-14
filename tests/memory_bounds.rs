@@ -3,24 +3,37 @@
 
 use netflow_parser::NetflowParser;
 
-/// A valid V5 packet for testing.
-const V5_PACKET: [u8; 72] = [
-    0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5,
-    6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5,
-    6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
-];
-
-/// Verify that parsing many packets does not cause cache stats to exceed configured bounds.
+/// Verify that V9 template cache stays within configured bounds when many
+/// distinct templates are inserted.
 #[test]
 fn test_cache_stats_stay_within_bounds() {
-    let max_cache = 100;
+    let max_cache = 3;
     let mut parser = NetflowParser::builder()
         .with_cache_size(max_cache)
         .build()
         .expect("valid config");
 
-    for _ in 0..500 {
-        let _ = parser.parse_bytes(&V5_PACKET);
+    // Build V9 packets with distinct template IDs to actually fill the cache.
+    // V9 template flowset: header(20) + flowset_header(4) + template(8) = 32 bytes
+    for template_id in 256u16..266 {
+        let tid = template_id.to_be_bytes();
+        let v9_template_packet: Vec<u8> = vec![
+            0, 9, // version
+            0, 1, // count
+            0, 0, 0, 0, // sys_uptime
+            0, 0, 0, 0, // unix_secs
+            0, 0, 0, 1, // sequence
+            0, 0, 0, 0, // source_id
+            // Template flowset
+            0, 0, // flowset_id = 0 (template)
+            0,
+            12, // length = 12 (header(4) + template_id(2) + field_count(2) + 1 field(4))
+            tid[0], tid[1], // template_id
+            0, 1, // field_count = 1
+            0, 1, // field_type = IN_BYTES
+            0, 4, // field_length = 4
+        ];
+        let _ = parser.parse_bytes(&v9_template_packet);
     }
 
     let v9_stats = parser.v9_cache_stats();
@@ -30,13 +43,9 @@ fn test_cache_stats_stay_within_bounds() {
         v9_stats.current_size,
         max_cache
     );
-
-    let ipfix_stats = parser.ipfix_cache_stats();
     assert!(
-        ipfix_stats.current_size <= max_cache,
-        "IPFIX cache size {} exceeds max {}",
-        ipfix_stats.current_size,
-        max_cache
+        v9_stats.current_size > 0,
+        "V9 cache should have entries after parsing templates"
     );
 }
 

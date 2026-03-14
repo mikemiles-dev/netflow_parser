@@ -63,16 +63,35 @@ fn test_has_template_empty_cache() {
     assert!(!parser.has_ipfix_template(256));
 }
 
-// Verify that clearing V9 and IPFIX templates resets cache size to zero
+// Verify that clearing V9 and IPFIX templates removes previously cached templates
 #[test]
 fn test_clear_templates() {
     let mut parser = NetflowParser::default();
 
-    parser.clear_v9_templates();
-    parser.clear_ipfix_templates();
+    // Insert a V9 template so the cache is non-empty
+    let v9_template_packet: Vec<u8> = vec![
+        0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, // Template flowset
+        0, 0, 0, 12, 1, 0, // template_id = 256
+        0, 1, // field_count = 1
+        0, 1, 0, 4, // field: IN_BYTES(1), length 4
+    ];
+    let _ = parser.parse_bytes(&v9_template_packet);
 
     let v9_stats = parser.v9_cache_stats();
-    assert_eq!(v9_stats.current_size, 0);
+    assert!(
+        v9_stats.current_size > 0,
+        "V9 cache should have a template before clearing"
+    );
+
+    parser.clear_v9_templates();
+
+    let v9_stats = parser.v9_cache_stats();
+    assert_eq!(
+        v9_stats.current_size, 0,
+        "V9 cache should be empty after clearing"
+    );
+
+    parser.clear_ipfix_templates();
 
     let ipfix_stats = parser.ipfix_cache_stats();
     assert_eq!(ipfix_stats.current_size, 0);

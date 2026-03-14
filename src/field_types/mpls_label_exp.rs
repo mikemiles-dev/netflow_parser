@@ -27,6 +27,12 @@ impl MplsLabelExp {
     }
 }
 
+impl std::fmt::Display for MplsLabelExp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 impl From<u8> for MplsLabelExp {
     fn from(value: u8) -> Self {
         Self(value & 0x07)

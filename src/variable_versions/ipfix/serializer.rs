@@ -87,6 +87,7 @@ impl IPFix {
                 for field in template.fields.iter() {
                     Self::write_ipfix_template_field(&mut result, field);
                 }
+                result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)
             }
             FlowSetBody::Templates(templates) => {
@@ -98,6 +99,7 @@ impl IPFix {
                         Self::write_ipfix_template_field(&mut result, field);
                     }
                 }
+                result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)
             }
             FlowSetBody::V9Template(template) => {
@@ -108,6 +110,7 @@ impl IPFix {
                     result.extend_from_slice(&field.field_type_number.to_be_bytes());
                     result.extend_from_slice(&field.field_length.to_be_bytes());
                 }
+                result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)
             }
             FlowSetBody::OptionsTemplate(options_template) => {
@@ -118,6 +121,7 @@ impl IPFix {
                 for field in options_template.fields.iter() {
                     Self::write_ipfix_template_field(&mut result, field);
                 }
+                result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)
             }
             FlowSetBody::V9OptionsTemplate(template) => {
@@ -133,6 +137,7 @@ impl IPFix {
                     result.extend_from_slice(&field.field_type_number.to_be_bytes());
                     result.extend_from_slice(&field.field_length.to_be_bytes());
                 }
+                result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)
             }
             FlowSetBody::V9Templates(templates) => {
@@ -145,6 +150,7 @@ impl IPFix {
                         result.extend_from_slice(&field.field_length.to_be_bytes());
                     }
                 }
+                result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)
             }
             FlowSetBody::OptionsTemplates(templates) => {
@@ -157,6 +163,7 @@ impl IPFix {
                         Self::write_ipfix_template_field(&mut result, field);
                     }
                 }
+                result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)
             }
             FlowSetBody::V9OptionsTemplates(templates) => {
@@ -174,6 +181,7 @@ impl IPFix {
                         result.extend_from_slice(&field.field_length.to_be_bytes());
                     }
                 }
+                result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)
             }
             FlowSetBody::Data(data) => {

@@ -224,6 +224,8 @@ pub(crate) trait ParserFields {
     fn set_max_error_sample_size_field(&mut self, size: usize);
     fn set_max_records_per_flowset_field(&mut self, count: usize);
     fn set_ttl_config_field(&mut self, config: Option<TtlConfig>);
+    /// Apply an enterprise registry update. Default is a no-op (V9 has no registry).
+    fn set_enterprise_registry(&mut self, _registry: Arc<EnterpriseFieldRegistry>) {}
     fn pending_flows(&self) -> &Option<PendingFlowCache>;
     fn pending_flows_mut(&mut self) -> &mut Option<PendingFlowCache>;
 }
@@ -268,6 +270,7 @@ pub trait ParserConfig: ParserFields {
         self.set_max_error_sample_size_field(config.max_error_sample_size);
         self.set_max_records_per_flowset_field(config.max_records_per_flowset);
         self.set_ttl_config_field(config.ttl_config);
+        self.set_enterprise_registry(config.enterprise_registry);
         // Safety: validate_config above already verified pending_flows_config,
         // so this call should not fail. The `?` is kept defensively.
         self.set_pending_flows_config(config.pending_flows_config)?;

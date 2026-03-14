@@ -32,6 +32,16 @@ impl IsMulticast {
     }
 }
 
+impl std::fmt::Display for IsMulticast {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_multicast() {
+            write!(f, "multicast")
+        } else {
+            write!(f, "unicast")
+        }
+    }
+}
+
 impl From<u8> for IsMulticast {
     fn from(value: u8) -> Self {
         Self(value)
