@@ -39,7 +39,7 @@ impl Default for IPFixParser {
         // Safe to unwrap because DEFAULT_MAX_TEMPLATE_CACHE_SIZE is non-zero
         let config = Config {
             max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
-            max_field_count: usize::from(MAX_FIELD_COUNT),
+            max_field_count: MAX_FIELD_COUNT,
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,

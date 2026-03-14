@@ -240,6 +240,77 @@ fn test_hook_with_logging() {
     assert!(logged[2].contains("Missing template Some(300)"));
 }
 
+// Verify that hooks fire during actual V9 template parsing (not just manual triggers)
+#[test]
+fn test_hooks_fire_during_parsing() {
+    use std::sync::Mutex;
+
+    let events = Arc::new(Mutex::new(Vec::<String>::new()));
+    let events_clone = events.clone();
+
+    let mut parser = NetflowParser::builder()
+        .on_template_event(move |event| {
+            let name = match event {
+                TemplateEvent::Learned { .. } => "Learned",
+                TemplateEvent::Collision { .. } => "Collision",
+                TemplateEvent::MissingTemplate { .. } => "MissingTemplate",
+                TemplateEvent::Evicted { .. } => "Evicted",
+                TemplateEvent::Expired { .. } => "Expired",
+            };
+            events_clone.lock().unwrap().push(name.to_string());
+            Ok(())
+        })
+        .build()
+        .unwrap();
+
+    // V9 template packet: template ID 256 with 1 field (IN_BYTES, 4 bytes)
+    let v9_template_packet: Vec<u8> = vec![
+        0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 12, 1, 0, 0, 1, 0,
+        1, 0, 4,
+    ];
+    let _ = parser.parse_bytes(&v9_template_packet);
+
+    let captured = events.lock().unwrap();
+    assert!(
+        captured.iter().any(|e| e == "Learned"),
+        "Hook should fire a Learned event when parsing a V9 template. Got: {:?}",
+        *captured
+    );
+}
+
+// Verify that hook_error_count() tracks errors correctly
+#[test]
+fn test_hook_error_count() {
+    let mut parser = NetflowParser::builder()
+        .on_template_event(|_| Err("intentional error".into()))
+        .build()
+        .unwrap();
+
+    assert_eq!(parser.hook_error_count(), 0);
+
+    parser.trigger_template_event(TemplateEvent::Learned {
+        template_id: Some(256),
+        protocol: TemplateProtocol::V9,
+    });
+
+    assert_eq!(
+        parser.hook_error_count(),
+        1,
+        "hook_error_count should increment after a hook returns an error"
+    );
+
+    parser.trigger_template_event(TemplateEvent::Learned {
+        template_id: Some(257),
+        protocol: TemplateProtocol::V9,
+    });
+
+    assert_eq!(
+        parser.hook_error_count(),
+        2,
+        "hook_error_count should accumulate across events"
+    );
+}
+
 // Verify that hook errors don't prevent subsequent hooks from firing
 #[test]
 fn test_hook_error_isolation() {

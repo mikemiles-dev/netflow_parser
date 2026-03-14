@@ -244,6 +244,7 @@ impl IPFix {
                     }
                 }
                 let content_len = result.len();
+                // V9 OptionsData has no padding field, so always calculate
                 result.extend_from_slice(calculate_padding(content_len));
                 Ok(result)
             }

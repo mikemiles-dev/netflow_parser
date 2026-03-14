@@ -12,10 +12,10 @@ const _: () = assert!(DEFAULT_MAX_TEMPLATE_CACHE_SIZE > 0);
 
 pub(crate) type TemplateId = u16;
 
-/// Default maximum number of fields allowed per template to prevent DoS attacks
-/// A reasonable limit that should accommodate legitimate use cases
-/// This can be configured per-parser via the Config struct
-pub const MAX_FIELD_COUNT: u16 = 10000;
+/// Default maximum number of fields allowed per template to prevent DoS attacks.
+/// A reasonable limit that should accommodate legitimate use cases.
+/// This can be configured per-parser via the Config struct.
+pub const MAX_FIELD_COUNT: usize = 10_000;
 
 /// Default maximum number of data records to parse per flowset.
 /// This prevents CPU-bound DoS from maliciously large flowsets.
@@ -177,19 +177,29 @@ impl std::fmt::Display for ConfigError {
     }
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            max_template_cache_size: DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
+            max_field_count: MAX_FIELD_COUNT,
+            max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
+            max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            ttl_config: None,
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
+            pending_flows_config: None,
+        }
+    }
+}
+
 impl Config {
     /// Creates a new `Config` with the given cache size and optional TTL.
     /// Other fields use defaults (field count: 10,000, no enterprise registry, no pending flows).
     pub fn new(max_template_cache_size: usize, ttl_config: Option<TtlConfig>) -> Self {
         Self {
             max_template_cache_size,
-            max_field_count: usize::from(MAX_FIELD_COUNT),
-            max_template_total_size: usize::from(u16::MAX),
-            max_error_sample_size: 256,
-            max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
             ttl_config,
-            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
-            pending_flows_config: None,
+            ..Self::default()
         }
     }
 
@@ -201,15 +211,39 @@ impl Config {
         enterprise_registry: EnterpriseFieldRegistry,
     ) -> Self {
         Self {
-            max_template_cache_size,
-            max_field_count: usize::from(MAX_FIELD_COUNT),
-            max_template_total_size: usize::from(u16::MAX),
-            max_error_sample_size: 256,
-            max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
-            ttl_config,
             enterprise_registry: Arc::new(enterprise_registry),
-            pending_flows_config: None,
+            ..Self::new(max_template_cache_size, ttl_config)
         }
+    }
+
+    /// Validate this configuration, returning an error if any field has an invalid value.
+    ///
+    /// This performs the same checks as [`ParserConfig::add_config`] but without
+    /// requiring a parser instance, allowing early validation.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        NonZeroUsize::new(self.max_template_cache_size)
+            .ok_or(ConfigError::InvalidCacheSize(self.max_template_cache_size))?;
+        if self.max_field_count == 0 {
+            return Err(ConfigError::InvalidFieldCount(0));
+        }
+        if self.max_template_total_size == 0 {
+            return Err(ConfigError::InvalidTemplateTotalSize(0));
+        }
+        if self.max_records_per_flowset == 0 {
+            return Err(ConfigError::InvalidRecordsPerFlowset(0));
+        }
+        if self.max_error_sample_size == 0 {
+            return Err(ConfigError::InvalidErrorSampleSize);
+        }
+        if let Some(ref ttl) = self.ttl_config
+            && ttl.duration.is_zero()
+        {
+            return Err(ConfigError::InvalidTtlDuration);
+        }
+        if let Some(ref pf) = self.pending_flows_config {
+            PendingFlowCache::validate_config(pf)?;
+        }
+        Ok(())
     }
 }
 
