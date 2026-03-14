@@ -276,8 +276,8 @@ expression: lookup
 - DurationMicrosNTP
 - DurationMillis
 - DurationNanosNTP
-- String
-- String
+- Vec
+- Vec
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
