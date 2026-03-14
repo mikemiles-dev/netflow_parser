@@ -28,7 +28,11 @@ fn test_v5_serialization_single_packet() {
     ];
 
     let parsed = NetflowParser::default().parse_bytes(&v5_packet).packets;
-    assert_eq!(parsed.len(), 1, "V5 packet with count=1 must produce exactly 1 packet");
+    assert_eq!(
+        parsed.len(),
+        1,
+        "V5 packet with count=1 must produce exactly 1 packet"
+    );
 
     let json = serde_json::to_string(&parsed).expect("Failed to serialize");
     assert!(json.contains("\"V5\""));
