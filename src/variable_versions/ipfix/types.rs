@@ -351,13 +351,28 @@ pub(crate) trait CommonTemplate {
             return false;
         }
 
-        // Check for duplicate field IDs
-        let mut seen = std::collections::HashSet::with_capacity(self.get_fields().len());
-        for field in self.get_fields() {
-            // For IPFIX, we need to check the combination of field_type_number and enterprise_number
+        // Check for duplicate field IDs within scope and option fields separately.
+        // RFC 7011 Section 3.4.2.2 allows a scope field and an option field to
+        // share the same (field_type_number, enterprise_number) — they live in
+        // different conceptual arrays.  For regular Templates (no scope fields),
+        // this degenerates to a single-pass check over all fields.
+        let scope_count = self.get_scope_field_count().map(usize::from).unwrap_or(0);
+        let fields = self.get_fields();
+
+        let mut seen = std::collections::HashSet::with_capacity(fields.len());
+        // Check scope fields for duplicates among themselves
+        for field in fields.iter().take(scope_count) {
             let key = (field.field_type_number, field.enterprise_number);
             if !seen.insert(key) {
-                return false; // Found duplicate
+                return false;
+            }
+        }
+        // Check option fields for duplicates among themselves
+        seen.clear();
+        for field in fields.iter().skip(scope_count) {
+            let key = (field.field_type_number, field.enterprise_number);
+            if !seen.insert(key) {
+                return false;
             }
         }
 

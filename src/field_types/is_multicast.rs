@@ -59,6 +59,13 @@ mod is_multicast_tests {
     use super::IsMulticast;
 
     #[test]
+    fn test_display() {
+        assert_eq!(IsMulticast::from(0).to_string(), "unicast");
+        assert_eq!(IsMulticast::from(1).to_string(), "multicast");
+        assert_eq!(IsMulticast::from(255).to_string(), "multicast");
+    }
+
+    #[test]
     fn test_round_trip() {
         for byte in 0..=255u8 {
             let m = IsMulticast::from(byte);

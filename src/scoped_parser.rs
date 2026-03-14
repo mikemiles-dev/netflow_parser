@@ -309,10 +309,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     }
 
     /// Get statistics for all sources.
-    pub fn all_stats(&self) -> Vec<(&K, ParserCacheStats)>
-    where
-        K: Clone,
-    {
+    pub fn all_stats(&self) -> Vec<(&K, ParserCacheStats)> {
         self.parsers
             .iter()
             .map(|(source, (parser, _))| {

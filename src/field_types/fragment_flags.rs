@@ -144,6 +144,15 @@ mod fragment_flags_tests {
     }
 
     #[test]
+    fn test_display() {
+        assert_eq!(FragmentFlags::from(0x00).to_string(), "none");
+        assert_eq!(FragmentFlags::from(0x02).to_string(), "DF");
+        assert_eq!(FragmentFlags::from(0x04).to_string(), "MF");
+        assert_eq!(FragmentFlags::from(0x06).to_string(), "DF|MF");
+        assert_eq!(FragmentFlags::from(0x07).to_string(), "DF|MF|R");
+    }
+
+    #[test]
     fn test_all_fragment_flags() {
         let flags: Vec<_> = (0..=7u8).map(FragmentFlags::from).collect();
         assert_yaml_snapshot!(flags);
