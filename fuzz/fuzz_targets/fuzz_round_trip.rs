@@ -29,7 +29,6 @@ fuzz_target!(|data: &[u8]| {
                 NetflowPacket::IPFix(ipfix) => {
                     let _ = ipfix.to_be_bytes();
                 }
-                _ => {}
             }
         }
     });
