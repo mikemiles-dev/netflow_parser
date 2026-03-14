@@ -85,11 +85,10 @@ impl V9Parser {
         if config.max_error_sample_size == 0 {
             return Err(ConfigError::InvalidErrorSampleSize);
         }
-        if let Some(ref ttl) = config.ttl_config {
-            if ttl.duration.is_zero() {
+        if let Some(ref ttl) = config.ttl_config
+            && ttl.duration.is_zero() {
                 return Err(ConfigError::InvalidTtlDuration);
             }
-        }
         if let Some(ref pf) = config.pending_flows_config {
             PendingFlowCache::validate_config(pf)?;
         }
@@ -183,7 +182,7 @@ impl ParserConfig for V9Parser {
 
 impl V9Parser {
     /// Parse a NetFlow V9 packet from raw bytes, using cached templates to decode data records.
-    pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+    pub(crate) fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match V9::parse(packet, self) {
             Ok((remaining, mut v9)) => {
                 self.process_pending_flows(&mut v9);
@@ -306,8 +305,8 @@ impl V9Parser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) {
-            if let Ok((_, data)) =
+        )
+            && let Ok((_, data)) =
                 Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
             {
                 // Don't record_hit() here — the original flowset already
@@ -325,15 +324,14 @@ impl V9Parser {
                 });
                 return true;
             }
-        }
         // Try options template (peek to avoid false LRU promotion on failed parse)
         if let Some(template) = crate::variable_versions::peek_valid_template(
             &mut self.options_templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) {
-            if let Ok((_, options_data)) = OptionsData::parse_with_limit(
+        )
+            && let Ok((_, options_data)) = OptionsData::parse_with_limit(
                 &entry.raw_data,
                 &template,
                 self.max_records_per_flowset,
@@ -350,7 +348,6 @@ impl V9Parser {
                 });
                 return true;
             }
-        }
         false
     }
 
@@ -400,21 +397,18 @@ impl FlowSetBody {
                     let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
                     // Check for collision (same ID, different definition)
                     // Use peek() to avoid affecting LRU ordering
-                    if let Some(existing) = parser.templates.peek(&template.template_id) {
-                        if existing.template.as_ref() != template {
+                    if let Some(existing) = parser.templates.peek(&template.template_id)
+                        && existing.template.as_ref() != template {
                             parser.metrics.record_collision();
                         }
-                    }
                     // push() returns Some in two cases: (1) a different key was LRU-evicted
                     // to make room, or (2) the same key existed and its value was replaced.
                     // Only count case (1) as an eviction.
                     if let Some((evicted_key, _evicted)) =
                         parser.templates.push(template.template_id, wrapped)
-                    {
-                        if evicted_key != template.template_id {
+                        && evicted_key != template.template_id {
                             parser.metrics.record_eviction();
                         }
-                    }
                     parser.metrics.record_insertion();
                 }
                 let result = Templates {
@@ -446,21 +440,17 @@ impl FlowSetBody {
                     // Check for collision (same ID, different definition)
                     // Use peek() to avoid affecting LRU ordering
                     if let Some(existing) = parser.options_templates.peek(&template.template_id)
-                    {
-                        if existing.template.as_ref() != template {
+                        && existing.template.as_ref() != template {
                             parser.metrics.record_collision();
                         }
-                    }
                     // push() returns Some in two cases: (1) a different key was LRU-evicted
                     // to make room, or (2) the same key existed and its value was replaced.
                     // Only count case (1) as an eviction.
                     if let Some((evicted_key, _evicted)) =
                         parser.options_templates.push(template.template_id, wrapped)
-                    {
-                        if evicted_key != template.template_id {
+                        && evicted_key != template.template_id {
                             parser.metrics.record_eviction();
                         }
-                    }
                     parser.metrics.record_insertion();
                 }
                 let result = OptionsTemplates {

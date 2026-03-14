@@ -1,7 +1,7 @@
 #!/bin/bash
 # check-readme-sync.sh - Verify README.md and src/lib.rs documentation are in sync
 
-set -e
+set -eo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +13,7 @@ echo
 
 # Check 1: Verify doc tests compile and pass
 echo "📝 Step 1: Running doc tests..."
-if cargo test --doc --quiet 2>&1 | grep -q "test result: ok"; then
+if cargo test --doc --quiet 2>&1; then
     echo -e "${GREEN}✓${NC} Doc tests passed"
 else
     echo -e "${RED}✗${NC} Doc tests failed"
@@ -26,10 +26,10 @@ echo
 echo "📋 Step 2: Checking section headers..."
 
 # Extract major section headers from lib.rs (lines starting with //! ##)
-LIB_SECTIONS=$(grep -E "^//! ## " src/lib.rs | sed 's/^\/\/! ## //' | sort)
+LIB_SECTIONS=$(grep -E "^//! ## " src/lib.rs 2>/dev/null | sed 's/^\/\/! ## //' | sort || true)
 
 # Extract major section headers from README (lines starting with ##)
-README_SECTIONS=$(grep -E "^## " README.md | sed 's/^## //' | sort)
+README_SECTIONS=$(grep -E "^## " README.md 2>/dev/null | sed 's/^## //' | sort || true)
 
 # Compare sections
 if [ "$LIB_SECTIONS" = "$README_SECTIONS" ]; then

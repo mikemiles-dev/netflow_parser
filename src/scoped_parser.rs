@@ -929,17 +929,21 @@ impl AutoScopedParser {
             Legacy,
         }
 
+        // Include cache length as a tiebreaker (largest cache evicts first)
+        // so that no protocol is systematically favored when timestamps are equal.
         let candidates = [
-            ipfix_ts.map(|ts| (MapKind::Ipfix, ts)),
-            v9_ts.map(|ts| (MapKind::V9, ts)),
-            legacy_ts.map(|ts| (MapKind::Legacy, ts)),
+            ipfix_ts.map(|ts| (MapKind::Ipfix, ts, self.ipfix_parsers.len())),
+            v9_ts.map(|ts| (MapKind::V9, ts, self.v9_parsers.len())),
+            legacy_ts.map(|ts| (MapKind::Legacy, ts, self.legacy_parsers.len())),
         ];
 
         let oldest = candidates
             .iter()
             .flatten()
-            .min_by_key(|(_, ts)| *ts)
-            .map(|(kind, _)| *kind);
+            .min_by(|(_, ts_a, len_a), (_, ts_b, len_b)| {
+                ts_a.cmp(ts_b).then_with(|| len_b.cmp(len_a)) // larger cache evicts first on tie
+            })
+            .map(|(kind, _, _)| *kind);
 
         match oldest {
             Some(MapKind::Ipfix) => {

@@ -2,7 +2,7 @@
 # check-all.sh - Run all quality checks before committing/pushing
 # This runs the same checks that CI will run
 
-set -e
+set -eo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -19,7 +19,7 @@ echo
 
 # Check 1: Formatting
 echo -e "${BLUE}[1/7]${NC} Checking code formatting..."
-if cargo fmt --check 2>&1 | grep -q "Diff"; then
+if ! cargo fmt --check --quiet 2>&1; then
     echo -e "${RED}✗${NC} Code formatting failed"
     echo "  Fix with: cargo fmt"
     FAILED_CHECKS+=("formatting")
@@ -30,7 +30,7 @@ echo
 
 # Check 2: Clippy
 echo -e "${BLUE}[2/7]${NC} Running clippy..."
-if cargo clippy --all 2>&1 | grep -q "error:"; then
+if ! cargo clippy --all --all-features -- -D warnings 2>&1; then
     echo -e "${RED}✗${NC} Clippy found issues"
     echo "  Fix issues shown above"
     FAILED_CHECKS+=("clippy")
@@ -41,7 +41,7 @@ echo
 
 # Check 3: Build
 echo -e "${BLUE}[3/7]${NC} Building project..."
-if cargo build --quiet 2>&1 | grep -q "error:"; then
+if ! cargo build --quiet 2>&1; then
     echo -e "${RED}✗${NC} Build failed"
     echo "  Run: cargo build"
     FAILED_CHECKS+=("build")
@@ -52,7 +52,7 @@ echo
 
 # Check 4: Tests
 echo -e "${BLUE}[4/7]${NC} Running unit tests..."
-if ! cargo test --quiet 2>&1 | grep -q "test result: ok"; then
+if ! cargo test --all-features --quiet 2>&1; then
     echo -e "${RED}✗${NC} Tests failed"
     echo "  Run: cargo test"
     FAILED_CHECKS+=("tests")
@@ -63,7 +63,7 @@ echo
 
 # Check 5: Doc tests
 echo -e "${BLUE}[5/7]${NC} Running doc tests..."
-if ! cargo test --doc --quiet 2>&1 | grep -q "test result: ok"; then
+if ! cargo test --doc --quiet 2>&1; then
     echo -e "${RED}✗${NC} Doc tests failed"
     echo "  Run: cargo test --doc"
     FAILED_CHECKS+=("doc-tests")
@@ -85,7 +85,7 @@ echo
 
 # Check 7: Benchmarks (optional, just verify they compile)
 echo -e "${BLUE}[7/7]${NC} Checking benchmarks compile..."
-if cargo bench --no-run --quiet 2>&1 | grep -q "error:"; then
+if ! cargo bench --no-run --quiet 2>&1; then
     echo -e "${RED}✗${NC} Benchmarks failed to compile"
     echo "  Run: cargo bench --no-run"
     FAILED_CHECKS+=("benchmarks")

@@ -1,5 +1,5 @@
 ---
-source: src/variable_versions/v9_lookup.rs
+source: src/variable_versions/v9/lookup.rs
 expression: fields
 ---
 - InBytes
@@ -98,11 +98,11 @@ expression: fields
 - ApplicationDescription
 - ApplicationTag
 - ApplicationName
-- Unknown: 97
+- IanaAssigned: 97
 - PostipDiffServCodePoint
 - Replicationfactor
 - Deprecated
-- Unknown: 101
+- IanaAssigned: 101
 - Layer2packetSectionOffset
 - Layer2packetSectionSize
 - Layer2packetSectionData

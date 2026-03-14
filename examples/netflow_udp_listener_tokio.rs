@@ -129,7 +129,7 @@ async fn main() -> io::Result<()> {
     loop {
         let (len, addr) = sock.recv_from(&mut buf).await?;
 
-        // Parse using RouterScopedParser - automatically handles per-source template caching
+        // Parse using AutoScopedParser - automatically handles per-source template caching
         let parser_clone = parser.clone();
         let data = buf[..len].to_vec();
         let successful = successful_packets.clone();

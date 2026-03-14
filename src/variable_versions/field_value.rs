@@ -49,7 +49,10 @@ macro_rules! impl_try_from {
 }
 
 /// Holds our datatypes and values post parsing
-#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
+///
+/// `PartialEq`/`Eq` use semantic numeric comparison (matching `Ord`),
+/// so `U8(255) == U16(255)` is true.
+#[derive(Debug, Clone, Serialize)]
 pub enum DataNumber {
     U8(u8),
     I8(i8),
@@ -97,6 +100,14 @@ impl DataNumber {
         }
     }
 }
+
+impl PartialEq for DataNumber {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == std::cmp::Ordering::Equal
+    }
+}
+
+impl Eq for DataNumber {}
 
 impl PartialOrd for DataNumber {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -371,7 +382,10 @@ pub struct ApplicationId {
 
 /// Preserves the original time unit, field width, and sub-second precision
 /// so that round-trip serialization is lossless.
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+///
+/// `PartialEq` and `PartialOrd` compare semantically via `as_duration()`,
+/// so `Seconds { value: 1, .. }` == `Millis { value: 1000, .. }`.
+#[derive(Debug, Clone)]
 pub enum DurationValue {
     /// Duration in seconds, stored as 4 or 8 bytes
     Seconds { value: u64, width: u8 },
@@ -381,6 +395,18 @@ pub enum DurationValue {
     MicrosNtp { seconds: u32, fraction: u32 },
     /// Duration in NTP nanosecond format (seconds + fractional), always 8 bytes
     NanosNtp { seconds: u32, fraction: u32 },
+}
+
+impl PartialEq for DurationValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_duration() == other.as_duration()
+    }
+}
+
+impl PartialOrd for DurationValue {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.as_duration().cmp(&other.as_duration()))
+    }
 }
 
 impl DurationValue {
@@ -490,7 +516,13 @@ impl Serialize for FieldValue {
                 serializer.serialize_newtype_variant("FieldValue", 2, "DataNumber", v)
             }
             FieldValue::Float64(v) => {
-                serializer.serialize_newtype_variant("FieldValue", 3, "Float64", v)
+                if v.is_finite() {
+                    serializer.serialize_newtype_variant("FieldValue", 3, "Float64", v)
+                } else {
+                    // NaN and Infinity cannot be represented in JSON;
+                    // serialize as null to avoid failing the entire packet.
+                    serializer.serialize_newtype_variant("FieldValue", 3, "Float64", &())
+                }
             }
             FieldValue::Duration(v) => {
                 serializer.serialize_newtype_variant("FieldValue", 4, "Duration", v)

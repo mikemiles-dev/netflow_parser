@@ -187,7 +187,7 @@ fn test_ipfix_template_only_round_trip() {
 /// Helper: parse raw bytes as a given FieldDataType, then write_be_bytes, assert equal.
 fn assert_field_round_trip(raw: &[u8], data_type: FieldDataType) {
     let (remaining, field_value) =
-        FieldValue::from_field_type(raw, data_type.clone(), raw.len() as u16)
+        FieldValue::from_field_type(raw, data_type, raw.len() as u16)
             .unwrap_or_else(|e| panic!("parse failed for {:?}: {:?}", data_type, e));
     assert!(
         remaining.is_empty(),

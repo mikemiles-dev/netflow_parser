@@ -73,11 +73,10 @@ impl IPFixParser {
         if config.max_error_sample_size == 0 {
             return Err(ConfigError::InvalidErrorSampleSize);
         }
-        if let Some(ref ttl) = config.ttl_config {
-            if ttl.duration.is_zero() {
+        if let Some(ref ttl) = config.ttl_config
+            && ttl.duration.is_zero() {
                 return Err(ConfigError::InvalidTtlDuration);
             }
-        }
         if let Some(ref pf) = config.pending_flows_config {
             PendingFlowCache::validate_config(pf)?;
         }
@@ -179,7 +178,7 @@ impl ParserConfig for IPFixParser {
 
 impl IPFixParser {
     /// Parse an IPFIX message from raw bytes, using cached templates to decode data records.
-    pub fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+    pub(crate) fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
         match IPFix::parse(packet, self) {
             Ok((remaining, mut ipfix)) => {
                 self.process_pending_flows(&mut ipfix);
@@ -344,8 +343,8 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) {
-            if let Ok((_, data)) = Data::parse_with_registry(
+        )
+            && let Ok((_, data)) = Data::parse_with_registry(
                 &entry.raw_data,
                 &template,
                 &self.enterprise_registry,
@@ -365,7 +364,6 @@ impl IPFixParser {
                 });
                 return true;
             }
-        }
 
         // Try IPFIX options templates
         if let Some(template) = crate::variable_versions::peek_valid_template(
@@ -373,8 +371,8 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) {
-            if let Ok((_, data)) = OptionsData::parse_with_registry(
+        )
+            && let Ok((_, data)) = OptionsData::parse_with_registry(
                 &entry.raw_data,
                 &template,
                 &self.enterprise_registry,
@@ -392,7 +390,6 @@ impl IPFixParser {
                 });
                 return true;
             }
-        }
 
         // Try V9 templates
         if let Some(template) = crate::variable_versions::peek_valid_template(
@@ -400,8 +397,8 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) {
-            if let Ok((_, data)) = V9Data::parse_with_limit(
+        )
+            && let Ok((_, data)) = V9Data::parse_with_limit(
                 &entry.raw_data,
                 &template,
                 self.max_records_per_flowset,
@@ -418,7 +415,6 @@ impl IPFixParser {
                 });
                 return true;
             }
-        }
 
         // Try V9 options templates
         if let Some(template) = crate::variable_versions::peek_valid_template(
@@ -426,8 +422,8 @@ impl IPFixParser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) {
-            if let Ok((_, data)) = V9OptionsData::parse_with_limit(
+        )
+            && let Ok((_, data)) = V9OptionsData::parse_with_limit(
                 &entry.raw_data,
                 &template,
                 self.max_records_per_flowset,
@@ -444,7 +440,6 @@ impl IPFixParser {
                 });
                 return true;
             }
-        }
 
         false
     }
@@ -528,19 +523,17 @@ fn insert_templates<T: HasTemplateId>(
     for t in templates {
         let arc_template = Arc::new(t.clone());
         let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
-        if let Some(existing) = cache.peek(&t.template_id()) {
-            if existing.template.as_ref() != t {
+        if let Some(existing) = cache.peek(&t.template_id())
+            && existing.template.as_ref() != t {
                 metrics.record_collision();
             }
-        }
         // push() returns Some in two cases: (1) a different key was LRU-evicted
         // to make room, or (2) the same key existed and its value was replaced.
         // Only count case (1) as an eviction.
-        if let Some((evicted_key, _evicted)) = cache.push(t.template_id(), wrapped) {
-            if evicted_key != t.template_id() {
+        if let Some((evicted_key, _evicted)) = cache.push(t.template_id(), wrapped)
+            && evicted_key != t.template_id() {
                 metrics.record_eviction();
             }
-        }
         metrics.record_insertion();
     }
 }
