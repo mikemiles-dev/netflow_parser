@@ -19,7 +19,10 @@ impl TtlConfig {
     ///
     /// Panics if `duration` is zero. Use a non-zero duration.
     pub fn new(duration: Duration) -> Self {
-        assert!(!duration.is_zero(), "TTL duration must be greater than zero");
+        assert!(
+            !duration.is_zero(),
+            "TTL duration must be greater than zero"
+        );
         Self { duration }
     }
 }

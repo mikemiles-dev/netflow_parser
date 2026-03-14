@@ -26,7 +26,8 @@ fn test_cache_stats_stay_within_bounds() {
             0, 0, 0, 0, // source_id
             // Template flowset
             0, 0, // flowset_id = 0 (template)
-            0, 12, // length = 12 (header(4) + template_id(2) + field_count(2) + 1 field(4))
+            0,
+            12, // length = 12 (header(4) + template_id(2) + field_count(2) + 1 field(4))
             tid[0], tid[1], // template_id
             0, 1, // field_count = 1
             0, 1, // field_type = IN_BYTES
