@@ -30,6 +30,7 @@ fuzz_target!(|data: &[u8]| {
                     Ok(bytes) => bytes,
                     Err(_) => continue,
                 },
+                _ => continue,
             };
 
             // Re-parse the serialized output and verify it produces a valid packet
