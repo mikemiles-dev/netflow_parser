@@ -617,3 +617,258 @@ fn test_zero_max_records_per_flowset_rejected() {
         .build();
     assert!(result.is_err(), "Should reject max_records_per_flowset = 0");
 }
+
+// ── V5 edge-case tests ─────────────────────────────────────────────────
+
+/// Build a minimal V5 packet with a given flow count header and actual flow data.
+fn build_v5_packet(count: u16, actual_flows: u16) -> Vec<u8> {
+    let mut packet = vec![
+        0x00, 0x05, // Version 5
+    ];
+    packet.extend_from_slice(&count.to_be_bytes()); // Count
+    packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x01]); // SysUptime
+    packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x01]); // Unix seconds
+    packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // Unix nsecs
+    packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x01]); // Flow sequence
+    packet.push(0x00); // Engine type
+    packet.push(0x00); // Engine id
+    packet.extend_from_slice(&[0x00, 0x00]); // Sampling interval
+    // Each V5 flow is 48 bytes
+    for i in 0..actual_flows {
+        let mut flow = [0u8; 48];
+        // Put some distinguishing data: src_addr = 10.0.0.i
+        flow[0] = 10;
+        flow[3] = (i & 0xFF) as u8;
+        // protocol = TCP (6)
+        flow[38] = 6;
+        packet.extend_from_slice(&flow);
+    }
+    packet
+}
+
+/// V5 with count=0 must be rejected
+#[test]
+fn test_v5_count_zero_rejected() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v5_packet(0, 0);
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_some(),
+        "V5 with count=0 must produce an error"
+    );
+}
+
+/// V5 with count > 30 (MAX_FLOWS) must be rejected
+#[test]
+fn test_v5_count_exceeds_max_flows() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v5_packet(31, 31);
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_some(),
+        "V5 with count=31 (>30) must produce an error"
+    );
+}
+
+/// V5 at the maximum flow count (30) must succeed
+#[test]
+fn test_v5_max_flow_count_succeeds() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v5_packet(30, 30);
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_none(),
+        "V5 with count=30 should parse successfully: {:?}",
+        result.error
+    );
+    assert_eq!(result.packets.len(), 1);
+    if let NetflowPacket::V5(v5) = &result.packets[0] {
+        assert_eq!(v5.flowsets.len(), 30, "Should have 30 flowsets");
+    } else {
+        panic!("Expected V5 packet");
+    }
+}
+
+/// V5 with truncated flow data (count says 2, only 1 flow of data)
+#[test]
+fn test_v5_truncated_flow_data() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v5_packet(2, 1); // Claims 2 flows, only has 1
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_some(),
+        "V5 with truncated flow data must produce an error"
+    );
+}
+
+/// V5 with a single valid flow
+#[test]
+fn test_v5_single_flow() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v5_packet(1, 1);
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_none(),
+        "V5 with 1 flow should succeed: {:?}",
+        result.error
+    );
+    assert_eq!(result.packets.len(), 1);
+    if let NetflowPacket::V5(v5) = &result.packets[0] {
+        assert_eq!(v5.flowsets.len(), 1);
+        assert_eq!(
+            v5.flowsets[0].src_addr,
+            std::net::Ipv4Addr::new(10, 0, 0, 0)
+        );
+        assert_eq!(v5.flowsets[0].protocol_number, 6);
+    } else {
+        panic!("Expected V5 packet");
+    }
+}
+
+// ── V7 edge-case tests ─────────────────────────────────────────────────
+
+/// Build a minimal V7 packet with a given flow count header and actual flow data.
+fn build_v7_packet(count: u16, actual_flows: u16) -> Vec<u8> {
+    let mut packet = vec![
+        0x00, 0x07, // Version 7
+    ];
+    packet.extend_from_slice(&count.to_be_bytes()); // Count
+    packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x01]); // SysUptime
+    packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x01]); // Unix seconds
+    packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // Unix nsecs
+    packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x01]); // Flow sequence
+    packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // Reserved
+    // Each V7 flow is 52 bytes
+    for i in 0..actual_flows {
+        let mut flow = [0u8; 52];
+        // src_addr = 192.168.0.i
+        flow[0] = 192;
+        flow[1] = 168;
+        flow[3] = (i & 0xFF) as u8;
+        // protocol = UDP (17)
+        flow[38] = 17;
+        // router_src = 10.0.0.1
+        flow[48] = 10;
+        flow[51] = 1;
+        packet.extend_from_slice(&flow);
+    }
+    packet
+}
+
+/// V7 with count=0 must be rejected
+#[test]
+fn test_v7_count_zero_rejected() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v7_packet(0, 0);
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_some(),
+        "V7 with count=0 must produce an error"
+    );
+}
+
+/// V7 with count > 28 (MAX_FLOWS) must be rejected
+#[test]
+fn test_v7_count_exceeds_max_flows() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v7_packet(29, 29);
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_some(),
+        "V7 with count=29 (>28) must produce an error"
+    );
+}
+
+/// V7 at the maximum flow count (28) must succeed
+#[test]
+fn test_v7_max_flow_count_succeeds() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v7_packet(28, 28);
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_none(),
+        "V7 with count=28 should parse successfully: {:?}",
+        result.error
+    );
+    assert_eq!(result.packets.len(), 1);
+    if let NetflowPacket::V7(v7) = &result.packets[0] {
+        assert_eq!(v7.flowsets.len(), 28, "Should have 28 flowsets");
+    } else {
+        panic!("Expected V7 packet");
+    }
+}
+
+/// V7 with truncated flow data (count says 3, only 2 flows of data)
+#[test]
+fn test_v7_truncated_flow_data() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v7_packet(3, 2); // Claims 3 flows, only has 2
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_some(),
+        "V7 with truncated flow data must produce an error"
+    );
+}
+
+/// V7 with a single valid flow verifies field extraction
+#[test]
+fn test_v7_single_flow_field_extraction() {
+    let mut parser = NetflowParser::default();
+    let packet = build_v7_packet(1, 1);
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_none(),
+        "V7 with 1 flow should succeed: {:?}",
+        result.error
+    );
+    assert_eq!(result.packets.len(), 1);
+    if let NetflowPacket::V7(v7) = &result.packets[0] {
+        assert_eq!(v7.flowsets.len(), 1);
+        assert_eq!(
+            v7.flowsets[0].src_addr,
+            std::net::Ipv4Addr::new(192, 168, 0, 0)
+        );
+        assert_eq!(v7.flowsets[0].protocol_number, 17);
+        assert_eq!(
+            v7.flowsets[0].router_src,
+            std::net::Ipv4Addr::new(10, 0, 0, 1)
+        );
+    } else {
+        panic!("Expected V7 packet");
+    }
+}
+
+/// V5 header too short (less than 22 bytes after version)
+#[test]
+fn test_v5_header_too_short() {
+    let mut parser = NetflowParser::default();
+    // Version + only 10 bytes of header (need 22)
+    let packet = vec![
+        0x00, 0x05, // Version 5
+        0x00, 0x01, // Count = 1
+        0x00, 0x00, 0x00, 0x01, // SysUptime
+        0x00, 0x00, 0x00, 0x01, // Unix seconds (only 10 bytes total, need 22)
+    ];
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_some(),
+        "V5 with truncated header must produce an error"
+    );
+}
+
+/// V7 header too short (less than 22 bytes after version)
+#[test]
+fn test_v7_header_too_short() {
+    let mut parser = NetflowParser::default();
+    let packet = vec![
+        0x00, 0x07, // Version 7
+        0x00, 0x01, // Count = 1
+        0x00, 0x00, 0x00, 0x01, // SysUptime
+        0x00, 0x00, 0x00, 0x01, // Unix seconds (only 10 bytes total, need 22)
+    ];
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_some(),
+        "V7 with truncated header must produce an error"
+    );
+}

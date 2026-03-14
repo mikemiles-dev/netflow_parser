@@ -1,5 +1,5 @@
 ---
-source: src/variable_versions/ipfix_lookup.rs
+source: src/variable_versions/ipfix/lookup.rs
 expression: lookup
 ---
 - Unknown
@@ -163,7 +163,7 @@ expression: lookup
 - UnsignedDataNumber
 - UnsignedDataNumber
 - DurationMillis
-- UnsignedDataNumber
+- DurationMillis
 - UnsignedDataNumber
 - UnsignedDataNumber
 - UnsignedDataNumber
