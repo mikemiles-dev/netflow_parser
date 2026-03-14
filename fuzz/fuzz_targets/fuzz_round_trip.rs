@@ -22,8 +22,14 @@ fuzz_target!(|data: &[u8]| {
             let serialized = match packet {
                 NetflowPacket::V5(v5) => v5.to_be_bytes(),
                 NetflowPacket::V7(v7) => v7.to_be_bytes(),
-                NetflowPacket::V9(v9) => v9.to_be_bytes(),
-                NetflowPacket::IPFix(ipfix) => ipfix.to_be_bytes(),
+                NetflowPacket::V9(v9) => match v9.to_be_bytes() {
+                    Ok(bytes) => bytes,
+                    Err(_) => continue,
+                },
+                NetflowPacket::IPFix(ipfix) => match ipfix.to_be_bytes() {
+                    Ok(bytes) => bytes,
+                    Err(_) => continue,
+                },
             };
 
             // Re-parse the serialized output and verify it produces a valid packet
