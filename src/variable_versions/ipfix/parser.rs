@@ -956,11 +956,15 @@ impl<'a> FieldParser {
                 }
             })
             .sum();
-        let estimated_records = if template_size > 0 {
-            (i.len() / template_size).min(max_records)
-        } else {
-            0
-        };
+        // template_fields is non-empty (checked above) and each contributes >= 1 byte,
+        // so template_size is always > 0 here. Return error to match V9 behavior.
+        if template_size == 0 {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                i,
+                nom::error::ErrorKind::Verify,
+            )));
+        }
+        let estimated_records = (i.len() / template_size).min(max_records);
         let mut res = Vec::with_capacity(estimated_records);
 
         // Try to parse as much as we can, but if it fails, just return what we have so far.

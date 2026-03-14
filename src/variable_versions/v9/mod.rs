@@ -141,10 +141,10 @@ pub struct OptionsTemplate {
     /// Length in bytes of option field definitions in this options template.
     pub options_length: u16,
     /// Options Scope Fields
-    #[nom(Count = "usize::from(options_scope_length.checked_div(4).unwrap_or(0))")]
+    #[nom(Count = "usize::from(options_scope_length / 4)")]
     pub scope_fields: Vec<OptionsTemplateScopeField>,
     /// Options Fields
-    #[nom(Count = "usize::from(options_length.checked_div(4).unwrap_or(0))")]
+    #[nom(Count = "usize::from(options_length / 4)")]
     pub option_fields: Vec<TemplateField>,
 }
 

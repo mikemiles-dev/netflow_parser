@@ -236,9 +236,12 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     where
         K: Clone,
     {
-        // If the source already exists, get promotes it and we return iterator.
+        // If the source already exists, promote it in the LRU and return iterator.
+        // Note: contains() + get_mut() is intentional — get_mut() borrows self.parsers
+        // for the lifetime of the returned iterator, which would conflict with the
+        // push/get_mut path below. contains() does not hold a borrow.
         if self.parsers.contains(&source) {
-            let (parser, last_seen) = self.parsers.get_mut(&source).unwrap();
+            let (parser, last_seen) = self.parsers.get_mut(&source).expect("checked by contains");
             *last_seen = Instant::now();
             return Ok(parser.iter_packets(data));
         }
