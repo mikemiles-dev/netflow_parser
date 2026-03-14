@@ -767,7 +767,7 @@ By default, NetflowCommon maps standard IANA fields to the common structure. How
 
 ```rust,ignore
 use netflow_parser::netflow_common::{NetflowCommon, V9FieldMappingConfig};
-use netflow_parser::variable_versions::v9_lookup::V9Field;
+use netflow_parser::variable_versions::v9::lookup::V9Field;
 
 // Create a custom configuration that prefers IPv6 addresses
 let mut config = V9FieldMappingConfig::default();
@@ -784,7 +784,7 @@ config.dst_addr.fallback = Some(V9Field::Ipv4DstAddr);
 
 ```rust,ignore
 use netflow_parser::netflow_common::{NetflowCommon, IPFixFieldMappingConfig};
-use netflow_parser::variable_versions::ipfix_lookup::{IPFixField, IANAIPFixField};
+use netflow_parser::variable_versions::ipfix::lookup::{IPFixField, IANAIPFixField};
 
 // Create a custom configuration that prefers IPv6 addresses
 let mut config = IPFixFieldMappingConfig::default();

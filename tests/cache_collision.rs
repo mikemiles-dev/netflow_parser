@@ -30,21 +30,18 @@ fn test_auto_scoped_parser_no_collisions() {
     assert!(parser.source_count() >= 2);
 }
 
-// Verify that a single NetflowParser can parse repeatedly from simulated multiple sources
+// Verify that a single NetflowParser produces consistent results across repeated V5 parses
 #[test]
-fn test_single_parser_multi_source() {
-    // This test demonstrates parsing from multiple sources with a single parser
+fn test_single_parser_repeated_v5_parsing() {
     let mut parser = NetflowParser::default();
 
-    // Simulate parsing from multiple "sources"
-    // In real scenario, these would be different routers sending templates
     let v5_packet = [
         0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
         5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
         4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
     ];
 
-    // Parse multiple times (simulating different sources)
+    // V5 is stateless (no templates), so repeated parses should always produce 1 packet
     for _ in 0..5 {
         let packets = parser.parse_bytes(&v5_packet).packets;
         assert_eq!(packets.len(), 1);

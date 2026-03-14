@@ -16,7 +16,7 @@ use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::metrics::CacheMetrics;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
-use crate::variable_versions::v9_lookup::ScopeFieldType;
+use super::lookup::ScopeFieldType;
 use crate::variable_versions::{
     Config, ConfigError, ParserConfig, ParserFields, PendingFlowCache, PendingFlowEntry,
     PendingFlowsConfig,

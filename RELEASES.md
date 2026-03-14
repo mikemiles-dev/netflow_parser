@@ -2,6 +2,12 @@
 
 ## Breaking Changes
 
+* **`ipfix_lookup` and `v9_lookup` modules moved into their protocol directories**
+  - `variable_versions::ipfix_lookup::*` → `variable_versions::ipfix::lookup::*`
+  - `variable_versions::v9_lookup::*` → `variable_versions::v9::lookup::*`
+  - All types (`IPFixField`, `IANAIPFixField`, `CiscoIPFixField`, `V9Field`, `ScopeFieldType`, etc.) remain unchanged — only the module path has changed
+  - Migration: update `use` statements to the new paths
+
 * **`FieldValue::Duration` now wraps `DurationValue` instead of `std::time::Duration`**
   - New `DurationValue` enum preserves the original time unit (`Seconds`, `Millis`, `MicrosNtp`, `NanosNtp`), field width (4 or 8 bytes), and raw NTP fractional seconds
   - Enables lossless round-trip serialization — previously, unit and width information was lost during parsing

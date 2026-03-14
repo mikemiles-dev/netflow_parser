@@ -18,6 +18,7 @@
 //! - <https://www.ibm.com/docs/en/npi/1.3.1?topic=overview-ipfix-message-format>
 //! - <https://www.iana.org/assignments/ipfix/ipfix.xhtml>
 
+pub mod lookup;
 mod parser;
 mod serializer;
 
@@ -26,7 +27,7 @@ use super::enterprise_registry::EnterpriseFieldRegistry;
 use super::field_value::FieldValue;
 use super::metrics::CacheMetrics;
 use super::ttl::{TemplateWithTtl, TtlConfig};
-use crate::variable_versions::ipfix_lookup::IPFixField;
+use lookup::IPFixField;
 
 use nom::bytes::complete::take;
 use nom::combinator::{complete, map_res};

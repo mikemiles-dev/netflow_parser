@@ -905,7 +905,7 @@ impl FieldValue {
 ///
 /// ```
 /// use netflow_parser::variable_versions::field_value::FieldDataType;
-/// use netflow_parser::variable_versions::ipfix_lookup::IANAIPFixField;
+/// use netflow_parser::variable_versions::ipfix::lookup::IANAIPFixField;
 ///
 /// // Get the data type for a specific field
 /// let field = IANAIPFixField::SourceIpv4address;

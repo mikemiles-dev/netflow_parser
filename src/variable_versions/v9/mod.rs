@@ -13,13 +13,14 @@
 //! - <https://www.ietf.org/rfc/rfc3954.txt>
 //! - <https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html>
 
+pub mod lookup;
 mod parser;
 mod serializer;
 
 pub use parser::V9Parser;
 
 use super::field_value::FieldValue;
-use crate::variable_versions::v9_lookup::{ScopeFieldType, V9Field};
+use lookup::{ScopeFieldType, V9Field};
 
 use nom::bytes::complete::take;
 use nom::combinator::map_res;
