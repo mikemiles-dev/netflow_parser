@@ -436,19 +436,15 @@ fn extract_timestamp_millis(v: &FieldValue) -> Option<u64> {
             DurationValue::Seconds { value, .. } => value.checked_mul(1000),
             DurationValue::MicrosNtp { seconds, fraction } => {
                 let millis = ((u64::from(*fraction)).saturating_mul(1_000)) >> 32;
-                Some(
-                    u64::from(*seconds)
-                        .saturating_mul(1000)
-                        .saturating_add(millis),
-                )
+                u64::from(*seconds)
+                    .checked_mul(1000)
+                    .and_then(|s| s.checked_add(millis))
             }
             DurationValue::NanosNtp { seconds, fraction } => {
                 let millis = ((u64::from(*fraction)).saturating_mul(1_000)) >> 32;
-                Some(
-                    u64::from(*seconds)
-                        .saturating_mul(1000)
-                        .saturating_add(millis),
-                )
+                u64::from(*seconds)
+                    .checked_mul(1000)
+                    .and_then(|s| s.checked_add(millis))
             }
         },
         _ => None,

@@ -106,19 +106,23 @@ pub(crate) struct PendingFlowCache {
 }
 
 impl PendingFlowCache {
-    /// Maximum size in bytes that this cache will accept for a single entry.
-    pub(crate) fn max_entry_size_bytes(&self) -> usize {
-        self.config.max_entry_size_bytes
-    }
-
     /// Best-effort check whether the cache would accept a new entry for
-    /// `template_id`.  Returns `false` when the per-template cap is already
-    /// reached, avoiding a full clone that would be immediately rejected.
+    /// `template_id` with `data_len` bytes.  Returns `false` when the
+    /// per-template cap is already reached or the total byte budget would
+    /// be exceeded, avoiding a full clone that would be immediately rejected.
     ///
     /// Uses `peek` so the query does not promote the key in the LRU.
     /// When TTL is configured, only non-expired entries count toward the cap
     /// so the decision matches what `cache()` would do after pruning.
-    pub(crate) fn would_accept(&self, template_id: u16) -> bool {
+    pub(crate) fn would_accept(&self, template_id: u16, data_len: usize) -> bool {
+        // Reject if the entry itself exceeds the per-entry size limit
+        if data_len > self.config.max_entry_size_bytes {
+            return false;
+        }
+        // Reject if adding this entry would exceed the total byte budget
+        if self.total_bytes.saturating_add(data_len) > self.config.max_total_bytes {
+            return false;
+        }
         match self.cache.peek(&template_id) {
             Some(entries) => {
                 let live = match self.config.ttl {
@@ -694,17 +698,33 @@ mod tests {
         let mut metrics = default_metrics();
 
         // No entries yet, should accept
-        assert!(cache.would_accept(100));
+        assert!(cache.would_accept(100, 10));
 
         // Fill to cap
         assert!(cache.cache(100, vec![1], &mut metrics).is_none());
         assert!(cache.cache(100, vec![2], &mut metrics).is_none());
 
         // At cap, should not accept
-        assert!(!cache.would_accept(100));
+        assert!(!cache.would_accept(100, 10));
 
         // Different template should still accept
-        assert!(cache.would_accept(200));
+        assert!(cache.would_accept(200, 10));
+
+        // Reject entry exceeding per-entry size limit
+        assert!(cache.would_accept(200, 128));
+        assert!(!cache.would_accept(200, 129));
+
+        // Reject entry that would exceed total byte budget
+        let config_small = PendingFlowsConfig {
+            max_pending_flows: 8,
+            max_entries_per_template: 10,
+            max_entry_size_bytes: 128,
+            max_total_bytes: 16,
+            ttl: None,
+        };
+        let cache_small = PendingFlowCache::new(config_small).unwrap();
+        assert!(cache_small.would_accept(100, 16));
+        assert!(!cache_small.would_accept(100, 17));
     }
 
     #[test]

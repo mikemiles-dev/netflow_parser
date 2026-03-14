@@ -333,9 +333,8 @@ impl IPFixParser {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
+                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
+                        .unwrap_or(u16::MAX),
                 },
                 body: FlowSetBody::Data(data),
             });
@@ -358,9 +357,8 @@ impl IPFixParser {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
+                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
+                        .unwrap_or(u16::MAX),
                 },
                 body: FlowSetBody::OptionsData(data),
             });
@@ -380,9 +378,8 @@ impl IPFixParser {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
+                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
+                        .unwrap_or(u16::MAX),
                 },
                 body: FlowSetBody::V9Data(data),
             });
@@ -404,9 +401,8 @@ impl IPFixParser {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
+                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
+                        .unwrap_or(u16::MAX),
                 },
                 body: FlowSetBody::V9OptionsData(data),
             });
@@ -668,10 +664,14 @@ impl FlowSetBody {
                 FlowSetBody::V9Template,
                 FlowSetBody::V9Templates,
                 |t: &V9Template, p: &IPFixParser| {
-                    // Validate V9 templates using IPFIX parser limits
+                    // Validate V9 templates using IPFIX parser limits.
+                    // V9 does not support variable-length fields, so reject
+                    // zero-length and the variable-length sentinel 65535.
                     usize::from(t.field_count) <= p.max_field_count
                         && !t.fields.is_empty()
-                        && t.fields.iter().any(|f| f.field_length > 0)
+                        && t.fields
+                            .iter()
+                            .all(|f| f.field_length > 0 && f.field_length != 65535)
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
                         && !t.has_duplicate_fields()
                 },
@@ -802,15 +802,16 @@ impl FlowSetBody {
                     // per-template cap has room.  Otherwise truncate to
                     // max_error_sample_size to avoid large allocations
                     // that would be immediately rejected.
-                    let (raw_data, truncated) =
-                        if parser.pending_flows.as_ref().is_some_and(|c| {
-                            i.len() <= c.max_entry_size_bytes() && c.would_accept(id)
-                        }) {
-                            (i.to_vec(), false)
-                        } else {
-                            let limit = i.len().min(parser.max_error_sample_size);
-                            (i[..limit].to_vec(), limit < i.len())
-                        };
+                    let (raw_data, truncated) = if parser
+                        .pending_flows
+                        .as_ref()
+                        .is_some_and(|c| c.would_accept(id, i.len()))
+                    {
+                        (i.to_vec(), false)
+                    } else {
+                        let limit = i.len().min(parser.max_error_sample_size);
+                        (i[..limit].to_vec(), limit < i.len())
+                    };
                     let info = NoTemplateInfo {
                         template_id: id,
                         raw_data,

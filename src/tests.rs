@@ -824,6 +824,10 @@ mod malformed_packet_tests {
             result.packets.is_empty(),
             "V5 with count exceeding data should produce no valid packets"
         );
+        assert!(
+            result.error.is_some(),
+            "V5 with count exceeding data should produce an error"
+        );
     }
 
     // V5 header with count=0. No flow records should be parsed.
@@ -839,6 +843,10 @@ mod malformed_packet_tests {
         assert!(
             result.packets.is_empty(),
             "V5 with count=0 should produce no packets"
+        );
+        assert!(
+            result.error.is_some(),
+            "V5 with count=0 should produce an error"
         );
     }
 
