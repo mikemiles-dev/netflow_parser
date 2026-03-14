@@ -119,8 +119,10 @@ impl PendingFlowCache {
         if data_len > self.config.max_entry_size_bytes {
             return false;
         }
-        // Reject if adding this entry would exceed the total byte budget
-        if self.total_bytes.saturating_add(data_len) > self.config.max_total_bytes {
+        // Check total byte budget, but allow if eviction could make room.
+        // Only reject if the single entry alone exceeds the total budget
+        // (cache() evicts LRU templates to free space when over budget).
+        if data_len > self.config.max_total_bytes {
             return false;
         }
         match self.cache.peek(&template_id) {

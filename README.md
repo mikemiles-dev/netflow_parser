@@ -317,7 +317,7 @@ The parser also automatically validates:
 
 ### Template TTL (Time-to-Live)
 
-> **⚠️ Breaking Change in v0.7.0:** Packet-based and combined TTL modes have been removed. Only time-based TTL is now supported. See [RELEASES.md](RELEASES.md) for migration guide.
+> **Note:** Only time-based TTL is supported. See [RELEASES.md](RELEASES.md) for details.
 
 Optionally configure templates to expire after a time duration. This is useful for:
 - Handling exporters that reuse template IDs with different schemas
@@ -706,18 +706,18 @@ pub struct NetflowCommon {
     pub flowsets: Vec<NetflowCommonFlowSet>,
 }
 
-#[derive(Debug, Default)]
-struct NetflowCommonFlowSet {
-    src_addr: Option<IpAddr>,
-    dst_addr: Option<IpAddr>,
-    src_port: Option<u16>,
-    dst_port: Option<u16>,
-    protocol_number: Option<u8>,
-    protocol_type: Option<ProtocolTypes>,
-    first_seen: Option<u32>,
-    last_seen: Option<u32>,
-    src_mac: Option<String>,
-    dst_mac: Option<String>,
+#[derive(Debug, Default, Clone)]
+pub struct NetflowCommonFlowSet {
+    pub src_addr: Option<IpAddr>,
+    pub dst_addr: Option<IpAddr>,
+    pub src_port: Option<u16>,
+    pub dst_port: Option<u16>,
+    pub protocol_number: Option<u8>,
+    pub protocol_type: Option<ProtocolTypes>,
+    pub first_seen: Option<u64>,
+    pub last_seen: Option<u64>,
+    pub src_mac: Option<String>,
+    pub dst_mac: Option<String>,
 }
 ```
 
@@ -1194,7 +1194,13 @@ To run:
 
 ```cargo run --example custom_enterprise_fields```
 
-The pcap example also shows how to cache flows that have not yet discovered a template. The custom_enterprise_fields example demonstrates how to register vendor-specific IPFIX fields.
+```cargo run --example template_hooks```
+
+```cargo run --example template_management_demo```
+
+```cargo run --example multi_source_comparison```
+
+The pcap example also shows how to cache flows that have not yet discovered a template. The custom_enterprise_fields example demonstrates how to register vendor-specific IPFIX fields. The template_hooks example shows how to monitor template lifecycle events.
 
 ## Support My Work
 

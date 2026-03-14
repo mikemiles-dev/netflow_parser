@@ -146,6 +146,13 @@ impl ParserConfig for V9Parser {
                 }
             }
             None => {
+                // Record all cached entries as dropped before discarding.
+                if let Some(ref cache) = self.pending_flows {
+                    let count = cache.count();
+                    if count > 0 {
+                        self.metrics.record_pending_dropped_n(count as u64);
+                    }
+                }
                 self.pending_flows = None;
             }
         }
@@ -255,12 +262,18 @@ impl V9Parser {
         learned: &[u16],
     ) {
         for &template_id in learned {
-            for entry in cache.drain(template_id, &mut self.metrics) {
+            let entries = cache.drain(template_id, &mut self.metrics);
+            let total_entries = entries.len();
+            for (processed, entry) in entries.iter().enumerate() {
                 if v9.flowsets.len() >= u16::MAX as usize {
-                    self.metrics.record_pending_replay_failed();
-                    continue;
+                    // Count this entry plus all remaining as failed, then break.
+                    let remaining = (total_entries - processed) as u64;
+                    for _ in 0..remaining {
+                        self.metrics.record_pending_replay_failed();
+                    }
+                    break;
                 }
-                if self.try_replay_v9_flow(&mut v9.flowsets, template_id, &entry) {
+                if self.try_replay_v9_flow(&mut v9.flowsets, template_id, entry) {
                     self.metrics.record_pending_replayed();
                 } else {
                     self.metrics.record_pending_replay_failed();

@@ -206,8 +206,10 @@ fn test_pcap_iterator_api() {
                             && let TransportSlice::Udp(udp) = transport
                         {
                             // Use iterator API instead of parse_bytes
-                            for _pkt in parser.iter_packets(udp.payload()) {
-                                netflow_count += 1;
+                            for pkt in parser.iter_packets(udp.payload()) {
+                                if pkt.is_ok() {
+                                    netflow_count += 1;
+                                }
                             }
                         }
                     }
