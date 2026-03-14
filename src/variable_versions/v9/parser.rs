@@ -293,9 +293,8 @@ impl V9Parser {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     flowset_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
+                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
+                        .unwrap_or(u16::MAX),
                 },
                 body: FlowSetBody::Data(data),
             });
@@ -316,9 +315,8 @@ impl V9Parser {
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
                     flowset_id: template_id,
-                    length: u16::try_from(entry.raw_data.len())
-                        .unwrap_or(u16::MAX)
-                        .saturating_add(4),
+                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
+                        .unwrap_or(u16::MAX),
                 },
                 body: FlowSetBody::OptionsData(options_data),
             });
@@ -478,15 +476,16 @@ impl FlowSetBody {
                     // per-template cap has room.  Otherwise truncate to
                     // max_error_sample_size to avoid large allocations
                     // that would be immediately rejected.
-                    let (raw_data, truncated) =
-                        if parser.pending_flows.as_ref().is_some_and(|c| {
-                            i.len() <= c.max_entry_size_bytes() && c.would_accept(id)
-                        }) {
-                            (i.to_vec(), false)
-                        } else {
-                            let limit = i.len().min(parser.max_error_sample_size);
-                            (i[..limit].to_vec(), limit < i.len())
-                        };
+                    let (raw_data, truncated) = if parser
+                        .pending_flows
+                        .as_ref()
+                        .is_some_and(|c| c.would_accept(id, i.len()))
+                    {
+                        (i.to_vec(), false)
+                    } else {
+                        let limit = i.len().min(parser.max_error_sample_size);
+                        (i[..limit].to_vec(), limit < i.len())
+                    };
 
                     let info = NoTemplateInfo {
                         template_id: id,
@@ -511,9 +510,15 @@ impl Template {
             return false;
         }
 
-        // Check fields are not empty and all fields have non-zero length
-        // (V9 does not support variable-length fields, so every field must have a concrete size)
-        if self.fields.is_empty() || self.fields.iter().any(|f| f.field_length == 0) {
+        // Check fields are not empty and all fields have valid length
+        // (V9 does not support variable-length fields, so every field must have a concrete size;
+        // reject both zero-length and the variable-length sentinel 65535)
+        if self.fields.is_empty()
+            || self
+                .fields
+                .iter()
+                .any(|f| f.field_length == 0 || f.field_length == 65535)
+        {
             return false;
         }
 
@@ -570,11 +575,16 @@ impl OptionsTemplate {
             return false;
         }
 
-        // Check that at least one field has non-zero length to prevent
-        // infinite loops in many0-based OptionsData parsing (zero-length
-        // fields would cause the parser to succeed without consuming input).
-        if !self.scope_fields.iter().any(|f| f.field_length > 0)
-            && !self.option_fields.iter().any(|f| f.field_length > 0)
+        // V9 does not support variable-length fields; reject zero-length
+        // (would cause infinite loops) and the variable-length sentinel 65535.
+        if self
+            .scope_fields
+            .iter()
+            .any(|f| f.field_length == 0 || f.field_length == 65535)
+            || self
+                .option_fields
+                .iter()
+                .any(|f| f.field_length == 0 || f.field_length == 65535)
         {
             return false;
         }
