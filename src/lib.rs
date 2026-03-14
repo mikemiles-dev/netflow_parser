@@ -26,6 +26,17 @@ use nom_derive::{Nom, Parse};
 use serde::Serialize;
 use std::sync::Arc;
 
+/// Count non-expired templates in an LRU cache, respecting TTL if configured.
+fn count_valid_templates<T>(
+    cache: &lru::LruCache<u16, variable_versions::ttl::TemplateWithTtl<T>>,
+    ttl_config: &Option<variable_versions::ttl::TtlConfig>,
+) -> usize {
+    match ttl_config {
+        Some(cfg) => cache.iter().filter(|(_, t)| !t.is_expired(cfg)).count(),
+        None => cache.len(),
+    }
+}
+
 // Re-export scoped parser types for convenience
 pub use scoped_parser::{
     AutoScopedParser, DEFAULT_MAX_SOURCES, IpfixSourceKey, RouterScopedParser, ScopingInfo,
@@ -1191,8 +1202,13 @@ impl NetflowParser {
     /// ```
     pub fn v9_cache_stats(&self) -> CacheStats {
         CacheStats {
-            current_size: self.v9_parser.templates.len()
-                + self.v9_parser.options_templates.len(),
+            current_size: count_valid_templates(
+                &self.v9_parser.templates,
+                &self.v9_parser.ttl_config,
+            ) + count_valid_templates(
+                &self.v9_parser.options_templates,
+                &self.v9_parser.ttl_config,
+            ),
             max_size_per_cache: self.v9_parser.max_template_cache_size,
             num_caches: 2,
             ttl_config: self.v9_parser.ttl_config.clone(),
@@ -1213,11 +1229,12 @@ impl NetflowParser {
     /// println!("IPFIX cache: {}/{} templates", stats.current_size, stats.max_size_per_cache);
     /// ```
     pub fn ipfix_cache_stats(&self) -> CacheStats {
+        let ttl = &self.ipfix_parser.ttl_config;
         CacheStats {
-            current_size: self.ipfix_parser.templates.len()
-                + self.ipfix_parser.v9_templates.len()
-                + self.ipfix_parser.ipfix_options_templates.len()
-                + self.ipfix_parser.v9_options_templates.len(),
+            current_size: count_valid_templates(&self.ipfix_parser.templates, ttl)
+                + count_valid_templates(&self.ipfix_parser.v9_templates, ttl)
+                + count_valid_templates(&self.ipfix_parser.ipfix_options_templates, ttl)
+                + count_valid_templates(&self.ipfix_parser.v9_options_templates, ttl),
             max_size_per_cache: self.ipfix_parser.max_template_cache_size,
             num_caches: 4,
             ttl_config: self.ipfix_parser.ttl_config.clone(),
@@ -1304,12 +1321,25 @@ impl NetflowParser {
     /// }
     /// ```
     pub fn has_v9_template(&self, template_id: u16) -> bool {
-        self.v9_parser.templates.peek(&template_id).is_some()
+        self.v9_parser
+            .templates
+            .peek(&template_id)
+            .is_some_and(|t| {
+                self.v9_parser
+                    .ttl_config
+                    .as_ref()
+                    .is_none_or(|cfg| !t.is_expired(cfg))
+            })
             || self
                 .v9_parser
                 .options_templates
                 .peek(&template_id)
-                .is_some()
+                .is_some_and(|t| {
+                    self.v9_parser
+                        .ttl_config
+                        .as_ref()
+                        .is_none_or(|cfg| !t.is_expired(cfg))
+                })
     }
 
     /// Checks if an IPFIX template with the given ID is cached.
@@ -1331,18 +1361,26 @@ impl NetflowParser {
     /// }
     /// ```
     pub fn has_ipfix_template(&self, template_id: u16) -> bool {
-        self.ipfix_parser.templates.peek(&template_id).is_some()
-            || self.ipfix_parser.v9_templates.peek(&template_id).is_some()
+        let ttl = &self.ipfix_parser.ttl_config;
+        self.ipfix_parser
+            .templates
+            .peek(&template_id)
+            .is_some_and(|t| ttl.as_ref().is_none_or(|cfg| !t.is_expired(cfg)))
+            || self
+                .ipfix_parser
+                .v9_templates
+                .peek(&template_id)
+                .is_some_and(|t| ttl.as_ref().is_none_or(|cfg| !t.is_expired(cfg)))
             || self
                 .ipfix_parser
                 .ipfix_options_templates
                 .peek(&template_id)
-                .is_some()
+                .is_some_and(|t| ttl.as_ref().is_none_or(|cfg| !t.is_expired(cfg)))
             || self
                 .ipfix_parser
                 .v9_options_templates
                 .peek(&template_id)
-                .is_some()
+                .is_some_and(|t| ttl.as_ref().is_none_or(|cfg| !t.is_expired(cfg)))
     }
 
     /// Clears all cached V9 templates.
@@ -1567,15 +1605,7 @@ impl NetflowParser {
                     10 => self.ipfix_parser.parse(remaining),
                     // The outer guard ensures only versions with allowed_versions[v]==true
                     // reach here, and only 5/7/9/10 can be set to true via the builder.
-                    _ => ParsedNetflow::Error {
-                        error: NetflowError::UnsupportedVersion {
-                            version: header.version,
-                            offset: 0,
-                            sample: remaining
-                                [..remaining.len().min(self.max_error_sample_size)]
-                                .to_vec(),
-                        },
-                    },
+                    _ => unreachable!("allowed_versions guard only permits 5/7/9/10"),
                 }
             }
             Ok((_, header)) if matches!(header.version, 5 | 7 | 9 | 10) => {
@@ -1584,13 +1614,14 @@ impl NetflowParser {
                     version: header.version,
                 }
             }
-            Ok((_, header)) => {
+            Ok((remaining, header)) => {
                 // Version is not supported at all
                 ParsedNetflow::Error {
                     error: NetflowError::UnsupportedVersion {
                         version: header.version,
                         offset: 0,
-                        sample: packet[..packet.len().min(self.max_error_sample_size)].to_vec(),
+                        sample: remaining[..remaining.len().min(self.max_error_sample_size)]
+                            .to_vec(),
                     },
                 }
             }
