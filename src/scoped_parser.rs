@@ -241,7 +241,8 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         // for the lifetime of the returned iterator, which would conflict with the
         // push/get_mut path below. contains() does not hold a borrow.
         if self.parsers.contains(&source) {
-            let (parser, last_seen) = self.parsers.get_mut(&source).expect("checked by contains");
+            let (parser, last_seen) =
+                self.parsers.get_mut(&source).expect("checked by contains");
             *last_seen = Instant::now();
             return Ok(parser.iter_packets(data));
         }
