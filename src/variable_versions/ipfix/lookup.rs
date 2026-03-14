@@ -1,6 +1,6 @@
 //! See <https://www.iana.org/assignments/ipfix/ipfix.xhtml> for more details on fields
 
-use super::field_value::*;
+use crate::variable_versions::field_value::*;
 
 use serde::Serialize;
 
@@ -57,7 +57,7 @@ impl IPFixField {
     /// Get the FieldDataType for this field, consulting the enterprise registry if applicable
     pub fn to_field_data_type(
         &self,
-        registry: &super::enterprise_registry::EnterpriseFieldRegistry,
+        registry: &crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry,
     ) -> FieldDataType {
         match self {
             IPFixField::Enterprise {
@@ -1092,7 +1092,7 @@ ipfix_field_enum! {
 /// # Examples
 ///
 /// ```
-/// use netflow_parser::variable_versions::ipfix_lookup::IANAIPFixField;
+/// use netflow_parser::variable_versions::ipfix::lookup::IANAIPFixField;
 /// use netflow_parser::variable_versions::field_value::FieldDataType;
 ///
 /// // Convert from field ID

@@ -5,10 +5,10 @@
 //! to align FlowSets to 4-byte boundaries.
 
 use netflow_parser::variable_versions::field_value::FieldValue;
+use netflow_parser::variable_versions::ipfix::lookup::{IANAIPFixField, IPFixField};
 use netflow_parser::variable_versions::ipfix::{
     Data, FlowSet, FlowSetBody, FlowSetHeader, Header, IPFix, Template, TemplateField,
 };
-use netflow_parser::variable_versions::ipfix_lookup::{IANAIPFixField, IPFixField};
 use std::net::Ipv4Addr;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

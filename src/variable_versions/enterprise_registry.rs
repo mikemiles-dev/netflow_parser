@@ -10,11 +10,11 @@
 //!
 //! | Vendor | Enterprise ID | Type |
 //! |--------|---------------|------|
-//! | IANA (Standard Fields) | 0 | [`IANAIPFixField`](super::ipfix_lookup::IANAIPFixField) |
-//! | Cisco Systems | 9 | [`CiscoIPFixField`](super::ipfix_lookup::CiscoIPFixField) |
-//! | Citrix NetScaler | 5951 | [`NetscalerIPFixField`](super::ipfix_lookup::NetscalerIPFixField) |
-//! | YAF (Yet Another Flowmeter) | 6871 | [`YafIPFixField`](super::ipfix_lookup::YafIPFixField) |
-//! | VMware | 6876 | [`VMWareIPFixField`](super::ipfix_lookup::VMWareIPFixField) |
+//! | IANA (Standard Fields) | 0 | [`IANAIPFixField`](super::ipfix::lookup::IANAIPFixField) |
+//! | Cisco Systems | 9 | [`CiscoIPFixField`](super::ipfix::lookup::CiscoIPFixField) |
+//! | Citrix NetScaler | 5951 | [`NetscalerIPFixField`](super::ipfix::lookup::NetscalerIPFixField) |
+//! | YAF (Yet Another Flowmeter) | 6871 | [`YafIPFixField`](super::ipfix::lookup::YafIPFixField) |
+//! | VMware | 6876 | [`VMWareIPFixField`](super::ipfix::lookup::VMWareIPFixField) |
 //! | Fortinet | 12356 | Built-in support |
 //!
 //! For enterprise fields from other vendors or custom implementations, use this registry.

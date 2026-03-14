@@ -3,7 +3,7 @@ mod base_tests {
 
     use crate::variable_versions::Config;
     use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
-    use crate::variable_versions::ipfix_lookup::IPFixField;
+    use crate::variable_versions::ipfix::lookup::IPFixField;
     use crate::{NetflowPacket, NetflowParser};
     use std::sync::Arc;
 
@@ -263,9 +263,10 @@ mod base_tests {
         assert_yaml_snapshot!(ipfix);
     }
 
-    // Verify that IPFIX parsing handles multiple data records with only one template
+    // Verify IPFIX gracefully handles a packet with template+data sets where the template
+    // content may not fully parse. The parser must not panic on this input.
     #[test]
-    fn parse_ipfix_with_2_records_but_1_template() {
+    fn parse_ipfix_with_partial_template_data() {
         let hex = "000a00f46319088e0000036e8b7148d20002002c7f0000017f000002006b006c00000001000000010000000000000000c60000000011020106005000506401a5fe006d0100020028e21c1a0ae21c1a0a170217000000020000000200000000000000000000000000000000000000000002002ce21c1a0ae21c1a0a017b017c000000030000000300000000000000000000000000000000000000000000";
 
         let mut parser = NetflowParser::builder()
@@ -275,9 +276,13 @@ mod base_tests {
 
         let packet = hex::decode(hex).unwrap();
         let result = parser.parse_bytes(&packet);
-        // This IPFIX packet has data records but no previously cached template,
-        // so the parser may not produce parsed packets. Verify it doesn't panic
-        // and that any produced packets are IPFix.
+        // The parser should either produce packets or an error, but never both be empty
+        // (at minimum it recognizes the IPFIX version and attempts parsing).
+        let handled = !result.packets.is_empty() || result.error.is_some();
+        assert!(
+            handled,
+            "parser should produce packets or an error, not silently skip"
+        );
         for p in &result.packets {
             assert!(
                 matches!(p, NetflowPacket::IPFix(_)),
@@ -305,7 +310,8 @@ mod base_tests {
         assert_yaml_snapshot!(parser.parse_bytes(&packet).packets);
     }
 
-    // Verify that v9 data records are parsed when the template is in the same packet
+    // Verify that a V9 packet with template+data flowsets parses without panic.
+    // The packet may be partially malformed, so we verify graceful handling.
     #[test]
     fn v9_data_with_template_in_same_packet() {
         let hex = "0009000200000005639073f3000000030000000100000020010000030001000400020004000a0004010000180a66130e0a66130f00000024";
@@ -317,9 +323,9 @@ mod base_tests {
 
         let packet = hex::decode(hex).unwrap();
         let result = parser.parse_bytes(&packet);
-        // This packet contains both a template and data in the same packet.
-        // The parser may or may not produce packets depending on processing order.
-        // Verify no panic and any packets produced are V9.
+        // Parser should produce packets or an error, not silently skip the entire input.
+        let handled = !result.packets.is_empty() || result.error.is_some();
+        assert!(handled, "parser should produce packets or an error");
         for p in &result.packets {
             assert!(p.is_v9(), "all parsed packets should be V9");
         }
@@ -359,32 +365,44 @@ mod base_tests {
         assert_yaml_snapshot!(parser.parse_bytes(&hex::decode(hex2).unwrap()).packets);
     }
 
-    // Verify that v9 packets can be iterated using iter_packets and identified as v9
+    // Verify that iter_packets completes without panic on a V9 template-only packet.
+    // Template-only packets may yield zero data items through the iterator.
     #[test]
-    fn test_packet() {
-        let hexes = vec![
-            "00090001000016236482f6f30000000000000000000000200100001a000100040002000400080004000400040021000200b0000200b1000200b2000200b4000200b7000200b8000200ad000200ac00010038000200b9000200bd000200be000200c1000200c2000200c5000200c3000200c4000200c6000200c7000200c8000200c9000200ca000200cb000200ce0002",
-        ];
+    fn test_v9_template_only_iter_packets() {
+        let hex = "00090001000016236482f6f30000000000000000000000200100001a000100040002000400080004000400040021000200b0000200b1000200b2000200b4000200b7000200b8000200ad000200ac00010038000200b9000200bd000200be000200c1000200c2000200c5000200c3000200c4000200c6000200c7000200c8000200c9000200ca000200cb000200ce0002";
 
-        for hex in hexes {
-            let mut parser = NetflowParser::builder()
-                .with_cache_size(100)
-                .build()
-                .unwrap();
+        let mut parser = NetflowParser::builder()
+            .with_cache_size(100)
+            .build()
+            .unwrap();
 
-            let packet = hex::decode(hex).unwrap();
-            let mut count = 0;
-            for packet in parser.iter_packets(&packet).flatten() {
-                count += 1;
-                // Any packets produced from this v9 template data should be V9
-                assert!(packet.is_v9(), "expected V9 packet type");
-                assert!(!packet.is_v5(), "v9 packet should not be identified as v5");
+        let packet = hex::decode(hex).unwrap();
+        let mut iter = parser.iter_packets(&packet);
+        // Consume the iterator fully and count items.
+        // Template-only packets typically yield zero data items.
+        let mut count = 0;
+        let mut had_error = false;
+        for item in &mut iter {
+            match item {
+                Ok(p) => {
+                    count += 1;
+                    assert!(p.is_v9(), "expected V9 packet type");
+                }
+                Err(_) => {
+                    had_error = true;
+                }
             }
-            // This is a v9 template-only packet, so iter_packets may yield
-            // zero packets (templates are cached, not returned as data).
-            // The important assertion is that iteration completes without panic.
-            let _ = count;
         }
+        // The iterator must have completed (not infinite-looped).
+        assert!(
+            iter.is_complete(),
+            "iterator should be complete after full consumption"
+        );
+        // At least verify the parser engaged with the input (produced items or consumed it all).
+        assert!(
+            count > 0 || had_error || iter.remaining().is_empty(),
+            "iterator should have processed the input"
+        );
     }
 
     // Verify that iter_packets works and is_v5 can be called on each parsed packet
@@ -438,8 +456,8 @@ mod base_tests {
     // Verify that a v9 template exceeding the max field count limit is rejected as invalid
     #[test]
     fn test_template_validation_field_count_limit() {
+        use crate::variable_versions::v9::lookup::V9Field;
         use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
-        use crate::variable_versions::v9_lookup::V9Field;
 
         let config = Config {
             max_template_cache_size: 100,
@@ -484,8 +502,8 @@ mod base_tests {
     // Verify that a v9 template exceeding the max total size limit is rejected as invalid
     #[test]
     fn test_template_validation_total_size_limit() {
+        use crate::variable_versions::v9::lookup::V9Field;
         use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
-        use crate::variable_versions::v9_lookup::V9Field;
 
         let config = Config {
             max_template_cache_size: 100,
@@ -530,8 +548,8 @@ mod base_tests {
     // Verify that a v9 template with duplicate field type numbers is rejected as invalid
     #[test]
     fn test_template_validation_duplicate_fields() {
+        use crate::variable_versions::v9::lookup::V9Field;
         use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
-        use crate::variable_versions::v9_lookup::V9Field;
 
         let config = Config {
             max_template_cache_size: 100,
@@ -576,8 +594,8 @@ mod base_tests {
     // Verify that a well-formed v9 template with unique fields passes validation
     #[test]
     fn test_template_validation_valid_template() {
+        use crate::variable_versions::v9::lookup::V9Field;
         use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
-        use crate::variable_versions::v9_lookup::V9Field;
 
         let config = Config {
             max_template_cache_size: 100,

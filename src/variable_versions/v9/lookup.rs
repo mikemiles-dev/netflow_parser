@@ -1,6 +1,6 @@
 //! See: <https://www.ibm.com/docs/en/npi/1.3.0?topic=versions-v9-field-type-definitions>
 
-use super::field_value::*;
+use crate::variable_versions::field_value::*;
 
 use serde::Serialize;
 

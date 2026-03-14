@@ -36,11 +36,11 @@
 //!
 //! | Vendor | Enterprise ID | Module |
 //! |--------|---------------|--------|
-//! | IANA (standard) | 0 | [`ipfix_lookup::IANAIPFixField`] |
-//! | Cisco | 9 | [`ipfix_lookup::CiscoIPFixField`] |
-//! | NetScaler | 5951 | [`ipfix_lookup::NetscalerIPFixField`] |
-//! | YAF | 6871 | [`ipfix_lookup::YafIPFixField`] |
-//! | VMware | 6876 | [`ipfix_lookup::VMWareIPFixField`] |
+//! | IANA (standard) | 0 | [`ipfix::lookup::IANAIPFixField`] |
+//! | Cisco | 9 | [`ipfix::lookup::CiscoIPFixField`] |
+//! | NetScaler | 5951 | [`ipfix::lookup::NetscalerIPFixField`] |
+//! | YAF | 6871 | [`ipfix::lookup::YafIPFixField`] |
+//! | VMware | 6876 | [`ipfix::lookup::VMWareIPFixField`] |
 //!
 //! Register custom enterprise fields using [`enterprise_registry::EnterpriseFieldRegistry`]:
 //!
@@ -60,8 +60,8 @@
 //!
 //! - [`v9`] - NetFlow V9 parser and data structures
 //! - [`ipfix`] - IPFIX parser and data structures
-//! - [`v9_lookup`] - V9 field type definitions
-//! - [`ipfix_lookup`] - IPFIX field type definitions (IANA and enterprise)
+//! - [`v9::lookup`] - V9 field type definitions
+//! - [`ipfix::lookup`] - IPFIX field type definitions (IANA and enterprise)
 //! - [`field_value`] - Field value types and parsing
 //! - [`enterprise_registry`] - Custom enterprise field registration
 //! - [`ttl`] - Template expiration configuration
@@ -76,12 +76,10 @@ pub mod data_number {
 }
 pub mod enterprise_registry;
 pub mod ipfix;
-pub mod ipfix_lookup;
 pub mod metrics;
 pub(crate) mod pending_flows;
 pub mod ttl;
 pub mod v9;
-pub mod v9_lookup;
 
 // Re-export public types to preserve existing import paths
 pub use config::ParserConfig;
