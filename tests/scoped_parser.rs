@@ -47,7 +47,7 @@ fn test_auto_scoped_parser_multiple_sources() {
     let _ = parser.parse_from_source(source2, &v5_packet);
 
     // V5 packets create sources
-    assert!(parser.source_count() >= 2);
+    assert_eq!(parser.source_count(), 2);
 }
 
 // Verify that RouterScopedParser works with String keys for per-router parsing

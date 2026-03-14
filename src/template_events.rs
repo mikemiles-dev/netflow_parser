@@ -37,6 +37,7 @@
 use std::sync::Arc;
 
 /// Protocol type for template events.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum TemplateProtocol {
     /// NetFlow v9 template
@@ -49,6 +50,7 @@ pub enum TemplateProtocol {
 ///
 /// These events are emitted during template cache operations and allow
 /// users to monitor and react to template state changes.
+#[non_exhaustive]
 #[derive(Debug, Clone)]
 pub enum TemplateEvent {
     /// A new template was learned and added to the cache.

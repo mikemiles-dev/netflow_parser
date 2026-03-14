@@ -100,6 +100,55 @@
   - `None` when the field is 1 byte (classification engine ID only, no selector)
   - Fixes round-trip serialization: previously a 1-byte field serialized to 2 bytes
 
+* **`CacheStats` struct field changes**
+  - `max_size` renamed to `max_size_per_cache` (clarifies that it applies per internal LRU cache)
+  - Added `num_caches: usize` field (V9 has 2 caches, IPFIX has 4)
+  - Code that destructures `CacheStats` must update the field name and include `num_caches` (or use `..`)
+
+* **`TemplateEvent` field `template_id` changed from `u16` to `Option<u16>`**
+  - All variants (`Learned`, `Collision`, `Evicted`, `Expired`, `MissingTemplate`) now use `Option<u16>`
+  - `None` when the event is derived from metric deltas (specific ID not available from metrics layer)
+  - Pattern matching must use `template_id: Some(id)` or `template_id: _`
+
+* **`CacheMetrics` record methods scoped to `pub(crate)`**
+  - `record_hit()`, `record_miss()`, `record_eviction()`, `record_insertion()`, `record_expiration()`, `record_collision()`, and pending flow record methods changed from `pub` to `pub(crate)`
+  - `reset()` method removed entirely
+  - `snapshot()`, `new()`, `hit_rate()` remain public
+
+* **`trigger_template_event()` changed from `&self` to `&mut self`**
+  - Required because hook error counters are now plain `u64` (not atomic)
+  - Code calling this method from an immutable reference must switch to `&mut`
+
+* **`parse_bytes_as_netflow_common_flowsets()` return type changed** (feature `netflow_common`)
+  - Was: `Vec<NetflowCommonFlowSet>`
+  - Now: `(Vec<NetflowCommonFlowSet>, Option<NetflowError>)`
+  - Callers must destructure the tuple or use `.0` to get the flowsets
+
+* **`NetflowCommonFlowSet.first_seen` and `last_seen` widened from `Option<u32>` to `Option<u64>`** (feature `netflow_common`)
+  - Supports IPFIX absolute epoch millisecond timestamps that exceed `u32::MAX`
+  - Code that destructures or stores these as `u32` must update
+
+* **`NetflowCommonError::UnknownVersion` now wraps `u16` instead of `NetflowPacket`**  (feature `netflow_common`)
+  - Carries only the version number, not the entire packet
+  - Pattern matching must use `UnknownVersion(version)` instead of `UnknownVersion(packet)`
+
+* **`get_source_stats()` on scoped parsers changed from `&self` to `&mut self`**
+  - LRU cache iteration requires mutable access
+  - Code calling this from an immutable reference must switch to `&mut`
+
+* **`#[non_exhaustive]` added to public types**
+  - Affected types: `NetflowPacket`, `ParseResult`, `NetflowError`, `ConfigError`, `FieldValue`, `Config`, `PendingFlowsConfig`, `CacheStats`, `ParserCacheStats`, `CacheMetricsSnapshot`, `NoTemplateInfo`, `TemplateEvent`, `TemplateProtocol`, `ScopingInfo`
+  - External code with exhaustive `match` statements must add a wildcard `_ =>` arm
+  - External code constructing these structs directly must use `..` for forward compatibility
+
+* **New `NetflowError` variant: `FilteredVersion { version: u16 }`**
+  - Returned when a packet's version is not in `allowed_versions`
+  - Code with exhaustive `match` on `NetflowError` must add this arm
+
+* **Enterprise field registration is now IPFIX-only**
+  - `register_enterprise_field()` and `register_enterprise_fields()` on the builder no longer register into V9 config
+  - V9 does not support the enterprise bit; previously the registry was silently stored but unused
+
 ## New Features
 
 * **New IPFIX field types for flags, bitmasks, and enumerations**
@@ -135,6 +184,27 @@
 
 * **`#[must_use]` on `ParseResult`**
   - Compiler warns when `parse_bytes()` return values are silently discarded
+
+* **Builder methods for record and template size limits**
+  - `with_max_records_per_flowset()`, `with_v9_max_records_per_flowset()`, `with_ipfix_max_records_per_flowset()` — control `Vec::with_capacity` cap for parsed records (default 1024)
+  - `with_max_template_total_size()`, `with_v9_max_template_total_size()`, `with_ipfix_max_template_total_size()` — control maximum total byte size across all fields in a template
+
+* **Idle source pruning for scoped parsers**
+  - `prune_idle_sources(older_than: Duration)` on both `RouterScopedParser` and `AutoScopedParser`
+  - Removes sources that haven't been accessed within the given duration
+  - Returns the number of pruned sources
+
+* **`hook_error_count()` on `NetflowParser`**
+  - Returns total number of hook errors and panics encountered across all registered hooks
+  - Useful for production monitoring of hook health
+
+* **`#![forbid(unsafe_code)]` enforced**
+  - The crate contains zero `unsafe` blocks; this is now enforced at the crate level
+
+* **Expanded root re-exports**
+  - `Config`, `ConfigError`, `TtlConfig`, `EnterpriseFieldRegistry`, `CacheMetrics`, `CacheMetricsSnapshot`, `NoTemplateInfo`, `DEFAULT_MAX_RECORDS_PER_FLOWSET`, `DEFAULT_MAX_SOURCES` — now available at crate root
+  - `DataNumber`, `FieldDataType`, `FieldValue` — commonly used field/data types at crate root
+  - `V9Field`, `V9FieldPair`, `V9FlowRecord` — symmetric with IPFIX equivalents already at root
 
 ## Bug Fixes
 
@@ -332,11 +402,25 @@
 * Added `steady_state_bench` — V9 and IPFIX benchmarks with pre-warmed template cache (5, 10, 30, 100 flows)
 * Added comprehensive round-trip serialization tests (`tests/round_trip.rs`) — 31 tests covering V7, V9 (template + data), IPFIX (template + data), all 13 IANA typed field types, `ApplicationId` variants (1-byte and 4-byte), and `Vec` fallback for wrong-length fields
 
+## Behavioral Changes
+
+* **`clear_v9_templates()` and `clear_ipfix_templates()` now also clear pending flows**
+  - Prevents stale pending flows from being replayed against a replacement template with the same ID
+  - Previously, clearing templates left orphaned pending flows in the cache
+
+* **`has_v9_template()` and `has_ipfix_template()` now respect TTL**
+  - Returns `false` for expired templates when TTL is configured
+  - Previously returned `true` for templates that would be rejected at parse time
+
+* **`v9_available_template_ids()` and `ipfix_available_template_ids()` now return sorted, deduplicated results**
+  - Same template ID could previously appear twice (once from templates cache, once from options_templates cache)
+
 ## Known Limitations
 
-* **IPFIX variable-length field serialization omits length prefix**
-  - `to_be_bytes()` on IPFIX messages containing variable-length fields (template `field_length == 65535`) produces incorrect output: the 1-byte or 3-byte RFC 7011 Section 7 length prefix is not re-emitted
-  - Requires architectural changes to fix (storing template field_length alongside parsed values)
+* **IPFIX variable-length field serialization requires `template_field_lengths`**
+  - `to_be_bytes()` on IPFIX messages correctly emits RFC 7011 Section 7 variable-length prefixes when `template_field_lengths` is populated (which the parser does automatically)
+  - However, manually constructed `Data` structs via `Data::new()` have empty `template_field_lengths`, causing variable-length fields to serialize without the length prefix
+  - Workaround: populate `template_field_lengths` from the corresponding template before serializing
 
 # 0.9.0
 

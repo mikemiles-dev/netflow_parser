@@ -52,6 +52,7 @@ fn demo_basic_hooks() {
                     template_id,
                     protocol,
                 } => println!("  ❌ Missing template {:?} ({:?})", template_id, protocol),
+                _ => {}
             }
             Ok(())
         })
@@ -195,6 +196,7 @@ fn demo_logging_hooks() {
                     "[ERROR] Missing template {:?} for protocol {:?}",
                     template_id, protocol
                 ),
+                _ => "[DEBUG] Unknown event".to_string(),
             };
             log_clone.lock().unwrap().push(log_entry);
             Ok(())
