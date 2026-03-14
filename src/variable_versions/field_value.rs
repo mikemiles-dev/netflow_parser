@@ -467,6 +467,7 @@ impl Serialize for StringValue {
 }
 
 /// Holds the post parsed field with its relevant datatype
+#[non_exhaustive]
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub enum FieldValue {
     ApplicationId(ApplicationId),

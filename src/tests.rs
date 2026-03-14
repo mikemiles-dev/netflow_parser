@@ -276,11 +276,10 @@ mod base_tests {
 
         let packet = hex::decode(hex).unwrap();
         let result = parser.parse_bytes(&packet);
-        // The parser should either produce packets or an error, but never both be empty
-        // (at minimum it recognizes the IPFIX version and attempts parsing).
-        let handled = !result.packets.is_empty() || result.error.is_some();
+        // Partially malformed IPFIX — parser must not silently skip; it should
+        // produce at least one packet or report an error.
         assert!(
-            handled,
+            !result.packets.is_empty() || result.error.is_some(),
             "parser should produce packets or an error, not silently skip"
         );
         for p in &result.packets {
@@ -323,9 +322,12 @@ mod base_tests {
 
         let packet = hex::decode(hex).unwrap();
         let result = parser.parse_bytes(&packet);
-        // Parser should produce packets or an error, not silently skip the entire input.
-        let handled = !result.packets.is_empty() || result.error.is_some();
-        assert!(handled, "parser should produce packets or an error");
+        // Partially malformed V9 — parser must not silently skip; it should
+        // produce at least one packet or report an error.
+        assert!(
+            !result.packets.is_empty() || result.error.is_some(),
+            "parser should produce packets or an error, not silently skip"
+        );
         for p in &result.packets {
             assert!(p.is_v9(), "all parsed packets should be V9");
         }
@@ -849,8 +851,8 @@ mod malformed_packet_tests {
         packet.extend_from_slice(&[0u8; 8]);
         let result = parser.parse_bytes(&packet);
         assert!(
-            result.packets.is_empty() || result.error.is_some(),
-            "truncated V9 header should not produce valid packets without an error"
+            result.error.is_some(),
+            "truncated V9 header must produce an error"
         );
     }
 
@@ -871,10 +873,10 @@ mod malformed_packet_tests {
         // Flowset with id=0 (template), length=0 (malformed)
         packet.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]);
         let result = parser.parse_bytes(&packet);
-        // Must not infinite loop or panic; zero-length flowset should produce no valid packets or an error
+        // Must not infinite loop or panic; zero-length flowset must produce an error
         assert!(
-            result.packets.is_empty() || result.error.is_some(),
-            "V9 with zero-length flowset should produce no valid packets or an error"
+            result.error.is_some(),
+            "V9 with zero-length flowset must produce an error"
         );
     }
 
@@ -895,8 +897,8 @@ mod malformed_packet_tests {
         // Only 4 bytes of flowset data actually present
         let result = parser.parse_bytes(&packet);
         assert!(
-            result.packets.is_empty() || result.error.is_some(),
-            "V9 with flowset length exceeding packet should produce no valid packets or an error"
+            result.error.is_some(),
+            "V9 with flowset length exceeding packet must produce an error"
         );
     }
 
@@ -916,8 +918,8 @@ mod malformed_packet_tests {
         let result = parser.parse_bytes(&packet);
         // Parser should handle the length mismatch without panicking
         assert!(
-            result.packets.is_empty() || result.error.is_some(),
-            "IPFIX with wrong length field should produce no valid packets or an error"
+            result.error.is_some(),
+            "IPFIX with wrong length field must produce an error"
         );
     }
 

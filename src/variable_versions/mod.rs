@@ -99,6 +99,7 @@ use crate::variable_versions::ttl::TtlConfig;
 
 /// Information about a data flowset that couldn't be parsed due to missing template.
 /// This provides context to help diagnose template-related issues.
+#[non_exhaustive]
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct NoTemplateInfo {
     /// The template ID that was requested but not found

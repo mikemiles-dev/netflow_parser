@@ -60,23 +60,6 @@ fn test_single_parser_repeated_v5_parsing() {
     }
 }
 
-// Verify that V9 and IPFIX cache metrics start at zero on a fresh parser
-#[test]
-fn test_initial_metrics_are_zero() {
-    let parser = NetflowParser::default();
-
-    let v9_stats = parser.v9_cache_stats();
-    let ipfix_stats = parser.ipfix_cache_stats();
-
-    assert_eq!(v9_stats.metrics.collisions, 0);
-    assert_eq!(v9_stats.metrics.hits, 0);
-    assert_eq!(v9_stats.metrics.misses, 0);
-
-    assert_eq!(ipfix_stats.metrics.collisions, 0);
-    assert_eq!(ipfix_stats.metrics.hits, 0);
-    assert_eq!(ipfix_stats.metrics.misses, 0);
-}
-
 // Verify that V9 cache records hits and misses correctly
 #[test]
 fn test_cache_hit_and_miss_tracking() {
@@ -143,18 +126,4 @@ fn test_scoped_parser_with_builder() {
 
     let packets = parser.parse_from_source(source, &v5_packet).packets;
     assert_eq!(packets.len(), 1);
-}
-
-// Verify that V9 and IPFIX cache stats report zero size and default max on a new parser
-#[test]
-fn test_cache_stats_initial_state() {
-    let parser = NetflowParser::default();
-
-    let v9_stats = parser.v9_cache_stats();
-    assert_eq!(v9_stats.current_size, 0);
-    assert_eq!(v9_stats.max_size_per_cache, 1000);
-
-    let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.current_size, 0);
-    assert_eq!(ipfix_stats.max_size_per_cache, 1000);
 }

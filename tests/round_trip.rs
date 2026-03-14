@@ -806,6 +806,211 @@ fn test_ipfix_mixed_fixed_and_varlen_round_trip() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Additional individual field type round-trips
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_field_round_trip_duration_micros_ntp() {
+    // DurationMicrosNTP expects exactly 8 bytes (NTP timestamp: 4 bytes seconds + 4 bytes fraction)
+    assert_field_round_trip(
+        &[0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07],
+        FieldDataType::DurationMicrosNTP,
+    );
+}
+
+#[test]
+fn test_field_round_trip_duration_nanos_ntp() {
+    // DurationNanosNTP expects exactly 8 bytes (NTP timestamp: 4 bytes seconds + 4 bytes fraction)
+    assert_field_round_trip(
+        &[0xAA, 0xBB, 0xCC, 0xDD, 0x11, 0x22, 0x33, 0x44],
+        FieldDataType::DurationNanosNTP,
+    );
+}
+
+#[test]
+fn test_field_round_trip_unsigned_data_number_16_bytes() {
+    // 16 bytes should produce a U128 variant
+    assert_field_round_trip(
+        &[
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+            0x0F, 0x10,
+        ],
+        FieldDataType::UnsignedDataNumber,
+    );
+}
+
+#[test]
+fn test_field_round_trip_signed_data_number_16_bytes() {
+    // 16 bytes should produce an I128 variant
+    assert_field_round_trip(
+        &[
+            0xFF, 0xFE, 0xFD, 0xFC, 0xFB, 0xFA, 0xF9, 0xF8, 0xF7, 0xF6, 0xF5, 0xF4, 0xF3, 0xF2,
+            0xF1, 0xF0,
+        ],
+        FieldDataType::SignedDataNumber,
+    );
+}
+
+#[test]
+fn test_field_round_trip_unsigned_data_number_3_bytes() {
+    // 3 bytes should produce a U24 variant
+    assert_field_round_trip(&[0x12, 0x34, 0x56], FieldDataType::UnsignedDataNumber);
+}
+
+// ---------------------------------------------------------------------------
+// IPFIX enterprise field template + data round-trip
+// ---------------------------------------------------------------------------
+
+#[test]
+#[cfg(feature = "parse_unknown_fields")]
+fn test_ipfix_enterprise_field_round_trip() {
+    // Build an IPFIX template with one enterprise field and one normal field.
+    // Enterprise field format: field_type_number with bit 15 set (2 bytes),
+    //   field_length (2 bytes), enterprise_number (4 bytes) = 8 bytes per enterprise field.
+    // Normal field: field_type_number (2 bytes), field_length (2 bytes) = 4 bytes.
+    //
+    // Template: template_id=260, field_count=2
+    //   Field 1: enterprise field, type=1 (with enterprise bit: 0x8001), length=4, enterprise=12345
+    //   Field 2: normal field, sourceIPv4Address(8), length=4
+    //
+    // Template set: setId=2, length = 4 (set header) + 4 (template header) + 8 (enterprise field) + 4 (normal field) = 20
+
+    let mut template_set = Vec::new();
+    template_set.extend_from_slice(&2u16.to_be_bytes()); // Set ID = 2 (template)
+    template_set.extend_from_slice(&20u16.to_be_bytes()); // Set length = 20
+    template_set.extend_from_slice(&260u16.to_be_bytes()); // template_id
+    template_set.extend_from_slice(&2u16.to_be_bytes()); // field_count = 2
+    // Enterprise field: type with enterprise bit set
+    template_set.extend_from_slice(&0x8001u16.to_be_bytes()); // field_type=1, enterprise bit set
+    template_set.extend_from_slice(&4u16.to_be_bytes()); // field_length=4
+    template_set.extend_from_slice(&12345u32.to_be_bytes()); // enterprise_number=12345
+    // Normal field: sourceIPv4Address(8) len=4
+    template_set.extend_from_slice(&8u16.to_be_bytes()); // field_type=8
+    template_set.extend_from_slice(&4u16.to_be_bytes()); // field_length=4
+
+    let template_msg = build_ipfix_message(0x62A0B1B9, 30, 1, &template_set);
+
+    let mut parser = NetflowParser::builder()
+        .with_cache_size(100)
+        .build()
+        .unwrap();
+
+    let result = parser.parse_bytes(&template_msg);
+    assert!(
+        result.error.is_none(),
+        "IPFIX enterprise template parse failed: {:?}",
+        result.error
+    );
+
+    // Verify template round-trip
+    if let Some(NetflowPacket::IPFix(ipfix)) = result.packets.first() {
+        let serialized = ipfix
+            .to_be_bytes()
+            .expect("IPFIX enterprise template serialization failed");
+        assert_eq!(
+            serialized, template_msg,
+            "IPFIX enterprise template round-trip failed"
+        );
+    } else {
+        panic!("Expected IPFIX template packet");
+    }
+
+    // Data: 4 bytes for enterprise field + 4 bytes for sourceIPv4Address = 8 bytes
+    let mut data_set = Vec::new();
+    data_set.extend_from_slice(&260u16.to_be_bytes()); // Set ID = 260
+    data_set.extend_from_slice(&12u16.to_be_bytes()); // Set length = 4 header + 8 data = 12
+    data_set.extend_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]); // enterprise field data
+    data_set.extend_from_slice(&[192, 168, 1, 1]); // sourceIPv4Address
+
+    let data_msg = build_ipfix_message(0x62A0B1B9, 31, 1, &data_set);
+    let data_result = parser.parse_bytes(&data_msg);
+    assert!(
+        data_result.error.is_none(),
+        "IPFIX enterprise data parse failed: {:?}",
+        data_result.error
+    );
+
+    if let Some(NetflowPacket::IPFix(ipfix)) = data_result.packets.first() {
+        let serialized = ipfix
+            .to_be_bytes()
+            .expect("IPFIX enterprise data serialization failed");
+        assert_eq!(
+            serialized, data_msg,
+            "IPFIX enterprise data round-trip failed"
+        );
+    } else {
+        panic!("Expected IPFIX data packet");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// V9 multiple templates in a single template flowset
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_v9_multi_template_in_single_flowset() {
+    // Build a V9 packet with one template flowset containing two template definitions:
+    //   Template 256: 2 fields - sourceIPv4Address(8) len=4, destinationIPv4Address(12) len=4
+    //   Template 257: 1 field  - ingressInterface(10) len=4
+    //
+    // Template flowset layout:
+    //   flowset_id=0 (2 bytes), flowset_length (2 bytes)
+    //   Template 256: template_id(2) + field_count(2) + 2 fields * 4 bytes = 12 bytes
+    //   Template 257: template_id(2) + field_count(2) + 1 field  * 4 bytes =  8 bytes
+    //   Total body = 12 + 8 = 20 bytes
+    //   flowset_length = 4 (header) + 20 (body) = 24 bytes
+
+    let mut packet = Vec::new();
+    // V9 header (20 bytes)
+    packet.extend_from_slice(&9u16.to_be_bytes()); // version
+    packet.extend_from_slice(&1u16.to_be_bytes()); // count=1 (one flowset)
+    packet.extend_from_slice(&0u32.to_be_bytes()); // sys_up_time
+    packet.extend_from_slice(&0u32.to_be_bytes()); // unix_secs
+    packet.extend_from_slice(&1u32.to_be_bytes()); // seq
+    packet.extend_from_slice(&1u32.to_be_bytes()); // source_id
+
+    // Template flowset
+    packet.extend_from_slice(&0u16.to_be_bytes()); // flowset_id=0 (template)
+    packet.extend_from_slice(&24u16.to_be_bytes()); // flowset_length=24
+
+    // Template 256: 2 fields
+    packet.extend_from_slice(&256u16.to_be_bytes()); // template_id=256
+    packet.extend_from_slice(&2u16.to_be_bytes()); // field_count=2
+    packet.extend_from_slice(&8u16.to_be_bytes()); // sourceIPv4Address
+    packet.extend_from_slice(&4u16.to_be_bytes()); // length=4
+    packet.extend_from_slice(&12u16.to_be_bytes()); // destinationIPv4Address
+    packet.extend_from_slice(&4u16.to_be_bytes()); // length=4
+
+    // Template 257: 1 field
+    packet.extend_from_slice(&257u16.to_be_bytes()); // template_id=257
+    packet.extend_from_slice(&1u16.to_be_bytes()); // field_count=1
+    packet.extend_from_slice(&10u16.to_be_bytes()); // ingressInterface
+    packet.extend_from_slice(&4u16.to_be_bytes()); // length=4
+
+    let mut parser = NetflowParser::builder()
+        .with_cache_size(100)
+        .build()
+        .unwrap();
+
+    let result = parser.parse_bytes(&packet);
+    assert!(
+        result.error.is_none(),
+        "V9 multi-template parse failed: {:?}",
+        result.error
+    );
+
+    // Both templates should be cached
+    assert!(
+        parser.has_v9_template(256),
+        "Template 256 should be cached after multi-template flowset"
+    );
+    assert!(
+        parser.has_v9_template(257),
+        "Template 257 should be cached after multi-template flowset"
+    );
+}
+
 #[test]
 fn test_ipfix_fixed_only_template_no_varlen_overhead() {
     // Verify that a template with only fixed-length fields does NOT
