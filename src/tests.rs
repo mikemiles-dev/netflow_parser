@@ -279,7 +279,10 @@ mod base_tests {
         // The parser should either produce packets or an error, but never both be empty
         // (at minimum it recognizes the IPFIX version and attempts parsing).
         let handled = !result.packets.is_empty() || result.error.is_some();
-        assert!(handled, "parser should produce packets or an error, not silently skip");
+        assert!(
+            handled,
+            "parser should produce packets or an error, not silently skip"
+        );
         for p in &result.packets {
             assert!(
                 matches!(p, NetflowPacket::IPFix(_)),
@@ -391,7 +394,10 @@ mod base_tests {
             }
         }
         // The iterator must have completed (not infinite-looped).
-        assert!(iter.is_complete(), "iterator should be complete after full consumption");
+        assert!(
+            iter.is_complete(),
+            "iterator should be complete after full consumption"
+        );
         // At least verify the parser engaged with the input (produced items or consumed it all).
         assert!(
             count > 0 || had_error || iter.remaining().is_empty(),
@@ -450,8 +456,8 @@ mod base_tests {
     // Verify that a v9 template exceeding the max field count limit is rejected as invalid
     #[test]
     fn test_template_validation_field_count_limit() {
-        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
         use crate::variable_versions::v9::lookup::V9Field;
+        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
 
         let config = Config {
             max_template_cache_size: 100,
@@ -496,8 +502,8 @@ mod base_tests {
     // Verify that a v9 template exceeding the max total size limit is rejected as invalid
     #[test]
     fn test_template_validation_total_size_limit() {
-        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
         use crate::variable_versions::v9::lookup::V9Field;
+        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
 
         let config = Config {
             max_template_cache_size: 100,
@@ -542,8 +548,8 @@ mod base_tests {
     // Verify that a v9 template with duplicate field type numbers is rejected as invalid
     #[test]
     fn test_template_validation_duplicate_fields() {
-        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
         use crate::variable_versions::v9::lookup::V9Field;
+        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
 
         let config = Config {
             max_template_cache_size: 100,
@@ -588,8 +594,8 @@ mod base_tests {
     // Verify that a well-formed v9 template with unique fields passes validation
     #[test]
     fn test_template_validation_valid_template() {
-        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
         use crate::variable_versions::v9::lookup::V9Field;
+        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
 
         let config = Config {
             max_template_cache_size: 100,

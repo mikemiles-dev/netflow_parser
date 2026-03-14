@@ -4,6 +4,7 @@
 //! Parsing impl blocks for V9 types (FlowSetBody, FlowSetParser, FieldParser, etc.)
 //! are also defined here.
 
+use super::lookup::ScopeFieldType;
 use super::{
     DATA_TEMPLATE_V9_ID, DEFAULT_MAX_TEMPLATE_CACHE_SIZE, Data, FieldParser, FlowSet,
     FlowSetBody, FlowSetHeader, FlowSetParser, MAX_FIELD_COUNT, NoTemplateInfo,
@@ -16,7 +17,6 @@ use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::metrics::CacheMetrics;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
-use super::lookup::ScopeFieldType;
 use crate::variable_versions::{
     Config, ConfigError, ParserConfig, ParserFields, PendingFlowCache, PendingFlowEntry,
     PendingFlowsConfig,

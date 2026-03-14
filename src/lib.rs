@@ -46,8 +46,8 @@ pub use variable_versions::{
 };
 
 // Rust-idiomatic naming aliases
-pub use variable_versions::ipfix::{Ipfix, IpfixFieldPair, IpfixFlowRecord, IpfixParser};
 pub use variable_versions::ipfix::lookup::IpfixField;
+pub use variable_versions::ipfix::{Ipfix, IpfixFieldPair, IpfixFlowRecord, IpfixParser};
 
 /// Enum of supported Netflow Versions
 #[derive(Debug, PartialEq, Clone, Serialize)]

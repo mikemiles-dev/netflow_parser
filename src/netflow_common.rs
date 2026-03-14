@@ -977,18 +977,18 @@ mod common_tests {
     use crate::static_versions::v5::{FlowSet as V5FlowSet, Header as V5Header, V5};
     use crate::static_versions::v7::{FlowSet as V7FlowSet, Header as V7Header, V7};
     use crate::variable_versions::field_value::{DataNumber, FieldValue};
+    use crate::variable_versions::ipfix::lookup::{IANAIPFixField, IPFixField};
     use crate::variable_versions::ipfix::{
         Data as IPFixData, FlowSet as IPFixFlowSet, FlowSetBody as IPFixFlowSetBody,
         FlowSetHeader as IPFixFlowSetHeader, Header as IPFixHeader, IPFix,
         OptionsData as IPFixOptionsData,
     };
-    use crate::variable_versions::ipfix::lookup::{IANAIPFixField, IPFixField};
+    use crate::variable_versions::v9::lookup::V9Field;
     use crate::variable_versions::v9::{
         Data as V9Data, FlowSet as V9FlowSet, FlowSetBody as V9FlowSetBody,
         FlowSetHeader as V9FlowSetHeader, Header as V9Header, OptionsData as V9OptionsData,
         OptionsDataFields as V9OptionsDataFields, ScopeDataField, V9,
     };
-    use crate::variable_versions::v9::lookup::V9Field;
 
     #[test]
     fn it_converts_v5_to_common() {
