@@ -31,13 +31,6 @@ pub(crate) const DATA_TEMPLATE_IPFIX_ID: u16 = 2;
 pub(crate) const OPTIONS_TEMPLATE_IPFIX_ID: u16 = 3;
 pub type IPFixFieldPair = (IPFixField, FieldValue);
 pub type IPFixFlowRecord = Vec<IPFixFieldPair>;
-/// Deprecated alias for [`IPFixFlowRecord`].
-#[deprecated(
-    since = "1.0.0",
-    note = "renamed to `IPFixFlowRecord` for consistent casing"
-)]
-pub type IpFixFlowRecord = IPFixFlowRecord;
-
 /// Stateful IPFIX parser with LRU template caches and optional pending flow support.
 /// Supports both native IPFIX templates and V9-style templates embedded in IPFIX messages.
 #[derive(Debug)]

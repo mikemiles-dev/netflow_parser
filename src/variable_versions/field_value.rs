@@ -565,11 +565,6 @@ pub enum FieldValue {
     FirewallEvent(FirewallEvent),
     MplsTopLabelType(MplsTopLabelType),
     NatOriginatingAddressRealm(NatOriginatingAddressRealm),
-    #[deprecated(
-        since = "1.0.0",
-        note = "unused by the parser; use `FieldValue::Vec` instead"
-    )]
-    Unknown(Vec<u8>),
 }
 
 impl Serialize for FieldValue {
@@ -660,10 +655,6 @@ impl Serialize for FieldValue {
                 "NatOriginatingAddressRealm",
                 v,
             ),
-            #[allow(deprecated)]
-            FieldValue::Unknown(v) => {
-                serializer.serialize_newtype_variant("FieldValue", 23, "Unknown", v)
-            }
         }
     }
 }
@@ -745,8 +736,6 @@ impl FieldValue {
             FieldValue::MplsTopLabelType(_) => 1,
             FieldValue::NatOriginatingAddressRealm(_) => 1,
             FieldValue::Vec(v) => v.len(),
-            #[allow(deprecated)]
-            FieldValue::Unknown(v) => v.len(),
         }
     }
 
@@ -815,8 +804,6 @@ impl FieldValue {
             FieldValue::MplsTopLabelType(t) => buf.push(u8::from(*t)),
             FieldValue::NatOriginatingAddressRealm(r) => buf.push(u8::from(*r)),
             FieldValue::Vec(v) => buf.extend_from_slice(v),
-            #[allow(deprecated)]
-            FieldValue::Unknown(v) => buf.extend_from_slice(v),
         }
         Ok(())
     }
@@ -1198,12 +1185,6 @@ mod field_value_tests {
         buf.clear();
         field_value.write_be_bytes(&mut buf).unwrap();
         assert_eq!(buf, vec![1, 2, 3, 4]);
-
-        #[allow(deprecated)]
-        let field_value = FieldValue::Unknown(vec![255, 254, 253]);
-        buf.clear();
-        field_value.write_be_bytes(&mut buf).unwrap();
-        assert_eq!(buf, vec![255, 254, 253]);
     }
 
     #[test]

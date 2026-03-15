@@ -7,7 +7,7 @@
 //! # Examples
 //!
 //! ```
-//! use netflow_parser::field_types::ForwardingStatus;
+//! use netflow_parser::variable_versions::field_types::ForwardingStatus;
 //!
 //! // Forwarded with unknown reason
 //! let status = ForwardingStatus::from(0b01_000000);

@@ -1,24 +1,11 @@
 #![forbid(unsafe_code)]
 #![doc = include_str!("../README.md")]
 
-#[deprecated(since = "1.0.0", note = "moved to `variable_versions::field_types`")]
-pub mod field_types {
-    //! Deprecated re-export — use [`super::variable_versions::field_types`] instead.
-    pub use super::variable_versions::field_types::*;
-}
 #[cfg(feature = "netflow_common")]
 pub mod netflow_common;
 pub mod protocol;
 pub mod scoped_parser;
 pub mod static_versions;
-#[deprecated(
-    since = "1.0.0",
-    note = "moved to `variable_versions::template_events`"
-)]
-pub mod template_events {
-    //! Deprecated re-export — use [`super::variable_versions::template_events`] instead.
-    pub use super::variable_versions::template_events::*;
-}
 mod tests;
 pub mod variable_versions;
 
@@ -746,21 +733,6 @@ impl NetflowParserBuilder {
         AutoScopedParser::try_with_builder(self)
     }
 
-    /// Creates an AutoScopedParser for multi-source deployments.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the builder configuration is invalid. Prefer [`try_multi_source`](Self::try_multi_source)
-    /// for fallible construction.
-    #[deprecated(
-        since = "1.0.0",
-        note = "use try_multi_source() for fallible construction"
-    )]
-    pub fn multi_source(self) -> AutoScopedParser {
-        #[allow(deprecated)]
-        AutoScopedParser::with_builder(self)
-    }
-
     /// Registers a callback for template lifecycle events.
     ///
     /// This allows you to monitor template operations in real-time, including:
@@ -798,7 +770,7 @@ impl NetflowParserBuilder {
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn on_template_event<F>(mut self, hook: F) -> Self
     where
-        F: Fn(&TemplateEvent) -> Result<(), template_events::TemplateHookError>
+        F: Fn(&TemplateEvent) -> Result<(), TemplateHookError>
             + Send
             + Sync
             + 'static,

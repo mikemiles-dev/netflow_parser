@@ -81,18 +81,21 @@
   - Consistent with `NetflowParser::parse_bytes()` return type
   - Builder errors now return `ParseResult { packets: vec![], error: Some(...) }` instead of `Err(...)`
 
-* **Deprecated APIs**
-  - `with_builder()` on `RouterScopedParser` and `AutoScopedParser` — use `try_with_builder()` (returns `Result<Self, ConfigError>`)
-  - `multi_source()` on `NetflowParserBuilder` — use `try_multi_source()` (returns `Result<AutoScopedParser, ConfigError>`)
-
 * **Renamed types and variants**
   - `V9Field::BpgIpv6NextHop` → `V9Field::BgpIpv6NextHop` (typo fix)
   - `V9Field::ImpIpv6CodeValue` → `V9Field::IcmpIpv6CodeValue` (field ID 179, typo fix)
-  - `IpFixFlowRecord` → `IPFixFlowRecord` for consistent casing (deprecated alias preserves backward compatibility)
-  - Module `variable_versions::data_number` → `variable_versions::field_value` (deprecated re-export preserves backward compatibility)
+  - `IpFixFlowRecord` → `IPFixFlowRecord` for consistent casing
+  - Module `variable_versions::data_number` → `variable_versions::field_value`
 
 * **Removed deprecated items**
   - `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly
+  - `with_builder()` on `RouterScopedParser` and `AutoScopedParser` — use `try_with_builder()`
+  - `multi_source()` on `NetflowParserBuilder` — use `try_multi_source()`
+  - `IpFixFlowRecord` type alias — use `IPFixFlowRecord`
+  - `variable_versions::data_number` module — use `variable_versions::field_value`
+  - `crate::field_types` module — use `variable_versions::field_types`
+  - `crate::template_events` module — use `variable_versions::template_events`
+  - `FieldValue::Unknown` variant — use `FieldValue::Vec`
 
 * **New enum variants (exhaustive match impact)**
   - `ConfigError` gains `InvalidAllowedVersion(u16)`, `InvalidFieldCount(usize)`, `InvalidTemplateTotalSize(usize)`, `InvalidEntriesPerTemplate(usize)`, `InvalidEntrySize(usize)`, `InvalidTtlDuration`, `EmptyAllowedVersions`, `InvalidPendingTotalBytes { max_total_bytes, max_entry_size_bytes }`
@@ -388,9 +391,9 @@
 * **Module restructuring**
   - Split `v9.rs` into `v9/{mod.rs, parser.rs, serializer.rs}`
   - Split `ipfix.rs` into `ipfix/{mod.rs, parser.rs, serializer.rs}`
-  - Renamed `data_number.rs` → `field_value.rs` (deprecated re-export module preserves backward compatibility)
-  - Moved `field_types` from crate root to `variable_versions::field_types` (deprecated re-export at `crate::field_types`)
-  - Moved `template_events` from crate root to `variable_versions::template_events` (deprecated re-export at `crate::template_events`)
+  - Renamed `data_number.rs` → `field_value.rs`
+  - Moved `field_types` from crate root to `variable_versions::field_types`
+  - Moved `template_events` from crate root to `variable_versions::template_events`
 
 * **Code cleanup**
   - Removed unused `enterprise_registry` field from `V9Parser` (was `#[allow(dead_code)]`)
