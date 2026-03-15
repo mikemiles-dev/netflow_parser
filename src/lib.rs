@@ -770,10 +770,7 @@ impl NetflowParserBuilder {
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn on_template_event<F>(mut self, hook: F) -> Self
     where
-        F: Fn(&TemplateEvent) -> Result<(), TemplateHookError>
-            + Send
-            + Sync
-            + 'static,
+        F: Fn(&TemplateEvent) -> Result<(), TemplateHookError> + Send + Sync + 'static,
     {
         self.template_hooks.register(hook);
         self

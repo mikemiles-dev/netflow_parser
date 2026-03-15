@@ -68,9 +68,9 @@
 //! - [`metrics`] - Template cache performance metrics
 
 pub(crate) mod config;
+pub mod enterprise_registry;
 pub mod field_types;
 pub mod field_value;
-pub mod enterprise_registry;
 pub mod ipfix;
 pub mod metrics;
 pub(crate) mod pending_flows;
