@@ -68,6 +68,7 @@
 //! - [`metrics`] - Template cache performance metrics
 
 pub(crate) mod config;
+pub mod field_types;
 pub mod field_value;
 #[deprecated(since = "1.0.0", note = "renamed to `field_value`")]
 pub mod data_number {
@@ -78,6 +79,7 @@ pub mod enterprise_registry;
 pub mod ipfix;
 pub mod metrics;
 pub(crate) mod pending_flows;
+pub mod template_events;
 pub mod ttl;
 pub mod v9;
 

@@ -1,4 +1,4 @@
-use crate::field_types::{
+use super::field_types::{
     FirewallEvent, FlowEndReason, ForwardingStatus, FragmentFlags, Ipv4Options,
     Ipv6ExtensionHeaders, IsMulticast, MplsLabelExp, MplsTopLabelType, NatEvent,
     NatOriginatingAddressRealm, TcpControlBits, TcpOptions,
@@ -70,6 +70,63 @@ pub enum DataNumber {
 }
 
 impl DataNumber {
+    /// Try to extract a `u8` from any numeric variant, narrowing if the value fits.
+    pub fn as_u8(&self) -> Option<u8> {
+        match self {
+            DataNumber::U8(n) => Some(*n),
+            DataNumber::I8(n) => u8::try_from(*n).ok(),
+            DataNumber::U16(n) => u8::try_from(*n).ok(),
+            DataNumber::I16(n) => u8::try_from(*n).ok(),
+            DataNumber::U24(n) => u8::try_from(*n).ok(),
+            DataNumber::I24(n) => u8::try_from(*n).ok(),
+            DataNumber::U32(n) => u8::try_from(*n).ok(),
+            DataNumber::I32(n) => u8::try_from(*n).ok(),
+            DataNumber::U64(n) => u8::try_from(*n).ok(),
+            DataNumber::I64(n) => u8::try_from(*n).ok(),
+            DataNumber::U128(n) => u8::try_from(*n).ok(),
+            DataNumber::I128(n) => u8::try_from(*n).ok(),
+            DataNumber::Vec(_) => None,
+        }
+    }
+
+    /// Try to extract a `u16` from any numeric variant, narrowing if the value fits.
+    pub fn as_u16(&self) -> Option<u16> {
+        match self {
+            DataNumber::U8(n) => Some(u16::from(*n)),
+            DataNumber::I8(n) => u16::try_from(*n).ok(),
+            DataNumber::U16(n) => Some(*n),
+            DataNumber::I16(n) => u16::try_from(*n).ok(),
+            DataNumber::U24(n) => u16::try_from(*n).ok(),
+            DataNumber::I24(n) => u16::try_from(*n).ok(),
+            DataNumber::U32(n) => u16::try_from(*n).ok(),
+            DataNumber::I32(n) => u16::try_from(*n).ok(),
+            DataNumber::U64(n) => u16::try_from(*n).ok(),
+            DataNumber::I64(n) => u16::try_from(*n).ok(),
+            DataNumber::U128(n) => u16::try_from(*n).ok(),
+            DataNumber::I128(n) => u16::try_from(*n).ok(),
+            DataNumber::Vec(_) => None,
+        }
+    }
+
+    /// Try to extract a `u64` from any numeric variant, widening or narrowing as needed.
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            DataNumber::U8(n) => Some(u64::from(*n)),
+            DataNumber::I8(n) => u64::try_from(*n).ok(),
+            DataNumber::U16(n) => Some(u64::from(*n)),
+            DataNumber::I16(n) => u64::try_from(*n).ok(),
+            DataNumber::U24(n) => Some(u64::from(*n)),
+            DataNumber::I24(n) => u64::try_from(*n).ok(),
+            DataNumber::U32(n) => Some(u64::from(*n)),
+            DataNumber::I32(n) => u64::try_from(*n).ok(),
+            DataNumber::U64(n) => Some(*n),
+            DataNumber::I64(n) => u64::try_from(*n).ok(),
+            DataNumber::U128(n) => u64::try_from(*n).ok(),
+            DataNumber::I128(n) => u64::try_from(*n).ok(),
+            DataNumber::Vec(_) => None,
+        }
+    }
+
     /// Convert to i128 for numeric comparison across all variants.
     fn to_i128(&self) -> i128 {
         match self {
@@ -606,6 +663,49 @@ impl Serialize for FieldValue {
 }
 
 impl FieldValue {
+    /// Try to extract a `u8`, narrowing across `DataNumber` variants and
+    /// converting `ProtocolType` to its numeric value.
+    pub fn as_u8(&self) -> Option<u8> {
+        match self {
+            FieldValue::DataNumber(d) => d.as_u8(),
+            FieldValue::ProtocolType(p) => Some(u8::from(*p)),
+            _ => None,
+        }
+    }
+
+    /// Try to extract a `u16`, narrowing across `DataNumber` variants.
+    pub fn as_u16(&self) -> Option<u16> {
+        match self {
+            FieldValue::DataNumber(d) => d.as_u16(),
+            _ => None,
+        }
+    }
+
+    /// Try to extract a `u64`, widening or narrowing across `DataNumber` variants
+    /// and converting `Duration` to milliseconds.
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            FieldValue::DataNumber(d) => d.as_u64(),
+            FieldValue::Duration(d) => match d {
+                DurationValue::Millis { value, .. } => Some(*value),
+                DurationValue::Seconds { value, .. } => value.checked_mul(1000),
+                DurationValue::MicrosNtp { seconds, fraction } => {
+                    let millis = ((u64::from(*fraction)).saturating_mul(1_000)) >> 32;
+                    u64::from(*seconds)
+                        .checked_mul(1000)
+                        .and_then(|s| s.checked_add(millis))
+                }
+                DurationValue::NanosNtp { seconds, fraction } => {
+                    let millis = ((u64::from(*fraction)).saturating_mul(1_000)) >> 32;
+                    u64::from(*seconds)
+                        .checked_mul(1000)
+                        .and_then(|s| s.checked_add(millis))
+                }
+            },
+            _ => None,
+        }
+    }
+
     /// Returns the number of bytes this value occupies when serialized.
     pub fn byte_len(&self) -> usize {
         match self {

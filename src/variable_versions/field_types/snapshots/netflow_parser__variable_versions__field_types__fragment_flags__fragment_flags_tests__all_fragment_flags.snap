@@ -1,5 +1,5 @@
 ---
-source: src/field_types/fragment_flags.rs
+source: src/variable_versions/field_types/fragment_flags.rs
 expression: flags
 ---
 - reserved: false
