@@ -318,7 +318,7 @@ struct FieldCache<'a> {
 }
 
 impl<'a> FieldCache<'a> {
-    fn to_common_flowset(&self) -> NetflowCommonFlowSet {
+    fn to_common_flowset(self) -> NetflowCommonFlowSet {
         NetflowCommonFlowSet {
             src_addr: self.src_addr.and_then(|v| v.try_into().ok()),
             dst_addr: self.dst_addr.and_then(|v| v.try_into().ok()),
@@ -399,7 +399,23 @@ impl<'a> FieldCache<'a> {
         }
         cache
     }
+}
 
+/// Macro to check if a field matches a config mapping (primary or fallback).
+/// Works for both Copy types (V9Field) and reference types (IPFixField).
+macro_rules! check_field_mapping {
+    ($field_type:expr, $field_value:expr, $cache:expr, $config:expr, $field_name:ident) => {
+        if *$field_type == $config.$field_name.primary {
+            $cache.$field_name = Some($field_value);
+        } else if $config.$field_name.fallback.as_ref() == Some($field_type)
+            && $cache.$field_name.is_none()
+        {
+            $cache.$field_name = Some($field_value);
+        }
+    };
+}
+
+impl<'a> FieldCache<'a> {
     fn from_v9_fields_with_config(
         fields: &'a [(V9Field, FieldValue)],
         config: &V9FieldMappingConfig,
@@ -437,20 +453,6 @@ impl<'a> FieldCache<'a> {
         }
         cache
     }
-}
-
-/// Macro to check if a field matches a config mapping (primary or fallback).
-/// Works for both Copy types (V9Field) and reference types (IPFixField).
-macro_rules! check_field_mapping {
-    ($field_type:expr, $field_value:expr, $cache:expr, $config:expr, $field_name:ident) => {
-        if *$field_type == $config.$field_name.primary {
-            $cache.$field_name = Some($field_value);
-        } else if $config.$field_name.fallback.as_ref() == Some($field_type)
-            && $cache.$field_name.is_none()
-        {
-            $cache.$field_name = Some($field_value);
-        }
-    };
 }
 
 /// Collect common flowsets from V9 flowset bodies.
