@@ -44,10 +44,10 @@ fn test_pcap_file_parsing() {
         }
     }
 
-    assert!(packet_count > 0, "Should have parsed some PCAP packets");
-    assert!(
-        netflow_packets > 0,
-        "Should have parsed some NetFlow packets"
+    assert_eq!(packet_count, 6666, "Expected exact PCAP packet count");
+    assert_eq!(
+        netflow_packets, 6666,
+        "Expected exact NetFlow packet count"
     );
 }
 
@@ -89,9 +89,9 @@ fn test_pcap_ipfix_parsing() {
         }
     }
 
-    assert!(
-        ipfix_count > 0,
-        "Should have parsed IPFIX packets from PCAP"
+    assert_eq!(
+        ipfix_count, 6666,
+        "Expected exact IPFIX packet count from PCAP"
     );
 }
 
@@ -131,12 +131,16 @@ fn test_pcap_template_caching() {
     let ipfix_info = parser.ipfix_cache_info();
     let template_ids = parser.ipfix_template_ids();
 
-    // IPFIX.pcap should have templates
-    assert!(
-        ipfix_info.current_size > 0,
-        "IPFIX pcap should produce cached templates"
+    // IPFIX.pcap should have exactly 15 templates (IDs 256-270)
+    assert_eq!(
+        ipfix_info.current_size, 17,
+        "Expected exact IPFIX template cache size"
     );
-    assert!(!template_ids.is_empty(), "Should have cached template IDs");
+    assert_eq!(
+        template_ids,
+        vec![256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270],
+        "Expected exact cached template IDs"
+    );
 }
 
 // Verify that cache metrics (hits, misses) are recorded when parsing pcap traffic
@@ -175,16 +179,12 @@ fn test_pcap_cache_metrics() {
     let ipfix_info = parser.ipfix_cache_info();
     let metrics = &ipfix_info.metrics;
 
-    // The test pcap should contain IPFIX templates, so the cache should be populated.
-    assert!(
-        ipfix_info.current_size > 0,
-        "PCAP should contain IPFIX templates that get cached"
+    assert_eq!(
+        ipfix_info.current_size, 17,
+        "Expected exact IPFIX template cache size"
     );
-    let total_lookups = metrics.hits + metrics.misses;
-    assert!(
-        total_lookups > 0,
-        "Should have cache lookups when templates are cached"
-    );
+    assert_eq!(metrics.hits, 5754, "Expected exact cache hit count");
+    assert_eq!(metrics.misses, 901, "Expected exact cache miss count");
 }
 
 // Verify that the iter_packets API produces the same results as parse_bytes from pcap data
@@ -225,8 +225,8 @@ fn test_pcap_iterator_api() {
         }
     }
 
-    assert!(
-        netflow_count > 0,
-        "Should have parsed NetFlow packets using iterator API"
+    assert_eq!(
+        netflow_count, 6666,
+        "Expected exact NetFlow packet count via iterator API"
     );
 }

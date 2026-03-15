@@ -406,14 +406,20 @@ impl DataNumber {
             DataNumber::U16(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::I16(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::U24(n) => {
-                // Mask to 24 bits to prevent silent data loss from out-of-range values
+                debug_assert!(
+                    *n <= 0x00FF_FFFF,
+                    "U24 value {n} out of range (max 16777215)"
+                );
                 let masked = *n & 0x00FF_FFFF;
                 buf.push((masked >> 16) as u8);
                 buf.push((masked >> 8) as u8);
                 buf.push(masked as u8);
             }
             DataNumber::I24(n) => {
-                // Mask to 24 bits to preserve two's complement representation
+                debug_assert!(
+                    (-8_388_608..=8_388_607).contains(n),
+                    "I24 value {n} out of range (-8388608..=8388607)"
+                );
                 let masked = *n & 0x00FF_FFFF;
                 buf.push((masked >> 16) as u8);
                 buf.push((masked >> 8) as u8);
@@ -431,7 +437,7 @@ impl DataNumber {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Serialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
 pub struct ApplicationId {
     pub classification_engine_id: u8,
     pub selector_id: Option<DataNumber>,
