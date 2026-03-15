@@ -102,6 +102,12 @@ impl CacheMetricsInner {
         self.pending_replay_failed = self.pending_replay_failed.saturating_add(1);
     }
 
+    /// Record multiple pending flows that failed to replay at once
+    #[inline]
+    pub(crate) fn record_pending_replay_failed_n(&mut self, n: u64) {
+        self.pending_replay_failed = self.pending_replay_failed.saturating_add(n);
+    }
+
     /// Get a snapshot of current metrics
     pub fn snapshot(&self) -> CacheMetrics {
         CacheMetrics {

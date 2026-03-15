@@ -292,7 +292,7 @@ impl PendingFlowCache {
         }
         self.total_bytes = self.total_bytes.saturating_add(entry_size);
         metrics.record_pending_cached();
-        self.ops_since_recalc += 1;
+        self.ops_since_recalc = self.ops_since_recalc.saturating_add(1);
         if self.ops_since_recalc >= RECALC_INTERVAL {
             self.recalculate_total_bytes();
             self.ops_since_recalc = 0;
@@ -324,7 +324,7 @@ impl PendingFlowCache {
         } else {
             entries
         };
-        self.ops_since_recalc += 1;
+        self.ops_since_recalc = self.ops_since_recalc.saturating_add(1);
         if self.ops_since_recalc >= RECALC_INTERVAL {
             self.recalculate_total_bytes();
             self.ops_since_recalc = 0;
