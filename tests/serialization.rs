@@ -18,10 +18,9 @@ fn test_v5_serialization() {
     assert!(json.contains("\"version\":5"));
 }
 
-// Note: NetflowPacket only implements Serialize, not Deserialize
-// This is by design as the library is primarily for parsing, not creating packets
+// Verify V5 parse produces exactly one packet with correct JSON
 #[test]
-fn test_v5_round_trip_serialization() {
+fn test_v5_serialization_single_packet() {
     let v5_packet = [
         0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
         5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
@@ -29,12 +28,15 @@ fn test_v5_round_trip_serialization() {
     ];
 
     let parsed = NetflowParser::default().parse_bytes(&v5_packet).packets;
-    let json = serde_json::to_string(&parsed).expect("Failed to serialize");
+    assert_eq!(
+        parsed.len(),
+        1,
+        "V5 packet with count=1 must produce exactly 1 packet"
+    );
 
-    // Verify JSON contains expected data
+    let json = serde_json::to_string(&parsed).expect("Failed to serialize");
     assert!(json.contains("\"V5\""));
     assert!(json.contains("\"version\":5"));
-    assert_eq!(parsed.len(), 1);
 }
 
 // Verify V5 packet pretty-prints to JSON with newlines and version data

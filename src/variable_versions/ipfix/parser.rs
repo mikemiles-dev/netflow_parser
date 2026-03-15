@@ -140,6 +140,13 @@ impl ParserConfig for IPFixParser {
                 }
             }
             None => {
+                // Record all cached entries as dropped before discarding.
+                if let Some(ref cache) = self.pending_flows {
+                    let count = cache.count();
+                    if count > 0 {
+                        self.metrics.record_pending_dropped_n(count as u64);
+                    }
+                }
                 self.pending_flows = None;
             }
         }
@@ -284,6 +291,14 @@ impl IPFixParser {
             let entries = cache.drain(template_id, &mut self.metrics);
             let total_entries = entries.len();
             for (processed, entry) in entries.iter().enumerate() {
+                // Bound flowset count, consistent with V9 replay.
+                if ipfix.flowsets.len() >= u16::MAX as usize {
+                    let remaining = (total_entries - processed) as u64;
+                    for _ in 0..remaining {
+                        self.metrics.record_pending_replay_failed();
+                    }
+                    break;
+                }
                 let flowset_length =
                     u16::try_from(entry.raw_data.len().saturating_add(4)).unwrap_or(u16::MAX);
                 let Some(new_header_length) = ipfix.header.length.checked_add(flowset_length)
@@ -550,29 +565,79 @@ impl IPFixParser {
         );
     }
 
-    /// Remove an IPFIX template by ID (RFC 7011 Section 3.4.3 template withdrawal).
+    /// Remove an IPFIX template by ID (RFC 7011 Section 8.1 template withdrawal).
     /// Also purges any pending flows cached under this template ID to prevent
     /// stale data from being replayed against a replacement template.
+    ///
+    /// Per RFC 7011 §8.1, template_id == DATA_TEMPLATE_IPFIX_ID (2) with
+    /// field_count == 0 signals "withdraw ALL data templates". This method
+    /// handles both individual and bulk withdrawal.
     fn withdraw_ipfix_template(&mut self, template_id: u16) {
-        self.templates.pop(&template_id);
-        if let Some(ref mut cache) = self.pending_flows {
-            let drained = cache.drain(template_id, &mut self.metrics);
-            let n = drained.len() as u64;
-            if n > 0 {
-                self.metrics.record_pending_dropped_n(n);
+        if template_id == DATA_TEMPLATE_IPFIX_ID {
+            // "Withdraw all data templates" — clear entire data template
+            // cache and drain pending flows only for those template IDs.
+            // Pending flows for options template IDs are left untouched
+            // since those templates remain valid.
+            let ids: Vec<u16> = self.templates.iter().map(|(&id, _)| id).collect();
+            for id in &ids {
+                self.templates.pop(id);
+            }
+            if let Some(ref mut cache) = self.pending_flows {
+                for &id in &ids {
+                    let drained = cache.drain(id, &mut self.metrics);
+                    let n = drained.len() as u64;
+                    if n > 0 {
+                        self.metrics.record_pending_dropped_n(n);
+                    }
+                }
+            }
+        } else {
+            self.templates.pop(&template_id);
+            if let Some(ref mut cache) = self.pending_flows {
+                let drained = cache.drain(template_id, &mut self.metrics);
+                let n = drained.len() as u64;
+                if n > 0 {
+                    self.metrics.record_pending_dropped_n(n);
+                }
             }
         }
     }
 
     /// Remove an IPFIX options template by ID (template withdrawal).
     /// Also purges any pending flows cached under this template ID.
+    ///
+    /// Per RFC 7011 §8.1, template_id == OPTIONS_TEMPLATE_IPFIX_ID (3) with
+    /// field_count == 0 signals "withdraw ALL options templates".
     fn withdraw_ipfix_options_template(&mut self, template_id: u16) {
-        self.ipfix_options_templates.pop(&template_id);
-        if let Some(ref mut cache) = self.pending_flows {
-            let drained = cache.drain(template_id, &mut self.metrics);
-            let n = drained.len() as u64;
-            if n > 0 {
-                self.metrics.record_pending_dropped_n(n);
+        if template_id == OPTIONS_TEMPLATE_IPFIX_ID {
+            // "Withdraw all options templates" — clear entire options template
+            // cache and drain pending flows only for those template IDs.
+            // Pending flows for data template IDs are left untouched.
+            let ids: Vec<u16> = self
+                .ipfix_options_templates
+                .iter()
+                .map(|(&id, _)| id)
+                .collect();
+            for id in &ids {
+                self.ipfix_options_templates.pop(id);
+            }
+            if let Some(ref mut cache) = self.pending_flows {
+                for &id in &ids {
+                    let drained = cache.drain(id, &mut self.metrics);
+                    let n = drained.len() as u64;
+                    if n > 0 {
+                        self.metrics.record_pending_dropped_n(n);
+                    }
+                }
+            }
+        } else {
+            self.ipfix_options_templates.pop(&template_id);
+            if let Some(ref mut cache) = self.pending_flows {
+                let drained = cache.drain(template_id, &mut self.metrics);
+                let n = drained.len() as u64;
+                if n > 0 {
+                    self.metrics.record_pending_dropped_n(n);
+                }
             }
         }
     }
@@ -596,13 +661,26 @@ impl FlowSetBody {
     {
         let (i, templates) = many0(complete(parse_fn))(i)?;
 
-        // Handle template withdrawals (RFC 7011 Section 3.4.3):
+        // Handle template withdrawals (RFC 7011 Section 8.1):
         // Templates with field_count=0 signal withdrawal from the cache.
+        // Skip withdrawal for IDs that also have a new definition in the
+        // same flowset — the new definition will simply replace the old one
+        // without needlessly draining pending flows.
         let mut had_withdrawals = false;
         if let Some(withdraw_fn) = withdraw_template {
             for t in &templates {
                 if t.field_count() == 0 {
-                    withdraw_fn(parser, t.template_id());
+                    let id = t.template_id();
+                    // "Withdraw all" IDs (2 for data, 3 for options) always
+                    // take effect regardless of other templates in the batch.
+                    let has_redefinition = id != DATA_TEMPLATE_IPFIX_ID
+                        && id != OPTIONS_TEMPLATE_IPFIX_ID
+                        && templates
+                            .iter()
+                            .any(|other| other.template_id() == id && other.field_count() > 0);
+                    if !has_redefinition {
+                        withdraw_fn(parser, id);
+                    }
                     had_withdrawals = true;
                 }
             }
@@ -696,10 +774,11 @@ impl FlowSetBody {
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
                         && !t.has_duplicate_scope_fields()
                         && !t.has_duplicate_option_fields()
-                        // Reject templates where all fields have zero length to prevent
-                        // zero-byte-per-record parsing issues
-                        && (t.scope_fields.iter().any(|f| f.field_length > 0)
-                            || t.option_fields.iter().any(|f| f.field_length > 0))
+                        // V9 does not support variable-length fields; reject any
+                        // zero-length or variable-length sentinel (65535) fields,
+                        // consistent with the V9 parser's own validation.
+                        && t.scope_fields.iter().all(|f| f.field_length > 0 && f.field_length != 65535)
+                        && t.option_fields.iter().all(|f| f.field_length > 0 && f.field_length != 65535)
                 },
                 |parser, templates| parser.add_v9_options_templates(templates),
                 None, // V9 doesn't support template withdrawal

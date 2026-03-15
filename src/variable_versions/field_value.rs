@@ -16,7 +16,7 @@ use serde::ser::Serializer;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 macro_rules! impl_try_from {
-    ($($t:ty => $v:ident),*; $($s:ty => $sv:ident),*) => {
+    ($($t:ty => $v:ident),*) => {
         $(
             impl TryFrom<&DataNumber> for $t {
                 type Error = DataNumberError;
@@ -159,7 +159,7 @@ impl_try_from!(
     u64 => U64,
     i64 => I64,
     u128 => U128,
-    i128 => I128;
+    i128 => I128
 );
 
 // Manual TryFrom for u32/i32 to also handle U24/I24 variants

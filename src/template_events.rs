@@ -190,6 +190,11 @@ impl TemplateHooks {
         self.hooks.push(Arc::new(hook));
     }
 
+    /// Removes all registered hooks.
+    pub fn clear(&mut self) {
+        self.hooks.clear();
+    }
+
     /// Triggers all registered hooks with the given event.
     ///
     /// All hooks are called regardless of whether earlier hooks return errors or panic.
