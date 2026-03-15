@@ -1,5 +1,6 @@
 //! Parser configuration, traits, and constants for V9 and IPFIX parsers.
 
+use super::metrics::CacheMetricsInner;
 use super::pending_flows::{PendingFlowCache, PendingFlowsConfig};
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::ttl::TtlConfig;
@@ -268,6 +269,7 @@ pub(crate) trait ParserFields {
     fn set_enterprise_registry(&mut self, _registry: Arc<EnterpriseFieldRegistry>) {}
     fn pending_flows(&self) -> &Option<PendingFlowCache>;
     fn pending_flows_mut(&mut self) -> &mut Option<PendingFlowCache>;
+    fn metrics_mut(&mut self) -> &mut CacheMetricsInner;
 }
 
 /// Trait for parsers that support template caching and TTL configuration
@@ -360,10 +362,19 @@ pub trait ParserConfig: ParserFields {
             .unwrap_or(0)
     }
 
-    /// Clear all pending flows.
+    /// Clear all pending flows, recording dropped metrics.
     fn clear_pending_flows(&mut self) {
+        // Count entries before clearing to record metrics.
+        let count = self
+            .pending_flows()
+            .as_ref()
+            .map(|cache| cache.count())
+            .unwrap_or(0);
         if let Some(cache) = self.pending_flows_mut() {
             cache.clear();
+        }
+        if count > 0 {
+            self.metrics_mut().record_pending_dropped_n(count as u64);
         }
     }
 }

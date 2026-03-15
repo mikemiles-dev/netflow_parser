@@ -124,6 +124,9 @@ impl ParserFields for IPFixParser {
     fn pending_flows_mut(&mut self) -> &mut Option<PendingFlowCache> {
         &mut self.pending_flows
     }
+    fn metrics_mut(&mut self) -> &mut CacheMetricsInner {
+        &mut self.metrics
+    }
 }
 
 impl ParserConfig for IPFixParser {

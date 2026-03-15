@@ -130,6 +130,9 @@ impl ParserFields for V9Parser {
     fn pending_flows_mut(&mut self) -> &mut Option<PendingFlowCache> {
         &mut self.pending_flows
     }
+    fn metrics_mut(&mut self) -> &mut CacheMetricsInner {
+        &mut self.metrics
+    }
 }
 
 impl ParserConfig for V9Parser {

@@ -1230,4 +1230,92 @@ mod field_value_tests {
             FieldValue::Ip6Addr(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1))
         );
     }
+
+    #[test]
+    fn test_data_number_as_u8() {
+        assert_eq!(DataNumber::U8(42).as_u8(), Some(42));
+        assert_eq!(DataNumber::U16(255).as_u8(), Some(255));
+        assert_eq!(DataNumber::U16(256).as_u8(), None);
+        assert_eq!(DataNumber::U32(100).as_u8(), Some(100));
+        assert_eq!(DataNumber::U64(300).as_u8(), None);
+        assert_eq!(DataNumber::I8(-1).as_u8(), None);
+        assert_eq!(DataNumber::I8(127).as_u8(), Some(127));
+        assert_eq!(DataNumber::I16(-1).as_u8(), None);
+        assert_eq!(DataNumber::I32(200).as_u8(), Some(200));
+        assert_eq!(DataNumber::U128(255).as_u8(), Some(255));
+        assert_eq!(DataNumber::U128(256).as_u8(), None);
+        assert_eq!(DataNumber::Vec(vec![1, 2]).as_u8(), None);
+    }
+
+    #[test]
+    fn test_data_number_as_u16() {
+        assert_eq!(DataNumber::U8(42).as_u16(), Some(42));
+        assert_eq!(DataNumber::U16(65535).as_u16(), Some(65535));
+        assert_eq!(DataNumber::U32(65536).as_u16(), None);
+        assert_eq!(DataNumber::U32(1000).as_u16(), Some(1000));
+        assert_eq!(DataNumber::I8(-1).as_u16(), None);
+        assert_eq!(DataNumber::I16(32000).as_u16(), Some(32000));
+        assert_eq!(DataNumber::I16(-1).as_u16(), None);
+        assert_eq!(DataNumber::U64(70000).as_u16(), None);
+        assert_eq!(DataNumber::Vec(vec![1]).as_u16(), None);
+    }
+
+    #[test]
+    fn test_data_number_as_u64() {
+        assert_eq!(DataNumber::U8(42).as_u64(), Some(42));
+        assert_eq!(DataNumber::U16(1000).as_u64(), Some(1000));
+        assert_eq!(DataNumber::U32(100_000).as_u64(), Some(100_000));
+        assert_eq!(DataNumber::U64(u64::MAX).as_u64(), Some(u64::MAX));
+        assert_eq!(DataNumber::I8(-1).as_u64(), None);
+        assert_eq!(DataNumber::I64(1_000_000).as_u64(), Some(1_000_000));
+        assert_eq!(DataNumber::I64(-1).as_u64(), None);
+        assert_eq!(DataNumber::U128(u64::MAX as u128).as_u64(), Some(u64::MAX));
+        assert_eq!(DataNumber::U128(u64::MAX as u128 + 1).as_u64(), None);
+        assert_eq!(DataNumber::Vec(vec![1]).as_u64(), None);
+    }
+
+    #[test]
+    fn test_field_value_as_u8() {
+        assert_eq!(FieldValue::DataNumber(DataNumber::U8(6)).as_u8(), Some(6));
+        assert_eq!(
+            FieldValue::ProtocolType(ProtocolTypes::Tcp).as_u8(),
+            Some(6)
+        );
+        assert_eq!(FieldValue::Float64(1.0).as_u8(), None);
+        assert_eq!(FieldValue::Ip4Addr(Ipv4Addr::LOCALHOST).as_u8(), None);
+    }
+
+    #[test]
+    fn test_field_value_as_u16() {
+        assert_eq!(
+            FieldValue::DataNumber(DataNumber::U16(80)).as_u16(),
+            Some(80)
+        );
+        assert_eq!(FieldValue::Float64(1.0).as_u16(), None);
+    }
+
+    #[test]
+    fn test_field_value_as_u64() {
+        assert_eq!(
+            FieldValue::DataNumber(DataNumber::U32(1000)).as_u64(),
+            Some(1000)
+        );
+        assert_eq!(
+            FieldValue::Duration(DurationValue::Millis {
+                value: 5000,
+                width: 4
+            })
+            .as_u64(),
+            Some(5000)
+        );
+        assert_eq!(
+            FieldValue::Duration(DurationValue::Seconds {
+                value: 10,
+                width: 4
+            })
+            .as_u64(),
+            Some(10_000)
+        );
+        assert_eq!(FieldValue::Float64(1.0).as_u64(), None);
+    }
 }
