@@ -45,10 +45,7 @@ fn test_pcap_file_parsing() {
     }
 
     assert_eq!(packet_count, 6666, "Expected exact PCAP packet count");
-    assert_eq!(
-        netflow_packets, 6666,
-        "Expected exact NetFlow packet count"
-    );
+    assert_eq!(netflow_packets, 6666, "Expected exact NetFlow packet count");
 }
 
 // Verify that IPFIX packets are correctly identified when parsing a pcap capture
@@ -138,7 +135,9 @@ fn test_pcap_template_caching() {
     );
     assert_eq!(
         template_ids,
-        vec![256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270],
+        vec![
+            256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270
+        ],
         "Expected exact cached template IDs"
     );
 }

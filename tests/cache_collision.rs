@@ -105,7 +105,10 @@ fn test_cache_hit_and_miss_tracking() {
         0, 0, 0, 99, // data
     ];
     assert!(
-        !parser.parse_bytes(&v9_missing_template_packet).packets.is_empty(),
+        !parser
+            .parse_bytes(&v9_missing_template_packet)
+            .packets
+            .is_empty(),
         "Missing-template packet should still produce a parse result"
     );
 
