@@ -210,6 +210,16 @@ impl Data {
         fields: Vec<IPFixFlowRecord>,
         template_field_lengths: Vec<u16>,
     ) -> Self {
+        if !fields.is_empty() && !template_field_lengths.is_empty() {
+            let record_len = fields[0].len();
+            assert_eq!(
+                template_field_lengths.len(),
+                record_len,
+                "template_field_lengths length ({}) must match record field count ({})",
+                template_field_lengths.len(),
+                record_len,
+            );
+        }
         Self {
             fields,
             padding: vec![],
@@ -300,7 +310,7 @@ pub struct Template {
 pub struct TemplateField {
     #[nom(
         PostExec = "let (field_type_number, is_enterprise) = if field_type_number > 32767 {
-                        (field_type_number.overflowing_sub(32768).0, true)
+                        (field_type_number & 0x7FFF, true)
                      } else { (field_type_number, false) };"
     )]
     pub field_type_number: u16,

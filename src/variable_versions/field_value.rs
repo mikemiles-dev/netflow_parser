@@ -691,7 +691,7 @@ impl FieldValue {
             FieldValue::TcpControlBits(t, w) => {
                 let val = u16::from(*t);
                 if *w == 1 {
-                    buf.push(val as u8);
+                    buf.push((val & 0xFF) as u8);
                 } else {
                     buf.extend_from_slice(&val.to_be_bytes());
                 }

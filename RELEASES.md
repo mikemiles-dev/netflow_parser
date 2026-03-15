@@ -95,7 +95,7 @@
   - `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly
 
 * **New enum variants (exhaustive match impact)**
-  - `ConfigError` gains `InvalidAllowedVersion(u16)`, `InvalidFieldCount(usize)`, `InvalidTemplateTotalSize(usize)`, `InvalidEntriesPerTemplate(usize)`, `InvalidEntrySize(usize)`, `InvalidTtlDuration`, `EmptyAllowedVersions`
+  - `ConfigError` gains `InvalidAllowedVersion(u16)`, `InvalidFieldCount(usize)`, `InvalidTemplateTotalSize(usize)`, `InvalidEntriesPerTemplate(usize)`, `InvalidEntrySize(usize)`, `InvalidTtlDuration`, `EmptyAllowedVersions`, `InvalidPendingTotalBytes { max_total_bytes, max_entry_size_bytes }`
 
 * **`RouterScopedParser::iter_packets_from_source` and `AutoScopedParser::iter_packets_from_source` now return `Result`**
   - Return type changed from `impl Iterator` to `Result<impl Iterator, NetflowError>`
@@ -175,7 +175,7 @@
   - `field_types` module is designed for future custom field type additions
 
 * **New V9 field types (IDs 128-175)**
-  - Added 46 new `V9Field` variants from the IANA IPFIX Information Elements registry
+  - Added 48 new `V9Field` variants from the IANA IPFIX Information Elements registry
   - Includes: `BgpNextAdjacentAsNumber`, `ExporterIpv4Address`, `ExporterIpv6Address`, `DroppedOctetDeltaCount`, `FlowEndReason`, `WlanSsid`, `FlowStartSeconds`, `FlowEndSeconds`, `FlowStartMicroseconds`, `FlowEndMicroseconds`, `FlowStartNanoseconds`, `FlowEndNanoseconds`, `DestinationIpv6Prefix`, `SourceIpv6Prefix`, and more
   - Each field has the correct `FieldDataType` mapping per the IANA registry
 
