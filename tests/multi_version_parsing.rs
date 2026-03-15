@@ -154,8 +154,8 @@ fn test_parse_bytes_as_netflow_common_v5() {
         0, 0, 0, 0, // unix_secs
         0, 0, 0, 0, // unix_nsecs
         0, 0, 0, 0, // flow_sequence
-        0,    // engine_type
-        0,    // engine_id
+        0, // engine_type
+        0, // engine_id
         0, 0, // sampling_interval
         // Flow record (48 bytes)
         192, 168, 1, 1, // src_addr
@@ -175,8 +175,8 @@ fn test_parse_bytes_as_netflow_common_v5() {
         0,    // tos
         0, 0, // src_as
         0, 0, // dst_as
-        0,    // src_mask
-        0,    // dst_mask
+        0, // src_mask
+        0, // dst_mask
         0, 0, // pad2
     ];
 

@@ -239,7 +239,10 @@ fn test_ipfix_individual_template_withdrawal() {
 
     // Withdraw template 256 only
     let _ = parser.parse_bytes(&ipfix_withdrawal_packet(256));
-    assert!(!parser.has_ipfix_template(256), "Template 256 should be withdrawn");
+    assert!(
+        !parser.has_ipfix_template(256),
+        "Template 256 should be withdrawn"
+    );
     assert!(parser.has_ipfix_template(257), "Template 257 should remain");
 }
 
@@ -267,7 +270,8 @@ fn test_ipfix_withdraw_all_data_templates() {
     assert!(!parser.has_ipfix_template(257));
     assert!(!parser.has_ipfix_template(258));
     assert_eq!(
-        parser.ipfix_cache_info().current_size, 1,
+        parser.ipfix_cache_info().current_size,
+        1,
         "Only the options template should remain after withdraw-all data"
     );
 }
@@ -290,9 +294,13 @@ fn test_ipfix_withdraw_all_options_templates() {
     let _ = parser.parse_bytes(&ipfix_options_withdrawal_packet(3));
 
     // Options templates should be gone, data template should remain
-    assert!(parser.has_ipfix_template(256), "Data template should survive options withdraw-all");
+    assert!(
+        parser.has_ipfix_template(256),
+        "Data template should survive options withdraw-all"
+    );
     assert_eq!(
-        parser.ipfix_cache_info().current_size, 1,
+        parser.ipfix_cache_info().current_size,
+        1,
         "Only the data template should remain after withdraw-all options"
     );
 }
@@ -309,10 +317,8 @@ fn test_ipfix_withdraw_all_drains_pending_flows() {
 
     // Cache a pending flow for template 256 (no template registered yet)
     let data_pkt = vec![
-        0x00, 0x0A, 0x00, 0x18,
-        0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02,
-        0x00, 0x00, 0x00, 0x01,
-        0x01, 0x00, // Set ID = 256
+        0x00, 0x0A, 0x00, 0x18, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00,
+        0x00, 0x01, 0x01, 0x00, // Set ID = 256
         0x00, 0x08, // Set Length = 8
         0x00, 0x00, 0x00, 0x42,
     ];

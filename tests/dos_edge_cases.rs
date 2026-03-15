@@ -216,10 +216,7 @@ fn test_error_buffer_size_configuration() {
         Some(other) => {
             // Other error types are acceptable as long as parser doesn't panic.
             // The error sample is bounded by the error type itself (no raw buffer).
-            panic!(
-                "Unexpected error type for malformed V9 packet: {:?}",
-                other
-            );
+            panic!("Unexpected error type for malformed V9 packet: {:?}", other);
         }
         None => panic!("Expected error on malformed packet"),
     }

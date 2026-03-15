@@ -336,7 +336,11 @@ impl PendingFlowCache {
 
     /// Remove expired entries from a single template's vector.
     /// If all entries expire, the key is removed from the cache.
-    fn prune_expired_for_template(&mut self, template_id: u16, metrics: &mut CacheMetricsInner) {
+    fn prune_expired_for_template(
+        &mut self,
+        template_id: u16,
+        metrics: &mut CacheMetricsInner,
+    ) {
         let Some(ttl) = self.config.ttl else { return };
         // Use peek_mut so pruning alone doesn't promote the key.
         let result = self
