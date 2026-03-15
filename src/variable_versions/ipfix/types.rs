@@ -8,7 +8,7 @@ use super::lookup::IPFixField;
 use crate::variable_versions::PendingFlowCache;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
-use crate::variable_versions::metrics::CacheMetrics;
+use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 
 use nom::bytes::complete::take;
@@ -55,7 +55,7 @@ pub struct IPFixParser {
     pub(crate) max_error_sample_size: usize,
     pub(crate) max_records_per_flowset: usize,
     pub(crate) enterprise_registry: Arc<EnterpriseFieldRegistry>,
-    pub(crate) metrics: CacheMetrics,
+    pub(crate) metrics: CacheMetricsInner,
     pub(crate) pending_flows: Option<PendingFlowCache>,
 }
 

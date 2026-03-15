@@ -1,11 +1,13 @@
-//! Template cache metrics for monitoring parser performance
+//! Template cache metrics and cache information types for monitoring parser performance.
+
+use super::ttl::TtlConfig;
 
 /// Metrics for tracking template cache performance.
 ///
 /// All counters use plain u64 fields. The parser itself is not thread-safe
 /// and should not be shared across threads.
 #[derive(Debug, Default, Clone, Copy)]
-pub struct CacheMetrics {
+pub(crate) struct CacheMetricsInner {
     /// Number of successful template lookups (cache hits)
     pub hits: u64,
     /// Number of failed template lookups (cache misses)
@@ -28,7 +30,7 @@ pub struct CacheMetrics {
     pub pending_replay_failed: u64,
 }
 
-impl CacheMetrics {
+impl CacheMetricsInner {
     /// Create a new metrics instance with all counters at zero
     pub fn new() -> Self {
         Self::default()
@@ -101,8 +103,8 @@ impl CacheMetrics {
     }
 
     /// Get a snapshot of current metrics
-    pub fn snapshot(&self) -> CacheMetricsSnapshot {
-        CacheMetricsSnapshot {
+    pub fn snapshot(&self) -> CacheMetrics {
+        CacheMetrics {
             hits: self.hits,
             misses: self.misses,
             evictions: self.evictions,
@@ -123,7 +125,7 @@ impl CacheMetrics {
 /// for each field access.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CacheMetricsSnapshot {
+pub struct CacheMetrics {
     /// Number of successful template lookups (cache hits)
     pub hits: u64,
     /// Number of failed template lookups (cache misses)
@@ -146,7 +148,7 @@ pub struct CacheMetricsSnapshot {
     pub pending_replay_failed: u64,
 }
 
-impl CacheMetricsSnapshot {
+impl CacheMetrics {
     /// Calculate the cache hit rate (0.0 to 1.0)
     ///
     /// Returns `None` if there have been no lookups yet.
@@ -172,6 +174,44 @@ impl CacheMetricsSnapshot {
     }
 }
 
+/// Statistics about template cache utilization.
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct CacheInfo {
+    /// Current number of cached templates (summed across all internal caches).
+    ///
+    /// This is the total across `num_caches` independent LRU caches. The theoretical
+    /// maximum is `max_size_per_cache * num_caches`, since each cache enforces
+    /// `max_size_per_cache` independently.
+    pub current_size: usize,
+    /// Maximum cache size per internal cache (each template type has its own LRU cache).
+    ///
+    /// Each of the `num_caches` internal caches can hold up to this many templates
+    /// independently.
+    pub max_size_per_cache: usize,
+    /// Number of internal caches (V9 has 2: templates + options; IPFIX has 4)
+    pub num_caches: usize,
+    /// TTL configuration (if enabled)
+    pub ttl_config: Option<TtlConfig>,
+    /// Performance metrics snapshot
+    pub metrics: CacheMetrics,
+    /// Number of flows currently cached as pending (awaiting template)
+    pub pending_flow_count: usize,
+}
+
+/// Combined cache information for both V9 and IPFIX template caches.
+///
+/// This struct provides named fields instead of positional tuples,
+/// making it clear which info belongs to V9 vs IPFIX.
+#[non_exhaustive]
+#[derive(Debug, Clone)]
+pub struct ParserCacheInfo {
+    /// V9 template cache information
+    pub v9: CacheInfo,
+    /// IPFIX template cache information
+    pub ipfix: CacheInfo,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,7 +219,7 @@ mod tests {
     // Verify each record method increments the correct counter in the snapshot
     #[test]
     fn test_metrics_recording() {
-        let mut metrics = CacheMetrics::new();
+        let mut metrics = CacheMetricsInner::new();
 
         metrics.record_hit();
         metrics.record_hit();
@@ -199,7 +239,7 @@ mod tests {
     // Verify hit_rate and miss_rate calculations, including None when no lookups exist
     #[test]
     fn test_hit_rate() {
-        let mut metrics = CacheMetrics::new();
+        let mut metrics = CacheMetricsInner::new();
 
         // No lookups yet
         let snapshot = metrics.snapshot();

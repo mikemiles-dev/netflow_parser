@@ -5,7 +5,7 @@
 
 use crate::{
     ConfigError, NetflowError, NetflowPacket, NetflowParser, NetflowParserBuilder, ParseResult,
-    ParserCacheStats,
+    ParserCacheInfo,
 };
 use lru::LruCache;
 use std::hash::Hash;
@@ -289,12 +289,12 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     /// Get statistics for a specific source's template cache.
     ///
     /// Returns `None` if the source hasn't sent any packets yet.
-    pub fn get_source_stats(&mut self, source: &K) -> Option<ParserCacheStats> {
+    pub fn get_source_info(&mut self, source: &K) -> Option<ParserCacheInfo> {
         self.parsers
             .peek(source)
-            .map(|(parser, _)| ParserCacheStats {
-                v9: parser.v9_cache_stats(),
-                ipfix: parser.ipfix_cache_stats(),
+            .map(|(parser, _)| ParserCacheInfo {
+                v9: parser.v9_cache_info(),
+                ipfix: parser.ipfix_cache_info(),
             })
     }
 
@@ -309,15 +309,15 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     }
 
     /// Get statistics for all sources.
-    pub fn all_stats(&self) -> Vec<(&K, ParserCacheStats)> {
+    pub fn all_info(&self) -> Vec<(&K, ParserCacheInfo)> {
         self.parsers
             .iter()
             .map(|(source, (parser, _))| {
                 (
                     source,
-                    ParserCacheStats {
-                        v9: parser.v9_cache_stats(),
-                        ipfix: parser.ipfix_cache_stats(),
+                    ParserCacheInfo {
+                        v9: parser.v9_cache_info(),
+                        ipfix: parser.ipfix_cache_info(),
                     },
                 )
             })
@@ -783,15 +783,15 @@ impl AutoScopedParser {
     }
 
     /// Get statistics for all IPFIX sources.
-    pub fn ipfix_stats(&self) -> Vec<(&IpfixSourceKey, ParserCacheStats)> {
+    pub fn ipfix_info(&self) -> Vec<(&IpfixSourceKey, ParserCacheInfo)> {
         self.ipfix_parsers
             .iter()
             .map(|(key, (parser, _))| {
                 (
                     key,
-                    ParserCacheStats {
-                        v9: parser.v9_cache_stats(),
-                        ipfix: parser.ipfix_cache_stats(),
+                    ParserCacheInfo {
+                        v9: parser.v9_cache_info(),
+                        ipfix: parser.ipfix_cache_info(),
                     },
                 )
             })
@@ -799,15 +799,15 @@ impl AutoScopedParser {
     }
 
     /// Get statistics for all NetFlow v9 sources.
-    pub fn v9_stats(&self) -> Vec<(&V9SourceKey, ParserCacheStats)> {
+    pub fn v9_info(&self) -> Vec<(&V9SourceKey, ParserCacheInfo)> {
         self.v9_parsers
             .iter()
             .map(|(key, (parser, _))| {
                 (
                     key,
-                    ParserCacheStats {
-                        v9: parser.v9_cache_stats(),
-                        ipfix: parser.ipfix_cache_stats(),
+                    ParserCacheInfo {
+                        v9: parser.v9_cache_info(),
+                        ipfix: parser.ipfix_cache_info(),
                     },
                 )
             })
@@ -815,15 +815,15 @@ impl AutoScopedParser {
     }
 
     /// Get statistics for all legacy sources.
-    pub fn legacy_stats(&self) -> Vec<(&SocketAddr, ParserCacheStats)> {
+    pub fn legacy_info(&self) -> Vec<(&SocketAddr, ParserCacheInfo)> {
         self.legacy_parsers
             .iter()
             .map(|(addr, (parser, _))| {
                 (
                     addr,
-                    ParserCacheStats {
-                        v9: parser.v9_cache_stats(),
-                        ipfix: parser.ipfix_cache_stats(),
+                    ParserCacheInfo {
+                        v9: parser.v9_cache_info(),
+                        ipfix: parser.ipfix_cache_info(),
                     },
                 )
             })
@@ -995,7 +995,7 @@ mod tests {
 
         // Now we have one source
         assert_eq!(scoped.source_count(), 1);
-        assert!(scoped.get_source_stats(&source1).is_some());
+        assert!(scoped.get_source_info(&source1).is_some());
 
         // Parse from second source
         let source2: SocketAddr = "192.168.1.2:2055".parse().unwrap();
@@ -1003,7 +1003,7 @@ mod tests {
 
         // Now we have two sources
         assert_eq!(scoped.source_count(), 2);
-        assert!(scoped.get_source_stats(&source2).is_some());
+        assert!(scoped.get_source_info(&source2).is_some());
     }
 
     // Verify RouterScopedParser works with String keys
@@ -1208,9 +1208,9 @@ mod tests {
         let _ = parser.parse_from_source(source, &ipfix_data);
 
         // Get stats
-        let ipfix_stats = parser.ipfix_stats();
-        assert_eq!(ipfix_stats.len(), 1);
-        assert_eq!(ipfix_stats[0].0.observation_domain_id, 1);
+        let ipfix_info = parser.ipfix_info();
+        assert_eq!(ipfix_info.len(), 1);
+        assert_eq!(ipfix_info[0].0.observation_domain_id, 1);
     }
 
     // Verify clear_all_templates preserves parser instances but clears caches

@@ -51,7 +51,7 @@ async fn main() -> io::Result<()> {
             println!("  Legacy sources: {}", parser_lock.legacy_source_count());
 
             // Show IPFIX sources with RFC-compliant scoping
-            let ipfix_sources = parser_lock.ipfix_stats();
+            let ipfix_sources = parser_lock.ipfix_info();
             if !ipfix_sources.is_empty() {
                 println!("\nIPFIX Sources (RFC 7011 scoping):");
                 for (key, stats) in ipfix_sources {
@@ -80,7 +80,7 @@ async fn main() -> io::Result<()> {
             }
 
             // Show NetFlow v9 sources with RFC-compliant scoping
-            let v9_sources = parser_lock.v9_stats();
+            let v9_sources = parser_lock.v9_info();
             if !v9_sources.is_empty() {
                 println!("\nNetFlow v9 Sources (RFC 3954 scoping):");
                 for (key, stats) in v9_sources {
@@ -106,7 +106,7 @@ async fn main() -> io::Result<()> {
             }
 
             // Show legacy sources (v5/v7)
-            let legacy_sources = parser_lock.legacy_stats();
+            let legacy_sources = parser_lock.legacy_info();
             if !legacy_sources.is_empty() {
                 println!("\nLegacy Sources (NetFlow v5/v7):");
                 for (addr, stats) in legacy_sources {

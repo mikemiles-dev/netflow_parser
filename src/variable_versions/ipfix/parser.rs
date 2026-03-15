@@ -13,7 +13,7 @@ use super::{
 use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
-use crate::variable_versions::metrics::CacheMetrics;
+use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 use crate::variable_versions::v9::{
     DATA_TEMPLATE_V9_ID, Data as V9Data, OPTIONS_TEMPLATE_V9_ID, OptionsData as V9OptionsData,
@@ -90,7 +90,7 @@ impl IPFixParser {
             max_error_sample_size: config.max_error_sample_size,
             max_records_per_flowset: config.max_records_per_flowset,
             enterprise_registry: config.enterprise_registry,
-            metrics: CacheMetrics::new(),
+            metrics: CacheMetricsInner::new(),
             pending_flows,
         })
     }
@@ -199,7 +199,7 @@ impl IPFixParser {
     fn cache_notemplate_ipfix_flowsets(
         ipfix: &mut IPFix,
         cache: &mut PendingFlowCache,
-        metrics: &mut CacheMetrics,
+        metrics: &mut CacheMetricsInner,
         max_error_sample_size: usize,
     ) -> Vec<u16> {
         let mut learned_template_ids: Vec<u16> = Vec::new();
@@ -501,7 +501,7 @@ fn insert_templates<T: HasTemplateId>(
     cache: &mut LruCache<u16, TemplateWithTtl<Arc<T>>>,
     templates: &[T],
     ttl_enabled: bool,
-    metrics: &mut CacheMetrics,
+    metrics: &mut CacheMetricsInner,
 ) {
     for t in templates {
         let arc_template = Arc::new(t.clone());

@@ -31,7 +31,16 @@
   - Removed `available_templates` field. Use `parser.v9_available_template_ids()` or `parser.ipfix_available_template_ids()` instead
   - Added `truncated: bool` field. Code that destructures `NoTemplateInfo` must include the new field (or use `..`)
 
-* **`CacheMetrics` methods now require `&mut self` instead of `&self`**
+* **Cache observability types renamed for clarity**
+  - `CacheStats` → `CacheInfo` (structural cache state: size, capacity, TTL, pending count)
+  - `CacheMetricsSnapshot` → `CacheMetrics` (operational counters: hits, misses, evictions, etc.)
+  - `ParserCacheStats` → `ParserCacheInfo` (groups V9 + IPFIX `CacheInfo`)
+  - The internal mutable metrics type is now `pub(crate) CacheMetricsInner` (not part of public API)
+  - Methods renamed: `v9_cache_stats()` → `v9_cache_info()`, `ipfix_cache_stats()` → `ipfix_cache_info()`
+  - Scoped parser methods renamed: `all_stats()` → `all_info()`, `get_source_stats()` → `get_source_info()`, `v9_stats()` → `v9_info()`, `ipfix_stats()` → `ipfix_info()`, `legacy_stats()` → `legacy_info()`
+  - Migration: rename types and method calls. The `CacheInfo.metrics` field is now `CacheMetrics` (was `CacheMetricsSnapshot`)
+
+* **`CacheMetrics` (formerly `CacheMetricsInner`) methods now require `&mut self` instead of `&self`**
   - Uses plain `u64` counters instead of `AtomicU64`, removing atomic overhead in the single-threaded parser
 
 * **`NetflowParser` fields are now `pub(crate)`**
@@ -100,17 +109,17 @@
   - `None` when the field is 1 byte (classification engine ID only, no selector)
   - Fixes round-trip serialization: previously a 1-byte field serialized to 2 bytes
 
-* **`CacheStats` struct field changes**
+* **`CacheInfo` struct field changes**
   - `max_size` renamed to `max_size_per_cache` (clarifies that it applies per internal LRU cache)
   - Added `num_caches: usize` field (V9 has 2 caches, IPFIX has 4)
-  - Code that destructures `CacheStats` must update the field name and include `num_caches` (or use `..`)
+  - Code that destructures `CacheInfo` must update the field name and include `num_caches` (or use `..`)
 
 * **`TemplateEvent` field `template_id` changed from `u16` to `Option<u16>`**
   - All variants (`Learned`, `Collision`, `Evicted`, `Expired`, `MissingTemplate`) now use `Option<u16>`
   - `None` when the event is derived from metric deltas (specific ID not available from metrics layer)
   - Pattern matching must use `template_id: Some(id)` or `template_id: _`
 
-* **`CacheMetrics` record methods scoped to `pub(crate)`**
+* **`CacheMetricsInner` record methods scoped to `pub(crate)`**
   - `record_hit()`, `record_miss()`, `record_eviction()`, `record_insertion()`, `record_expiration()`, `record_collision()`, and pending flow record methods changed from `pub` to `pub(crate)`
   - `reset()` method removed entirely
   - `snapshot()`, `new()`, `hit_rate()` remain public
@@ -132,12 +141,12 @@
   - Carries only the version number, not the entire packet
   - Pattern matching must use `UnknownVersion(version)` instead of `UnknownVersion(packet)`
 
-* **`get_source_stats()` on scoped parsers changed from `&self` to `&mut self`**
+* **`get_source_info()` on scoped parsers changed from `&self` to `&mut self`**
   - LRU cache iteration requires mutable access
   - Code calling this from an immutable reference must switch to `&mut`
 
 * **`#[non_exhaustive]` added to public types**
-  - Affected types: `NetflowPacket`, `ParseResult`, `NetflowError`, `ConfigError`, `FieldValue`, `Config`, `PendingFlowsConfig`, `CacheStats`, `ParserCacheStats`, `CacheMetricsSnapshot`, `NoTemplateInfo`, `TemplateEvent`, `TemplateProtocol`, `ScopingInfo`
+  - Affected types: `NetflowPacket`, `ParseResult`, `NetflowError`, `ConfigError`, `FieldValue`, `Config`, `PendingFlowsConfig`, `CacheInfo`, `ParserCacheInfo`, `CacheMetrics`, `NoTemplateInfo`, `TemplateEvent`, `TemplateProtocol`, `ScopingInfo`
   - External code with exhaustive `match` statements must add a wildcard `_ =>` arm
   - External code constructing these structs directly must use `..` for forward compatibility
 
@@ -202,7 +211,7 @@
   - The crate contains zero `unsafe` blocks; this is now enforced at the crate level
 
 * **Expanded root re-exports**
-  - `Config`, `ConfigError`, `TtlConfig`, `EnterpriseFieldRegistry`, `CacheMetrics`, `CacheMetricsSnapshot`, `NoTemplateInfo`, `DEFAULT_MAX_RECORDS_PER_FLOWSET`, `DEFAULT_MAX_SOURCES` — now available at crate root
+  - `Config`, `ConfigError`, `TtlConfig`, `EnterpriseFieldRegistry`, `CacheMetrics`, `NoTemplateInfo`, `DEFAULT_MAX_RECORDS_PER_FLOWSET`, `DEFAULT_MAX_SOURCES` — now available at crate root
   - `DataNumber`, `FieldDataType`, `FieldValue` — commonly used field/data types at crate root
   - `V9Field`, `V9FieldPair`, `V9FlowRecord` — symmetric with IPFIX equivalents already at root
 
@@ -460,18 +469,18 @@
 * **`ConfigError`** gains an `InvalidPendingCacheSize(usize)` variant
   - Returned when `PendingFlowsConfig::max_pending_flows` is 0
   - Exhaustive matches on `ConfigError` must add this arm
-* **`CacheStats`** gains a `pending_flow_count: usize` field
-  - Code that destructures `CacheStats` must include the new field (or use `..`)
-* **`CacheMetrics`** and **`CacheMetricsSnapshot`** gain four fields
+* **`CacheInfo`** (formerly `CacheStats`) gains a `pending_flow_count: usize` field
+  - Code that destructures `CacheInfo` must include the new field (or use `..`)
+* **`CacheMetrics`** gains four fields
   - `pending_cached`, `pending_replayed`, `pending_dropped`, `pending_replay_failed`
-  - Code that destructures either struct must include the new fields (or use `..`)
+  - Code that destructures the struct must include the new fields (or use `..`)
 
 # 0.8.4
 
 ## Breaking Changes
 
-* **Replaced tuple returns with named `ParserCacheStats` struct**
-  - Functions `get_source_stats()`, `all_stats()`, `ipfix_stats()`, `v9_stats()`, and `legacy_stats()` now return `ParserCacheStats` with `.v9` and `.ipfix` fields instead of `(CacheStats, CacheStats)` tuples
+* **Replaced tuple returns with named `ParserCacheInfo` struct** (formerly `ParserCacheStats`)
+  - Functions `get_source_info()`, `all_info()`, `ipfix_info()`, `v9_info()`, and `legacy_info()` now return `ParserCacheInfo` with `.v9` and `.ipfix` fields instead of `(CacheInfo, CacheInfo)` tuples
   - This eliminates ambiguity about which positional element is V9 vs IPFIX
   - Migration: Replace `(key, v9_stats, ipfix_stats)` destructuring with `(key, stats)` and access `stats.v9` / `stats.ipfix`
 

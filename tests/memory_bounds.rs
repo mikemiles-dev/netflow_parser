@@ -6,7 +6,7 @@ use netflow_parser::NetflowParser;
 /// Verify that V9 template cache stays within configured bounds when many
 /// distinct templates are inserted.
 #[test]
-fn test_cache_stats_stay_within_bounds() {
+fn test_cache_info_stay_within_bounds() {
     let max_cache = 3;
     let mut parser = NetflowParser::builder()
         .with_cache_size(max_cache)
@@ -36,16 +36,11 @@ fn test_cache_stats_stay_within_bounds() {
         let _ = parser.parse_bytes(&v9_template_packet);
     }
 
-    let v9_stats = parser.v9_cache_stats();
-    assert!(
-        v9_stats.current_size <= max_cache,
-        "V9 cache size {} exceeds max {}",
-        v9_stats.current_size,
-        max_cache
-    );
-    assert!(
-        v9_stats.current_size > 0,
-        "V9 cache should have entries after parsing templates"
+    let v9_info = parser.v9_cache_info();
+    assert_eq!(
+        v9_info.current_size, max_cache,
+        "V9 cache should be full at max capacity {}, got {}",
+        max_cache, v9_info.current_size
     );
 }
 

@@ -94,7 +94,7 @@ pub use pending_flows::PendingFlowsConfig;
 pub(crate) use config::TemplateId;
 pub(crate) use pending_flows::{PendingFlowCache, PendingFlowEntry};
 
-use crate::variable_versions::metrics::CacheMetrics;
+use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::ttl::TtlConfig;
 
 /// Information about a data flowset that couldn't be parsed due to missing template.
@@ -149,7 +149,7 @@ pub(crate) fn get_valid_template<T: Clone>(
     cache: &mut lru::LruCache<TemplateId, ttl::TemplateWithTtl<std::sync::Arc<T>>>,
     id: &TemplateId,
     ttl_config: &Option<TtlConfig>,
-    metrics: &mut CacheMetrics,
+    metrics: &mut CacheMetricsInner,
 ) -> Option<std::sync::Arc<T>> {
     if let Some(wrapped) = cache.peek(id) {
         if let Some(config) = ttl_config
@@ -175,7 +175,7 @@ pub(crate) fn peek_valid_template<T: Clone>(
     cache: &mut lru::LruCache<TemplateId, ttl::TemplateWithTtl<std::sync::Arc<T>>>,
     id: &TemplateId,
     ttl_config: &Option<TtlConfig>,
-    metrics: &mut CacheMetrics,
+    metrics: &mut CacheMetricsInner,
 ) -> Option<std::sync::Arc<T>> {
     if let Some(wrapped) = cache.peek(id) {
         if let Some(config) = ttl_config

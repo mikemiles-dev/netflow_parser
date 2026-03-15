@@ -133,7 +133,7 @@ fn test_template_cache_eviction() {
     }
 
     // Check cache stats - should show evictions occurred
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(stats.current_size, 5, "Cache should be at max size");
     assert_eq!(stats.max_size_per_cache, 5, "Max size should be 5");
 
@@ -214,8 +214,9 @@ fn test_error_buffer_size_configuration() {
             println!("Got Partial error (acceptable)");
         }
         Some(other) => {
-            // Other error types are acceptable as long as parser doesn't panic
-            println!("Got other error type: {:?}", other);
+            // Other error types are acceptable as long as parser doesn't panic.
+            // The error sample is bounded by the error type itself (no raw buffer).
+            panic!("Unexpected error type for malformed V9 packet: {:?}", other);
         }
         None => panic!("Expected error on malformed packet"),
     }
@@ -334,7 +335,7 @@ fn test_cache_metrics_accuracy() {
 
     let _ = parser.parse_bytes(&template);
 
-    let initial_stats = parser.v9_cache_stats();
+    let initial_stats = parser.v9_cache_info();
     let initial_hits = initial_stats.metrics.hits;
 
     // Use the template 5 times (should increment hits)
@@ -346,7 +347,7 @@ fn test_cache_metrics_accuracy() {
         let _ = parser.parse_bytes(&data);
     }
 
-    let final_stats = parser.v9_cache_stats();
+    let final_stats = parser.v9_cache_info();
     let final_hits = final_stats.metrics.hits;
 
     // Should have 5 more hits

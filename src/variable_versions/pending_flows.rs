@@ -5,7 +5,7 @@
 //! are drained and re-parsed.
 
 use super::config::ConfigError;
-use super::metrics::CacheMetrics;
+use super::metrics::CacheMetricsInner;
 use lru::LruCache;
 use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
@@ -217,7 +217,7 @@ impl PendingFlowCache {
         &mut self,
         template_id: u16,
         raw_data: Vec<u8>,
-        metrics: &mut CacheMetrics,
+        metrics: &mut CacheMetricsInner,
     ) -> Option<Vec<u8>> {
         if raw_data.len() > self.config.max_entry_size_bytes {
             metrics.record_pending_dropped();
@@ -306,7 +306,7 @@ impl PendingFlowCache {
     pub(crate) fn drain(
         &mut self,
         template_id: u16,
-        metrics: &mut CacheMetrics,
+        metrics: &mut CacheMetricsInner,
     ) -> Vec<PendingFlowEntry> {
         let Some(entries) = self.cache.pop(&template_id) else {
             return Vec::new();
@@ -336,7 +336,11 @@ impl PendingFlowCache {
 
     /// Remove expired entries from a single template's vector.
     /// If all entries expire, the key is removed from the cache.
-    fn prune_expired_for_template(&mut self, template_id: u16, metrics: &mut CacheMetrics) {
+    fn prune_expired_for_template(
+        &mut self,
+        template_id: u16,
+        metrics: &mut CacheMetricsInner,
+    ) {
         let Some(ttl) = self.config.ttl else { return };
         // Use peek_mut so pruning alone doesn't promote the key.
         let result = self
@@ -353,7 +357,7 @@ impl PendingFlowCache {
 
     /// Remove expired entries from every template in the cache.
     /// Empty keys are removed so their slots can be reused.
-    fn purge_expired(&mut self, metrics: &mut CacheMetrics) {
+    fn purge_expired(&mut self, metrics: &mut CacheMetricsInner) {
         let Some(ttl) = self.config.ttl else { return };
         let keys: Vec<u16> = self.cache.iter().map(|(&k, _)| k).collect();
         for key in keys {
@@ -376,7 +380,7 @@ impl PendingFlowCache {
     fn drop_expired_entries(
         entries: &mut Vec<PendingFlowEntry>,
         ttl: Duration,
-        metrics: &mut CacheMetrics,
+        metrics: &mut CacheMetricsInner,
     ) -> (bool, usize) {
         let before_len = entries.len();
         let before_bytes: usize = entries.iter().map(|e| e.raw_data.len()).sum();
@@ -426,7 +430,7 @@ impl PendingFlowCache {
     pub(crate) fn resize(
         &mut self,
         config: PendingFlowsConfig,
-        metrics: &mut CacheMetrics,
+        metrics: &mut CacheMetricsInner,
     ) -> Result<u64, ConfigError> {
         // Validate the full config, not just max_pending_flows
         Self::validate_config(&config)?;
@@ -478,7 +482,7 @@ impl PendingFlowCache {
     fn trim_existing_entries(
         cache: &mut LruCache<u16, Vec<PendingFlowEntry>>,
         config: &PendingFlowsConfig,
-        metrics: &mut CacheMetrics,
+        metrics: &mut CacheMetricsInner,
     ) -> (usize, u64) {
         let mut freed = 0usize;
         let mut dropped: u64 = 0;
@@ -521,10 +525,10 @@ impl PendingFlowCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::variable_versions::metrics::CacheMetrics;
+    use crate::variable_versions::metrics::CacheMetricsInner;
 
-    fn default_metrics() -> CacheMetrics {
-        CacheMetrics::default()
+    fn default_metrics() -> CacheMetricsInner {
+        CacheMetricsInner::default()
     }
 
     fn small_config(max_flows: usize) -> PendingFlowsConfig {
