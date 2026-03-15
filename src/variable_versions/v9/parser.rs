@@ -268,9 +268,7 @@ impl V9Parser {
                 if v9.flowsets.len() >= u16::MAX as usize {
                     // Count this entry plus all remaining as failed, then break.
                     let remaining = (total_entries - processed) as u64;
-                    for _ in 0..remaining {
-                        self.metrics.record_pending_replay_failed();
-                    }
+                    self.metrics.record_pending_replay_failed_n(remaining);
                     break;
                 }
                 if self.try_replay_v9_flow(&mut v9.flowsets, template_id, entry) {

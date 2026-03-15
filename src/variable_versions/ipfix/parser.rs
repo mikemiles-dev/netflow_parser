@@ -294,9 +294,7 @@ impl IPFixParser {
                 // Bound flowset count, consistent with V9 replay.
                 if ipfix.flowsets.len() >= u16::MAX as usize {
                     let remaining = (total_entries - processed) as u64;
-                    for _ in 0..remaining {
-                        self.metrics.record_pending_replay_failed();
-                    }
+                    self.metrics.record_pending_replay_failed_n(remaining);
                     break;
                 }
                 let flowset_length =
@@ -305,9 +303,7 @@ impl IPFixParser {
                 else {
                     // Count this entry plus all remaining as failed.
                     let remaining = (total_entries - processed) as u64;
-                    for _ in 0..remaining {
-                        self.metrics.record_pending_replay_failed();
-                    }
+                    self.metrics.record_pending_replay_failed_n(remaining);
                     break;
                 };
                 if self.try_replay_ipfix_flow(&mut ipfix.flowsets, template_id, entry) {
