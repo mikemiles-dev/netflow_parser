@@ -37,7 +37,7 @@ fn main() {
 
             if parser.source_count() > 0 {
                 println!("\nPer-Source Template Cache Stats:");
-                for (source, stats) in parser.all_stats() {
+                for (source, stats) in parser.all_info() {
                     println!("\n  Source: {}", source);
 
                     // V9 stats

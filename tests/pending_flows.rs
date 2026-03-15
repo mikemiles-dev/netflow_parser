@@ -96,7 +96,7 @@ fn test_pending_flows_disabled_by_default() {
     );
 
     // No pending flows should be cached (feature disabled)
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(
         stats.pending_flow_count, 0,
         "No pending flows when feature is disabled"
@@ -120,7 +120,7 @@ fn test_ipfix_pending_flow_replay() {
     assert!(result1.is_ok(), "Data packet should parse (NoTemplate)");
 
     // Should have one pending flow cached
-    let stats = parser.ipfix_cache_stats();
+    let stats = parser.ipfix_cache_info();
     assert_eq!(stats.pending_flow_count, 1, "Should cache one pending flow");
     assert_eq!(
         stats.metrics.pending_cached, 1,
@@ -150,7 +150,7 @@ fn test_ipfix_pending_flow_replay() {
     );
 
     // Pending flows should now be drained
-    let stats = parser.ipfix_cache_stats();
+    let stats = parser.ipfix_cache_info();
     assert_eq!(
         stats.pending_flow_count, 0,
         "Pending flows should be drained after replay"
@@ -174,7 +174,7 @@ fn test_v9_pending_flow_replay() {
     assert!(result1.is_ok(), "Data packet should parse (NoTemplate)");
 
     // Should have one pending flow cached
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(stats.pending_flow_count, 1, "Should cache one pending flow");
 
     // Step 2: Send template packet - pending flows should be replayed
@@ -200,7 +200,7 @@ fn test_v9_pending_flow_replay() {
     );
 
     // Pending flows should now be drained
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(
         stats.pending_flow_count, 0,
         "Pending flows should be drained after replay"
@@ -221,14 +221,14 @@ fn test_pending_flow_ttl_expiration() {
 
     // Send data packet before template
     let _ = parser.parse_bytes(&v9_data_packet());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
 
     // Send template - pending flow should have already expired (TTL is zero)
     let result = parser.parse_bytes(&v9_template_packet());
     assert!(result.is_ok());
 
     // The pending flow should be dropped, not replayed
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(
         stats.metrics.pending_replayed, 0,
         "Expired flow should not be replayed"
@@ -263,7 +263,7 @@ fn test_pending_flow_lru_eviction() {
     let _ = parser.parse_bytes(&data_258);
 
     // Cache should have exactly 2 entries (257 and 258); 256 was evicted
-    let stats = parser.ipfix_cache_stats();
+    let stats = parser.ipfix_cache_info();
     assert_eq!(stats.pending_flow_count, 2);
     assert_eq!(stats.metrics.pending_cached, 3);
     // The evicted template 256 had 1 entry, which should be counted as dropped
@@ -415,17 +415,17 @@ fn test_clear_pending_flows() {
     let _ = parser.parse_bytes(&v9_data_packet());
     let _ = parser.parse_bytes(&ipfix_data_packet());
 
-    assert!(parser.v9_cache_stats().pending_flow_count > 0);
-    assert!(parser.ipfix_cache_stats().pending_flow_count > 0);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
 
     // Clear V9 pending flows
     parser.clear_v9_pending_flows();
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 0);
-    assert!(parser.ipfix_cache_stats().pending_flow_count > 0);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 0);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
 
     // Clear IPFIX pending flows
     parser.clear_ipfix_pending_flows();
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 0);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -676,7 +676,7 @@ fn test_v9_multifield_pending_replay() {
     // Data before template
     let result1 = parser.parse_bytes(&v9_multifield_data_packet());
     assert!(result1.is_ok());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
 
     // Template arrives -> replay
     let result2 = parser.parse_bytes(&v9_multifield_template_packet());
@@ -696,7 +696,7 @@ fn test_v9_multifield_pending_replay() {
     });
     assert!(has_data, "Replayed multi-field data should appear");
 
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(stats.pending_flow_count, 0);
     assert_eq!(stats.metrics.pending_replayed, 1);
 }
@@ -711,7 +711,7 @@ fn test_ipfix_multifield_pending_replay() {
 
     let result1 = parser.parse_bytes(&ipfix_multifield_data_packet());
     assert!(result1.is_ok());
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
 
     let result2 = parser.parse_bytes(&ipfix_multifield_template_packet());
     assert!(result2.is_ok());
@@ -730,7 +730,7 @@ fn test_ipfix_multifield_pending_replay() {
     });
     assert!(has_data, "Replayed multi-field data should appear");
 
-    let stats = parser.ipfix_cache_stats();
+    let stats = parser.ipfix_cache_info();
     assert_eq!(stats.pending_flow_count, 0);
     assert_eq!(stats.metrics.pending_replayed, 1);
 }
@@ -750,7 +750,7 @@ fn test_v9_multiple_records_pending_replay() {
     // Data with 2 records, before template
     let result1 = parser.parse_bytes(&v9_multifield_two_records_packet());
     assert!(result1.is_ok());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
 
     // Template arrives
     let result2 = parser.parse_bytes(&v9_multifield_template_packet());
@@ -780,7 +780,7 @@ fn test_v9_multiple_records_pending_replay() {
         record_count, 2,
         "Should replay 2 records from the pending flowset"
     );
-    assert_eq!(parser.v9_cache_stats().metrics.pending_replayed, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_replayed, 1);
 }
 
 /// IPFIX: pending flowset with 2 records replayed correctly
@@ -793,7 +793,7 @@ fn test_ipfix_multiple_records_pending_replay() {
 
     let result1 = parser.parse_bytes(&ipfix_multifield_two_records_packet());
     assert!(result1.is_ok());
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
 
     let result2 = parser.parse_bytes(&ipfix_multifield_template_packet());
     assert!(result2.is_ok());
@@ -822,7 +822,7 @@ fn test_ipfix_multiple_records_pending_replay() {
         record_count, 2,
         "Should replay 2 records from the pending flowset"
     );
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_replayed, 1);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_replayed, 1);
 }
 
 // ===========================================================================
@@ -840,7 +840,7 @@ fn test_v9_options_pending_replay() {
     // Options data arrives before options template
     let result1 = parser.parse_bytes(&v9_options_data_packet());
     assert!(result1.is_ok());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
 
     // Options template arrives -> should replay as OptionsData
     let result2 = parser.parse_bytes(&v9_options_template_packet());
@@ -860,7 +860,7 @@ fn test_v9_options_pending_replay() {
     });
     assert!(has_options_data, "Should replay as OptionsData flowset");
 
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(stats.pending_flow_count, 0);
     assert_eq!(stats.metrics.pending_replayed, 1);
 }
@@ -876,7 +876,7 @@ fn test_ipfix_options_pending_replay() {
     // Options data arrives before options template
     let result1 = parser.parse_bytes(&ipfix_options_data_packet());
     assert!(result1.is_ok());
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
 
     // Options template arrives -> should replay as OptionsData
     let result2 = parser.parse_bytes(&ipfix_options_template_packet());
@@ -896,7 +896,7 @@ fn test_ipfix_options_pending_replay() {
     });
     assert!(has_options_data, "Should replay as OptionsData flowset");
 
-    let stats = parser.ipfix_cache_stats();
+    let stats = parser.ipfix_cache_info();
     assert_eq!(stats.pending_flow_count, 0);
     assert_eq!(stats.metrics.pending_replayed, 1);
 }
@@ -917,11 +917,11 @@ fn test_v9_multiple_pending_same_template() {
     let _ = parser.parse_bytes(&v9_multifield_data_packet());
     let _ = parser.parse_bytes(&v9_multifield_two_records_packet());
     assert_eq!(
-        parser.v9_cache_stats().pending_flow_count,
+        parser.v9_cache_info().pending_flow_count,
         2,
         "Two entries cached under template 256"
     );
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 2);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 2);
 
     // Template arrives -> both should be replayed
     let result = parser.parse_bytes(&v9_multifield_template_packet());
@@ -951,7 +951,7 @@ fn test_v9_multiple_pending_same_template() {
         "Both pending entries should be replayed as separate Data flowsets"
     );
 
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(stats.pending_flow_count, 0);
     assert_eq!(stats.metrics.pending_replayed, 2);
 }
@@ -966,7 +966,7 @@ fn test_ipfix_multiple_pending_same_template() {
 
     let _ = parser.parse_bytes(&ipfix_multifield_data_packet());
     let _ = parser.parse_bytes(&ipfix_multifield_two_records_packet());
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 2);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 2);
 
     let result = parser.parse_bytes(&ipfix_multifield_template_packet());
     assert!(result.is_ok());
@@ -995,7 +995,7 @@ fn test_ipfix_multiple_pending_same_template() {
         "Both pending entries should be replayed as separate Data flowsets"
     );
 
-    let stats = parser.ipfix_cache_stats();
+    let stats = parser.ipfix_cache_info();
     assert_eq!(stats.pending_flow_count, 0);
     assert_eq!(stats.metrics.pending_replayed, 2);
 }
@@ -1014,7 +1014,7 @@ fn test_v9_pending_replay_with_same_packet_data() {
 
     // Cache a pending flow for template 256
     let _ = parser.parse_bytes(&v9_data_packet());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
 
     // Send a packet containing BOTH a template definition for 256 AND data using 256
     // V9 processes flowsets in order: template first, then data matches
@@ -1066,7 +1066,7 @@ fn test_v9_pending_replay_with_same_packet_data() {
         "Should have exactly 1 in-packet Data + 1 replayed Data flowset"
     );
 
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(stats.pending_flow_count, 0, "Pending should be drained");
     assert_eq!(stats.metrics.pending_replayed, 1);
 }
@@ -1108,25 +1108,25 @@ fn test_v9_out_of_order_template_arrival() {
     let _ = parser.parse_bytes(&make_v9_data(0x01, 0x00)); // 256
     let _ = parser.parse_bytes(&make_v9_data(0x01, 0x01)); // 257
     let _ = parser.parse_bytes(&make_v9_data(0x01, 0x02)); // 258
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 3);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 3);
 
     // Template 258 arrives first
     let r1 = parser.parse_bytes(&make_v9_template(0x01, 0x02));
     assert!(r1.is_ok());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 2);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_replayed, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 2);
+    assert_eq!(parser.v9_cache_info().metrics.pending_replayed, 1);
 
     // Template 256 arrives second
     let r2 = parser.parse_bytes(&make_v9_template(0x01, 0x00));
     assert!(r2.is_ok());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_replayed, 2);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_replayed, 2);
 
     // Template 257 arrives last
     let r3 = parser.parse_bytes(&make_v9_template(0x01, 0x01));
     assert!(r3.is_ok());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 0);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_replayed, 3);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 0);
+    assert_eq!(parser.v9_cache_info().metrics.pending_replayed, 3);
 
     // Verify each result contained a replayed Data flowset
     for (i, result) in [r1, r2, r3].iter().enumerate() {
@@ -1167,7 +1167,7 @@ fn test_max_entries_per_template_v9() {
     }
 
     // Only 2 should be cached; 2 should be dropped
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(stats.pending_flow_count, 2);
     assert_eq!(stats.metrics.pending_cached, 2);
     assert_eq!(stats.metrics.pending_dropped, 2);
@@ -1176,7 +1176,7 @@ fn test_max_entries_per_template_v9() {
     let result = parser.parse_bytes(&v9_template_packet());
     assert!(result.is_ok());
 
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     assert_eq!(stats.pending_flow_count, 0);
     assert_eq!(stats.metrics.pending_replayed, 2);
 }
@@ -1198,7 +1198,7 @@ fn test_max_entries_per_template_ipfix() {
     }
 
     // Only 3 should be cached; 2 dropped
-    let stats = parser.ipfix_cache_stats();
+    let stats = parser.ipfix_cache_info();
     assert_eq!(stats.pending_flow_count, 3);
     assert_eq!(stats.metrics.pending_cached, 3);
     assert_eq!(stats.metrics.pending_dropped, 2);
@@ -1207,7 +1207,7 @@ fn test_max_entries_per_template_ipfix() {
     let result = parser.parse_bytes(&ipfix_template_packet());
     assert!(result.is_ok());
 
-    let stats = parser.ipfix_cache_stats();
+    let stats = parser.ipfix_cache_info();
     assert_eq!(stats.pending_flow_count, 0);
     assert_eq!(stats.metrics.pending_replayed, 3);
 }
@@ -1244,15 +1244,15 @@ fn test_max_entry_size_bytes_v9() {
 
     // Send a small data packet (4 bytes payload) - should be cached
     let _ = parser.parse_bytes(&v9_data_packet()); // 4 bytes of data
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 0);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 0);
 
     // Send a large data packet (16 bytes payload) - should be dropped
     let _ = parser.parse_bytes(&v9_data_packet_with_size(16));
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 1);
 }
 
 /// Helper: build an IPFIX data packet with a large payload.
@@ -1288,13 +1288,13 @@ fn test_max_entry_size_bytes_ipfix() {
 
     // Small packet (4 bytes) - cached
     let _ = parser.parse_bytes(&ipfix_data_packet());
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_cached, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_cached, 1);
 
     // Large packet (16 bytes) - dropped
     let _ = parser.parse_bytes(&ipfix_data_packet_with_size(16));
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_dropped, 1);
 }
 
 // Verify that building a parser with max_pending_flows=0 is rejected for all configurations
@@ -1363,8 +1363,8 @@ fn test_dropped_cache_entry_keeps_no_template_in_output() {
         panic!("Expected V9 packet");
     }
 
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 1);
 }
 
 /// When a single packet contains multiple NoTemplate flowsets for the same
@@ -1427,8 +1427,8 @@ fn test_partial_cache_same_template_in_single_packet() {
         );
     }
 
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 1);
 }
 
 /// Reconfiguring pending flows at runtime should trim entries that exceed the
@@ -1448,9 +1448,9 @@ fn test_resize_trims_excess_entries_per_template() {
     for _ in 0..5 {
         let _ = parser.parse_bytes(&v9_data_packet());
     }
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 5);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 5);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 0);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 5);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 5);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 0);
 
     // Shrink the per-template cap to 2.
     let mut stricter = PendingFlowsConfig::new(256);
@@ -1461,8 +1461,8 @@ fn test_resize_trims_excess_entries_per_template() {
         .expect("reconfigure should succeed");
 
     // 3 entries should have been dropped during resize.
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 2);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 3);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 2);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 3);
 }
 
 /// Reconfiguring pending flows at runtime should drop entries whose raw data
@@ -1481,8 +1481,8 @@ fn test_resize_trims_oversize_entries() {
     // Cache a small entry (4 bytes) and a larger entry (16 bytes).
     let _ = parser.parse_bytes(&v9_data_packet()); // 4-byte payload
     let _ = parser.parse_bytes(&v9_data_packet_with_size(16)); // 16-byte payload
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 2);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 0);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 2);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 0);
 
     // Lower the size limit to 8 bytes — the 16-byte entry should be dropped.
     let mut stricter = PendingFlowsConfig::new(256);
@@ -1492,8 +1492,8 @@ fn test_resize_trims_oversize_entries() {
         .set_pending_flows_config(Some(stricter))
         .expect("reconfigure should succeed");
 
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 1);
 }
 
 /// Reconfiguring IPFIX pending flows at runtime should trim entries that
@@ -1512,8 +1512,8 @@ fn test_resize_trims_ipfix_pending_flows() {
     for _ in 0..4 {
         let _ = parser.parse_bytes(&ipfix_data_packet());
     }
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 4);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_dropped, 0);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 4);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_dropped, 0);
 
     // Shrink cap to 1.
     let mut stricter = PendingFlowsConfig::new(256);
@@ -1523,8 +1523,8 @@ fn test_resize_trims_ipfix_pending_flows() {
         .set_pending_flows_config(Some(stricter))
         .expect("reconfigure should succeed");
 
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_dropped, 3);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_dropped, 3);
 }
 
 /// Caching into a template_id whose existing entries have all expired should
@@ -1540,22 +1540,22 @@ fn test_cache_prunes_expired_entries_for_touched_template() {
 
     // First entry for template 256 — no existing entries to prune.
     let _ = parser.parse_bytes(&v9_data_packet());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 0);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 0);
 
     // Second entry — the first entry is now expired and should be pruned,
     // making room for the new one.
     let _ = parser.parse_bytes(&v9_data_packet());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 2);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 2);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 1);
 
     // Third entry — same: second entry expired, pruned, third inserted.
     let _ = parser.parse_bytes(&v9_data_packet());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 3);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 2);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 3);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 2);
 }
 
 /// When the cache is at its template-ID capacity and a new template_id is
@@ -1578,9 +1578,9 @@ fn test_cache_purges_globally_before_lru_eviction() {
     pkt_257[21] = 0x01; // template 257
     let _ = parser.parse_bytes(&pkt_257);
 
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 2);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 2);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 0);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 2);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 2);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 0);
 
     // Insert a third template ID. Both existing templates' entries are
     // expired (TTL=0), so the global purge should clean them up instead
@@ -1592,9 +1592,9 @@ fn test_cache_purges_globally_before_lru_eviction() {
 
     // Only the fresh entry for 258 should remain; the two expired
     // template slots were purged.
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 3);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 2);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 3);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 2);
 }
 
 /// Oversized flowset bodies should be truncated at parse time rather than
@@ -1657,9 +1657,9 @@ fn test_oversized_entry_truncated_at_parse_time_v9() {
     }
 
     // Nothing should have been cached; the drop should be recorded.
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 0);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 0);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 0);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 0);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 1);
 }
 
 /// Same as V9 test but for IPFIX: oversized flowset bodies are truncated
@@ -1727,9 +1727,9 @@ fn test_oversized_entry_truncated_at_parse_time_ipfix() {
         );
     }
 
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 0);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_cached, 0);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 0);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_cached, 0);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_dropped, 1);
 }
 
 /// When the cache rejects an entry (per-template cap), the returned raw_data
@@ -1870,17 +1870,17 @@ fn test_would_accept_accounts_for_ttl_v9() {
 
     // First entry cached normally.
     let _ = parser.parse_bytes(&v9_data_packet());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 1);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 1);
 
     // Second entry: the first is expired (TTL=0). would_accept() should see
     // 0 live entries and allow the full clone. cache() prunes the expired
     // entry and inserts the new one.
     let _ = parser.parse_bytes(&v9_data_packet());
-    assert_eq!(parser.v9_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.v9_cache_stats().metrics.pending_cached, 2);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_cached, 2);
     // 1 dropped = the pruned expired entry
-    assert_eq!(parser.v9_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.v9_cache_info().metrics.pending_dropped, 1);
 }
 
 /// Same as the V9 test but for IPFIX: would_accept() accounts for TTL.
@@ -1895,13 +1895,13 @@ fn test_would_accept_accounts_for_ttl_ipfix() {
         .expect("Failed to build parser");
 
     let _ = parser.parse_bytes(&ipfix_data_packet());
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_cached, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_cached, 1);
 
     let _ = parser.parse_bytes(&ipfix_data_packet());
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_cached, 2);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_cached, 2);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_dropped, 1);
 }
 
 /// Same as the V9 test but for IPFIX, verifying the per-template TTL
@@ -1914,12 +1914,12 @@ fn test_ipfix_cache_prunes_expired_entries() {
         .expect("Failed to build parser");
 
     let _ = parser.parse_bytes(&ipfix_data_packet());
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_dropped, 0);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_dropped, 0);
 
     // Second entry prunes the expired first entry.
     let _ = parser.parse_bytes(&ipfix_data_packet());
-    assert_eq!(parser.ipfix_cache_stats().pending_flow_count, 1);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_cached, 2);
-    assert_eq!(parser.ipfix_cache_stats().metrics.pending_dropped, 1);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_cached, 2);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_dropped, 1);
 }

@@ -135,3 +135,64 @@ fn test_iterator_filter() {
 
     assert_eq!(count, 1);
 }
+
+// ---------------------------------------------------------------------------
+// parse_bytes_as_netflow_common_flowsets
+// ---------------------------------------------------------------------------
+
+/// Verify parse_bytes_as_netflow_common_flowsets converts V5 packets correctly.
+#[cfg(feature = "netflow_common")]
+#[test]
+fn test_parse_bytes_as_netflow_common_v5() {
+    let mut parser = NetflowParser::default();
+
+    // Minimal V5 packet: header(24) + 1 flow(48) = 72 bytes
+    let v5_packet: Vec<u8> = vec![
+        0, 5, // version
+        0, 1, // count = 1
+        0, 0, 0, 0, // sys_uptime
+        0, 0, 0, 0, // unix_secs
+        0, 0, 0, 0, // unix_nsecs
+        0, 0, 0, 0, // flow_sequence
+        0,    // engine_type
+        0,    // engine_id
+        0, 0, // sampling_interval
+        // Flow record (48 bytes)
+        192, 168, 1, 1, // src_addr
+        10, 0, 0, 1, // dst_addr
+        0, 0, 0, 0, // next_hop
+        0, 0, // input
+        0, 0, // output
+        0, 0, 0, 100, // packets
+        0, 0, 0, 200, // octets
+        0, 0, 0, 0, // first
+        0, 0, 0, 0, // last
+        0, 80, // src_port = 80
+        0x1F, 0x90, // dst_port = 8080
+        0,    // pad1
+        0,    // tcp_flags
+        6,    // protocol = TCP
+        0,    // tos
+        0, 0, // src_as
+        0, 0, // dst_as
+        0,    // src_mask
+        0,    // dst_mask
+        0, 0, // pad2
+    ];
+
+    let (flowsets, error) = parser.parse_bytes_as_netflow_common_flowsets(&v5_packet);
+    assert!(error.is_none(), "V5 parse should succeed");
+    assert_eq!(flowsets.len(), 1, "Should produce 1 common flowset from V5");
+}
+
+/// Verify parse_bytes_as_netflow_common_flowsets handles errors gracefully.
+#[cfg(feature = "netflow_common")]
+#[test]
+fn test_parse_bytes_as_netflow_common_error() {
+    let mut parser = NetflowParser::default();
+
+    let garbage = vec![0xFF; 10];
+    let (flowsets, error) = parser.parse_bytes_as_netflow_common_flowsets(&garbage);
+    assert!(error.is_some(), "Garbage input should produce error");
+    assert!(flowsets.is_empty(), "No flowsets from garbage input");
+}

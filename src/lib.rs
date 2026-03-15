@@ -50,7 +50,7 @@ pub use template_events::{
 
 // Re-export configuration and utility types for convenience
 pub use variable_versions::enterprise_registry::{EnterpriseFieldDef, EnterpriseFieldRegistry};
-pub use variable_versions::metrics::{CacheMetrics, CacheMetricsSnapshot};
+pub use variable_versions::metrics::{CacheInfo, CacheMetrics, ParserCacheInfo};
 pub use variable_versions::ttl::TtlConfig;
 pub use variable_versions::{
     Config, ConfigError, DEFAULT_MAX_RECORDS_PER_FLOWSET, NoTemplateInfo, PendingFlowsConfig,
@@ -248,44 +248,6 @@ pub struct NetflowParser {
     pub(crate) max_error_sample_size: usize,
     /// Template event hooks for monitoring template lifecycle events.
     template_hooks: TemplateHooks,
-}
-
-/// Statistics about template cache utilization.
-#[non_exhaustive]
-#[derive(Debug, Clone)]
-pub struct CacheStats {
-    /// Current number of cached templates (summed across all internal caches).
-    ///
-    /// This is the total across `num_caches` independent LRU caches. The theoretical
-    /// maximum is `max_size_per_cache * num_caches`, since each cache enforces
-    /// `max_size_per_cache` independently.
-    pub current_size: usize,
-    /// Maximum cache size per internal cache (each template type has its own LRU cache).
-    ///
-    /// Each of the `num_caches` internal caches can hold up to this many templates
-    /// independently.
-    pub max_size_per_cache: usize,
-    /// Number of internal caches (V9 has 2: templates + options; IPFIX has 4)
-    pub num_caches: usize,
-    /// TTL configuration (if enabled)
-    pub ttl_config: Option<variable_versions::ttl::TtlConfig>,
-    /// Performance metrics snapshot
-    pub metrics: variable_versions::metrics::CacheMetricsSnapshot,
-    /// Number of flows currently cached as pending (awaiting template)
-    pub pending_flow_count: usize,
-}
-
-/// Combined cache statistics for both V9 and IPFIX template caches.
-///
-/// This struct provides named fields instead of positional tuples,
-/// making it clear which stats belong to V9 vs IPFIX.
-#[non_exhaustive]
-#[derive(Debug, Clone)]
-pub struct ParserCacheStats {
-    /// V9 template cache statistics
-    pub v9: CacheStats,
-    /// IPFIX template cache statistics
-    pub ipfix: CacheStats,
 }
 
 /// Builder for configuring and constructing a [`NetflowParser`].
@@ -1199,11 +1161,11 @@ impl NetflowParser {
     /// use netflow_parser::NetflowParser;
     ///
     /// let parser = NetflowParser::default();
-    /// let stats = parser.v9_cache_stats();
+    /// let stats = parser.v9_cache_info();
     /// println!("V9 cache: {}/{} templates", stats.current_size, stats.max_size_per_cache);
     /// ```
-    pub fn v9_cache_stats(&self) -> CacheStats {
-        CacheStats {
+    pub fn v9_cache_info(&self) -> CacheInfo {
+        CacheInfo {
             current_size: count_valid_templates(
                 &self.v9_parser.templates,
                 &self.v9_parser.ttl_config,
@@ -1227,12 +1189,12 @@ impl NetflowParser {
     /// use netflow_parser::NetflowParser;
     ///
     /// let parser = NetflowParser::default();
-    /// let stats = parser.ipfix_cache_stats();
+    /// let stats = parser.ipfix_cache_info();
     /// println!("IPFIX cache: {}/{} templates", stats.current_size, stats.max_size_per_cache);
     /// ```
-    pub fn ipfix_cache_stats(&self) -> CacheStats {
+    pub fn ipfix_cache_info(&self) -> CacheInfo {
         let ttl = &self.ipfix_parser.ttl_config;
-        CacheStats {
+        CacheInfo {
             current_size: count_valid_templates(&self.ipfix_parser.templates, ttl)
                 + count_valid_templates(&self.ipfix_parser.v9_templates, ttl)
                 + count_valid_templates(&self.ipfix_parser.ipfix_options_templates, ttl)
@@ -1657,8 +1619,8 @@ impl NetflowParser {
 
     fn fire_metric_delta_events(
         &mut self,
-        before: &variable_versions::metrics::CacheMetrics,
-        after: &variable_versions::metrics::CacheMetrics,
+        before: &variable_versions::metrics::CacheMetricsInner,
+        after: &variable_versions::metrics::CacheMetricsInner,
         protocol: TemplateProtocol,
     ) {
         // Cap events per type per parse call to prevent hook amplification from

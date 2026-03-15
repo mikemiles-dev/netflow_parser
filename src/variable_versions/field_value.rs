@@ -374,7 +374,7 @@ impl DataNumber {
     }
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Clone, Serialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Serialize)]
 pub struct ApplicationId {
     pub classification_engine_id: u8,
     pub selector_id: Option<DataNumber>,
@@ -403,9 +403,17 @@ impl PartialEq for DurationValue {
     }
 }
 
+impl Eq for DurationValue {}
+
+impl Ord for DurationValue {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_duration().cmp(&other.as_duration())
+    }
+}
+
 impl PartialOrd for DurationValue {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.as_duration().cmp(&other.as_duration()))
+        Some(self.cmp(other))
     }
 }
 

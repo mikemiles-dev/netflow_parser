@@ -51,20 +51,20 @@ fn demo_cache_metrics() {
     let _ = parser.parse_bytes(&dummy_data).packets;
 
     // Get cache statistics
-    let v9_stats = parser.v9_cache_stats();
-    let _ipfix_stats = parser.ipfix_cache_stats();
+    let v9_info = parser.v9_cache_info();
+    let _ipfix_info = parser.ipfix_cache_info();
 
     println!("\nV9 Cache Statistics:");
     println!(
         "  Current size: {}/{}",
-        v9_stats.current_size, v9_stats.max_size_per_cache
+        v9_info.current_size, v9_info.max_size_per_cache
     );
     println!(
         "  Utilization: {:.1}%",
-        (v9_stats.current_size as f64 / v9_stats.max_size_per_cache as f64) * 100.0
+        (v9_info.current_size as f64 / v9_info.max_size_per_cache as f64) * 100.0
     );
 
-    let metrics = &v9_stats.metrics;
+    let metrics = &v9_info.metrics;
     println!("\nPerformance Metrics:");
     println!("  Hits:       {}", metrics.hits);
     println!("  Misses:     {}", metrics.misses);
@@ -115,7 +115,7 @@ fn demo_multi_source() {
 
     // Get statistics per source
     println!("\nPer-Source Statistics:");
-    for (source, stats) in scoped_parser.all_stats() {
+    for (source, stats) in scoped_parser.all_info() {
         println!("\n  Router: {}", source);
         println!(
             "    V9 templates:    {}/{}",
@@ -149,14 +149,14 @@ fn demo_collision_detection() {
     let dummy_data = vec![0u8; 100];
     let _ = parser.parse_bytes(&dummy_data).packets;
 
-    let v9_stats = parser.v9_cache_stats();
+    let v9_info = parser.v9_cache_info();
 
     println!("\nCollision Monitoring:");
-    println!("  Total collisions: {}", v9_stats.metrics.collisions);
+    println!("  Total collisions: {}", v9_info.metrics.collisions);
 
-    if v9_stats.metrics.collisions > 0 {
+    if v9_info.metrics.collisions > 0 {
         let collision_rate =
-            v9_stats.metrics.collisions as f64 / v9_stats.metrics.insertions.max(1) as f64;
+            v9_info.metrics.collisions as f64 / v9_info.metrics.insertions.max(1) as f64;
         println!("  Collision rate:   {:.2}%", collision_rate * 100.0);
 
         println!("\n⚠️  Recommendations:");
@@ -249,14 +249,14 @@ fn demo_template_lifecycle() {
     // Cache management
     println!("\nCache Management Operations:");
 
-    let stats_before = parser.v9_cache_stats();
+    let stats_before = parser.v9_cache_info();
     println!("  Templates before clear: {}", stats_before.current_size);
 
     // Clear templates (useful for testing or forcing re-learning)
     parser.clear_v9_templates();
     parser.clear_ipfix_templates();
 
-    let stats_after = parser.v9_cache_stats();
+    let stats_after = parser.v9_cache_info();
     println!("  Templates after clear:  {}", stats_after.current_size);
 
     println!("\nCache Configuration:");

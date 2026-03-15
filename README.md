@@ -432,7 +432,7 @@ for packet in &result2.packets {
 
 **Notes:**
 - Scoped parsers (`AutoScopedParser`, `RouterScopedParser`) inherit the pending flows configuration from the builder
-- Pending flow metrics (`pending_cached`, `pending_replayed`, `pending_dropped`, `pending_replay_failed`) are available via `CacheStats`
+- Pending flow metrics (`pending_cached`, `pending_replayed`, `pending_dropped`, `pending_replay_failed`) are available via `CacheInfo`
 
 ### Filtering Versions
 
@@ -886,11 +886,11 @@ let mut parser = NetflowParser::default();
 parser.parse_bytes(&data);
 
 // Get cache statistics
-let v9_stats = parser.v9_cache_stats();
-println!("V9 Cache: {}/{} templates", v9_stats.current_size, v9_stats.max_size_per_cache);
+let v9_info = parser.v9_cache_info();
+println!("V9 Cache: {}/{} templates", v9_info.current_size, v9_info.max_size_per_cache);
 
 // Access performance metrics
-let metrics = &v9_stats.metrics;
+let metrics = &v9_info.metrics;
 println!("Cache hits: {}", metrics.hits);
 println!("Cache misses: {}", metrics.misses);
 println!("Evictions: {}", metrics.evictions);
@@ -1011,9 +1011,9 @@ let mut scoped = RouterScopedParser::<String>::try_with_builder(router_builder).
 Monitor when template IDs are reused with different definitions:
 
 ```rust,ignore
-let v9_stats = parser.v9_cache_stats();
-if v9_stats.metrics.collisions > 0 {
-    println!("Warning: {} template collisions detected", v9_stats.metrics.collisions);
+let v9_info = parser.v9_cache_info();
+if v9_info.metrics.collisions > 0 {
+    println!("Warning: {} template collisions detected", v9_info.metrics.collisions);
     println!("Use AutoScopedParser for RFC-compliant multi-source deployments");
 }
 ```
@@ -1069,11 +1069,11 @@ use netflow_parser::NetflowParser;
 let parser = NetflowParser::default();
 
 // Get cache statistics
-let v9_stats = parser.v9_cache_stats();
-println!("V9 cache: {}/{} templates", v9_stats.current_size, v9_stats.max_size_per_cache);
+let v9_info = parser.v9_cache_info();
+println!("V9 cache: {}/{} templates", v9_info.current_size, v9_info.max_size_per_cache);
 
-let ipfix_stats = parser.ipfix_cache_stats();
-println!("IPFIX cache: {}/{} templates", ipfix_stats.current_size, ipfix_stats.max_size_per_cache);
+let ipfix_info = parser.ipfix_cache_info();
+println!("IPFIX cache: {}/{} templates", ipfix_info.current_size, ipfix_info.max_size_per_cache);
 
 // List all cached template IDs
 let v9_templates = parser.v9_template_ids();

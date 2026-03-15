@@ -15,7 +15,7 @@ use super::{
 use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
-use crate::variable_versions::metrics::CacheMetrics;
+use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 use crate::variable_versions::{
     Config, ConfigError, ParserConfig, ParserFields, PendingFlowCache, PendingFlowEntry,
@@ -42,7 +42,7 @@ pub struct V9Parser {
     pub(crate) max_template_total_size: usize,
     pub(crate) max_error_sample_size: usize,
     pub(crate) max_records_per_flowset: usize,
-    pub(crate) metrics: CacheMetrics,
+    pub(crate) metrics: CacheMetricsInner,
     pub(crate) pending_flows: Option<PendingFlowCache>,
 }
 
@@ -99,7 +99,7 @@ impl V9Parser {
             max_template_total_size: config.max_template_total_size,
             max_error_sample_size: config.max_error_sample_size,
             max_records_per_flowset: config.max_records_per_flowset,
-            metrics: CacheMetrics::new(),
+            metrics: CacheMetricsInner::new(),
             pending_flows,
         })
     }
@@ -203,7 +203,7 @@ impl V9Parser {
     fn cache_notemplate_v9_flowsets(
         v9: &mut V9,
         cache: &mut PendingFlowCache,
-        metrics: &mut CacheMetrics,
+        metrics: &mut CacheMetricsInner,
         max_error_sample_size: usize,
     ) -> Vec<u16> {
         let mut learned_template_ids: Vec<u16> = Vec::new();

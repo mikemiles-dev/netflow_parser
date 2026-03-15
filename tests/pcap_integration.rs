@@ -128,12 +128,12 @@ fn test_pcap_template_caching() {
     }
 
     // Check that templates were cached
-    let ipfix_stats = parser.ipfix_cache_stats();
+    let ipfix_info = parser.ipfix_cache_info();
     let template_ids = parser.ipfix_template_ids();
 
     // IPFIX.pcap should have templates
     assert!(
-        ipfix_stats.current_size > 0,
+        ipfix_info.current_size > 0,
         "IPFIX pcap should produce cached templates"
     );
     assert!(!template_ids.is_empty(), "Should have cached template IDs");
@@ -172,12 +172,12 @@ fn test_pcap_cache_metrics() {
     }
 
     // Check cache metrics — verify we actually parsed IPFIX data from the pcap
-    let ipfix_stats = parser.ipfix_cache_stats();
-    let metrics = &ipfix_stats.metrics;
+    let ipfix_info = parser.ipfix_cache_info();
+    let metrics = &ipfix_info.metrics;
 
     // The test pcap should contain IPFIX templates, so the cache should be populated.
     assert!(
-        ipfix_stats.current_size > 0,
+        ipfix_info.current_size > 0,
         "PCAP should contain IPFIX templates that get cached"
     );
     let total_lookups = metrics.hits + metrics.misses;

@@ -81,13 +81,13 @@ fn test_cache_hit_and_miss_tracking() {
     ];
     let _ = parser.parse_bytes(&v9_data_packet);
 
-    let v9_stats = parser.v9_cache_stats();
+    let v9_info = parser.v9_cache_info();
     assert_eq!(
-        v9_stats.metrics.hits, 1,
+        v9_info.metrics.hits, 1,
         "V9 cache should record exactly 1 hit after parsing data with a cached template"
     );
     assert_eq!(
-        v9_stats.metrics.misses, 0,
+        v9_info.metrics.misses, 0,
         "V9 cache should have 0 misses when template is present"
     );
 
@@ -100,9 +100,9 @@ fn test_cache_hit_and_miss_tracking() {
     ];
     let _ = parser.parse_bytes(&v9_missing_template_packet);
 
-    let v9_stats = parser.v9_cache_stats();
+    let v9_info = parser.v9_cache_info();
     assert_eq!(
-        v9_stats.metrics.misses, 1,
+        v9_info.metrics.misses, 1,
         "V9 cache should record 1 miss for unknown template"
     );
 }

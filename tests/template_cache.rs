@@ -17,24 +17,24 @@ fn test_clear_templates() {
     ];
     let _ = parser.parse_bytes(&v9_template_packet);
 
-    let v9_stats = parser.v9_cache_stats();
+    let v9_info = parser.v9_cache_info();
     assert!(
-        v9_stats.current_size > 0,
+        v9_info.current_size > 0,
         "V9 cache should have a template before clearing"
     );
 
     parser.clear_v9_templates();
 
-    let v9_stats = parser.v9_cache_stats();
+    let v9_info = parser.v9_cache_info();
     assert_eq!(
-        v9_stats.current_size, 0,
+        v9_info.current_size, 0,
         "V9 cache should be empty after clearing"
     );
 
     parser.clear_ipfix_templates();
 
-    let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.current_size, 0);
+    let ipfix_info = parser.ipfix_cache_info();
+    assert_eq!(ipfix_info.current_size, 0);
 }
 
 // Verify that with_cache_size sets the same max size for both V9 and IPFIX caches
@@ -45,11 +45,11 @@ fn test_custom_cache_size() {
         .build()
         .expect("Failed to build parser");
 
-    let v9_stats = parser.v9_cache_stats();
-    assert_eq!(v9_stats.max_size_per_cache, 500);
+    let v9_info = parser.v9_cache_info();
+    assert_eq!(v9_info.max_size_per_cache, 500);
 
-    let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.max_size_per_cache, 500);
+    let ipfix_info = parser.ipfix_cache_info();
+    assert_eq!(ipfix_info.max_size_per_cache, 500);
 }
 
 // Verify that V9 and IPFIX cache sizes can be configured independently
@@ -61,11 +61,11 @@ fn test_different_cache_sizes() {
         .build()
         .expect("Failed to build parser");
 
-    let v9_stats = parser.v9_cache_stats();
-    assert_eq!(v9_stats.max_size_per_cache, 750);
+    let v9_info = parser.v9_cache_info();
+    assert_eq!(v9_info.max_size_per_cache, 750);
 
-    let ipfix_stats = parser.ipfix_cache_stats();
-    assert_eq!(ipfix_stats.max_size_per_cache, 1500);
+    let ipfix_info = parser.ipfix_cache_info();
+    assert_eq!(ipfix_info.max_size_per_cache, 1500);
 }
 
 // Verify that template_ids() returns cached template IDs after parsing a template
@@ -110,16 +110,243 @@ fn test_hit_rate_after_activity() {
         0, 8, // length = 8
         0, 0, 0, 42, // IN_BYTES = 42
     ];
-    let _ = parser.parse_bytes(&v9_data_packet);
+    let result = parser.parse_bytes(&v9_data_packet);
+    assert!(
+        result.error.is_none(),
+        "Data packet parse should succeed after template is cached"
+    );
 
-    let stats = parser.v9_cache_stats();
+    let stats = parser.v9_cache_info();
     let hit_rate = stats.metrics.hit_rate();
     assert!(
         hit_rate.is_some(),
         "hit_rate should return Some after cache activity"
     );
-    assert!(
-        hit_rate.unwrap() > 0.0,
-        "hit_rate should be positive after a cache hit"
+    assert_eq!(
+        hit_rate.unwrap(),
+        1.0,
+        "hit_rate should be 1.0 after 1 hit and 0 misses"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// IPFIX template withdrawal tests (RFC 7011 §8.1)
+// ---------------------------------------------------------------------------
+
+/// Helper: build an IPFIX packet with a template set containing a single template.
+fn ipfix_template_packet(template_id: u16, fields: &[(u16, u16)]) -> Vec<u8> {
+    // Template record: template_id(2) + field_count(2) + fields(4 each)
+    let template_record_len = 4 + fields.len() * 4;
+    // Set: set_id(2) + set_length(2) + template record
+    let set_len = (4 + template_record_len) as u16;
+    // Message: header(16) + set
+    let msg_len = 16 + set_len;
+
+    let mut pkt = Vec::with_capacity(msg_len as usize);
+    pkt.extend_from_slice(&0x000Au16.to_be_bytes()); // Version 10
+    pkt.extend_from_slice(&msg_len.to_be_bytes());
+    pkt.extend_from_slice(&1u32.to_be_bytes()); // Export Time
+    pkt.extend_from_slice(&1u32.to_be_bytes()); // Sequence
+    pkt.extend_from_slice(&1u32.to_be_bytes()); // Observation Domain
+    pkt.extend_from_slice(&2u16.to_be_bytes()); // Set ID = 2 (template)
+    pkt.extend_from_slice(&set_len.to_be_bytes());
+    pkt.extend_from_slice(&template_id.to_be_bytes());
+    pkt.extend_from_slice(&(fields.len() as u16).to_be_bytes());
+    for &(field_type, field_length) in fields {
+        pkt.extend_from_slice(&field_type.to_be_bytes());
+        pkt.extend_from_slice(&field_length.to_be_bytes());
+    }
+    pkt
+}
+
+/// Helper: build an IPFIX withdrawal packet (template with field_count=0).
+fn ipfix_withdrawal_packet(template_id: u16) -> Vec<u8> {
+    let set_len: u16 = 8; // set header(4) + template_id(2) + field_count=0(2)
+    let msg_len: u16 = 16 + set_len;
+
+    let mut pkt = Vec::with_capacity(msg_len as usize);
+    pkt.extend_from_slice(&0x000Au16.to_be_bytes());
+    pkt.extend_from_slice(&msg_len.to_be_bytes());
+    pkt.extend_from_slice(&1u32.to_be_bytes());
+    pkt.extend_from_slice(&2u32.to_be_bytes()); // different sequence
+    pkt.extend_from_slice(&1u32.to_be_bytes());
+    pkt.extend_from_slice(&2u16.to_be_bytes()); // Set ID = 2 (template)
+    pkt.extend_from_slice(&set_len.to_be_bytes());
+    pkt.extend_from_slice(&template_id.to_be_bytes());
+    pkt.extend_from_slice(&0u16.to_be_bytes()); // field_count = 0 (withdrawal)
+    pkt
+}
+
+/// Helper: build an IPFIX options template withdrawal packet (field_count=0 in set ID 3).
+fn ipfix_options_withdrawal_packet(template_id: u16) -> Vec<u8> {
+    // Options template withdrawal: template_id(2) + field_count=0(2) + scope_field_count=0(2)
+    let set_len: u16 = 10; // set header(4) + template_id(2) + field_count(2) + scope_count(2)
+    let msg_len: u16 = 16 + set_len;
+
+    let mut pkt = Vec::with_capacity(msg_len as usize);
+    pkt.extend_from_slice(&0x000Au16.to_be_bytes());
+    pkt.extend_from_slice(&msg_len.to_be_bytes());
+    pkt.extend_from_slice(&1u32.to_be_bytes());
+    pkt.extend_from_slice(&2u32.to_be_bytes());
+    pkt.extend_from_slice(&1u32.to_be_bytes());
+    pkt.extend_from_slice(&3u16.to_be_bytes()); // Set ID = 3 (options template)
+    pkt.extend_from_slice(&set_len.to_be_bytes());
+    pkt.extend_from_slice(&template_id.to_be_bytes());
+    pkt.extend_from_slice(&0u16.to_be_bytes()); // field_count = 0 (withdrawal)
+    pkt.extend_from_slice(&0u16.to_be_bytes()); // scope_field_count = 0
+    pkt
+}
+
+/// Helper: build an IPFIX options template packet.
+fn ipfix_options_template_pkt(template_id: u16) -> Vec<u8> {
+    // Options template: scope(type=1,len=4) + option(type=3,len=4) + option(type=4,len=4)
+    let set_len: u16 = 22; // set header(4) + tmpl header(6) + 3 fields(12)
+    let msg_len: u16 = 16 + set_len;
+
+    let mut pkt = Vec::with_capacity(msg_len as usize);
+    pkt.extend_from_slice(&0x000Au16.to_be_bytes());
+    pkt.extend_from_slice(&msg_len.to_be_bytes());
+    pkt.extend_from_slice(&1u32.to_be_bytes());
+    pkt.extend_from_slice(&1u32.to_be_bytes());
+    pkt.extend_from_slice(&1u32.to_be_bytes());
+    pkt.extend_from_slice(&3u16.to_be_bytes()); // Set ID = 3
+    pkt.extend_from_slice(&set_len.to_be_bytes());
+    pkt.extend_from_slice(&template_id.to_be_bytes());
+    pkt.extend_from_slice(&3u16.to_be_bytes()); // field_count = 3
+    pkt.extend_from_slice(&1u16.to_be_bytes()); // scope_field_count = 1
+    // Scope field: type=1, length=4
+    pkt.extend_from_slice(&1u16.to_be_bytes());
+    pkt.extend_from_slice(&4u16.to_be_bytes());
+    // Option field: type=3, length=4
+    pkt.extend_from_slice(&3u16.to_be_bytes());
+    pkt.extend_from_slice(&4u16.to_be_bytes());
+    // Option field: type=4, length=4
+    pkt.extend_from_slice(&4u16.to_be_bytes());
+    pkt.extend_from_slice(&4u16.to_be_bytes());
+    pkt
+}
+
+/// Individual IPFIX data template withdrawal removes that template.
+#[test]
+fn test_ipfix_individual_template_withdrawal() {
+    let mut parser = NetflowParser::default();
+
+    // Register two templates
+    let _ = parser.parse_bytes(&ipfix_template_packet(256, &[(1, 4)]));
+    let _ = parser.parse_bytes(&ipfix_template_packet(257, &[(2, 4)]));
+    assert!(parser.has_ipfix_template(256));
+    assert!(parser.has_ipfix_template(257));
+
+    // Withdraw template 256 only
+    let _ = parser.parse_bytes(&ipfix_withdrawal_packet(256));
+    assert!(!parser.has_ipfix_template(256), "Template 256 should be withdrawn");
+    assert!(parser.has_ipfix_template(257), "Template 257 should remain");
+}
+
+/// IPFIX "withdraw all data templates" (template_id=2, field_count=0) clears
+/// all data templates per RFC 7011 §8.1.
+#[test]
+fn test_ipfix_withdraw_all_data_templates() {
+    let mut parser = NetflowParser::default();
+
+    // Register 3 data templates
+    let _ = parser.parse_bytes(&ipfix_template_packet(256, &[(1, 4)]));
+    let _ = parser.parse_bytes(&ipfix_template_packet(257, &[(2, 4)]));
+    let _ = parser.parse_bytes(&ipfix_template_packet(258, &[(3, 4)]));
+    assert_eq!(parser.ipfix_cache_info().current_size, 3);
+
+    // Also register an options template — should NOT be affected
+    let _ = parser.parse_bytes(&ipfix_options_template_pkt(259));
+    assert_eq!(parser.ipfix_cache_info().current_size, 4);
+
+    // Withdraw all data templates (template_id=2, field_count=0)
+    let _ = parser.parse_bytes(&ipfix_withdrawal_packet(2));
+
+    // All 3 data templates should be gone, options template should remain
+    assert!(!parser.has_ipfix_template(256));
+    assert!(!parser.has_ipfix_template(257));
+    assert!(!parser.has_ipfix_template(258));
+    assert_eq!(
+        parser.ipfix_cache_info().current_size, 1,
+        "Only the options template should remain after withdraw-all data"
+    );
+}
+
+/// IPFIX "withdraw all options templates" (template_id=3, field_count=0) clears
+/// all options templates per RFC 7011 §8.1.
+#[test]
+fn test_ipfix_withdraw_all_options_templates() {
+    let mut parser = NetflowParser::default();
+
+    // Register a data template — should NOT be affected
+    let _ = parser.parse_bytes(&ipfix_template_packet(256, &[(1, 4)]));
+
+    // Register 2 options templates
+    let _ = parser.parse_bytes(&ipfix_options_template_pkt(258));
+    let _ = parser.parse_bytes(&ipfix_options_template_pkt(259));
+    assert_eq!(parser.ipfix_cache_info().current_size, 3);
+
+    // Withdraw all options templates (template_id=3, field_count=0)
+    let _ = parser.parse_bytes(&ipfix_options_withdrawal_packet(3));
+
+    // Options templates should be gone, data template should remain
+    assert!(parser.has_ipfix_template(256), "Data template should survive options withdraw-all");
+    assert_eq!(
+        parser.ipfix_cache_info().current_size, 1,
+        "Only the data template should remain after withdraw-all options"
+    );
+}
+
+/// IPFIX withdraw-all with pending flows drains them and records metrics.
+#[test]
+fn test_ipfix_withdraw_all_drains_pending_flows() {
+    use netflow_parser::variable_versions::PendingFlowsConfig;
+
+    let mut parser = NetflowParser::builder()
+        .with_ipfix_pending_flows(PendingFlowsConfig::default())
+        .build()
+        .expect("valid config");
+
+    // Cache a pending flow for template 256 (no template registered yet)
+    let data_pkt = vec![
+        0x00, 0x0A, 0x00, 0x18,
+        0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02,
+        0x00, 0x00, 0x00, 0x01,
+        0x01, 0x00, // Set ID = 256
+        0x00, 0x08, // Set Length = 8
+        0x00, 0x00, 0x00, 0x42,
+    ];
+    let _ = parser.parse_bytes(&data_pkt);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+
+    // Register the template so it's in the cache
+    let _ = parser.parse_bytes(&ipfix_template_packet(256, &[(1, 4)]));
+    // Pending flow was replayed
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 0);
+    assert_eq!(parser.ipfix_cache_info().metrics.pending_replayed, 1);
+
+    // Cache another pending flow for a different template (257, not registered)
+    let mut data_257 = data_pkt.clone();
+    data_257[16] = 0x01;
+    data_257[17] = 0x01; // Set ID = 257
+    let _ = parser.parse_bytes(&data_257);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+
+    // Withdraw all data templates — should also drain pending flows for 256
+    // (template 257 pending flow stays because it was never in the template cache)
+    let _ = parser.parse_bytes(&ipfix_withdrawal_packet(2));
+    assert!(!parser.has_ipfix_template(256));
+
+    // The pending flow for 257 should still be there (257 was never a data template)
+    // The withdraw-all only drains pending flows for IDs that were IN the template cache
+    assert_eq!(
+        parser.ipfix_cache_info().metrics.pending_dropped,
+        0,
+        "No pending flows should be dropped (257 was not in template cache)"
+    );
+    assert_eq!(
+        parser.ipfix_cache_info().pending_flow_count,
+        1,
+        "Pending flow for template 257 should still be cached"
     );
 }

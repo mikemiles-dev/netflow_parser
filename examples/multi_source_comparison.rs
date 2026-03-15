@@ -42,20 +42,20 @@ fn demo_single_parser(sources: &[&str]) {
         println!("  ✓ Parsed packet from router {} ({})", i + 1, source);
     }
 
-    let v9_stats = parser.v9_cache_stats();
-    let ipfix_stats = parser.ipfix_cache_stats();
+    let v9_info = parser.v9_cache_info();
+    let ipfix_info = parser.ipfix_cache_info();
 
     println!("\nCache Statistics:");
     println!(
         "  V9 Templates:    {}/{}",
-        v9_stats.current_size, v9_stats.max_size_per_cache
+        v9_info.current_size, v9_info.max_size_per_cache
     );
     println!(
         "  IPFIX Templates: {}/{}",
-        ipfix_stats.current_size, ipfix_stats.max_size_per_cache
+        ipfix_info.current_size, ipfix_info.max_size_per_cache
     );
-    println!("  V9 Collisions:   {}", v9_stats.metrics.collisions);
-    println!("  IPFIX Collisions: {}", ipfix_stats.metrics.collisions);
+    println!("  V9 Collisions:   {}", v9_info.metrics.collisions);
+    println!("  IPFIX Collisions: {}", ipfix_info.metrics.collisions);
 
     println!("\n⚠️  Problem: With V9/IPFIX templates, the same template ID");
     println!("   from different routers would overwrite each other!");
