@@ -284,3 +284,44 @@ expression: fields
 - IanaAssigned: 280
 - PostNATSourceIpv6Address
 - PostNATDestinationIpv6Address
+- IanaAssigned: 283
+- IanaAssigned: 284
+- IanaAssigned: 285
+- IanaAssigned: 286
+- IanaAssigned: 287
+- IanaAssigned: 288
+- IanaAssigned: 289
+- IanaAssigned: 290
+- IanaAssigned: 291
+- IanaAssigned: 292
+- IanaAssigned: 293
+- IanaAssigned: 294
+- IanaAssigned: 295
+- IanaAssigned: 296
+- IanaAssigned: 297
+- IanaAssigned: 298
+- IanaAssigned: 299
+- IanaAssigned: 300
+- IanaAssigned: 301
+- IanaAssigned: 302
+- IanaAssigned: 303
+- IanaAssigned: 304
+- IanaAssigned: 305
+- IanaAssigned: 306
+- IanaAssigned: 307
+- IanaAssigned: 308
+- IanaAssigned: 309
+- IanaAssigned: 310
+- IanaAssigned: 311
+- IanaAssigned: 312
+- IanaAssigned: 313
+- IanaAssigned: 314
+- IanaAssigned: 315
+- IanaAssigned: 316
+- IanaAssigned: 317
+- IanaAssigned: 318
+- IanaAssigned: 319
+- IanaAssigned: 320
+- IanaAssigned: 321
+- IanaAssigned: 322
+- ObservationTimeMilliseconds

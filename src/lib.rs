@@ -1,13 +1,24 @@
 #![forbid(unsafe_code)]
 #![doc = include_str!("../README.md")]
 
-pub mod field_types;
+#[deprecated(since = "1.0.0", note = "moved to `variable_versions::field_types`")]
+pub mod field_types {
+    //! Deprecated re-export — use [`super::variable_versions::field_types`] instead.
+    pub use super::variable_versions::field_types::*;
+}
 #[cfg(feature = "netflow_common")]
 pub mod netflow_common;
 pub mod protocol;
 pub mod scoped_parser;
 pub mod static_versions;
-pub mod template_events;
+#[deprecated(
+    since = "1.0.0",
+    note = "moved to `variable_versions::template_events`"
+)]
+pub mod template_events {
+    //! Deprecated re-export — use [`super::variable_versions::template_events`] instead.
+    pub use super::variable_versions::template_events::*;
+}
 mod tests;
 pub mod variable_versions;
 
@@ -44,7 +55,7 @@ pub use scoped_parser::{
 };
 
 // Re-export template event types for convenience
-pub use template_events::{
+pub use variable_versions::template_events::{
     TemplateEvent, TemplateHook, TemplateHookError, TemplateHooks, TemplateProtocol,
 };
 

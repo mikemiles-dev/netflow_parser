@@ -762,7 +762,7 @@ mod v9_lookup_tests {
     #[test]
     fn it_tests_field_lookup() {
         let mut fields = vec![];
-        for i in 1..=282 {
+        for i in 1..=323 {
             let field: V9Field = i.into();
             fields.push(field);
         }
@@ -772,7 +772,7 @@ mod v9_lookup_tests {
     #[test]
     fn it_tests_field_data_type_lookup() {
         let mut fields: Vec<FieldDataType> = vec![];
-        for i in 1..=282 {
+        for i in 1..=323 {
             let field: V9Field = i.into();
             fields.push(field.into());
         }

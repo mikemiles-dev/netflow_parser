@@ -95,7 +95,7 @@
   - `NetflowPacketError` and `NetflowParseError` type aliases — use `NetflowError` directly
 
 * **New enum variants (exhaustive match impact)**
-  - `ConfigError` gains `InvalidAllowedVersion(u16)`, `InvalidFieldCount(usize)`, `InvalidTemplateTotalSize(usize)`, `InvalidEntriesPerTemplate(usize)`, `InvalidEntrySize(usize)`, `InvalidTtlDuration`, `EmptyAllowedVersions`
+  - `ConfigError` gains `InvalidAllowedVersion(u16)`, `InvalidFieldCount(usize)`, `InvalidTemplateTotalSize(usize)`, `InvalidEntriesPerTemplate(usize)`, `InvalidEntrySize(usize)`, `InvalidTtlDuration`, `EmptyAllowedVersions`, `InvalidPendingTotalBytes { max_total_bytes, max_entry_size_bytes }`
 
 * **`RouterScopedParser::iter_packets_from_source` and `AutoScopedParser::iter_packets_from_source` now return `Result`**
   - Return type changed from `impl Iterator` to `Result<impl Iterator, NetflowError>`
@@ -175,7 +175,7 @@
   - `field_types` module is designed for future custom field type additions
 
 * **New V9 field types (IDs 128-175)**
-  - Added 46 new `V9Field` variants from the IANA IPFIX Information Elements registry
+  - Added 48 new `V9Field` variants from the IANA IPFIX Information Elements registry
   - Includes: `BgpNextAdjacentAsNumber`, `ExporterIpv4Address`, `ExporterIpv6Address`, `DroppedOctetDeltaCount`, `FlowEndReason`, `WlanSsid`, `FlowStartSeconds`, `FlowEndSeconds`, `FlowStartMicroseconds`, `FlowEndMicroseconds`, `FlowStartNanoseconds`, `FlowEndNanoseconds`, `DestinationIpv6Prefix`, `SourceIpv6Prefix`, and more
   - Each field has the correct `FieldDataType` mapping per the IANA registry
 
@@ -209,6 +209,13 @@
 
 * **`#![forbid(unsafe_code)]` enforced**
   - The crate contains zero `unsafe` blocks; this is now enforced at the crate level
+
+* **Cross-variant numeric extraction on `DataNumber` and `FieldValue`**
+  - `DataNumber::as_u8()`, `as_u16()`, `as_u64()` — try to extract a value from any numeric variant, narrowing or widening as needed (returns `None` if the value doesn't fit)
+  - `FieldValue::as_u8()` — delegates to `DataNumber` and also converts `ProtocolType` to its numeric value
+  - `FieldValue::as_u16()` — delegates to `DataNumber`
+  - `FieldValue::as_u64()` — delegates to `DataNumber` and converts `Duration` variants to milliseconds
+  - Unlike the existing `TryFrom` impls (which only match the exact variant), these methods work across all numeric widths
 
 * **Expanded root re-exports**
   - `Config`, `ConfigError`, `TtlConfig`, `EnterpriseFieldRegistry`, `CacheMetrics`, `NoTemplateInfo`, `DEFAULT_MAX_RECORDS_PER_FLOWSET`, `DEFAULT_MAX_SOURCES` — now available at crate root
@@ -382,6 +389,8 @@
   - Split `v9.rs` into `v9/{mod.rs, parser.rs, serializer.rs}`
   - Split `ipfix.rs` into `ipfix/{mod.rs, parser.rs, serializer.rs}`
   - Renamed `data_number.rs` → `field_value.rs` (deprecated re-export module preserves backward compatibility)
+  - Moved `field_types` from crate root to `variable_versions::field_types` (deprecated re-export at `crate::field_types`)
+  - Moved `template_events` from crate root to `variable_versions::template_events` (deprecated re-export at `crate::template_events`)
 
 * **Code cleanup**
   - Removed unused `enterprise_registry` field from `V9Parser` (was `#[allow(dead_code)]`)
@@ -423,6 +432,18 @@
 
 * **`v9_available_template_ids()` and `ipfix_available_template_ids()` now return sorted, deduplicated results**
   - Same template ID could previously appear twice (once from templates cache, once from options_templates cache)
+
+* **`clear_v9_pending_flows()` and `clear_ipfix_pending_flows()` now record dropped metrics**
+  - Previously, clearing pending flows did not update `pending_dropped` counters
+  - Now records the count of cleared entries via `record_pending_dropped_n()`
+
+* **`Data::with_template_field_lengths()` now validates field count**
+  - Panics if `template_field_lengths` length doesn't match the field count of the first record
+  - Prevents silent corrupt serialization from mismatched metadata
+
+* **IPFIX variable-length field serialization rejects zero-length fields**
+  - `to_be_bytes()` now returns an error for zero-length variable-length fields per RFC 7011 Section 7
+  - Previously wrote a `0x00` prefix which the parser would reject, breaking round-trip
 
 ## Known Limitations
 

@@ -1,5 +1,5 @@
 ---
-source: src/field_types/mpls_top_label_type.rs
+source: src/variable_versions/field_types/mpls_top_label_type.rs
 expression: types
 ---
 - Unknown

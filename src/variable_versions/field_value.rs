@@ -1,4 +1,4 @@
-use crate::field_types::{
+use super::field_types::{
     FirewallEvent, FlowEndReason, ForwardingStatus, FragmentFlags, Ipv4Options,
     Ipv6ExtensionHeaders, IsMulticast, MplsLabelExp, MplsTopLabelType, NatEvent,
     NatOriginatingAddressRealm, TcpControlBits, TcpOptions,
@@ -70,6 +70,63 @@ pub enum DataNumber {
 }
 
 impl DataNumber {
+    /// Try to extract a `u8` from any numeric variant, narrowing if the value fits.
+    pub fn as_u8(&self) -> Option<u8> {
+        match self {
+            DataNumber::U8(n) => Some(*n),
+            DataNumber::I8(n) => u8::try_from(*n).ok(),
+            DataNumber::U16(n) => u8::try_from(*n).ok(),
+            DataNumber::I16(n) => u8::try_from(*n).ok(),
+            DataNumber::U24(n) => u8::try_from(*n).ok(),
+            DataNumber::I24(n) => u8::try_from(*n).ok(),
+            DataNumber::U32(n) => u8::try_from(*n).ok(),
+            DataNumber::I32(n) => u8::try_from(*n).ok(),
+            DataNumber::U64(n) => u8::try_from(*n).ok(),
+            DataNumber::I64(n) => u8::try_from(*n).ok(),
+            DataNumber::U128(n) => u8::try_from(*n).ok(),
+            DataNumber::I128(n) => u8::try_from(*n).ok(),
+            DataNumber::Vec(_) => None,
+        }
+    }
+
+    /// Try to extract a `u16` from any numeric variant, narrowing if the value fits.
+    pub fn as_u16(&self) -> Option<u16> {
+        match self {
+            DataNumber::U8(n) => Some(u16::from(*n)),
+            DataNumber::I8(n) => u16::try_from(*n).ok(),
+            DataNumber::U16(n) => Some(*n),
+            DataNumber::I16(n) => u16::try_from(*n).ok(),
+            DataNumber::U24(n) => u16::try_from(*n).ok(),
+            DataNumber::I24(n) => u16::try_from(*n).ok(),
+            DataNumber::U32(n) => u16::try_from(*n).ok(),
+            DataNumber::I32(n) => u16::try_from(*n).ok(),
+            DataNumber::U64(n) => u16::try_from(*n).ok(),
+            DataNumber::I64(n) => u16::try_from(*n).ok(),
+            DataNumber::U128(n) => u16::try_from(*n).ok(),
+            DataNumber::I128(n) => u16::try_from(*n).ok(),
+            DataNumber::Vec(_) => None,
+        }
+    }
+
+    /// Try to extract a `u64` from any numeric variant, widening or narrowing as needed.
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            DataNumber::U8(n) => Some(u64::from(*n)),
+            DataNumber::I8(n) => u64::try_from(*n).ok(),
+            DataNumber::U16(n) => Some(u64::from(*n)),
+            DataNumber::I16(n) => u64::try_from(*n).ok(),
+            DataNumber::U24(n) => Some(u64::from(*n)),
+            DataNumber::I24(n) => u64::try_from(*n).ok(),
+            DataNumber::U32(n) => Some(u64::from(*n)),
+            DataNumber::I32(n) => u64::try_from(*n).ok(),
+            DataNumber::U64(n) => Some(*n),
+            DataNumber::I64(n) => u64::try_from(*n).ok(),
+            DataNumber::U128(n) => u64::try_from(*n).ok(),
+            DataNumber::I128(n) => u64::try_from(*n).ok(),
+            DataNumber::Vec(_) => None,
+        }
+    }
+
     /// Convert to i128 for numeric comparison across all variants.
     fn to_i128(&self) -> i128 {
         match self {
@@ -606,6 +663,49 @@ impl Serialize for FieldValue {
 }
 
 impl FieldValue {
+    /// Try to extract a `u8`, narrowing across `DataNumber` variants and
+    /// converting `ProtocolType` to its numeric value.
+    pub fn as_u8(&self) -> Option<u8> {
+        match self {
+            FieldValue::DataNumber(d) => d.as_u8(),
+            FieldValue::ProtocolType(p) => Some(u8::from(*p)),
+            _ => None,
+        }
+    }
+
+    /// Try to extract a `u16`, narrowing across `DataNumber` variants.
+    pub fn as_u16(&self) -> Option<u16> {
+        match self {
+            FieldValue::DataNumber(d) => d.as_u16(),
+            _ => None,
+        }
+    }
+
+    /// Try to extract a `u64`, widening or narrowing across `DataNumber` variants
+    /// and converting `Duration` to milliseconds.
+    pub fn as_u64(&self) -> Option<u64> {
+        match self {
+            FieldValue::DataNumber(d) => d.as_u64(),
+            FieldValue::Duration(d) => match d {
+                DurationValue::Millis { value, .. } => Some(*value),
+                DurationValue::Seconds { value, .. } => value.checked_mul(1000),
+                DurationValue::MicrosNtp { seconds, fraction } => {
+                    let millis = ((u64::from(*fraction)).saturating_mul(1_000)) >> 32;
+                    u64::from(*seconds)
+                        .checked_mul(1000)
+                        .and_then(|s| s.checked_add(millis))
+                }
+                DurationValue::NanosNtp { seconds, fraction } => {
+                    let millis = ((u64::from(*fraction)).saturating_mul(1_000)) >> 32;
+                    u64::from(*seconds)
+                        .checked_mul(1000)
+                        .and_then(|s| s.checked_add(millis))
+                }
+            },
+            _ => None,
+        }
+    }
+
     /// Returns the number of bytes this value occupies when serialized.
     pub fn byte_len(&self) -> usize {
         match self {
@@ -691,7 +791,7 @@ impl FieldValue {
             FieldValue::TcpControlBits(t, w) => {
                 let val = u16::from(*t);
                 if *w == 1 {
-                    buf.push(val as u8);
+                    buf.push((val & 0xFF) as u8);
                 } else {
                     buf.extend_from_slice(&val.to_be_bytes());
                 }
@@ -1129,5 +1229,93 @@ mod field_value_tests {
             field_value,
             FieldValue::Ip6Addr(Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, 1))
         );
+    }
+
+    #[test]
+    fn test_data_number_as_u8() {
+        assert_eq!(DataNumber::U8(42).as_u8(), Some(42));
+        assert_eq!(DataNumber::U16(255).as_u8(), Some(255));
+        assert_eq!(DataNumber::U16(256).as_u8(), None);
+        assert_eq!(DataNumber::U32(100).as_u8(), Some(100));
+        assert_eq!(DataNumber::U64(300).as_u8(), None);
+        assert_eq!(DataNumber::I8(-1).as_u8(), None);
+        assert_eq!(DataNumber::I8(127).as_u8(), Some(127));
+        assert_eq!(DataNumber::I16(-1).as_u8(), None);
+        assert_eq!(DataNumber::I32(200).as_u8(), Some(200));
+        assert_eq!(DataNumber::U128(255).as_u8(), Some(255));
+        assert_eq!(DataNumber::U128(256).as_u8(), None);
+        assert_eq!(DataNumber::Vec(vec![1, 2]).as_u8(), None);
+    }
+
+    #[test]
+    fn test_data_number_as_u16() {
+        assert_eq!(DataNumber::U8(42).as_u16(), Some(42));
+        assert_eq!(DataNumber::U16(65535).as_u16(), Some(65535));
+        assert_eq!(DataNumber::U32(65536).as_u16(), None);
+        assert_eq!(DataNumber::U32(1000).as_u16(), Some(1000));
+        assert_eq!(DataNumber::I8(-1).as_u16(), None);
+        assert_eq!(DataNumber::I16(32000).as_u16(), Some(32000));
+        assert_eq!(DataNumber::I16(-1).as_u16(), None);
+        assert_eq!(DataNumber::U64(70000).as_u16(), None);
+        assert_eq!(DataNumber::Vec(vec![1]).as_u16(), None);
+    }
+
+    #[test]
+    fn test_data_number_as_u64() {
+        assert_eq!(DataNumber::U8(42).as_u64(), Some(42));
+        assert_eq!(DataNumber::U16(1000).as_u64(), Some(1000));
+        assert_eq!(DataNumber::U32(100_000).as_u64(), Some(100_000));
+        assert_eq!(DataNumber::U64(u64::MAX).as_u64(), Some(u64::MAX));
+        assert_eq!(DataNumber::I8(-1).as_u64(), None);
+        assert_eq!(DataNumber::I64(1_000_000).as_u64(), Some(1_000_000));
+        assert_eq!(DataNumber::I64(-1).as_u64(), None);
+        assert_eq!(DataNumber::U128(u64::MAX as u128).as_u64(), Some(u64::MAX));
+        assert_eq!(DataNumber::U128(u64::MAX as u128 + 1).as_u64(), None);
+        assert_eq!(DataNumber::Vec(vec![1]).as_u64(), None);
+    }
+
+    #[test]
+    fn test_field_value_as_u8() {
+        assert_eq!(FieldValue::DataNumber(DataNumber::U8(6)).as_u8(), Some(6));
+        assert_eq!(
+            FieldValue::ProtocolType(ProtocolTypes::Tcp).as_u8(),
+            Some(6)
+        );
+        assert_eq!(FieldValue::Float64(1.0).as_u8(), None);
+        assert_eq!(FieldValue::Ip4Addr(Ipv4Addr::LOCALHOST).as_u8(), None);
+    }
+
+    #[test]
+    fn test_field_value_as_u16() {
+        assert_eq!(
+            FieldValue::DataNumber(DataNumber::U16(80)).as_u16(),
+            Some(80)
+        );
+        assert_eq!(FieldValue::Float64(1.0).as_u16(), None);
+    }
+
+    #[test]
+    fn test_field_value_as_u64() {
+        assert_eq!(
+            FieldValue::DataNumber(DataNumber::U32(1000)).as_u64(),
+            Some(1000)
+        );
+        assert_eq!(
+            FieldValue::Duration(DurationValue::Millis {
+                value: 5000,
+                width: 4
+            })
+            .as_u64(),
+            Some(5000)
+        );
+        assert_eq!(
+            FieldValue::Duration(DurationValue::Seconds {
+                value: 10,
+                width: 4
+            })
+            .as_u64(),
+            Some(10_000)
+        );
+        assert_eq!(FieldValue::Float64(1.0).as_u64(), None);
     }
 }

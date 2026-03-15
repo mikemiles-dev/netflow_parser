@@ -156,7 +156,10 @@ impl PendingFlowCache {
             return Err(ConfigError::InvalidEntrySize(config.max_entry_size_bytes));
         }
         if config.max_total_bytes == 0 {
-            return Err(ConfigError::InvalidPendingCacheSize(0));
+            return Err(ConfigError::InvalidPendingTotalBytes {
+                max_total_bytes: 0,
+                max_entry_size_bytes: config.max_entry_size_bytes,
+            });
         }
         if config.max_total_bytes < config.max_entry_size_bytes {
             return Err(ConfigError::InvalidPendingTotalBytes {
@@ -410,6 +413,9 @@ impl PendingFlowCache {
     }
 
     /// Clear all pending flows.
+    ///
+    /// Callers are responsible for recording dropped metrics via
+    /// `metrics.record_pending_dropped_n(cache.count())` before calling this.
     pub(crate) fn clear(&mut self) {
         self.cache.clear();
         self.total_bytes = 0;

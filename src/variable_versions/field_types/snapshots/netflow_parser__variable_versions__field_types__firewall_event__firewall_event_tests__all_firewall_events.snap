@@ -1,5 +1,5 @@
 ---
-source: src/field_types/firewall_event.rs
+source: src/variable_versions/field_types/firewall_event.rs
 expression: events
 ---
 - Ignore
