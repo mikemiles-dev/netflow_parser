@@ -153,20 +153,6 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         Ok(self)
     }
 
-    /// Create a new scoped parser with a custom parser builder.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the builder configuration is invalid. Prefer [`try_with_builder`](Self::try_with_builder)
-    /// for fallible construction.
-    #[deprecated(
-        since = "1.0.0",
-        note = "use try_with_builder() for fallible construction"
-    )]
-    pub fn with_builder(builder: NetflowParserBuilder) -> Self {
-        Self::try_with_builder(builder).expect("invalid builder configuration")
-    }
-
     /// Parse NetFlow data from a specific source.
     ///
     /// This will automatically create a new parser instance for new sources,
@@ -609,20 +595,6 @@ impl AutoScopedParser {
         self.v9_parsers.resize(cap);
         self.legacy_parsers.resize(cap);
         Ok(self)
-    }
-
-    /// Create a new auto-scoped parser with a custom parser builder.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the builder configuration is invalid. Prefer [`try_with_builder`](Self::try_with_builder)
-    /// for fallible construction.
-    #[deprecated(
-        since = "1.0.0",
-        note = "use try_with_builder() for fallible construction"
-    )]
-    pub fn with_builder(builder: NetflowParserBuilder) -> Self {
-        Self::try_with_builder(builder).expect("invalid builder configuration")
     }
 
     /// Parse NetFlow data from a source with automatic RFC-compliant scoping.

@@ -270,7 +270,10 @@ fn test_hooks_fire_during_parsing() {
         0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 12, 1, 0, 0, 1, 0,
         1, 0, 4,
     ];
-    let _ = parser.parse_bytes(&v9_template_packet);
+    assert!(
+        !parser.parse_bytes(&v9_template_packet).packets.is_empty(),
+        "Template packet should parse successfully"
+    );
 
     let captured = events.lock().unwrap();
     assert!(

@@ -70,7 +70,10 @@ fn test_cache_hit_and_miss_tracking() {
         0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 12, 1, 0, 0, 1, 0,
         1, 0, 4,
     ];
-    let _ = parser.parse_bytes(&v9_template_packet);
+    assert!(
+        !parser.parse_bytes(&v9_template_packet).packets.is_empty(),
+        "Template packet should parse successfully"
+    );
 
     // V9 data packet using template 256
     let v9_data_packet: Vec<u8> = vec![
@@ -79,7 +82,10 @@ fn test_cache_hit_and_miss_tracking() {
         0, 8, // length = 8 (header(4) + 1 record of 4 bytes)
         0, 0, 0, 42, // IN_BYTES = 42
     ];
-    let _ = parser.parse_bytes(&v9_data_packet);
+    assert!(
+        !parser.parse_bytes(&v9_data_packet).packets.is_empty(),
+        "Data packet should parse successfully with cached template"
+    );
 
     let v9_info = parser.v9_cache_info();
     assert_eq!(
@@ -98,7 +104,13 @@ fn test_cache_hit_and_miss_tracking() {
         0, 8, // length = 8
         0, 0, 0, 99, // data
     ];
-    let _ = parser.parse_bytes(&v9_missing_template_packet);
+    assert!(
+        !parser
+            .parse_bytes(&v9_missing_template_packet)
+            .packets
+            .is_empty(),
+        "Missing-template packet should still produce a parse result"
+    );
 
     let v9_info = parser.v9_cache_info();
     assert_eq!(

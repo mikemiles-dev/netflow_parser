@@ -33,7 +33,11 @@ fn test_cache_info_stay_within_bounds() {
             0, 1, // field_type = IN_BYTES
             0, 4, // field_length = 4
         ];
-        let _ = parser.parse_bytes(&v9_template_packet);
+        assert!(
+            !parser.parse_bytes(&v9_template_packet).packets.is_empty(),
+            "Template packet for tid {} should parse successfully",
+            template_id
+        );
     }
 
     let v9_info = parser.v9_cache_info();

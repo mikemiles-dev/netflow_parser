@@ -15,7 +15,10 @@ fn test_clear_templates() {
         0, 1, // field_count = 1
         0, 1, 0, 4, // field: IN_BYTES(1), length 4
     ];
-    let _ = parser.parse_bytes(&v9_template_packet);
+    assert!(
+        !parser.parse_bytes(&v9_template_packet).packets.is_empty(),
+        "Template packet should parse successfully"
+    );
 
     let v9_info = parser.v9_cache_info();
     assert!(
@@ -78,7 +81,10 @@ fn test_template_ids_after_parsing() {
         0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 12, 1, 0, 0, 1, 0,
         1, 0, 4,
     ];
-    let _ = parser.parse_bytes(&v9_template_packet);
+    assert!(
+        !parser.parse_bytes(&v9_template_packet).packets.is_empty(),
+        "Template packet should parse successfully"
+    );
 
     let v9_templates = parser.v9_template_ids();
     assert!(
@@ -101,7 +107,10 @@ fn test_hit_rate_after_activity() {
         0, 9, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 12, 1, 0, 0, 1, 0,
         1, 0, 4,
     ];
-    let _ = parser.parse_bytes(&v9_template_packet);
+    assert!(
+        !parser.parse_bytes(&v9_template_packet).packets.is_empty(),
+        "Template packet should parse successfully"
+    );
 
     // V9 data packet using template 256 (should hit)
     let v9_data_packet: Vec<u8> = vec![
@@ -232,13 +241,28 @@ fn test_ipfix_individual_template_withdrawal() {
     let mut parser = NetflowParser::default();
 
     // Register two templates
-    let _ = parser.parse_bytes(&ipfix_template_packet(256, &[(1, 4)]));
-    let _ = parser.parse_bytes(&ipfix_template_packet(257, &[(2, 4)]));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_template_packet(256, &[(1, 4)]))
+            .packets
+            .is_empty()
+    );
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_template_packet(257, &[(2, 4)]))
+            .packets
+            .is_empty()
+    );
     assert!(parser.has_ipfix_template(256));
     assert!(parser.has_ipfix_template(257));
 
     // Withdraw template 256 only
-    let _ = parser.parse_bytes(&ipfix_withdrawal_packet(256));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_withdrawal_packet(256))
+            .packets
+            .is_empty()
+    );
     assert!(
         !parser.has_ipfix_template(256),
         "Template 256 should be withdrawn"
@@ -253,17 +277,42 @@ fn test_ipfix_withdraw_all_data_templates() {
     let mut parser = NetflowParser::default();
 
     // Register 3 data templates
-    let _ = parser.parse_bytes(&ipfix_template_packet(256, &[(1, 4)]));
-    let _ = parser.parse_bytes(&ipfix_template_packet(257, &[(2, 4)]));
-    let _ = parser.parse_bytes(&ipfix_template_packet(258, &[(3, 4)]));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_template_packet(256, &[(1, 4)]))
+            .packets
+            .is_empty()
+    );
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_template_packet(257, &[(2, 4)]))
+            .packets
+            .is_empty()
+    );
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_template_packet(258, &[(3, 4)]))
+            .packets
+            .is_empty()
+    );
     assert_eq!(parser.ipfix_cache_info().current_size, 3);
 
     // Also register an options template — should NOT be affected
-    let _ = parser.parse_bytes(&ipfix_options_template_pkt(259));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_options_template_pkt(259))
+            .packets
+            .is_empty()
+    );
     assert_eq!(parser.ipfix_cache_info().current_size, 4);
 
     // Withdraw all data templates (template_id=2, field_count=0)
-    let _ = parser.parse_bytes(&ipfix_withdrawal_packet(2));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_withdrawal_packet(2))
+            .packets
+            .is_empty()
+    );
 
     // All 3 data templates should be gone, options template should remain
     assert!(!parser.has_ipfix_template(256));
@@ -283,15 +332,35 @@ fn test_ipfix_withdraw_all_options_templates() {
     let mut parser = NetflowParser::default();
 
     // Register a data template — should NOT be affected
-    let _ = parser.parse_bytes(&ipfix_template_packet(256, &[(1, 4)]));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_template_packet(256, &[(1, 4)]))
+            .packets
+            .is_empty()
+    );
 
     // Register 2 options templates
-    let _ = parser.parse_bytes(&ipfix_options_template_pkt(258));
-    let _ = parser.parse_bytes(&ipfix_options_template_pkt(259));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_options_template_pkt(258))
+            .packets
+            .is_empty()
+    );
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_options_template_pkt(259))
+            .packets
+            .is_empty()
+    );
     assert_eq!(parser.ipfix_cache_info().current_size, 3);
 
     // Withdraw all options templates (template_id=3, field_count=0)
-    let _ = parser.parse_bytes(&ipfix_options_withdrawal_packet(3));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_options_withdrawal_packet(3))
+            .packets
+            .is_empty()
+    );
 
     // Options templates should be gone, data template should remain
     assert!(
@@ -322,11 +391,16 @@ fn test_ipfix_withdraw_all_drains_pending_flows() {
         0x00, 0x08, // Set Length = 8
         0x00, 0x00, 0x00, 0x42,
     ];
-    let _ = parser.parse_bytes(&data_pkt);
+    let _ = parser.parse_bytes(&data_pkt); // intentional: data without template → pending
     assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
 
     // Register the template so it's in the cache
-    let _ = parser.parse_bytes(&ipfix_template_packet(256, &[(1, 4)]));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_template_packet(256, &[(1, 4)]))
+            .packets
+            .is_empty()
+    );
     // Pending flow was replayed
     assert_eq!(parser.ipfix_cache_info().pending_flow_count, 0);
     assert_eq!(parser.ipfix_cache_info().metrics.pending_replayed, 1);
@@ -335,12 +409,17 @@ fn test_ipfix_withdraw_all_drains_pending_flows() {
     let mut data_257 = data_pkt.clone();
     data_257[16] = 0x01;
     data_257[17] = 0x01; // Set ID = 257
-    let _ = parser.parse_bytes(&data_257);
+    let _ = parser.parse_bytes(&data_257); // intentional: data without template → pending
     assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
 
     // Withdraw all data templates — should also drain pending flows for 256
     // (template 257 pending flow stays because it was never in the template cache)
-    let _ = parser.parse_bytes(&ipfix_withdrawal_packet(2));
+    assert!(
+        !parser
+            .parse_bytes(&ipfix_withdrawal_packet(2))
+            .packets
+            .is_empty()
+    );
     assert!(!parser.has_ipfix_template(256));
 
     // The pending flow for 257 should still be there (257 was never a data template)

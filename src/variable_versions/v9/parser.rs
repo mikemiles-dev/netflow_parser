@@ -214,11 +214,14 @@ impl V9Parser {
         for (i, flowset) in v9.flowsets.iter_mut().enumerate() {
             match &mut flowset.body {
                 FlowSetBody::NoTemplate(info) => {
-                    // If raw_data was truncated at parse time (oversized
-                    // entry), skip caching — the data can't be replayed.
-                    // The truncated flowset is kept in output as diagnostic
-                    // data (truncated to max_error_sample_size).
-                    let body_len = (flowset.header.length as usize).saturating_sub(4);
+                    // Reject flowsets with impossibly small headers (RFC minimum is 4).
+                    // Also reject truncated raw_data (oversized entry at parse time).
+                    // The flowset is kept in output as diagnostic data.
+                    if flowset.header.length < 4 {
+                        metrics.record_pending_dropped();
+                        continue;
+                    }
+                    let body_len = (flowset.header.length as usize) - 4;
                     if info.raw_data.len() < body_len {
                         metrics.record_pending_dropped();
                         continue;

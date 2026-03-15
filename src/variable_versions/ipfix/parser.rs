@@ -210,11 +210,14 @@ impl IPFixParser {
         for (i, flowset) in ipfix.flowsets.iter_mut().enumerate() {
             match &mut flowset.body {
                 FlowSetBody::NoTemplate(info) => {
-                    // If raw_data was truncated at parse time (oversized
-                    // entry), skip caching — the data can't be replayed.
-                    // The truncated flowset is kept in output as diagnostic
-                    // data (truncated to max_error_sample_size).
-                    let body_len = (flowset.header.length as usize).saturating_sub(4);
+                    // Reject flowsets with impossibly small headers (RFC minimum is 4).
+                    // Also reject truncated raw_data (oversized entry at parse time).
+                    // The flowset is kept in output as diagnostic data.
+                    if flowset.header.length < 4 {
+                        metrics.record_pending_dropped();
+                        continue;
+                    }
+                    let body_len = (flowset.header.length as usize) - 4;
                     if info.raw_data.len() < body_len {
                         metrics.record_pending_dropped();
                         continue;
@@ -270,16 +273,19 @@ impl IPFixParser {
                 _ => {}
             }
         }
-        // Subtract lengths of cached flowsets from header, then remove them.
-        for (i, fs) in ipfix.flowsets.iter().enumerate() {
-            if remove_mask[i] {
-                ipfix.header.length = ipfix.header.length.saturating_sub(fs.header.length);
-            }
-        }
+        // Remove successfully-cached flowsets and reconcile header length.
         let mut mask_iter = remove_mask.into_iter();
         ipfix
             .flowsets
             .retain(|_| !mask_iter.next().unwrap_or(false));
+        // Reconcile header length from remaining flowsets (avoids drift from
+        // saturating arithmetic on corrupt input).
+        let body_len: u16 = ipfix
+            .flowsets
+            .iter()
+            .fold(0u16, |acc, fs| acc.saturating_add(fs.header.length));
+        // IPFIX header is 16 bytes; total message length = header + body.
+        ipfix.header.length = 16u16.saturating_add(body_len);
         learned_template_ids
     }
 

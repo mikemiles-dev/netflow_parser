@@ -406,14 +406,20 @@ impl DataNumber {
             DataNumber::U16(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::I16(n) => buf.extend_from_slice(&n.to_be_bytes()),
             DataNumber::U24(n) => {
-                // Mask to 24 bits to prevent silent data loss from out-of-range values
+                debug_assert!(
+                    *n <= 0x00FF_FFFF,
+                    "U24 value {n} out of range (max 16777215)"
+                );
                 let masked = *n & 0x00FF_FFFF;
                 buf.push((masked >> 16) as u8);
                 buf.push((masked >> 8) as u8);
                 buf.push(masked as u8);
             }
             DataNumber::I24(n) => {
-                // Mask to 24 bits to preserve two's complement representation
+                debug_assert!(
+                    (-8_388_608..=8_388_607).contains(n),
+                    "I24 value {n} out of range (-8388608..=8388607)"
+                );
                 let masked = *n & 0x00FF_FFFF;
                 buf.push((masked >> 16) as u8);
                 buf.push((masked >> 8) as u8);
@@ -431,7 +437,7 @@ impl DataNumber {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Clone, Serialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize)]
 pub struct ApplicationId {
     pub classification_engine_id: u8,
     pub selector_id: Option<DataNumber>,
@@ -559,11 +565,6 @@ pub enum FieldValue {
     FirewallEvent(FirewallEvent),
     MplsTopLabelType(MplsTopLabelType),
     NatOriginatingAddressRealm(NatOriginatingAddressRealm),
-    #[deprecated(
-        since = "1.0.0",
-        note = "unused by the parser; use `FieldValue::Vec` instead"
-    )]
-    Unknown(Vec<u8>),
 }
 
 impl Serialize for FieldValue {
@@ -654,10 +655,6 @@ impl Serialize for FieldValue {
                 "NatOriginatingAddressRealm",
                 v,
             ),
-            #[allow(deprecated)]
-            FieldValue::Unknown(v) => {
-                serializer.serialize_newtype_variant("FieldValue", 23, "Unknown", v)
-            }
         }
     }
 }
@@ -739,8 +736,6 @@ impl FieldValue {
             FieldValue::MplsTopLabelType(_) => 1,
             FieldValue::NatOriginatingAddressRealm(_) => 1,
             FieldValue::Vec(v) => v.len(),
-            #[allow(deprecated)]
-            FieldValue::Unknown(v) => v.len(),
         }
     }
 
@@ -809,8 +804,6 @@ impl FieldValue {
             FieldValue::MplsTopLabelType(t) => buf.push(u8::from(*t)),
             FieldValue::NatOriginatingAddressRealm(r) => buf.push(u8::from(*r)),
             FieldValue::Vec(v) => buf.extend_from_slice(v),
-            #[allow(deprecated)]
-            FieldValue::Unknown(v) => buf.extend_from_slice(v),
         }
         Ok(())
     }
@@ -1192,12 +1185,6 @@ mod field_value_tests {
         buf.clear();
         field_value.write_be_bytes(&mut buf).unwrap();
         assert_eq!(buf, vec![1, 2, 3, 4]);
-
-        #[allow(deprecated)]
-        let field_value = FieldValue::Unknown(vec![255, 254, 253]);
-        buf.clear();
-        field_value.write_be_bytes(&mut buf).unwrap();
-        assert_eq!(buf, vec![255, 254, 253]);
     }
 
     #[test]
