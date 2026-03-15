@@ -187,6 +187,13 @@ impl Data {
     /// [`Data::with_template_field_lengths`] when the template contains
     /// variable-length fields (field_length == 65535).
     pub fn new(fields: Vec<IPFixFlowRecord>) -> Self {
+        debug_assert!(
+            !fields.iter().any(|record| record
+                .iter()
+                .any(|(_, v)| matches!(v, FieldValue::Vec(b) if b.len() > 254))),
+            "Data::new() should not be used with fields that may need variable-length \
+             encoding; use Data::with_template_field_lengths() instead"
+        );
         Self {
             fields,
             padding: vec![],
@@ -206,25 +213,30 @@ impl Data {
     /// Each entry in `template_field_lengths` corresponds to the template
     /// field at the same index; entries with value 65535 cause an RFC 7011
     /// variable-length prefix to be emitted during serialization.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `template_field_lengths` is non-empty and its
+    /// length does not match the number of fields in the first record.
     pub fn with_template_field_lengths(
         fields: Vec<IPFixFlowRecord>,
         template_field_lengths: Vec<u16>,
-    ) -> Self {
+    ) -> Result<Self, String> {
         if !fields.is_empty() && !template_field_lengths.is_empty() {
             let record_len = fields[0].len();
-            assert_eq!(
-                template_field_lengths.len(),
-                record_len,
-                "template_field_lengths length ({}) must match record field count ({})",
-                template_field_lengths.len(),
-                record_len,
-            );
+            if template_field_lengths.len() != record_len {
+                return Err(format!(
+                    "template_field_lengths length ({}) must match record field count ({})",
+                    template_field_lengths.len(),
+                    record_len,
+                ));
+            }
         }
-        Self {
+        Ok(Self {
             fields,
             padding: vec![],
             template_field_lengths,
-        }
+        })
     }
 }
 
@@ -271,15 +283,30 @@ impl OptionsData {
     }
 
     /// Creates a new OptionsData instance with explicit template field lengths.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `template_field_lengths` is non-empty and its
+    /// length does not match the number of fields in the first record.
     pub fn with_template_field_lengths(
         fields: Vec<Vec<IPFixFieldPair>>,
         template_field_lengths: Vec<u16>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, String> {
+        if !fields.is_empty() && !template_field_lengths.is_empty() {
+            let record_len = fields[0].len();
+            if template_field_lengths.len() != record_len {
+                return Err(format!(
+                    "template_field_lengths length ({}) must match record field count ({})",
+                    template_field_lengths.len(),
+                    record_len,
+                ));
+            }
+        }
+        Ok(Self {
             fields,
             padding: vec![],
             template_field_lengths,
-        }
+        })
     }
 }
 
