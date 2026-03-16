@@ -168,9 +168,8 @@ pub struct OptionsData {
 impl OptionsData {
     /// Parse options data records with a default record limit.
     ///
-    /// Applies [`OPTIONS_DATA_DEFAULT_LIMIT`] to prevent unbounded allocation
-    /// from malicious or malformed input. Use [`parse_with_limit`](Self::parse_with_limit)
-    /// for a custom limit.
+    /// Applies a default record limit to prevent unbounded allocation
+    /// from malicious or malformed input.
     pub fn parse<'a>(i: &'a [u8], template: &OptionsTemplate) -> nom::IResult<&'a [u8], Self> {
         Self::parse_with_limit(i, template, OPTIONS_DATA_DEFAULT_LIMIT)
     }
