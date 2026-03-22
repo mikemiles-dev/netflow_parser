@@ -1,3 +1,14 @@
+# 1.0.1
+
+## Documentation
+
+* Removed outdated 0.7.x → 0.8.0 migration guide from README
+* Consolidated redundant README sections: removed duplicate hex dump comments, complete configuration example, and inline struct definitions
+* Merged "V9/IPFIX Notes" into the Template Management Guide overview
+* Merged "Template Collision Detection" into Template Cache Metrics
+* Removed manual "Handling Missing Templates" section (superseded by Pending Flow Caching)
+* Consolidated Iterator API benefits and examples into a single section
+
 # 1.0.0
 
 ## Breaking Changes
