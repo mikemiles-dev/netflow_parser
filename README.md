@@ -25,12 +25,9 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
   - [Custom Enterprise Fields (IPFIX)](#custom-enterprise-fields-ipfix)
 - [Netflow Common](#netflow-common)
 - [Re-Exporting Flows](#re-exporting-flows)
-- [V9/IPFIX Notes](#v9ipfix-notes)
 - [Template Management Guide](#template-management-guide)
   - [Template Cache Metrics](#template-cache-metrics)
   - [Multi-Source Deployments](#multi-source-deployments)
-  - [Template Collision Detection](#template-collision-detection)
-  - [Handling Missing Templates](#handling-missing-templates)
   - [Template Lifecycle Management](#template-lifecycle-management)
   - [Best Practices](#best-practices)
 - [Performance & Thread Safety](#performance--thread-safety)
@@ -67,11 +64,6 @@ Structures fully support serialization.  Below is an example using the serde_jso
 use serde_json::json;
 use netflow_parser::NetflowParser;
 
-// 0000   00 05 00 01 03 00 04 00 05 00 06 07 08 09 00 01   ................
-// 0010   02 03 04 05 06 07 08 09 00 01 02 03 04 05 06 07   ................
-// 0020   08 09 00 01 02 03 04 05 06 07 08 09 00 01 02 03   ................
-// 0030   04 05 06 07 08 09 00 01 02 03 04 05 06 07 08 09   ................
-// 0040   00 01 02 03 04 05 06 07                           ........
 let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
 let result = NetflowParser::default().parse_bytes(&v5_packet);
 println!("{}", json!(result.packets).to_string());
@@ -127,11 +119,6 @@ println!("{}", json!(result.packets).to_string());
 ```rust
 use netflow_parser::{NetflowParser, NetflowPacket};
 
-// 0000   00 05 00 01 03 00 04 00 05 00 06 07 08 09 00 01   ................
-// 0010   02 03 04 05 06 07 08 09 00 01 02 03 04 05 06 07   ................
-// 0020   08 09 00 01 02 03 04 05 06 07 08 09 00 01 02 03   ................
-// 0030   04 05 06 07 08 09 00 01 02 03 04 05 06 07 08 09   ................
-// 0040   00 01 02 03 04 05 06 07                           ........
 let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,];
 let result = NetflowParser::default().parse_bytes(&v5_packet);
 
@@ -171,35 +158,7 @@ for result in parser.iter_packets(&buffer) {
 }
 ```
 
-The iterator provides access to unconsumed bytes for advanced use cases:
-
-```rust,ignore
-use netflow_parser::NetflowParser;
-
-let buffer = /* your netflow data */;
-let mut parser = NetflowParser::default();
-let mut iter = parser.iter_packets(&buffer);
-
-while let Some(packet) = iter.next() {
-    // Process packet
-}
-
-// Check if all bytes were consumed
-if !iter.is_complete() {
-    println!("Warning: {} bytes remain unconsumed", iter.remaining().len());
-}
-```
-
-### Benefits of Iterator API
-
-- **Zero allocation**: Packets are yielded one-by-one without allocating a `Vec`
-- **Memory efficient**: Ideal for processing large batches or continuous streams
-- **Lazy evaluation**: Only parses packets as you consume them
-- **Template caching preserved**: V9/IPFIX template state is maintained across iterations
-- **Composable**: Works with standard Rust iterator methods (`.filter()`, `.map()`, `.take()`, etc.)
-- **Buffer inspection**: Access unconsumed bytes via `.remaining()` and check completion with `.is_complete()`
-
-### Iterator Examples
+The iterator is zero-allocation, lazy, preserves V9/IPFIX template state, and composes with standard Rust iterator methods (`.filter()`, `.map()`, `.take()`, etc.). You can also inspect unconsumed bytes via `.remaining()` and check completion with `.is_complete()`.
 
 ```rust,ignore
 // Count V5 packets without collecting
@@ -212,23 +171,6 @@ for result in parser.iter_packets(&buffer).take(10) {
     if let Ok(packet) = result {
         // Handle packet
     }
-}
-
-// Collect only if needed (equivalent to parse_bytes())
-let packets: Vec<_> = parser.iter_packets(&buffer)
-    .filter_map(Result::ok)
-    .collect();
-
-// Check unconsumed bytes (useful for mixed protocol streams)
-let mut iter = parser.iter_packets(&buffer);
-for result in &mut iter {
-    if let Ok(packet) = result {
-        // Process packet
-    }
-}
-if !iter.is_complete() {
-    let remaining = iter.remaining();
-    // Handle non-netflow data at end of buffer
 }
 ```
 
@@ -506,54 +448,6 @@ let parser = NetflowParser::builder()
 
 This setting helps prevent memory exhaustion when processing malformed or malicious packets while still providing enough context for debugging.
 
-#### Migration Guide
-
-##### From 0.7.x to 0.8.0
-
-**What changed:** Two major improvements to error handling:
-
-1. **ParseResult** - `parse_bytes()` now returns `ParseResult` to preserve partial results on errors
-2. **Error Handling** - `NetflowPacket::Error` variant removed, errors now use `Result`
-
-**ParseResult (prevents data loss):**
-
-```rust,ignore
-// ❌ Old (0.7.x) - loses packets 1-4 if packet 5 errors
-let packets = parser.parse_bytes(&data);  // Returns Vec<NetflowPacket>
-// Silent error: if parsing stopped at packet 5, you lost packets 1-4
-
-// ✅ New (0.8.0) - keep packets 1-4 even if packet 5 errors
-let result = parser.parse_bytes(&data);  // Returns ParseResult
-for packet in result.packets {
-    // Process successfully parsed packets 1-4
-}
-if let Some(e) = result.error {
-    eprintln!("Error at packet 5: {}", e);  // But still got partial results!
-}
-```
-
-**Error Handling (use Result instead of Error variant):**
-
-```rust,ignore
-// ❌ Old (0.7.x) - errors inline with packets
-for packet in parser.parse_bytes(&data) {
-    match packet {
-        NetflowPacket::V5(v5) => { /* process */ }
-        NetflowPacket::Error(e) => { /* error */ }
-        _ => {}
-    }
-}
-
-// ✅ New (0.8.0) - use iter_packets() for Result-based errors
-for result in parser.iter_packets(&data) {
-    match result {
-        Ok(NetflowPacket::V5(v5)) => { /* process */ }
-        Err(e) => { /* error */ }
-        _ => {}
-    }
-}
-```
-
 ### Custom Enterprise Fields (IPFIX)
 
 IPFIX supports vendor-specific enterprise fields that extend the standard IANA field set. The library provides built-in support for several vendors (Cisco, VMWare, Netscaler, etc.), but you can also register your own custom enterprise fields:
@@ -643,116 +537,21 @@ When registering enterprise fields, you can use any of these built-in data types
 
 See `examples/custom_enterprise_fields.rs` for a complete working example.
 
-### Complete Configuration Example
-
-```rust
-use netflow_parser::NetflowParser;
-use netflow_parser::variable_versions::ttl::TtlConfig;
-use netflow_parser::variable_versions::field_value::FieldDataType;
-use netflow_parser::variable_versions::enterprise_registry::EnterpriseFieldDef;
-use std::time::Duration;
-
-let parser = NetflowParser::builder()
-    // Cache configuration
-    .with_v9_cache_size(1000)
-    .with_ipfix_cache_size(2000)
-
-    // Security limits
-    .with_v9_max_field_count(5000)
-    .with_ipfix_max_field_count(10000)
-    .with_max_error_sample_size(512)
-
-    // Template TTL
-    .with_v9_ttl(TtlConfig::new(Duration::from_secs(3600)))
-    .with_ipfix_ttl(TtlConfig::new(Duration::from_secs(7200)))
-
-    // Version filtering
-    .with_allowed_versions(&[5, 9, 10])
-
-    // Enterprise fields
-    .register_enterprise_fields(vec![
-        EnterpriseFieldDef::new(12345, 1, "field1", FieldDataType::UnsignedDataNumber),
-        EnterpriseFieldDef::new(12345, 2, "field2", FieldDataType::String),
-    ])
-
-    // Template lifecycle hooks
-    .on_template_event(|event| {
-        println!("Template event: {:?}", event);
-        Ok(())
-    })
-
-    .build()
-    .expect("Failed to build parser");
-
-// For multi-source deployments, use AutoScopedParser instead:
-// let scoped_parser = NetflowParser::builder()./* config */.try_multi_source().expect("valid config");
-```
-
 ## Netflow Common
 
-We have included a `NetflowCommon` and `NetflowCommonFlowSet` structure.
-This will allow you to use common fields without unpacking values from specific versions.
-If the packet flow does not have the matching field it will simply be left as `None`.
-
-### NetflowCommon and NetflowCommonFlowSet Struct:
-```rust
-use std::net::IpAddr;
-use netflow_parser::protocol::ProtocolTypes;
-
-#[derive(Debug, Default)]
-pub struct NetflowCommon {
-    pub version: u16,
-    pub timestamp: u32,
-    pub flowsets: Vec<NetflowCommonFlowSet>,
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct NetflowCommonFlowSet {
-    pub src_addr: Option<IpAddr>,
-    pub dst_addr: Option<IpAddr>,
-    pub src_port: Option<u16>,
-    pub dst_port: Option<u16>,
-    pub protocol_number: Option<u8>,
-    pub protocol_type: Option<ProtocolTypes>,
-    pub first_seen: Option<u64>,
-    pub last_seen: Option<u64>,
-    pub src_mac: Option<String>,
-    pub dst_mac: Option<String>,
-}
-```
-
-### Converting NetflowPacket to NetflowCommon
+`NetflowCommon` and `NetflowCommonFlowSet` let you work with common fields (src/dst addr, ports, protocol, etc.) without unpacking version-specific structures. Fields not present in a given version are `None`.
 
 ```rust,ignore
 use netflow_parser::{NetflowParser, NetflowPacket};
 
-// 0000   00 05 00 01 03 00 04 00 05 00 06 07 08 09 00 01   ................
-// 0010   02 03 04 05 06 07 08 09 00 01 02 03 04 05 06 07   ................
-// 0020   08 09 00 01 02 03 04 05 06 07 08 09 00 01 02 03   ................
-// 0030   04 05 06 07 08 09 00 01 02 03 04 05 06 07 08 09   ................
-// 0040   00 01 02 03 04 05 06 07                           ........
-let v5_packet = [0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
-    4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-    2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7];
 let result = NetflowParser::default().parse_bytes(&v5_packet);
-let netflow_common = result.packets
-                     .first()
-                     .unwrap()
-                     .as_netflow_common()
-                     .unwrap();
+let netflow_common = result.packets.first().unwrap().as_netflow_common().unwrap();
 
 for common_flow in netflow_common.flowsets.iter() {
     println!("Src Addr: {} Dst Addr: {}", common_flow.src_addr.unwrap(), common_flow.dst_addr.unwrap());
 }
-```
 
-### Flattened flowsets
-
-To gather all flowsets from all packets into a flattened vector:
-
-```rust,ignore
-use netflow_parser::NetflowParser;
-
+// Or gather all flowsets from all packets into a flattened vector:
 let (flowsets, error) = NetflowParser::default().parse_bytes_as_netflow_common_flowsets(&v5_packet);
 ```
 
@@ -841,11 +640,6 @@ See `examples/manual_ipfix_creation.rs` for a complete example of creating IPFIX
 
 ```rust
 use netflow_parser::{NetflowParser, NetflowPacket};
-// 0000   00 05 00 01 03 00 04 00 05 00 06 07 08 09 00 01   ................
-// 0010   02 03 04 05 06 07 08 09 00 01 02 03 04 05 06 07   ................
-// 0020   08 09 00 01 02 03 04 05 06 07 08 09 00 01 02 03   ................
-// 0030   04 05 06 07 08 09 00 01 02 03 04 05 06 07 08 09   ................
-// 0040   00 01 02 03 04 05 06 07                           ........
 let packet = [
     0, 5, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
     4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
@@ -857,21 +651,11 @@ if let Some(NetflowPacket::V5(v5)) = result.packets.first() {
 }
 ```
 
-## V9/IPFIX Notes
-
-Parse the data (`&[u8]`) like any other version. The parser (`NetflowParser`) caches parsed templates using LRU eviction, so you can send header/data flowset combos and it will use the cached templates. Templates are automatically cached and evicted when the cache limit is reached.
-
-**Template Management:** For comprehensive information about template caching, introspection, multi-source deployments, and best practices, see the [Template Management Guide](#template-management-guide) section below.
-
-**IPFIX Note:** We only parse sequence number and domain id, it is up to you if you wish to validate it.
-
-**FlowSet Access:** To access templates flowset of a processed V9/IPFIX flowset you can find the `flowsets` attribute on the Parsed Record. In there you can find `Templates`, `Option Templates`, and `Data` Flowsets.
-
 ## Template Management Guide
 
-### Overview
+NetFlow V9 and IPFIX are template-based protocols where templates define the structure of flow records. The parser caches templates using LRU eviction, so you can send header/data flowset combos and it will use the cached templates. Access parsed templates, option templates, and data flowsets via the `flowsets` attribute on the parsed record.
 
-NetFlow V9 and IPFIX are template-based protocols where templates define the structure of flow records. This library provides comprehensive template management features to handle various deployment scenarios.
+**IPFIX Note:** We only parse sequence number and domain id; it is up to you if you wish to validate them.
 
 ### Template Cache Metrics
 
@@ -907,8 +691,7 @@ if let Some(hit_rate) = metrics.hit_rate() {
 - **Hits**: Successful template lookups
 - **Misses**: Failed template lookups (template not in cache)
 - **Evictions**: Templates removed due to LRU policy when cache is full
-- **Collisions**: Template ID reused with a **different definition** (same ID, different schema)
-  - Note: RFC-compliant template retransmissions (same ID, same definition) are NOT counted as collisions
+- **Collisions**: Template ID reused with a **different definition** (same ID, different schema). RFC-compliant retransmissions (same ID, identical definition) are NOT counted as collisions. High collision rates suggest you need scoped parsing (see below).
 - **Expired**: Templates removed due to TTL expiration
 
 ### Multi-Source Deployments (RFC-Compliant)
@@ -1004,57 +787,6 @@ let router_builder = NetflowParser::builder()
     .with_cache_size(5000)
     .with_ttl(TtlConfig::new(Duration::from_secs(3600)));
 let mut scoped = RouterScopedParser::<String>::try_with_builder(router_builder).expect("valid config");
-```
-
-### Template Collision Detection
-
-Monitor when template IDs are reused with different definitions:
-
-```rust,ignore
-let v9_info = parser.v9_cache_info();
-if v9_info.metrics.collisions > 0 {
-    println!("Warning: {} template collisions detected", v9_info.metrics.collisions);
-    println!("Use AutoScopedParser for RFC-compliant multi-source deployments");
-}
-```
-
-**What counts as a collision:**
-- Same template ID with a **different definition** (field structure changed)
-- This typically indicates multiple routers using the same template ID for different schemas
-
-**What does NOT count as a collision:**
-- Retransmitting the same template (same ID, identical definition)
-- RFC 7011 (IPFIX) and RFC 3954 (NetFlow v9) recommend periodic template retransmission for reliability
-- Template refreshes are normal and expected behavior
-
-### Handling Missing Templates
-
-When a data flowset arrives before its template (IPFIX):
-
-```rust,ignore
-use netflow_parser::{NetflowParser, NetflowPacket};
-use netflow_parser::variable_versions::ipfix::FlowSetBody;
-
-let mut parser = NetflowParser::default();
-let mut pending_data = Vec::new();
-
-for packet in parser.iter_packets(&data) {
-    if let Ok(NetflowPacket::IPFix(ipfix)) = packet {
-        for flowset in &ipfix.flowsets {
-            if let FlowSetBody::NoTemplate(info) = &flowset.body {
-                println!("Missing template ID: {}", info.template_id);
-
-                // Save for retry after template arrives
-                pending_data.push(info.raw_data.clone());
-            }
-        }
-    }
-}
-
-// Retry pending data after templates arrive
-for pending in &pending_data {
-    let _ = parser.parse_bytes(pending);
-}
 ```
 
 ### Template Lifecycle Management
