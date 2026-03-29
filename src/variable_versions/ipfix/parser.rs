@@ -25,11 +25,11 @@ use crate::variable_versions::{
 };
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
+use crate::variable_versions::fast_parse::{parse_u8, parse_u16_be};
 use lru::LruCache;
 use nom::IResult;
 use nom::combinator::complete;
 use nom::multi::many0;
-use crate::variable_versions::fast_parse::{parse_u8, parse_u16_be};
 use nom_derive::Parse;
 use std::num::NonZeroUsize;
 use std::sync::Arc;

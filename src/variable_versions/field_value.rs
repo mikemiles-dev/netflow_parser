@@ -1,13 +1,14 @@
+use super::fast_parse::{
+    parse_6_bytes, parse_i8, parse_i16_be, parse_i24_be, parse_i32_be, parse_i64_be,
+    parse_i128_be, parse_u8, parse_u16_be, parse_u24_be, parse_u32_be, parse_u64_be,
+    parse_u128_be,
+};
 use super::field_types::{
     FirewallEvent, FlowEndReason, ForwardingStatus, FragmentFlags, Ipv4Options,
     Ipv6ExtensionHeaders, IsMulticast, MplsLabelExp, MplsTopLabelType, NatEvent,
     NatOriginatingAddressRealm, TcpControlBits, TcpOptions,
 };
 use crate::protocol::ProtocolTypes;
-use super::fast_parse::{
-    parse_6_bytes, parse_i128_be, parse_i16_be, parse_i24_be, parse_i32_be, parse_i64_be,
-    parse_i8, parse_u128_be, parse_u16_be, parse_u24_be, parse_u32_be, parse_u64_be, parse_u8,
-};
 use nom::{
     Err as NomErr, IResult,
     bytes::complete::take,
