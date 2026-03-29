@@ -10,7 +10,7 @@ use super::{
     FlowSetBody, FlowSetHeader, FlowSetParser, MAX_FIELD_COUNT, NoTemplateInfo,
     OPTIONS_TEMPLATE_V9_ID, OptionsData, OptionsFieldParser, OptionsTemplate,
     OptionsTemplateScopeField, OptionsTemplates, ScopeDataField, ScopeParser, Template,
-    TemplateField, TemplateId, Templates, V9, V9FieldPair, V9FlowRecord,
+    TemplateField, TemplateId, Templates, V9, V9FieldPair,
 };
 use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
@@ -754,16 +754,17 @@ impl FlowSetParser {
 }
 
 impl<'a> FieldParser {
+    #[inline]
     pub(super) fn parse(
         mut input: &'a [u8],
         template: &Template,
         max_records: usize,
     ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
+        let template_fields = &template.fields;
         // Estimate per-record size for capacity pre-allocation.
         // Variable-length fields (65535) are counted as 1 byte minimum
         // to avoid over-allocation from small fixed-size denominators.
-        let template_total_size: usize = template
-            .fields
+        let template_total_size: usize = template_fields
             .iter()
             .map(|f| {
                 if f.field_length == 65535 {
@@ -780,39 +781,31 @@ impl<'a> FieldParser {
         // Calculate how many complete records we can parse based on input length
         let record_count = (input.len() / template_total_size).min(max_records);
         let mut res = Vec::with_capacity(record_count);
+        let field_count = template_fields.len();
 
         for _ in 0..record_count {
             let before = input;
-            match Self::parse_data_fields(input, template) {
-                Ok((remaining, record)) => {
-                    input = remaining;
-                    res.push(record);
+            let mut record = Vec::with_capacity(field_count);
+
+            for template_field in template_fields {
+                match template_field.parse_as_field_value(input) {
+                    Ok((remaining, field_value)) => {
+                        input = remaining;
+                        record.push((template_field.field_type, field_value));
+                    }
+                    Err(_) => {
+                        input = before;
+                        return Ok((input, res));
+                    }
                 }
-                Err(_) => {
-                    input = before;
-                    return Ok((input, res));
-                }
-            };
+            }
+
             // Guard against infinite loops: if no bytes were consumed after
             // parsing a full record, stop to prevent CPU-bound DoS.
             if std::ptr::eq(input, before) {
                 break;
             }
-        }
-
-        Ok((input, res))
-    }
-
-    fn parse_data_fields(
-        mut input: &'a [u8],
-        template: &Template,
-    ) -> IResult<&'a [u8], V9FlowRecord> {
-        let mut res = Vec::with_capacity(template.fields.len());
-
-        for template_field in template.fields.iter() {
-            let (new_input, field_value) = template_field.parse_as_field_value(input)?;
-            input = new_input;
-            res.push((template_field.field_type, field_value));
+            res.push(record);
         }
 
         Ok((input, res))
