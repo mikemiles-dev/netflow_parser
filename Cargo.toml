@@ -67,3 +67,7 @@ harness = false
 [[bench]]
 name = "steady_state_bench"
 harness = false
+
+[[bench]]
+name = "hot_path_bench"
+harness = false

@@ -8,12 +8,118 @@ use nom::{
     Err as NomErr, IResult,
     bytes::complete::take,
     error::{Error as NomError, ErrorKind},
-    number::complete::{be_i24, be_u24, be_u32, be_u128},
 };
 use nom_derive::Parse;
 use serde::Serialize;
 use serde::ser::Serializer;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
+#[inline]
+fn eof_error<T>(input: &[u8]) -> IResult<&[u8], T> {
+    Err(NomErr::Error(NomError::new(input, ErrorKind::Eof)))
+}
+
+#[inline]
+fn parse_u8_fast(input: &[u8]) -> IResult<&[u8], u8> {
+    match input.split_first() {
+        Some((&byte, remaining)) => Ok((remaining, byte)),
+        None => eof_error(input),
+    }
+}
+
+#[inline]
+fn parse_i8_fast(input: &[u8]) -> IResult<&[u8], i8> {
+    parse_u8_fast(input).map(|(remaining, value)| (remaining, value as i8))
+}
+
+#[inline]
+fn parse_u16_be_fast(input: &[u8]) -> IResult<&[u8], u16> {
+    if input.len() < 2 {
+        return eof_error(input);
+    }
+    Ok((&input[2..], u16::from_be_bytes([input[0], input[1]])))
+}
+
+#[inline]
+fn parse_i16_be_fast(input: &[u8]) -> IResult<&[u8], i16> {
+    parse_u16_be_fast(input).map(|(remaining, value)| (remaining, value as i16))
+}
+
+#[inline]
+fn parse_u24_be_fast(input: &[u8]) -> IResult<&[u8], u32> {
+    if input.len() < 3 {
+        return eof_error(input);
+    }
+    Ok((
+        &input[3..],
+        u32::from_be_bytes([0, input[0], input[1], input[2]]),
+    ))
+}
+
+#[inline]
+fn parse_i24_be_fast(input: &[u8]) -> IResult<&[u8], i32> {
+    let (remaining, value) = parse_u24_be_fast(input)?;
+    let signed = if (value & 0x0080_0000) != 0 {
+        (value as i32) | !0x00FF_FFFF
+    } else {
+        value as i32
+    };
+    Ok((remaining, signed))
+}
+
+#[inline]
+fn parse_u32_be_fast(input: &[u8]) -> IResult<&[u8], u32> {
+    if input.len() < 4 {
+        return eof_error(input);
+    }
+    Ok((
+        &input[4..],
+        u32::from_be_bytes([input[0], input[1], input[2], input[3]]),
+    ))
+}
+
+#[inline]
+fn parse_i32_be_fast(input: &[u8]) -> IResult<&[u8], i32> {
+    parse_u32_be_fast(input).map(|(remaining, value)| (remaining, value as i32))
+}
+
+#[inline]
+fn parse_u64_be_fast(input: &[u8]) -> IResult<&[u8], u64> {
+    if input.len() < 8 {
+        return eof_error(input);
+    }
+    Ok((
+        &input[8..],
+        u64::from_be_bytes([
+            input[0], input[1], input[2], input[3], input[4], input[5], input[6], input[7],
+        ]),
+    ))
+}
+
+#[inline]
+fn parse_i64_be_fast(input: &[u8]) -> IResult<&[u8], i64> {
+    parse_u64_be_fast(input).map(|(remaining, value)| (remaining, value as i64))
+}
+
+#[inline]
+fn parse_u128_be_fast(input: &[u8]) -> IResult<&[u8], u128> {
+    if input.len() < 16 {
+        return eof_error(input);
+    }
+    Ok((
+        &input[16..],
+        u128::from_be_bytes([
+            input[0], input[1], input[2], input[3], input[4], input[5], input[6], input[7],
+            input[8], input[9], input[10], input[11], input[12], input[13], input[14],
+            input[15],
+        ]),
+    ))
+}
+
+#[inline]
+fn parse_i128_be_fast(input: &[u8]) -> IResult<&[u8], i128> {
+    parse_u128_be_fast(input).map(|(remaining, value)| (remaining, value as i128))
+}
 
 macro_rules! impl_try_from {
     ($($t:ty => $v:ident),*) => {
@@ -364,20 +470,21 @@ where
 /// Convert into usize, mainly for serialization purposes
 impl DataNumber {
     /// Parse bytes into DataNumber Type
+    #[inline]
     pub fn parse(i: &[u8], field_length: u16, signed: bool) -> IResult<&[u8], DataNumber> {
         match (field_length, signed) {
-            (1, false) => Ok(u8::parse(i)?).map(|(i, j)| (i, Self::U8(j))),
-            (1, true) => Ok(i8::parse(i)?).map(|(i, j)| (i, Self::I8(j))),
-            (2, false) => Ok(u16::parse(i)?).map(|(i, j)| (i, Self::U16(j))),
-            (2, true) => Ok(i16::parse(i)?).map(|(i, j)| (i, Self::I16(j))),
-            (3, false) => Ok(be_u24(i).map(|(i, j)| (i, Self::U24(j)))?),
-            (3, true) => Ok(be_i24(i).map(|(i, j)| (i, Self::I24(j)))?),
-            (4, true) => Ok(i32::parse(i)?).map(|(i, j)| (i, Self::I32(j))),
-            (4, false) => Ok(u32::parse(i)?).map(|(i, j)| (i, Self::U32(j))),
-            (8, false) => Ok(u64::parse(i)?).map(|(i, j)| (i, Self::U64(j))),
-            (8, true) => Ok(i64::parse(i)?).map(|(i, j)| (i, Self::I64(j))),
-            (16, false) => Ok(u128::parse(i)?).map(|(i, j)| (i, Self::U128(j))),
-            (16, true) => Ok(i128::parse(i)?).map(|(i, j)| (i, Self::I128(j))),
+            (1, false) => parse_u8_fast(i).map(|(i, j)| (i, Self::U8(j))),
+            (1, true) => parse_i8_fast(i).map(|(i, j)| (i, Self::I8(j))),
+            (2, false) => parse_u16_be_fast(i).map(|(i, j)| (i, Self::U16(j))),
+            (2, true) => parse_i16_be_fast(i).map(|(i, j)| (i, Self::I16(j))),
+            (3, false) => parse_u24_be_fast(i).map(|(i, j)| (i, Self::U24(j))),
+            (3, true) => parse_i24_be_fast(i).map(|(i, j)| (i, Self::I24(j))),
+            (4, true) => parse_i32_be_fast(i).map(|(i, j)| (i, Self::I32(j))),
+            (4, false) => parse_u32_be_fast(i).map(|(i, j)| (i, Self::U32(j))),
+            (8, false) => parse_u64_be_fast(i).map(|(i, j)| (i, Self::U64(j))),
+            (8, true) => parse_i64_be_fast(i).map(|(i, j)| (i, Self::I64(j))),
+            (16, false) => parse_u128_be_fast(i).map(|(i, j)| (i, Self::U128(j))),
+            (16, true) => parse_i128_be_fast(i).map(|(i, j)| (i, Self::I128(j))),
             _ => {
                 let (i, bytes) = take(field_length)(i)?;
                 Ok((i, Self::Vec(bytes.to_vec())))
@@ -837,9 +944,49 @@ impl FieldValue {
                     }),
                 )
             }
+            FieldDataType::UnsignedDataNumber if field_length == 1 => {
+                let (i, value) = parse_u8_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::U8(value)))
+            }
+            FieldDataType::UnsignedDataNumber if field_length == 2 => {
+                let (i, value) = parse_u16_be_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::U16(value)))
+            }
+            FieldDataType::UnsignedDataNumber if field_length == 4 => {
+                let (i, value) = parse_u32_be_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::U32(value)))
+            }
+            FieldDataType::UnsignedDataNumber if field_length == 8 => {
+                let (i, value) = parse_u64_be_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::U64(value)))
+            }
+            FieldDataType::UnsignedDataNumber if field_length == 16 => {
+                let (i, value) = parse_u128_be_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::U128(value)))
+            }
             FieldDataType::UnsignedDataNumber => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, false)?;
                 (i, FieldValue::DataNumber(data_number))
+            }
+            FieldDataType::SignedDataNumber if field_length == 1 => {
+                let (i, value) = parse_i8_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::I8(value)))
+            }
+            FieldDataType::SignedDataNumber if field_length == 2 => {
+                let (i, value) = parse_i16_be_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::I16(value)))
+            }
+            FieldDataType::SignedDataNumber if field_length == 4 => {
+                let (i, value) = parse_i32_be_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::I32(value)))
+            }
+            FieldDataType::SignedDataNumber if field_length == 8 => {
+                let (i, value) = parse_i64_be_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::I64(value)))
+            }
+            FieldDataType::SignedDataNumber if field_length == 16 => {
+                let (i, value) = parse_i128_be_fast(remaining)?;
+                (i, FieldValue::DataNumber(DataNumber::I128(value)))
             }
             FieldDataType::SignedDataNumber => {
                 let (i, data_number) = DataNumber::parse(remaining, field_length, true)?;
@@ -853,21 +1000,28 @@ impl FieldValue {
                 (i, FieldValue::String(StringValue { value: s, raw }))
             }
             FieldDataType::Ip4Addr if field_length == 4 => {
-                let (i, taken) = be_u32(remaining)?;
+                let (i, taken) = parse_u32_be_fast(remaining)?;
                 let ip_addr = Ipv4Addr::from(taken);
                 (i, FieldValue::Ip4Addr(ip_addr))
             }
             FieldDataType::Ip6Addr if field_length == 16 => {
-                let (i, taken) = be_u128(remaining)?;
+                let (i, taken) = parse_u128_be_fast(remaining)?;
                 let ip_addr = Ipv6Addr::from(taken);
                 (i, FieldValue::Ip6Addr(ip_addr))
             }
             FieldDataType::MacAddr if field_length == 6 => {
-                let (i, taken) = take(6_usize)(remaining)?;
-                let taken: &[u8; 6] = taken
-                    .try_into()
-                    .map_err(|_| NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))?;
-                (i, FieldValue::MacAddr(*taken))
+                if remaining.len() < 6 {
+                    return eof_error(remaining);
+                }
+                let taken = [
+                    remaining[0],
+                    remaining[1],
+                    remaining[2],
+                    remaining[3],
+                    remaining[4],
+                    remaining[5],
+                ];
+                (&remaining[6..], FieldValue::MacAddr(taken))
             }
             // Fall back to raw bytes when field_length doesn't match expected size
             FieldDataType::Ip4Addr | FieldDataType::Ip6Addr | FieldDataType::MacAddr => {
