@@ -1,3 +1,13 @@
+# 1.0.2
+
+## Performance
+
+* **Inlined `parse_data_fields` into V9 record loop** — eliminates per-record function call overhead and Vec allocation, giving the optimizer a single loop nest. ~8% improvement in V9 data parsing benchmarks (130 µs → 120 µs for 1000 flows).
+
+* **Added fast big-endian parsers (`fast_parse` module)** — hand-rolled `from_be_bytes` replacements for nom's generic `be_uint`, which LLVM cannot optimize into `bswap`/`rev` at wider widths. 9–26x speedup on micro-benchmarks for u64/u128 parsing. Applied to `DataNumber::parse`, IP/MAC field parsing, and IPFIX variable-length fields.
+
+* **Added `hot_path_bench`** for targeted V9/IPFIX data parsing benchmarks.
+
 # 1.0.1
 
 ## Documentation
