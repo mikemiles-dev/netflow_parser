@@ -25,11 +25,11 @@ use crate::variable_versions::{
 };
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
+use crate::variable_versions::fast_parse::{parse_u8, parse_u16_be};
 use lru::LruCache;
 use nom::IResult;
 use nom::combinator::complete;
 use nom::multi::many0;
-use nom::number::complete::{be_u8, be_u16};
 use nom_derive::Parse;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -1073,9 +1073,9 @@ impl TemplateField {
     fn parse_field_length<'a>(&self, i: &'a [u8]) -> IResult<&'a [u8], u16> {
         match self.field_length {
             65535 => {
-                let (i, length) = be_u8(i)?;
+                let (i, length) = parse_u8(i)?;
                 if length == 255 {
-                    let (i, full_length) = be_u16(i)?;
+                    let (i, full_length) = parse_u16_be(i)?;
                     // RFC 7011 Section 7: length values of 0 are not permitted
                     if full_length == 0 {
                         return Err(nom::Err::Error(nom::error::Error::new(
