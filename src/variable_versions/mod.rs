@@ -69,6 +69,7 @@
 
 pub(crate) mod config;
 pub mod enterprise_registry;
+pub(crate) mod fast_parse;
 pub mod field_types;
 pub mod field_value;
 pub mod ipfix;

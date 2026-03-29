@@ -4,11 +4,14 @@ use super::field_types::{
     NatOriginatingAddressRealm, TcpControlBits, TcpOptions,
 };
 use crate::protocol::ProtocolTypes;
+use super::fast_parse::{
+    parse_6_bytes, parse_i128_be, parse_i16_be, parse_i24_be, parse_i32_be, parse_i64_be,
+    parse_i8, parse_u128_be, parse_u16_be, parse_u24_be, parse_u32_be, parse_u64_be, parse_u8,
+};
 use nom::{
     Err as NomErr, IResult,
     bytes::complete::take,
     error::{Error as NomError, ErrorKind},
-    number::complete::{be_i24, be_u24, be_u32, be_u128},
 };
 use nom_derive::Parse;
 use serde::Serialize;
@@ -364,20 +367,21 @@ where
 /// Convert into usize, mainly for serialization purposes
 impl DataNumber {
     /// Parse bytes into DataNumber Type
+    #[inline]
     pub fn parse(i: &[u8], field_length: u16, signed: bool) -> IResult<&[u8], DataNumber> {
         match (field_length, signed) {
-            (1, false) => Ok(u8::parse(i)?).map(|(i, j)| (i, Self::U8(j))),
-            (1, true) => Ok(i8::parse(i)?).map(|(i, j)| (i, Self::I8(j))),
-            (2, false) => Ok(u16::parse(i)?).map(|(i, j)| (i, Self::U16(j))),
-            (2, true) => Ok(i16::parse(i)?).map(|(i, j)| (i, Self::I16(j))),
-            (3, false) => Ok(be_u24(i).map(|(i, j)| (i, Self::U24(j)))?),
-            (3, true) => Ok(be_i24(i).map(|(i, j)| (i, Self::I24(j)))?),
-            (4, true) => Ok(i32::parse(i)?).map(|(i, j)| (i, Self::I32(j))),
-            (4, false) => Ok(u32::parse(i)?).map(|(i, j)| (i, Self::U32(j))),
-            (8, false) => Ok(u64::parse(i)?).map(|(i, j)| (i, Self::U64(j))),
-            (8, true) => Ok(i64::parse(i)?).map(|(i, j)| (i, Self::I64(j))),
-            (16, false) => Ok(u128::parse(i)?).map(|(i, j)| (i, Self::U128(j))),
-            (16, true) => Ok(i128::parse(i)?).map(|(i, j)| (i, Self::I128(j))),
+            (1, false) => parse_u8(i).map(|(i, j)| (i, Self::U8(j))),
+            (1, true) => parse_i8(i).map(|(i, j)| (i, Self::I8(j))),
+            (2, false) => parse_u16_be(i).map(|(i, j)| (i, Self::U16(j))),
+            (2, true) => parse_i16_be(i).map(|(i, j)| (i, Self::I16(j))),
+            (3, false) => parse_u24_be(i).map(|(i, j)| (i, Self::U24(j))),
+            (3, true) => parse_i24_be(i).map(|(i, j)| (i, Self::I24(j))),
+            (4, true) => parse_i32_be(i).map(|(i, j)| (i, Self::I32(j))),
+            (4, false) => parse_u32_be(i).map(|(i, j)| (i, Self::U32(j))),
+            (8, false) => parse_u64_be(i).map(|(i, j)| (i, Self::U64(j))),
+            (8, true) => parse_i64_be(i).map(|(i, j)| (i, Self::I64(j))),
+            (16, false) => parse_u128_be(i).map(|(i, j)| (i, Self::U128(j))),
+            (16, true) => parse_i128_be(i).map(|(i, j)| (i, Self::I128(j))),
             _ => {
                 let (i, bytes) = take(field_length)(i)?;
                 Ok((i, Self::Vec(bytes.to_vec())))
@@ -853,21 +857,18 @@ impl FieldValue {
                 (i, FieldValue::String(StringValue { value: s, raw }))
             }
             FieldDataType::Ip4Addr if field_length == 4 => {
-                let (i, taken) = be_u32(remaining)?;
+                let (i, taken) = parse_u32_be(remaining)?;
                 let ip_addr = Ipv4Addr::from(taken);
                 (i, FieldValue::Ip4Addr(ip_addr))
             }
             FieldDataType::Ip6Addr if field_length == 16 => {
-                let (i, taken) = be_u128(remaining)?;
+                let (i, taken) = parse_u128_be(remaining)?;
                 let ip_addr = Ipv6Addr::from(taken);
                 (i, FieldValue::Ip6Addr(ip_addr))
             }
             FieldDataType::MacAddr if field_length == 6 => {
-                let (i, taken) = take(6_usize)(remaining)?;
-                let taken: &[u8; 6] = taken
-                    .try_into()
-                    .map_err(|_| NomErr::Error(NomError::new(remaining, ErrorKind::Fail)))?;
-                (i, FieldValue::MacAddr(*taken))
+                let (i, taken) = parse_6_bytes(remaining)?;
+                (i, FieldValue::MacAddr(taken))
             }
             // Fall back to raw bytes when field_length doesn't match expected size
             FieldDataType::Ip4Addr | FieldDataType::Ip6Addr | FieldDataType::MacAddr => {

@@ -889,6 +889,8 @@ This library includes several performance optimizations:
 3. **Optimized string processing** - Single-pass filtering and prefix stripping
 4. **Capacity pre-allocation** - Vectors pre-allocate when sizes are known
 5. **Bounded error buffers** - Error handling limits memory consumption to prevent exhaustion
+6. **Fast big-endian parsers** - Hand-rolled `from_be_bytes` parsers replace nom's generic shift+add loop, which LLVM cannot optimize into single `bswap`/`rev` instructions at wider integer widths (u64, u128). Benchmarked at 9-26x faster than nom equivalents in isolation.
+7. **Inlined record parsing** - V9 data field parsing is inlined into the record loop, eliminating per-record function call and allocation overhead (~8-10% throughput improvement)
 
 **Best practices for optimal performance:**
 - Reuse parser instances instead of creating new ones for each packet
