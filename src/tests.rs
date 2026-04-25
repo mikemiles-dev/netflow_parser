@@ -54,7 +54,7 @@ mod base_tests {
         let packet = [
             0, 7, 0, 1, 3, 0, 4, 0, 5, 0, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3,
             4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
-            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
+            2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1,
         ];
         let parsed = NetflowParser::default().parse_bytes(&packet).packets;
         assert_yaml_snapshot!(parsed);
@@ -63,8 +63,9 @@ mod base_tests {
     // Verify that a NetFlow v9 packet with minimal template headers can be parsed
     #[test]
     fn can_read_v9_with_minimal_headers() {
-        let hex =
-            "0009000200000e1061db09bd000000010000000100080001000400080004000e000400080004";
+        // Minimal valid v9 packet: 20-byte header + 12-byte template flowset
+        // (template_id=256, 1 field: Ipv4SrcAddr/4 bytes).
+        let hex = "00090001000000000000000000000000000000010000000c0100000100080004";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
@@ -79,8 +80,10 @@ mod base_tests {
     // Verify that a NetFlow v9 options template is parsed correctly
     #[test]
     fn can_read_v9_with_options_template() {
+        // Options template: template_id=256, 1 scope field (System/4), 1 option
+        // field (ExportedMessageTotalCount/2), with 2 bytes of trailing padding.
         let hex =
-            "0009000100000000000000000000000100010020000100120004000100150004000200080004";
+            "00090001000000000000000000000000000000010001001401000004000400010004002900020000";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
@@ -95,12 +98,12 @@ mod base_tests {
     // Verify that combined v9 options template, data template, and data records parse together
     #[test]
     fn can_read_v9_with_options_template_and_template() {
+        // Three v9 messages in one buffer: options template, data template,
+        // and one data record using template 256.
         let hex_hex0 =
-            "0009000100000000000000000000000100010020000100120004000100150004000200080004";
-        let hex_hex1 =
-            "0009000200000e1061db09bd000000010000000100080001000400080004000e000400080004";
-        let hex_hex2 =
-            "0009000200000e1061db09bd000000010000000100010010010203040506070811121314";
+            "00090001000000000000000000000000000000010001001401000004000400010004002900020000";
+        let hex_hex1 = "00090001000000000000000000000000000000010000000c0100000100080004";
+        let hex_hex2 = "000900010000000000000000000000000000000101000008c0a80001";
 
         let combined = format!("{}{}{}", hex_hex0, hex_hex1, hex_hex2);
 
@@ -139,8 +142,9 @@ mod base_tests {
     // Verify that v9 data records are parsed correctly after a template has been cached
     #[test]
     fn can_read_v9_with_hex_data() {
-        // Template
-        let hex = "0009000100000e1061db09bd000000010000000100000028010000080001000400020004000a00040004000400080004000c0004000700020015000400050001000600010016000400100004";
+        // Template: template_id=256 with 4 fields (InBytes/4, InPkts/4,
+        // Ipv4SrcAddr/4, Ipv4DstAddr/4) — 16 bytes per data record.
+        let hex = "00090001000000000000000000000000000000010000001801000004000100040002000400080004000c0004";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
@@ -150,8 +154,9 @@ mod base_tests {
         let packets = hex::decode(hex).unwrap();
         let _ = parser.parse_bytes(&packets).packets;
 
-        // Data
-        let hex_data = "0009000100000e1061db09bd000000010000000101003000c0a80001c0a8000200010001000000010000000500000000000000000600110001c0a80001";
+        // Data: one record matching template 256 (16 bytes).
+        let hex_data =
+            "0009000100000000000000000000000000000001010000140000006400000005c0a80001c0a80002";
 
         let packets = hex::decode(hex_data).unwrap();
         let v9 = parser.parse_bytes(&packets).packets;
