@@ -1,3 +1,16 @@
+# 1.0.3
+
+## Tests
+
+* **Restored 34 snapshot-based parser tests** in a new `restored_legacy_tests` module in `src/tests.rs`. These tests had been deleted in PR #210 ("further template validation"), leaving 33 orphaned `.snap` files that were swept up later in PR #262. Coverage included real-world v9/IPFIX captures (`it_parses_v9_ipv6flowlabel`, `it_parses_v9_template_and_data_packet`, `it_parses_ipfix_scappy_example`, mixed-enterprise field templates, multi-template IPFIX, etc.), version-filter checks (`it_doesnt_allow_v5/v7/v9/ipfix`), and re-export round-trip tests (`it_parses_*_and_re_exports`).
+* Tests adapted to current APIs: `TemplateWithTtl::new(...)` → `TemplateWithTtl::new_without_ttl(Arc::new(...))` (cache now stores Arc-wrapped templates); `with_allowed_versions(&[])` is rejected by the builder, so version-filter tests now allow only the *other* versions to verify filtering.
+* Snapshot count restored from 14 → 48.
+
+## Dependencies
+
+* Bumped `lru` from 0.16 to 0.17.
+* Bumped `etherparse` from 0.19 to 0.20.
+
 # 1.0.2
 
 ## Performance
