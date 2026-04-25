@@ -65,8 +65,7 @@ mod base_tests {
     fn can_read_v9_with_minimal_headers() {
         // Minimal valid v9 packet: 20-byte header + 12-byte template flowset
         // (template_id=256, 1 field: Ipv4SrcAddr/4 bytes).
-        let hex =
-            "00090001000000000000000000000000000000010000000c0100000100080004";
+        let hex = "00090001000000000000000000000000000000010000000c0100000100080004";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
@@ -103,10 +102,8 @@ mod base_tests {
         // and one data record using template 256.
         let hex_hex0 =
             "00090001000000000000000000000000000000010001001401000004000400010004002900020000";
-        let hex_hex1 =
-            "00090001000000000000000000000000000000010000000c0100000100080004";
-        let hex_hex2 =
-            "000900010000000000000000000000000000000101000008c0a80001";
+        let hex_hex1 = "00090001000000000000000000000000000000010000000c0100000100080004";
+        let hex_hex2 = "000900010000000000000000000000000000000101000008c0a80001";
 
         let combined = format!("{}{}{}", hex_hex0, hex_hex1, hex_hex2);
 
@@ -147,8 +144,7 @@ mod base_tests {
     fn can_read_v9_with_hex_data() {
         // Template: template_id=256 with 4 fields (InBytes/4, InPkts/4,
         // Ipv4SrcAddr/4, Ipv4DstAddr/4) — 16 bytes per data record.
-        let hex =
-            "00090001000000000000000000000000000000010000001801000004000100040002000400080004000c0004";
+        let hex = "00090001000000000000000000000000000000010000001801000004000100040002000400080004000c0004";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
