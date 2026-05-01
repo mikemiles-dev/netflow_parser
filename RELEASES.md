@@ -8,7 +8,7 @@
 
 ## Dependencies
 
-* Bumped `lru` from 0.16 to 0.17.
+* Bumped `lru` from 0.16 to 0.18.
 * Bumped `etherparse` from 0.19 to 0.20.
 
 # 1.0.2
