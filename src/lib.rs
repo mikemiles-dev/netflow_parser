@@ -6,6 +6,7 @@ pub mod netflow_common;
 pub mod protocol;
 pub mod scoped_parser;
 pub mod static_versions;
+pub mod template_store;
 mod tests;
 pub mod variable_versions;
 
@@ -47,6 +48,9 @@ pub use variable_versions::template_events::{
 };
 
 // Re-export configuration and utility types for convenience
+pub use template_store::{
+    InMemoryTemplateStore, TemplateKind, TemplateStore, TemplateStoreError, TemplateStoreKey,
+};
 pub use variable_versions::enterprise_registry::{EnterpriseFieldDef, EnterpriseFieldRegistry};
 pub use variable_versions::metrics::{CacheInfo, CacheMetrics, ParserCacheInfo};
 pub use variable_versions::ttl::TtlConfig;
@@ -274,6 +278,8 @@ pub struct NetflowParserBuilder {
     requested_versions: Option<Vec<u16>>,
     max_error_sample_size: usize,
     template_hooks: TemplateHooks,
+    template_store: Option<Arc<dyn TemplateStore>>,
+    template_store_scope: Arc<str>,
 }
 
 /// Helper to create a `[bool; 11]` allowed_versions array from a set of version numbers.
@@ -304,6 +310,15 @@ impl std::fmt::Debug for NetflowParserBuilder {
                 "template_hooks",
                 &format!("{} hooks", self.template_hooks.len()),
             )
+            .field(
+                "template_store",
+                &if self.template_store.is_some() {
+                    "configured"
+                } else {
+                    "none"
+                },
+            )
+            .field("template_store_scope", &self.template_store_scope)
             .finish()
     }
 }
@@ -317,6 +332,8 @@ impl Default for NetflowParserBuilder {
             requested_versions: None,
             max_error_sample_size: 256,
             template_hooks: TemplateHooks::new(),
+            template_store: None,
+            template_store_scope: Arc::from(""),
         }
     }
 }
@@ -776,6 +793,52 @@ impl NetflowParserBuilder {
         self
     }
 
+    /// Attach a [`TemplateStore`] to act as a secondary tier behind the parser's
+    /// in-process LRU caches.
+    ///
+    /// With a store configured, the parser writes through every successfully
+    /// learned template to the store and consults the store on every cache
+    /// miss before declaring a template unknown. This lets multiple parser
+    /// instances behind a UDP load balancer share template state without
+    /// requiring source-IP-affinity routing.
+    ///
+    /// The store sees opaque `Vec<u8>` payloads encoded with a small custom
+    /// binary wire format documented in the [`template_store`] module. See
+    /// [`TemplateStore`] for the trait contract and threading model.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use netflow_parser::{NetflowParser, InMemoryTemplateStore};
+    /// use std::sync::Arc;
+    ///
+    /// let store = Arc::new(InMemoryTemplateStore::new());
+    /// let parser = NetflowParser::builder()
+    ///     .with_template_store(store)
+    ///     .build()
+    ///     .expect("Failed to build parser");
+    /// ```
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_template_store(mut self, store: Arc<dyn TemplateStore>) -> Self {
+        self.template_store = Some(store);
+        self
+    }
+
+    /// Set the scope string written into every [`TemplateStoreKey`].
+    ///
+    /// Defaults to the empty string, which is appropriate for single-source
+    /// deployments. For multi-source deployments
+    /// [`AutoScopedParser`] automatically populates this with the source
+    /// `SocketAddr` of each per-source parser, so callers usually do not need
+    /// to set this directly.
+    ///
+    /// Accepts anything `Into<Arc<str>>` — typically `&str` or `String`.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_template_store_scope(mut self, scope: impl Into<Arc<str>>) -> Self {
+        self.template_store_scope = scope.into();
+        self
+    }
+
     /// Validates the builder configuration without constructing a parser.
     ///
     /// This is cheaper than [`build`](Self::build) since it only checks that
@@ -822,8 +885,14 @@ impl NetflowParserBuilder {
     /// ```
     pub fn build(self) -> Result<NetflowParser, ConfigError> {
         self.validate()?;
-        let v9_parser = V9Parser::try_new(self.v9_config)?;
-        let ipfix_parser = IPFixParser::try_new(self.ipfix_config)?;
+        let mut v9_config = self.v9_config;
+        let mut ipfix_config = self.ipfix_config;
+        v9_config.template_store = self.template_store.clone();
+        v9_config.template_store_scope = Arc::clone(&self.template_store_scope);
+        ipfix_config.template_store = self.template_store;
+        ipfix_config.template_store_scope = self.template_store_scope;
+        let v9_parser = V9Parser::try_new(v9_config)?;
+        let ipfix_parser = IPFixParser::try_new(ipfix_config)?;
 
         Ok(NetflowParser {
             v9_parser,
@@ -1092,6 +1161,21 @@ impl NetflowParser {
         NetflowParserBuilder::default()
     }
 
+    /// Override the scope string used for [`TemplateStore`] reads/writes by
+    /// the underlying V9 and IPFIX parsers.
+    ///
+    /// Used by [`AutoScopedParser`] to give each per-source parser a scope
+    /// derived from the exporter's `SocketAddr`. Callers managing their own
+    /// per-source parsers may also use this to retrofit a scope after the
+    /// builder has produced a parser.
+    ///
+    /// Accepts anything `Into<Arc<str>>` — typically `&str` or `String`.
+    pub fn set_template_store_scope(&mut self, scope: impl Into<Arc<str>>) {
+        let scope: Arc<str> = scope.into();
+        self.v9_parser.set_template_store_scope(Arc::clone(&scope));
+        self.ipfix_parser.set_template_store_scope(scope);
+    }
+
     /// Returns the allowed versions array.
     ///
     /// Indexed by version number: index 5 = V5, 7 = V7, 9 = V9, 10 = IPFIX.
@@ -1340,6 +1424,26 @@ impl NetflowParser {
     /// parser.clear_v9_templates();
     /// ```
     pub fn clear_v9_templates(&mut self) {
+        // Mirror to the secondary store first (best-effort) so that
+        // subsequent reads do not transparently repopulate the in-process
+        // cache via read-through.
+        if let Some(store) = self.v9_parser.template_store.clone() {
+            let scope = self.v9_parser.template_store_scope.clone();
+            for (id, _) in self.v9_parser.templates.iter() {
+                let _ = store.remove(&template_store::TemplateStoreKey::new(
+                    scope.clone(),
+                    template_store::TemplateKind::V9Data,
+                    *id,
+                ));
+            }
+            for (id, _) in self.v9_parser.options_templates.iter() {
+                let _ = store.remove(&template_store::TemplateStoreKey::new(
+                    scope.clone(),
+                    template_store::TemplateKind::V9Options,
+                    *id,
+                ));
+            }
+        }
         self.v9_parser.templates.clear();
         self.v9_parser.options_templates.clear();
         self.v9_parser.clear_pending_flows();
@@ -1358,6 +1462,37 @@ impl NetflowParser {
     /// parser.clear_ipfix_templates();
     /// ```
     pub fn clear_ipfix_templates(&mut self) {
+        if let Some(store) = self.ipfix_parser.template_store.clone() {
+            let scope = self.ipfix_parser.template_store_scope.clone();
+            for (id, _) in self.ipfix_parser.templates.iter() {
+                let _ = store.remove(&template_store::TemplateStoreKey::new(
+                    scope.clone(),
+                    template_store::TemplateKind::IpfixData,
+                    *id,
+                ));
+            }
+            for (id, _) in self.ipfix_parser.ipfix_options_templates.iter() {
+                let _ = store.remove(&template_store::TemplateStoreKey::new(
+                    scope.clone(),
+                    template_store::TemplateKind::IpfixOptions,
+                    *id,
+                ));
+            }
+            for (id, _) in self.ipfix_parser.v9_templates.iter() {
+                let _ = store.remove(&template_store::TemplateStoreKey::new(
+                    scope.clone(),
+                    template_store::TemplateKind::IpfixV9Data,
+                    *id,
+                ));
+            }
+            for (id, _) in self.ipfix_parser.v9_options_templates.iter() {
+                let _ = store.remove(&template_store::TemplateStoreKey::new(
+                    scope.clone(),
+                    template_store::TemplateKind::IpfixV9Options,
+                    *id,
+                ));
+            }
+        }
         self.ipfix_parser.templates.clear();
         self.ipfix_parser.v9_templates.clear();
         self.ipfix_parser.ipfix_options_templates.clear();
@@ -1581,6 +1716,22 @@ impl NetflowParser {
             if let ParsedNetflow::Success { ref packet, .. } = result {
                 self.fire_template_events(packet);
             }
+            // Fire Restored events for templates pulled in from the secondary
+            // store during this parse. Drained from each parser whether the
+            // outer result was Success or Error — restoration that happened
+            // before a later flowset failed should still be reported.
+            for (protocol, template_id) in self.v9_parser.drain_restored_templates() {
+                self.template_hooks.trigger(&TemplateEvent::Restored {
+                    template_id: Some(template_id),
+                    protocol,
+                });
+            }
+            for (protocol, template_id) in self.ipfix_parser.drain_restored_templates() {
+                self.template_hooks.trigger(&TemplateEvent::Restored {
+                    template_id: Some(template_id),
+                    protocol,
+                });
+            }
             // Fire metric-based events for collisions, evictions, and expirations.
             // Copy the after-metrics to avoid borrowing self immutably while
             // fire_metric_delta_events borrows self mutably (for hook_errors).
@@ -1592,6 +1743,11 @@ impl NetflowParser {
                 let after = self.ipfix_parser.metrics;
                 self.fire_metric_delta_events(&before, &after, TemplateProtocol::Ipfix);
             }
+        } else {
+            // Even when no hooks are registered, drain the buffers so they
+            // do not accumulate across parse_bytes calls.
+            let _ = self.v9_parser.drain_restored_templates();
+            let _ = self.ipfix_parser.drain_restored_templates();
         }
 
         result

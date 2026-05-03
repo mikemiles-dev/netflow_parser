@@ -130,6 +130,20 @@ pub enum TemplateEvent {
         /// The protocol (V9 or IPFIX)
         protocol: TemplateProtocol,
     },
+
+    /// A template was restored into the in-process cache from the secondary
+    /// [`crate::template_store::TemplateStore`] on a primary-cache miss.
+    ///
+    /// This is distinct from `Learned` (which fires on a template flowset in
+    /// a parsed packet) — observability tools that count `Learned` to
+    /// detect new templates may want to count `Restored` as well after a
+    /// parser restart that read templates back from a shared store.
+    Restored {
+        /// The template ID that was restored from the secondary store.
+        template_id: Option<u16>,
+        /// The protocol (V9 or IPFIX).
+        protocol: TemplateProtocol,
+    },
 }
 
 /// Error type returned by template event hooks.

@@ -28,6 +28,20 @@ pub(crate) struct CacheMetricsInner {
     pub pending_dropped: u64,
     /// Number of pending flows that failed to replay (parse error after template arrived)
     pub pending_replay_failed: u64,
+    /// Number of templates restored from the secondary `TemplateStore` on a
+    /// primary-cache miss (read-through hits).
+    pub template_store_restored: u64,
+    /// Number of secondary `TemplateStore` payloads that failed to decode.
+    /// Non-zero values indicate operational issues — a corrupted entry,
+    /// a wire-format version mismatch after upgrade, or a bug in a custom
+    /// `TemplateStore` impl. The parser removes the offending key on each
+    /// occurrence to allow re-population from a fresh template announce.
+    pub template_store_codec_errors: u64,
+    /// Number of `TemplateStore::get`, `put`, or `remove` calls that returned
+    /// an `Err`. Backend-level failures are best-effort from the parser's
+    /// perspective and do not abort packet parsing, but a sustained non-zero
+    /// rate indicates the secondary tier is unhealthy.
+    pub template_store_backend_errors: u64,
 }
 
 impl CacheMetricsInner {
@@ -108,6 +122,25 @@ impl CacheMetricsInner {
         self.pending_replay_failed = self.pending_replay_failed.saturating_add(n);
     }
 
+    /// Record a successful read-through against the secondary template store.
+    #[inline]
+    pub(crate) fn record_template_store_restored(&mut self) {
+        self.template_store_restored = self.template_store_restored.saturating_add(1);
+    }
+
+    /// Record a codec failure when decoding a secondary-store payload.
+    #[inline]
+    pub(crate) fn record_template_store_codec_error(&mut self) {
+        self.template_store_codec_errors = self.template_store_codec_errors.saturating_add(1);
+    }
+
+    /// Record a backend failure from a secondary-store get/put/remove call.
+    #[inline]
+    pub(crate) fn record_template_store_backend_error(&mut self) {
+        self.template_store_backend_errors =
+            self.template_store_backend_errors.saturating_add(1);
+    }
+
     /// Get a snapshot of current metrics
     pub fn snapshot(&self) -> CacheMetrics {
         CacheMetrics {
@@ -121,6 +154,9 @@ impl CacheMetricsInner {
             pending_replayed: self.pending_replayed,
             pending_dropped: self.pending_dropped,
             pending_replay_failed: self.pending_replay_failed,
+            template_store_restored: self.template_store_restored,
+            template_store_codec_errors: self.template_store_codec_errors,
+            template_store_backend_errors: self.template_store_backend_errors,
         }
     }
 }
@@ -152,6 +188,14 @@ pub struct CacheMetrics {
     pub pending_dropped: u64,
     /// Number of pending flows that failed to replay (parse error after template arrived)
     pub pending_replay_failed: u64,
+    /// Number of templates restored from the secondary `TemplateStore` on a
+    /// primary-cache miss.
+    pub template_store_restored: u64,
+    /// Number of secondary `TemplateStore` payloads that failed to decode
+    /// (corrupted entry, wire-format mismatch, or buggy backend).
+    pub template_store_codec_errors: u64,
+    /// Number of secondary-store get/put/remove calls that returned `Err`.
+    pub template_store_backend_errors: u64,
 }
 
 impl CacheMetrics {

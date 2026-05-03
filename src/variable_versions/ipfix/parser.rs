@@ -10,10 +10,17 @@ use super::{
     NoTemplateInfo, OPTIONS_TEMPLATE_IPFIX_ID, OptionsData, OptionsTemplate, Template,
     TemplateField,
 };
+use crate::template_store::{
+    TemplateKind, TemplateStore, TemplateStoreKey, decode_ipfix_options_template,
+    decode_ipfix_template, decode_v9_options_template, decode_v9_template,
+    encode_ipfix_options_template, encode_ipfix_template, encode_v9_options_template,
+    encode_v9_template,
+};
 use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::metrics::CacheMetricsInner;
+use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 use crate::variable_versions::v9::{
     DATA_TEMPLATE_V9_ID, Data as V9Data, OPTIONS_TEMPLATE_V9_ID, OptionsData as V9OptionsData,
@@ -46,6 +53,8 @@ impl Default for IPFixParser {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: Arc::from(""),
         };
 
         match Self::try_new(config) {
@@ -92,7 +101,310 @@ impl IPFixParser {
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetricsInner::new(),
             pending_flows,
+            template_store: config.template_store,
+            template_store_scope: config.template_store_scope,
+            restored_templates: Vec::new(),
         })
+    }
+
+    /// Override the scope written into [`TemplateStoreKey`]s for store
+    /// reads/writes. Used by `AutoScopedParser` to give each per-source
+    /// parser an exporter-specific scope.
+    pub(crate) fn set_template_store_scope(&mut self, scope: Arc<str>) {
+        self.template_store_scope = scope;
+    }
+
+    /// Write-through helper: persist a freshly learned template to the
+    /// secondary store, if one is configured. Backend failures are recorded
+    /// in metrics but do not abort packet parsing — the in-process LRU has
+    /// already been updated by the caller.
+    ///
+    /// Holds `store` as a borrow (no `Arc::clone`); `&self.template_store`
+    /// and `&mut self.metrics` are disjoint fields so both borrows coexist.
+    fn put_to_store(&mut self, kind: TemplateKind, template_id: u16, bytes: Vec<u8>) {
+        let Some(store) = self.template_store.as_ref() else {
+            return;
+        };
+        let key =
+            TemplateStoreKey::new(Arc::clone(&self.template_store_scope), kind, template_id);
+        if store.put(&key, &bytes).is_err() {
+            self.metrics.record_template_store_backend_error();
+        }
+    }
+
+    /// Best-effort removal of an LRU-evicted, withdrawn, or cleared entry
+    /// from the secondary store. No-op when no store is configured.
+    /// Backend failures are recorded in metrics.
+    fn evict_from_store(&mut self, kind: TemplateKind, template_id: u16) {
+        let Some(store) = self.template_store.as_ref() else {
+            return;
+        };
+        let key =
+            TemplateStoreKey::new(Arc::clone(&self.template_store_scope), kind, template_id);
+        if store.remove(&key).is_err() {
+            self.metrics.record_template_store_backend_error();
+        }
+    }
+
+    /// Install a read-through-recovered template into the in-process LRU
+    /// and queue a Restored event for hook firing. If the LRU eviction
+    /// returns a *different* key (i.e. the cache was full), mirror the
+    /// removal back to the secondary store and bump the eviction metric so
+    /// the primary and secondary tiers stay consistent.
+    ///
+    /// Takes raw `&mut` borrows of the cache, metrics, and event buffer
+    /// rather than `&mut self` so that the caller can keep separate borrows
+    /// of `self.templates` (or whichever cache) and `self.metrics` /
+    /// `self.restored_templates` live simultaneously without the borrow
+    /// checker reaching for splits.
+    #[allow(clippy::too_many_arguments)]
+    fn install_restored<T>(
+        cache: &mut LruCache<crate::variable_versions::TemplateId, TemplateWithTtl<Arc<T>>>,
+        template_id: u16,
+        arc: &Arc<T>,
+        ttl_enabled: bool,
+        metrics: &mut CacheMetricsInner,
+        store: &Arc<dyn TemplateStore>,
+        scope: &Arc<str>,
+        kind: TemplateKind,
+        restored: &mut Vec<(TemplateProtocol, u16)>,
+        protocol: TemplateProtocol,
+    ) {
+        let wrapped = TemplateWithTtl::new(Arc::clone(arc), ttl_enabled);
+        if let Some((evicted_key, _)) = cache.push(template_id, wrapped)
+            && evicted_key != template_id
+        {
+            metrics.record_eviction();
+            let key = TemplateStoreKey::new(Arc::clone(scope), kind, evicted_key);
+            if store.remove(&key).is_err() {
+                metrics.record_template_store_backend_error();
+            }
+        }
+        metrics.record_template_store_restored();
+        restored.push((protocol, template_id));
+    }
+
+    /// Read-through: on a primary-cache miss for an IPFIX data template,
+    /// consult the secondary store. On hit the decoded template is pushed
+    /// into the in-process LRU (so subsequent flowsets are served from the
+    /// hot path) and a `Restored` event is queued for hook firing. On
+    /// codec failure the corrupted entry is removed so that a fresh
+    /// template announce can repopulate it cleanly. Returns `None` for
+    /// "not in store", "backend error", or "decoded but rejected by parser
+    /// limits" — the data record will then take the existing miss path.
+    ///
+    /// `store` is borrowed (no `Arc::clone`); every other field used
+    /// (`template_store_scope`, `metrics`, `templates`, `restored_templates`,
+    /// `ttl_config`, `max_field_count`, `max_template_total_size`) is
+    /// accessed via direct field access so the borrow checker can split
+    /// disjoint fields. We avoid `&self`/`&mut self` method calls inside
+    /// the borrow so the whole-self re-borrow that would force a clone
+    /// never happens.
+    fn fetch_ipfix_template_from_store(&mut self, template_id: u16) -> Option<Arc<Template>> {
+        let store = self.template_store.as_ref()?;
+        let key = TemplateStoreKey::new(
+            Arc::clone(&self.template_store_scope),
+            TemplateKind::IpfixData,
+            template_id,
+        );
+        let bytes = match store.get(&key) {
+            Ok(Some(b)) => b,
+            Ok(None) => return None,
+            Err(_) => {
+                self.metrics.record_template_store_backend_error();
+                return None;
+            }
+        };
+        let template = match decode_ipfix_template(&bytes) {
+            Ok(t) => t,
+            Err(_) => {
+                self.metrics.record_template_store_codec_error();
+                if store.remove(&key).is_err() {
+                    self.metrics.record_template_store_backend_error();
+                }
+                return None;
+            }
+        };
+        // Inline the validation rule by passing limits explicitly — calling
+        // `template.is_valid(self)` would re-borrow whole self and conflict
+        // with the `store` borrow.
+        if !<Template as CommonTemplate>::is_valid_with_limits(
+            &template,
+            self.max_field_count,
+            self.max_template_total_size,
+        ) {
+            return None;
+        }
+        let arc = Arc::new(template);
+        let ttl_enabled = self.ttl_config.is_some();
+        Self::install_restored(
+            &mut self.templates,
+            template_id,
+            &arc,
+            ttl_enabled,
+            &mut self.metrics,
+            store,
+            &self.template_store_scope,
+            TemplateKind::IpfixData,
+            &mut self.restored_templates,
+            TemplateProtocol::Ipfix,
+        );
+        Some(arc)
+    }
+
+    /// Read-through for IPFIX options templates. Same protocol as
+    /// `fetch_ipfix_template_from_store`; see there for error and
+    /// borrow-split semantics.
+    fn fetch_ipfix_options_template_from_store(
+        &mut self,
+        template_id: u16,
+    ) -> Option<Arc<OptionsTemplate>> {
+        let store = self.template_store.as_ref()?;
+        let key = TemplateStoreKey::new(
+            Arc::clone(&self.template_store_scope),
+            TemplateKind::IpfixOptions,
+            template_id,
+        );
+        let bytes = match store.get(&key) {
+            Ok(Some(b)) => b,
+            Ok(None) => return None,
+            Err(_) => {
+                self.metrics.record_template_store_backend_error();
+                return None;
+            }
+        };
+        let template = match decode_ipfix_options_template(&bytes) {
+            Ok(t) => t,
+            Err(_) => {
+                self.metrics.record_template_store_codec_error();
+                if store.remove(&key).is_err() {
+                    self.metrics.record_template_store_backend_error();
+                }
+                return None;
+            }
+        };
+        if !<OptionsTemplate as CommonTemplate>::is_valid_with_limits(
+            &template,
+            self.max_field_count,
+            self.max_template_total_size,
+        ) {
+            return None;
+        }
+        let arc = Arc::new(template);
+        let ttl_enabled = self.ttl_config.is_some();
+        Self::install_restored(
+            &mut self.ipfix_options_templates,
+            template_id,
+            &arc,
+            ttl_enabled,
+            &mut self.metrics,
+            store,
+            &self.template_store_scope,
+            TemplateKind::IpfixOptions,
+            &mut self.restored_templates,
+            TemplateProtocol::Ipfix,
+        );
+        Some(arc)
+    }
+
+    /// Read-through for V9-style data templates embedded in IPFIX messages
+    /// (RFC 5101 hybrid mode). Same protocol as
+    /// `fetch_ipfix_template_from_store`; validation uses the canonical
+    /// `V9Template::is_valid_with_limits` helper to stay in sync with the
+    /// live-parse path in `parse_templates`.
+    fn fetch_v9_template_from_store(&mut self, template_id: u16) -> Option<Arc<V9Template>> {
+        let store = self.template_store.as_ref()?;
+        let key = TemplateStoreKey::new(
+            Arc::clone(&self.template_store_scope),
+            TemplateKind::IpfixV9Data,
+            template_id,
+        );
+        let bytes = match store.get(&key) {
+            Ok(Some(b)) => b,
+            Ok(None) => return None,
+            Err(_) => {
+                self.metrics.record_template_store_backend_error();
+                return None;
+            }
+        };
+        let template = match decode_v9_template(&bytes) {
+            Ok(t) => t,
+            Err(_) => {
+                self.metrics.record_template_store_codec_error();
+                if store.remove(&key).is_err() {
+                    self.metrics.record_template_store_backend_error();
+                }
+                return None;
+            }
+        };
+        if !template.is_valid_with_limits(self.max_field_count, self.max_template_total_size) {
+            return None;
+        }
+        let arc = Arc::new(template);
+        let ttl_enabled = self.ttl_config.is_some();
+        Self::install_restored(
+            &mut self.v9_templates,
+            template_id,
+            &arc,
+            ttl_enabled,
+            &mut self.metrics,
+            store,
+            &self.template_store_scope,
+            TemplateKind::IpfixV9Data,
+            &mut self.restored_templates,
+            TemplateProtocol::V9,
+        );
+        Some(arc)
+    }
+
+    /// Read-through for V9-style options templates embedded in IPFIX
+    /// messages. Same protocol as `fetch_v9_template_from_store`.
+    fn fetch_v9_options_template_from_store(
+        &mut self,
+        template_id: u16,
+    ) -> Option<Arc<V9OptionsTemplate>> {
+        let store = self.template_store.as_ref()?;
+        let key = TemplateStoreKey::new(
+            Arc::clone(&self.template_store_scope),
+            TemplateKind::IpfixV9Options,
+            template_id,
+        );
+        let bytes = match store.get(&key) {
+            Ok(Some(b)) => b,
+            Ok(None) => return None,
+            Err(_) => {
+                self.metrics.record_template_store_backend_error();
+                return None;
+            }
+        };
+        let template = match decode_v9_options_template(&bytes) {
+            Ok(t) => t,
+            Err(_) => {
+                self.metrics.record_template_store_codec_error();
+                if store.remove(&key).is_err() {
+                    self.metrics.record_template_store_backend_error();
+                }
+                return None;
+            }
+        };
+        if !template.is_valid_with_limits(self.max_field_count, self.max_template_total_size) {
+            return None;
+        }
+        let arc = Arc::new(template);
+        let ttl_enabled = self.ttl_config.is_some();
+        Self::install_restored(
+            &mut self.v9_options_templates,
+            template_id,
+            &arc,
+            ttl_enabled,
+            &mut self.metrics,
+            store,
+            &self.template_store_scope,
+            TemplateKind::IpfixV9Options,
+            &mut self.restored_templates,
+            TemplateProtocol::V9,
+        );
+        Some(arc)
     }
 }
 
@@ -167,6 +479,9 @@ impl ParserConfig for IPFixParser {
 impl IPFixParser {
     /// Parse an IPFIX message from raw bytes, using cached templates to decode data records.
     pub(crate) fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+        // Reset the per-parse restored-templates buffer so the next call
+        // sees only what was restored during *this* packet.
+        self.restored_templates.clear();
         match IPFix::parse(packet, self) {
             Ok((remaining, mut ipfix)) => {
                 self.process_pending_flows(&mut ipfix);
@@ -187,14 +502,29 @@ impl IPFixParser {
         let Some(mut pending_cache) = self.pending_flows.take() else {
             return;
         };
-        let learned = Self::cache_notemplate_ipfix_flowsets(
+        let mut learned = Self::cache_notemplate_ipfix_flowsets(
             ipfix,
             &mut pending_cache,
             &mut self.metrics,
             self.max_error_sample_size,
         );
+        // Templates restored via the secondary store during this packet
+        // should also drive pending-flow replay — see the matching block in
+        // V9Parser::process_pending_flows for rationale.
+        for &(_, id) in &self.restored_templates {
+            if !learned.contains(&id) {
+                learned.push(id);
+            }
+        }
         self.replay_ipfix_pending_flows(ipfix, &mut pending_cache, &learned);
         self.pending_flows = Some(pending_cache);
+    }
+
+    /// Drain the list of templates restored via the secondary store during
+    /// the most recent parse. Used by `NetflowParser::fire_template_events`
+    /// to emit `TemplateEvent::Restored` for each.
+    pub(crate) fn drain_restored_templates(&mut self) -> Vec<(TemplateProtocol, u16)> {
+        std::mem::take(&mut self.restored_templates)
     }
 
     /// Single pass: cache NoTemplate raw data, collect learned template IDs,
@@ -501,13 +831,16 @@ impl HasTemplateId for V9OptionsTemplate {
     }
 }
 
-/// Insert templates into an LRU cache, recording collision/eviction/insertion metrics.
+/// Insert templates into an LRU cache, recording collision/eviction/insertion
+/// metrics. Returns the IDs of any entries the LRU evicted to make room so the
+/// caller can mirror the eviction into the secondary template store.
 fn insert_templates<T: HasTemplateId>(
     cache: &mut LruCache<u16, TemplateWithTtl<Arc<T>>>,
     templates: &[T],
     ttl_enabled: bool,
     metrics: &mut CacheMetricsInner,
-) {
+) -> Vec<u16> {
+    let mut evicted_ids = Vec::new();
     for t in templates {
         let arc_template = Arc::new(t.clone());
         let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
@@ -523,51 +856,101 @@ fn insert_templates<T: HasTemplateId>(
             && evicted_key != t.template_id()
         {
             metrics.record_eviction();
+            evicted_ids.push(evicted_key);
         }
         metrics.record_insertion();
     }
+    evicted_ids
 }
 
 impl IPFixParser {
     /// Add templates to the parser by cloning from slice.
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         let ttl_enabled = self.ttl_config.is_some();
-        insert_templates(
+        let evicted = insert_templates(
             &mut self.templates,
             templates,
             ttl_enabled,
             &mut self.metrics,
         );
+        if self.template_store.is_some() {
+            for t in templates {
+                self.put_to_store(
+                    TemplateKind::IpfixData,
+                    t.template_id,
+                    encode_ipfix_template(t),
+                );
+            }
+            for id in evicted {
+                self.evict_from_store(TemplateKind::IpfixData, id);
+            }
+        }
     }
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         let ttl_enabled = self.ttl_config.is_some();
-        insert_templates(
+        let evicted = insert_templates(
             &mut self.ipfix_options_templates,
             templates,
             ttl_enabled,
             &mut self.metrics,
         );
+        if self.template_store.is_some() {
+            for t in templates {
+                self.put_to_store(
+                    TemplateKind::IpfixOptions,
+                    t.template_id,
+                    encode_ipfix_options_template(t),
+                );
+            }
+            for id in evicted {
+                self.evict_from_store(TemplateKind::IpfixOptions, id);
+            }
+        }
     }
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         let ttl_enabled = self.ttl_config.is_some();
-        insert_templates(
+        let evicted = insert_templates(
             &mut self.v9_templates,
             templates,
             ttl_enabled,
             &mut self.metrics,
         );
+        if self.template_store.is_some() {
+            for t in templates {
+                self.put_to_store(
+                    TemplateKind::IpfixV9Data,
+                    t.template_id,
+                    encode_v9_template(t),
+                );
+            }
+            for id in evicted {
+                self.evict_from_store(TemplateKind::IpfixV9Data, id);
+            }
+        }
     }
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         let ttl_enabled = self.ttl_config.is_some();
-        insert_templates(
+        let evicted = insert_templates(
             &mut self.v9_options_templates,
             templates,
             ttl_enabled,
             &mut self.metrics,
         );
+        if self.template_store.is_some() {
+            for t in templates {
+                self.put_to_store(
+                    TemplateKind::IpfixV9Options,
+                    t.template_id,
+                    encode_v9_options_template(t),
+                );
+            }
+            for id in evicted {
+                self.evict_from_store(TemplateKind::IpfixV9Options, id);
+            }
+        }
     }
 
     /// Remove an IPFIX template by ID (RFC 7011 Section 8.1 template withdrawal).
@@ -586,6 +969,7 @@ impl IPFixParser {
             let ids: Vec<u16> = self.templates.iter().map(|(&id, _)| id).collect();
             for id in &ids {
                 self.templates.pop(id);
+                self.evict_from_store(TemplateKind::IpfixData, *id);
             }
             if let Some(ref mut cache) = self.pending_flows {
                 for &id in &ids {
@@ -598,6 +982,7 @@ impl IPFixParser {
             }
         } else {
             self.templates.pop(&template_id);
+            self.evict_from_store(TemplateKind::IpfixData, template_id);
             if let Some(ref mut cache) = self.pending_flows {
                 let drained = cache.drain(template_id, &mut self.metrics);
                 let n = drained.len() as u64;
@@ -625,6 +1010,7 @@ impl IPFixParser {
                 .collect();
             for id in &ids {
                 self.ipfix_options_templates.pop(id);
+                self.evict_from_store(TemplateKind::IpfixOptions, *id);
             }
             if let Some(ref mut cache) = self.pending_flows {
                 for &id in &ids {
@@ -637,6 +1023,7 @@ impl IPFixParser {
             }
         } else {
             self.ipfix_options_templates.pop(&template_id);
+            self.evict_from_store(TemplateKind::IpfixOptions, template_id);
             if let Some(ref mut cache) = self.pending_flows {
                 let drained = cache.drain(template_id, &mut self.metrics);
                 let n = drained.len() as u64;
@@ -868,6 +1255,54 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
+                    parser.metrics.record_hit();
+                    let (i, data) = V9OptionsData::parse_with_limit(
+                        i,
+                        &template,
+                        parser.max_records_per_flowset,
+                    )?;
+                    return Ok((i, FlowSetBody::V9OptionsData(data)));
+                }
+
+                // Read-through: consult the secondary template store before
+                // declaring a miss. Probe in the same order as the in-process
+                // caches above so that priority is preserved when the same
+                // template ID exists under multiple kinds. Each fetch helper
+                // also pushes the decoded template into the in-process LRU
+                // so subsequent flowsets are served from the hot path.
+                if let Some(template) = parser.fetch_ipfix_template_from_store(id) {
+                    parser.metrics.record_hit();
+                    if template.get_fields().is_empty() {
+                        return Ok((i, FlowSetBody::Empty));
+                    }
+                    let (i, data) = Data::parse_with_registry(
+                        i,
+                        &template,
+                        &parser.enterprise_registry,
+                        parser.max_records_per_flowset,
+                    )?;
+                    return Ok((i, FlowSetBody::Data(data)));
+                }
+                if let Some(template) = parser.fetch_ipfix_options_template_from_store(id) {
+                    parser.metrics.record_hit();
+                    if template.get_fields().is_empty() {
+                        return Ok((i, FlowSetBody::Empty));
+                    }
+                    let (i, data) = OptionsData::parse_with_registry(
+                        i,
+                        &template,
+                        &parser.enterprise_registry,
+                        parser.max_records_per_flowset,
+                    )?;
+                    return Ok((i, FlowSetBody::OptionsData(data)));
+                }
+                if let Some(template) = parser.fetch_v9_template_from_store(id) {
+                    parser.metrics.record_hit();
+                    let (i, data) =
+                        V9Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    return Ok((i, FlowSetBody::V9Data(data)));
+                }
+                if let Some(template) = parser.fetch_v9_options_template_from_store(id) {
                     parser.metrics.record_hit();
                     let (i, data) = V9OptionsData::parse_with_limit(
                         i,

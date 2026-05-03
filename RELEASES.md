@@ -1,5 +1,38 @@
 # 1.0.3
 
+## Features
+
+* **Pluggable secondary template storage (`TemplateStore`).** Templates can now
+  be persisted to and re-read from an external backend such as Redis or NATS
+  KV via a new `TemplateStore` trait. With a store configured the parser
+  writes through every learned template, consults the store on every cache
+  miss, and propagates LRU evictions, withdrawals, and explicit clears so the
+  store stays in sync. This unblocks running multiple stateless parser
+  instances behind a UDP load balancer without source-IP-affinity routing.
+
+  Wire up via the new builder hooks:
+
+  ```rust
+  let store = Arc::new(my_redis_backed_store);
+  let parser = NetflowParser::builder()
+      .with_template_store(store)
+      .with_template_store_scope("collector-eu-west-1")
+      .build()?;
+  ```
+
+  `AutoScopedParser` automatically derives a per-source scope so two exporters
+  using the same template ID with different layouts do not collide in the
+  store. The trait sees opaque `Vec<u8>` payloads encoded with a small custom
+  binary wire format — no `serde_json` or other runtime serializer is added
+  to the dependency tree. An `InMemoryTemplateStore` reference impl is
+  provided for tests. See the new `template_store` module for the protocol.
+
+* New public API: `TemplateStore`, `TemplateStoreKey`, `TemplateKind`,
+  `TemplateStoreError`, `InMemoryTemplateStore`,
+  `NetflowParserBuilder::with_template_store`,
+  `NetflowParserBuilder::with_template_store_scope`,
+  `NetflowParser::set_template_store_scope`.
+
 ## Tests
 
 * **Restored 34 snapshot-based parser tests** in a new `restored_legacy_tests` module in `src/tests.rs`. These tests had been deleted in PR #210 ("further template validation"), leaving 33 orphaned `.snap` files that were swept up later in PR #262. Coverage included real-world v9/IPFIX captures (`it_parses_v9_ipv6flowlabel`, `it_parses_v9_template_and_data_packet`, `it_parses_ipfix_scappy_example`, mixed-enterprise field templates, multi-template IPFIX, etc.), version-filter checks (`it_doesnt_allow_v5/v7/v9/ipfix`), and re-export round-trip tests (`it_parses_*_and_re_exports`).

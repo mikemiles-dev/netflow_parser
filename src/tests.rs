@@ -453,6 +453,8 @@ mod base_tests {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -476,6 +478,8 @@ mod base_tests {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -522,6 +526,8 @@ mod base_tests {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -568,6 +574,8 @@ mod base_tests {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -614,6 +622,8 @@ mod base_tests {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
         };
 
         let parser = V9Parser::try_new(config).unwrap();
@@ -659,6 +669,8 @@ mod base_tests {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
         };
 
         let parser = IPFixParser::try_new(config).unwrap();
@@ -707,6 +719,8 @@ mod base_tests {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
         };
 
         let parser = IPFixParser::try_new(config).unwrap();
