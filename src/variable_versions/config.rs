@@ -2,6 +2,7 @@
 
 use super::metrics::CacheMetricsInner;
 use super::pending_flows::{PendingFlowCache, PendingFlowsConfig};
+use crate::template_store::TemplateStore;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::ttl::TtlConfig;
 use std::num::NonZeroUsize;
@@ -54,6 +55,18 @@ pub struct Config {
     pub enterprise_registry: Arc<EnterpriseFieldRegistry>,
     /// Configuration for pending flow caching. `None` means disabled (default).
     pub pending_flows_config: Option<PendingFlowsConfig>,
+    /// Optional secondary-tier [`TemplateStore`] for sharing parsed templates
+    /// across parser instances. `None` means the parser uses only its
+    /// in-process LRU (default behavior).
+    ///
+    /// See [`crate::template_store`] for the read-through / write-through
+    /// protocol the parser implements on top of this trait.
+    pub template_store: Option<Arc<dyn TemplateStore>>,
+    /// Scope string written into every [`crate::template_store::TemplateStoreKey`].
+    /// Empty for single-source deployments. Multi-source parsers
+    /// (`AutoScopedParser`) override this per source. Stored as `Arc<str>`
+    /// so the parser can clone it cheaply per store key.
+    pub template_store_scope: Arc<str>,
 }
 
 #[non_exhaustive]
@@ -195,6 +208,8 @@ impl Default for Config {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: Arc::from(""),
         }
     }
 }

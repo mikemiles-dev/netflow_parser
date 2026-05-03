@@ -842,7 +842,8 @@ impl AutoScopedParser {
                     observation_domain_id,
                 };
                 if !self.ipfix_parsers.contains(&key) {
-                    let parser = Self::build_parser(builder)?;
+                    let scope = format!("ipfix:{}/{}", source, observation_domain_id);
+                    let parser = Self::build_parser(builder, &scope)?;
                     self.ipfix_parsers.push(key, (parser, now));
                 }
                 let (parser, last_seen) =
@@ -856,7 +857,8 @@ impl AutoScopedParser {
                     source_id,
                 };
                 if !self.v9_parsers.contains(&key) {
-                    let parser = Self::build_parser(builder)?;
+                    let scope = format!("v9:{}/{}", source, source_id);
+                    let parser = Self::build_parser(builder, &scope)?;
                     self.v9_parsers.push(key, (parser, now));
                 }
                 let (parser, last_seen) = self.v9_parsers.get_mut(&key).expect("just ensured");
@@ -865,7 +867,8 @@ impl AutoScopedParser {
             }
             ScopingInfo::Legacy => {
                 if !self.legacy_parsers.contains(&source) {
-                    let parser = Self::build_parser(builder)?;
+                    let scope = format!("legacy:{}", source);
+                    let parser = Self::build_parser(builder, &scope)?;
                     self.legacy_parsers.push(source, (parser, now));
                 }
                 let (parser, last_seen) =
@@ -933,17 +936,23 @@ impl AutoScopedParser {
     /// Create a new parser instance using the configured builder or default
     fn build_parser(
         builder: Option<&NetflowParserBuilder>,
+        scope: &str,
     ) -> Result<NetflowParser, NetflowError> {
-        if let Some(builder) = builder {
+        let mut parser = if let Some(builder) = builder {
             builder
                 .clone()
                 .build()
                 .map_err(|err| NetflowError::Partial {
                     message: format!("Failed to build parser for source: {err}"),
-                })
+                })?
         } else {
-            Ok(NetflowParser::default())
-        }
+            NetflowParser::default()
+        };
+        // Override the template-store scope so per-source parsers do not
+        // collide on shared template IDs in the secondary store. Cheap when
+        // no store is configured (just an Arc<str> swap).
+        parser.set_template_store_scope(scope);
+        Ok(parser)
     }
 }
 

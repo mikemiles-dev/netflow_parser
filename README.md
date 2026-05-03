@@ -789,6 +789,78 @@ let router_builder = NetflowParser::builder()
 let mut scoped = RouterScopedParser::<String>::try_with_builder(router_builder).expect("valid config");
 ```
 
+### Pluggable Template Storage (Horizontal Scale-Out)
+
+When you scale flow ingestion across multiple parser instances behind a UDP
+load balancer, every replica needs to observe the templates announced to
+*any* replica — otherwise a data record routed to a fresh pod will be queued
+or dropped because that pod has never seen the template. The
+[`TemplateStore`] trait is the extension point that solves this.
+
+With a store configured, the parser:
+
+1. **Writes through** every successfully learned template to the store as
+   opaque bytes (a small custom binary wire format — no `serde_json` or
+   other runtime serializer is added to the dependency tree).
+2. **Reads through** the store on every cache miss before declaring a
+   template unknown, repopulating the in-process LRU on hit so subsequent
+   records are served from the hot path.
+3. **Propagates** LRU evictions, RFC 7011 §8.1 template withdrawals, and
+   explicit `clear_*_templates` calls so the store stays in sync.
+
+`AutoScopedParser` automatically derives a per-source scope (e.g.
+`v9:1.2.3.4:2055/0`, `ipfix:1.2.3.4:2055/42`) so that two exporters using
+the same template ID with different layouts do not collide.
+
+```rust,ignore
+use netflow_parser::{AutoScopedParser, InMemoryTemplateStore, NetflowParser};
+use std::sync::Arc;
+
+// Plug in your own backend: implement TemplateStore for Redis, NATS KV,
+// DynamoDB, etc. The reference InMemoryTemplateStore is shown here for
+// illustration; in production it would be replaced.
+let store = Arc::new(InMemoryTemplateStore::new());
+
+let builder = NetflowParser::builder()
+    .with_template_store(store.clone());
+
+// Multi-source: per-exporter scoping is automatic.
+let mut parser = AutoScopedParser::try_with_builder(builder).expect("valid");
+
+// Replica B can be brought up cold and start serving data records for
+// templates Replica A learned, as long as both share the same store.
+```
+
+Implementing the trait against your backend of choice:
+
+```rust,ignore
+use netflow_parser::{TemplateStore, TemplateStoreError, TemplateStoreKey};
+
+#[derive(Debug)]
+struct RedisTemplateStore { /* your client */ }
+
+impl TemplateStore for RedisTemplateStore {
+    fn get(&self, key: &TemplateStoreKey) -> Result<Option<Vec<u8>>, TemplateStoreError> {
+        // GET "{scope}/{kind:?}/{template_id}" from Redis, returning the bytes.
+        unimplemented!()
+    }
+
+    fn put(&self, key: &TemplateStoreKey, value: &[u8]) -> Result<(), TemplateStoreError> {
+        // SET with an appropriate TTL matching your operational envelope.
+        unimplemented!()
+    }
+
+    fn remove(&self, key: &TemplateStoreKey) -> Result<(), TemplateStoreError> {
+        // DEL — must be idempotent for absent keys.
+        unimplemented!()
+    }
+}
+```
+
+**Single-source deployments** can still benefit from a store for surviving
+parser restarts without losing template state. Set the scope explicitly
+(or leave it empty) via `with_template_store_scope`.
+
 ### Template Lifecycle Management
 
 #### Template Introspection
