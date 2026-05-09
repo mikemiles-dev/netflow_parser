@@ -30,6 +30,14 @@ pub(crate) struct CacheMetricsInner {
     pub pending_replay_failed: u64,
     /// Number of templates restored from the secondary `TemplateStore` on a
     /// primary-cache miss (read-through hits).
+    ///
+    /// Counted as a `hit` (not a `miss`) — `hits` is the union of in-process
+    /// LRU hits and read-through hits. Subtract `template_store_restored`
+    /// from `hits` to get "served entirely from the in-process cache."
+    ///
+    /// Restored templates are stamped with `Instant::now()` for TTL purposes,
+    /// so the configured TTL window resets every time a template is restored
+    /// from the store.
     pub template_store_restored: u64,
     /// Number of secondary `TemplateStore` payloads that failed to decode.
     /// Non-zero values indicate operational issues — a corrupted entry,

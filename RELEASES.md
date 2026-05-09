@@ -1,3 +1,76 @@
+# 1.0.4
+
+## Fixes
+
+* **`TemplateStore`: source-eviction in `AutoScopedParser` no longer leaks
+  store entries.** When `max_sources` capacity was reached and a per-source
+  parser was popped from the LRU, every template that source had written
+  under its scope (e.g. `v9:10.0.0.1:2055/0`) was orphaned in the store
+  forever. `evict_global_lru` now calls `clear_v9_templates` /
+  `clear_ipfix_templates` on the evicted parser before dropping it, so the
+  external store keyspace tracks the live source set.
+
+* **`TemplateStore`: `clear_v9_templates` / `clear_ipfix_templates` now record
+  backend errors.** Previously these methods called `let _ = store.remove(...)`,
+  silently swallowing failures. They now bump
+  `template_store_backend_errors` on each failed `remove`, matching every
+  other store call site.
+
+* **`TemplateStore`: misleading inline doc comment on `clear_*_templates`
+  removed.** The comment claimed that after a clear, "subsequent reads do
+  not transparently repopulate the in-process cache via read-through" — true
+  only for templates that were in the in-process LRU at clear time. Templates
+  evicted from the LRU before the call, or written by another parser instance
+  under the same scope, remain reachable via read-through. The trait
+  intentionally exposes only `get`/`put`/`remove`, not a per-scope wipe; the
+  comment now documents this honestly.
+
+* **`set_template_store_scope` rustdoc**: clarified that the scope must be
+  set before the first `parse_bytes` call to avoid orphaning entries written
+  under the previous scope, and that `with_template_store_scope` on a builder
+  fed into `AutoScopedParser` is overridden by the auto-derived per-source
+  scope.
+
+* **Read-through hit semantics documented.** Clarified that a successful
+  `TemplateStore` read-through increments `hits` (counted as a hit, not a
+  miss) and that restored templates have their TTL re-stamped to
+  `Instant::now()`.
+
+## Tests
+
+* **Rewrote `read_through_drives_pending_flow_replay`.** The previous test
+  never queued a pending flow before the template arrived — it would have
+  passed even if the read-through-driven pending-flow replay code were
+  deleted. Now exercises the full path: data record arrives before any
+  template is known → queued → template is written to the store by another
+  replica → next data record's read-through restores the template AND
+  triggers replay of the queued flow.
+
+* **Strengthened `auto_scoped_parser_uses_per_source_scope`.** Now also
+  validates cross-replica round-trip: a fresh `AutoScopedParser` reading the
+  store must decode each source's data record against the correctly-scoped
+  template.
+
+* **Added eviction-cleanup test for `AutoScopedParser`** verifying that
+  evicted source parsers' store entries are removed.
+
+* **Coverage filled in** for backend `remove` failures (`inject_remove_failures`
+  is now exercised), IPFIX-side codec corruption rejection, IPFIX-side LRU
+  eviction propagation to the store, and IPFIX-side `TemplateEvent::Restored`
+  firing.
+
+## Examples
+
+* **New example: `horizontal_scale_out_template_store`.** Demonstrates the
+  feature's headline use case — two `NetflowParser` instances sharing an
+  `InMemoryTemplateStore`. Replica A learns a template and goes away;
+  replica B starts cold and decodes a data record against the template via
+  read-through. Run with:
+
+  ```sh
+  cargo run --example horizontal_scale_out_template_store
+  ```
+
 # 1.0.3
 
 ## Features

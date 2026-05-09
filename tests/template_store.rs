@@ -355,6 +355,33 @@ fn auto_scoped_parser_uses_per_source_scope() {
         found_payloads[0], found_payloads[1],
         "scoped store entries must hold the distinct templates each source announced"
     );
+
+    // Cross-replica read-through: a fresh AutoScopedParser sharing the same
+    // store must resolve each source's template via its own scope key.
+    let mut replica = AutoScopedParser::try_with_builder(
+        NetflowParser::builder().with_template_store(store.clone()),
+    )
+    .expect("valid");
+    // Data record from src_a must decode against tmpl_a (1 field of 4 bytes).
+    let r_a = replica.parse_from_source(src_a, &v9_data_packet(256, &[0, 0, 0, 0x2A]));
+    assert!(r_a.error.is_none());
+    // Data record from src_b must decode against tmpl_b (2 fields of 4 bytes each).
+    let r_b = replica.parse_from_source(src_b, &v9_data_packet(256, &[0, 0, 0, 1, 0, 0, 0, 2]));
+    assert!(r_b.error.is_none());
+    // Both packets must produce a parsed V9 packet (would not happen if
+    // read-through hit the wrong scope's template or missed the store).
+    assert!(
+        r_a.packets
+            .iter()
+            .any(|p| matches!(p, NetflowPacket::V9(_))),
+        "src_a record should parse via read-through against its scoped template"
+    );
+    assert!(
+        r_b.packets
+            .iter()
+            .any(|p| matches!(p, NetflowPacket::V9(_))),
+        "src_b record should parse via read-through against its scoped template"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -381,7 +408,6 @@ impl FaultStore {
     fn inject_put_failures(&self, n: usize) {
         self.fail_put.store(n, Ordering::SeqCst);
     }
-    #[allow(dead_code)]
     fn inject_remove_failures(&self, n: usize) {
         self.fail_remove.store(n, Ordering::SeqCst);
     }
@@ -641,8 +667,27 @@ fn read_through_fires_restored_event() {
 fn read_through_drives_pending_flow_replay() {
     use netflow_parser::PendingFlowsConfig;
 
-    // Seed the store with template 256.
     let store = Arc::new(InMemoryTemplateStore::new());
+
+    // Replica B has pending-flow caching enabled and starts with an empty
+    // in-process cache *and* an empty store.
+    let mut b = NetflowParser::builder()
+        .with_template_store(store.clone())
+        .with_pending_flows(PendingFlowsConfig::default())
+        .build()
+        .expect("build");
+
+    // Step 1: data record arrives before the template is known anywhere.
+    // Pending-flow caching must queue it.
+    let r1 = b.parse_bytes(&v9_data_packet(256, &[0, 0, 0, 0x2A]));
+    assert!(r1.error.is_none());
+    let m1 = b.v9_cache_info().metrics;
+    assert_eq!(m1.pending_cached, 1, "data arriving before template must queue");
+    assert_eq!(m1.pending_replayed, 0);
+    assert_eq!(m1.template_store_restored, 0);
+
+    // Step 2: another replica learns the template and writes it to the
+    // shared store.
     {
         let mut a = NetflowParser::builder()
             .with_template_store(store.clone())
@@ -651,32 +696,22 @@ fn read_through_drives_pending_flow_replay() {
         let _ = a.parse_bytes(&v9_template_packet(256, &[(1, 4)]));
     }
 
-    // Replica B has pending-flow caching enabled and no in-process template.
-    let pending_cfg = PendingFlowsConfig::default();
-    let mut b = NetflowParser::builder()
-        .with_template_store(store.clone())
-        .with_pending_flows(pending_cfg)
-        .build()
-        .expect("build");
-
-    // Two data packets in a row for template 256, but in V9 each parse_bytes
-    // is a separate datagram. The second one will read-through, decode the
-    // current data, AND replay anything pending. To exercise replay we feed
-    // a packet whose payload contains *two* records (one is in-line, one
-    // would be queued if a hypothetical earlier no-template arrival had
-    // queued it). For test simplicity we just verify that read-through
-    // produces a Data flowset (already covered) and that the pending-flow
-    // metric does not regress — i.e. the replay logic does not over-count.
-    let result = b.parse_bytes(&v9_data_packet(256, &[0, 0, 0, 0x2A]));
-    assert!(result.error.is_none());
-
-    let metrics = b.v9_cache_info().metrics;
-    assert_eq!(metrics.template_store_restored, 1);
-    // No pending entry was ever queued for template 256, so replay counters
-    // should be zero — this asserts read-through replay didn't synthesize
-    // spurious entries.
-    assert_eq!(metrics.pending_replayed, 0);
-    assert_eq!(metrics.pending_replay_failed, 0);
+    // Step 3: replica B receives another data record for template 256. The
+    // read-through must (a) restore the template into B's in-process cache,
+    // (b) decode the in-line record, AND (c) replay the previously-queued
+    // pending entry against the freshly-restored template.
+    let r2 = b.parse_bytes(&v9_data_packet(256, &[0, 0, 0, 0x99]));
+    assert!(r2.error.is_none());
+    let m2 = b.v9_cache_info().metrics;
+    assert_eq!(
+        m2.template_store_restored, 1,
+        "read-through should restore the template"
+    );
+    assert_eq!(
+        m2.pending_replayed, 1,
+        "read-through must drive replay of the queued pending flow"
+    );
+    assert_eq!(m2.pending_replay_failed, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -737,4 +772,199 @@ fn set_template_store_scope_retrofit_changes_keys() {
             .unwrap()
             .is_some()
     );
+}
+
+// ---------------------------------------------------------------------------
+// clear_*_templates backend error reporting + remove-failure coverage
+// ---------------------------------------------------------------------------
+
+#[test]
+fn clear_v9_templates_records_backend_errors_on_remove_failure() {
+    let store = Arc::new(FaultStore::new());
+    let mut parser = NetflowParser::builder()
+        .with_template_store(store.clone())
+        .build()
+        .expect("build");
+
+    // Learn two templates so clear_v9_templates issues two store.remove calls.
+    let _ = parser.parse_bytes(&v9_template_packet(256, &[(1, 4)]));
+    let _ = parser.parse_bytes(&v9_template_packet(257, &[(2, 4)]));
+    let baseline = parser.v9_cache_info().metrics.template_store_backend_errors;
+
+    // Inject two remove failures so both removes during clear() Err out.
+    store.inject_remove_failures(2);
+    parser.clear_v9_templates();
+
+    let metrics = parser.v9_cache_info().metrics;
+    assert_eq!(
+        metrics.template_store_backend_errors - baseline,
+        2,
+        "clear_v9_templates must count backend errors on remove failure"
+    );
+    assert_eq!(store.observed_errors(), 2);
+}
+
+#[test]
+fn clear_ipfix_templates_records_backend_errors_on_remove_failure() {
+    let store = Arc::new(FaultStore::new());
+    let mut parser = NetflowParser::builder()
+        .with_template_store(store.clone())
+        .build()
+        .expect("build");
+
+    let _ = parser.parse_bytes(&ipfix_template_packet(300, &[(1, 4)]));
+    let baseline = parser
+        .ipfix_cache_info()
+        .metrics
+        .template_store_backend_errors;
+
+    store.inject_remove_failures(1);
+    parser.clear_ipfix_templates();
+
+    let metrics = parser.ipfix_cache_info().metrics;
+    assert_eq!(
+        metrics.template_store_backend_errors - baseline,
+        1,
+        "clear_ipfix_templates must count backend errors on remove failure"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// AutoScopedParser source eviction cleans up store entries
+// ---------------------------------------------------------------------------
+
+#[test]
+fn auto_scoped_parser_eviction_clears_evicted_source_from_store() {
+    let store = Arc::new(InMemoryTemplateStore::new());
+    let builder = NetflowParser::builder().with_template_store(store.clone());
+    let mut scoped = AutoScopedParser::try_with_builder(builder)
+        .expect("valid")
+        .with_max_sources(2)
+        .expect("valid");
+
+    let src_a: SocketAddr = "10.0.0.1:2055".parse().unwrap();
+    let src_b: SocketAddr = "10.0.0.2:2055".parse().unwrap();
+    let src_c: SocketAddr = "10.0.0.3:2055".parse().unwrap();
+
+    // Learn distinct templates from three different sources. Source A is
+    // touched first, so it becomes the LRU when source C arrives.
+    let _ = scoped.parse_from_source(src_a, &v9_template_packet(256, &[(1, 4)]));
+    let _ = scoped.parse_from_source(src_b, &v9_template_packet(256, &[(2, 4)]));
+    assert_eq!(store.len(), 2);
+
+    // Touch B again to make A the unambiguously oldest entry.
+    let _ = scoped.parse_from_source(src_b, &v9_template_packet(257, &[(3, 4)]));
+    // Adding C must evict A. A's store entries (under "v9:10.0.0.1:2055/0")
+    // must be removed — otherwise a later replica reading the store would
+    // resurrect templates that no parser instance is responsible for.
+    let _ = scoped.parse_from_source(src_c, &v9_template_packet(256, &[(4, 4)]));
+
+    let key_a = TemplateStoreKey::new("v9:10.0.0.1:2055/0", TemplateKind::V9Data, 256);
+    assert!(
+        store.get(&key_a).unwrap().is_none(),
+        "evicted source's templates must be cleared from the store"
+    );
+    // B and C entries should remain.
+    let key_b_256 = TemplateStoreKey::new("v9:10.0.0.2:2055/0", TemplateKind::V9Data, 256);
+    let key_b_257 = TemplateStoreKey::new("v9:10.0.0.2:2055/0", TemplateKind::V9Data, 257);
+    let key_c = TemplateStoreKey::new("v9:10.0.0.3:2055/0", TemplateKind::V9Data, 256);
+    assert!(store.get(&key_b_256).unwrap().is_some());
+    assert!(store.get(&key_b_257).unwrap().is_some());
+    assert!(store.get(&key_c).unwrap().is_some());
+}
+
+// ---------------------------------------------------------------------------
+// Codec corruption coverage for non-V9Data kinds
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ipfix_corrupted_payload_is_counted_and_removed() {
+    let store = Arc::new(InMemoryTemplateStore::new());
+    let key = TemplateStoreKey::new("", TemplateKind::IpfixData, 300);
+    store.put(&key, &[0xff; 6]).expect("seed");
+
+    let mut parser = NetflowParser::builder()
+        .with_template_store(store.clone())
+        .build()
+        .expect("build");
+    let _ = parser.parse_bytes(&ipfix_data_packet(300, &[0, 0, 0, 0x2A]));
+
+    let metrics = parser.ipfix_cache_info().metrics;
+    assert_eq!(
+        metrics.template_store_codec_errors, 1,
+        "IPFIX codec error must be counted"
+    );
+    assert!(
+        store.get(&key).unwrap().is_none(),
+        "corrupted IPFIX entry must be removed"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// LRU eviction propagates to store for IPFIX
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ipfix_lru_eviction_propagates_to_store() {
+    let store = Arc::new(InMemoryTemplateStore::new());
+    let mut parser = NetflowParser::builder()
+        .with_template_store(store.clone())
+        .with_cache_size(2)
+        .build()
+        .expect("build");
+
+    let _ = parser.parse_bytes(&ipfix_template_packet(300, &[(1, 4)]));
+    let _ = parser.parse_bytes(&ipfix_template_packet(301, &[(2, 4)]));
+    let _ = parser.parse_bytes(&ipfix_template_packet(302, &[(3, 4)]));
+
+    // Cache holds at most 2; the oldest (300) should have been evicted from
+    // the in-process LRU and from the store.
+    let key_300 = TemplateStoreKey::new("", TemplateKind::IpfixData, 300);
+    assert!(
+        store.get(&key_300).unwrap().is_none(),
+        "evicted IPFIX template must be removed from store"
+    );
+    let key_301 = TemplateStoreKey::new("", TemplateKind::IpfixData, 301);
+    let key_302 = TemplateStoreKey::new("", TemplateKind::IpfixData, 302);
+    assert!(store.get(&key_301).unwrap().is_some());
+    assert!(store.get(&key_302).unwrap().is_some());
+}
+
+// ---------------------------------------------------------------------------
+// IPFIX Restored event firing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ipfix_read_through_fires_restored_event() {
+    let store = Arc::new(InMemoryTemplateStore::new());
+    {
+        let mut a = NetflowParser::builder()
+            .with_template_store(store.clone())
+            .build()
+            .expect("build");
+        let _ = a.parse_bytes(&ipfix_template_packet(300, &[(1, 4)]));
+    }
+
+    let restored: Arc<Mutex<Vec<(TemplateProtocol, u16)>>> = Arc::new(Mutex::new(Vec::new()));
+    let restored_clone = Arc::clone(&restored);
+
+    let mut b = NetflowParser::builder()
+        .with_template_store(store.clone())
+        .on_template_event(move |event| {
+            if let TemplateEvent::Restored {
+                template_id: Some(id),
+                protocol,
+            } = event
+            {
+                restored_clone.lock().unwrap().push((*protocol, *id));
+            }
+            Ok(())
+        })
+        .build()
+        .expect("build");
+
+    let _ = b.parse_bytes(&ipfix_data_packet(300, &[0, 0, 0, 0x2A]));
+
+    let observed = restored.lock().unwrap().clone();
+    assert_eq!(observed, vec![(TemplateProtocol::Ipfix, 300)]);
 }

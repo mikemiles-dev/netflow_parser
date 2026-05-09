@@ -833,6 +833,12 @@ impl NetflowParserBuilder {
     /// to set this directly.
     ///
     /// Accepts anything `Into<Arc<str>>` — typically `&str` or `String`.
+    ///
+    /// **Note:** when this builder is fed into
+    /// [`AutoScopedParser::try_with_builder`], the per-source scope assigned
+    /// to each child parser overrides whatever value was set here. Set this
+    /// directly only on builders used to construct standalone
+    /// [`NetflowParser`] instances.
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_template_store_scope(mut self, scope: impl Into<Arc<str>>) -> Self {
         self.template_store_scope = scope.into();
@@ -1170,6 +1176,15 @@ impl NetflowParser {
     /// builder has produced a parser.
     ///
     /// Accepts anything `Into<Arc<str>>` — typically `&str` or `String`.
+    ///
+    /// # When to call this
+    ///
+    /// Set the scope **before the first `parse_bytes` call**. If templates
+    /// are written to the store under one scope and the scope is changed
+    /// later, the older entries are not migrated — they remain under the
+    /// previous scope key and become unreachable from this parser. Use
+    /// [`NetflowParserBuilder::with_template_store_scope`] (preferred) or
+    /// call this immediately after `build()` to avoid orphaning entries.
     pub fn set_template_store_scope(&mut self, scope: impl Into<Arc<str>>) {
         let scope: Arc<str> = scope.into();
         self.v9_parser.set_template_store_scope(Arc::clone(&scope));
@@ -1424,24 +1439,34 @@ impl NetflowParser {
     /// parser.clear_v9_templates();
     /// ```
     pub fn clear_v9_templates(&mut self) {
-        // Mirror to the secondary store first (best-effort) so that
-        // subsequent reads do not transparently repopulate the in-process
-        // cache via read-through.
+        // Mirror the in-process LRU's removals to the secondary store
+        // (best-effort). Templates already evicted from the LRU before this
+        // call, or written by another parser instance under the same scope,
+        // remain reachable via read-through; clearing those requires either
+        // coordinating with the other instance or backing the store with a
+        // wipe API (the trait intentionally exposes only get/put/remove).
         if let Some(store) = self.v9_parser.template_store.clone() {
             let scope = self.v9_parser.template_store_scope.clone();
+            // Collect first so the immutable iter borrows are released before
+            // we record metrics (which needs &mut on the parser).
+            let mut keys: Vec<(template_store::TemplateKind, u16)> = Vec::new();
             for (id, _) in self.v9_parser.templates.iter() {
-                let _ = store.remove(&template_store::TemplateStoreKey::new(
-                    scope.clone(),
-                    template_store::TemplateKind::V9Data,
-                    *id,
-                ));
+                keys.push((template_store::TemplateKind::V9Data, *id));
             }
             for (id, _) in self.v9_parser.options_templates.iter() {
-                let _ = store.remove(&template_store::TemplateStoreKey::new(
-                    scope.clone(),
-                    template_store::TemplateKind::V9Options,
-                    *id,
-                ));
+                keys.push((template_store::TemplateKind::V9Options, *id));
+            }
+            for (kind, id) in keys {
+                if store
+                    .remove(&template_store::TemplateStoreKey::new(
+                        scope.clone(),
+                        kind,
+                        id,
+                    ))
+                    .is_err()
+                {
+                    self.v9_parser.metrics.record_template_store_backend_error();
+                }
             }
         }
         self.v9_parser.templates.clear();
@@ -1462,35 +1487,38 @@ impl NetflowParser {
     /// parser.clear_ipfix_templates();
     /// ```
     pub fn clear_ipfix_templates(&mut self) {
+        // See `clear_v9_templates` for the in-LRU-only semantics; the same
+        // applies here across all four IPFIX template caches.
         if let Some(store) = self.ipfix_parser.template_store.clone() {
             let scope = self.ipfix_parser.template_store_scope.clone();
+            // Collect first so the immutable iter borrows are released before
+            // we record metrics (which needs &mut on the parser).
+            let mut keys: Vec<(template_store::TemplateKind, u16)> = Vec::new();
             for (id, _) in self.ipfix_parser.templates.iter() {
-                let _ = store.remove(&template_store::TemplateStoreKey::new(
-                    scope.clone(),
-                    template_store::TemplateKind::IpfixData,
-                    *id,
-                ));
+                keys.push((template_store::TemplateKind::IpfixData, *id));
             }
             for (id, _) in self.ipfix_parser.ipfix_options_templates.iter() {
-                let _ = store.remove(&template_store::TemplateStoreKey::new(
-                    scope.clone(),
-                    template_store::TemplateKind::IpfixOptions,
-                    *id,
-                ));
+                keys.push((template_store::TemplateKind::IpfixOptions, *id));
             }
             for (id, _) in self.ipfix_parser.v9_templates.iter() {
-                let _ = store.remove(&template_store::TemplateStoreKey::new(
-                    scope.clone(),
-                    template_store::TemplateKind::IpfixV9Data,
-                    *id,
-                ));
+                keys.push((template_store::TemplateKind::IpfixV9Data, *id));
             }
             for (id, _) in self.ipfix_parser.v9_options_templates.iter() {
-                let _ = store.remove(&template_store::TemplateStoreKey::new(
-                    scope.clone(),
-                    template_store::TemplateKind::IpfixV9Options,
-                    *id,
-                ));
+                keys.push((template_store::TemplateKind::IpfixV9Options, *id));
+            }
+            for (kind, id) in keys {
+                if store
+                    .remove(&template_store::TemplateStoreKey::new(
+                        scope.clone(),
+                        kind,
+                        id,
+                    ))
+                    .is_err()
+                {
+                    self.ipfix_parser
+                        .metrics
+                        .record_template_store_backend_error();
+                }
             }
         }
         self.ipfix_parser.templates.clear();
