@@ -682,7 +682,10 @@ fn read_through_drives_pending_flow_replay() {
     let r1 = b.parse_bytes(&v9_data_packet(256, &[0, 0, 0, 0x2A]));
     assert!(r1.error.is_none());
     let m1 = b.v9_cache_info().metrics;
-    assert_eq!(m1.pending_cached, 1, "data arriving before template must queue");
+    assert_eq!(
+        m1.pending_cached, 1,
+        "data arriving before template must queue"
+    );
     assert_eq!(m1.pending_replayed, 0);
     assert_eq!(m1.template_store_restored, 0);
 

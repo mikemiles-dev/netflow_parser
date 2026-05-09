@@ -69,7 +69,8 @@ fn main() {
     // this is how an observability system would distinguish "template
     // recovered from secondary tier" from "template freshly learned from
     // exporter announce" — both look like cache hits in the basic metric.
-    let restored_log: Arc<Mutex<Vec<(TemplateProtocol, u16)>>> = Arc::new(Mutex::new(Vec::new()));
+    let restored_log: Arc<Mutex<Vec<(TemplateProtocol, u16)>>> =
+        Arc::new(Mutex::new(Vec::new()));
     let restored_log_for_hook = Arc::clone(&restored_log);
 
     let mut replica_b = NetflowParser::builder()
