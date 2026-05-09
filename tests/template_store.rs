@@ -357,31 +357,46 @@ fn auto_scoped_parser_uses_per_source_scope() {
     );
 
     // Cross-replica read-through: a fresh AutoScopedParser sharing the same
-    // store must resolve each source's template via its own scope key.
+    // store must resolve each source's template via its own scope key. Assert
+    // each result contains a Data flowset (not NoTemplate) — read-through
+    // miss or wrong-scope hit would yield NoTemplate without an error, so
+    // checking for a V9 packet alone is not sufficient.
     let mut replica = AutoScopedParser::try_with_builder(
         NetflowParser::builder().with_template_store(store.clone()),
     )
     .expect("valid");
+
+    fn assert_first_flowset_is_data(packets: &[NetflowPacket], who: &str) {
+        let v9 = packets
+            .iter()
+            .find_map(|p| match p {
+                NetflowPacket::V9(v) => Some(v),
+                _ => None,
+            })
+            .unwrap_or_else(|| panic!("{who}: expected a V9 packet"));
+        let body = &v9
+            .flowsets
+            .first()
+            .unwrap_or_else(|| panic!("{who}: expected at least one flowset"))
+            .body;
+        assert!(
+            matches!(
+                body,
+                netflow_parser::variable_versions::v9::FlowSetBody::Data(_)
+            ),
+            "{who}: expected Data flowset (read-through hit correct scope), got {:?}",
+            body
+        );
+    }
+
     // Data record from src_a must decode against tmpl_a (1 field of 4 bytes).
     let r_a = replica.parse_from_source(src_a, &v9_data_packet(256, &[0, 0, 0, 0x2A]));
     assert!(r_a.error.is_none());
+    assert_first_flowset_is_data(&r_a.packets, "src_a");
     // Data record from src_b must decode against tmpl_b (2 fields of 4 bytes each).
     let r_b = replica.parse_from_source(src_b, &v9_data_packet(256, &[0, 0, 0, 1, 0, 0, 0, 2]));
     assert!(r_b.error.is_none());
-    // Both packets must produce a parsed V9 packet (would not happen if
-    // read-through hit the wrong scope's template or missed the store).
-    assert!(
-        r_a.packets
-            .iter()
-            .any(|p| matches!(p, NetflowPacket::V9(_))),
-        "src_a record should parse via read-through against its scoped template"
-    );
-    assert!(
-        r_b.packets
-            .iter()
-            .any(|p| matches!(p, NetflowPacket::V9(_))),
-        "src_b record should parse via read-through against its scoped template"
-    );
+    assert_first_flowset_is_data(&r_b.packets, "src_b");
 }
 
 // ---------------------------------------------------------------------------
