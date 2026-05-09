@@ -31,7 +31,3 @@ This file is read on every Claude Code session in this repo. Keep it short and o
 - Crate forbids `unsafe` (`#![forbid(unsafe_code)]` in `src/lib.rs`). Do not add `unsafe` blocks.
 - MSRV is 1.88, edition 2024 (see `Cargo.toml`). Don't reach for language features that exceed this.
 - Public API changes ripple into `examples/*.rs` and `fuzz/fuzz_targets/` — both compile in CI, so update them when renaming or changing exported types.
-
-## OpenSpec
-
-- This repo uses OpenSpec for spec-driven changes (see `openspec/`). For non-trivial features or refactors, prefer the OpenSpec change flow (`/openspec-new-change`) over ad-hoc implementation.
