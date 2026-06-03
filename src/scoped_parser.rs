@@ -842,7 +842,8 @@ impl AutoScopedParser {
                     observation_domain_id,
                 };
                 if !self.ipfix_parsers.contains(&key) {
-                    let parser = Self::build_parser(builder)?;
+                    let scope = format!("ipfix:{}/{}", source, observation_domain_id);
+                    let parser = Self::build_parser(builder, &scope)?;
                     self.ipfix_parsers.push(key, (parser, now));
                 }
                 let (parser, last_seen) =
@@ -856,7 +857,8 @@ impl AutoScopedParser {
                     source_id,
                 };
                 if !self.v9_parsers.contains(&key) {
-                    let parser = Self::build_parser(builder)?;
+                    let scope = format!("v9:{}/{}", source, source_id);
+                    let parser = Self::build_parser(builder, &scope)?;
                     self.v9_parsers.push(key, (parser, now));
                 }
                 let (parser, last_seen) = self.v9_parsers.get_mut(&key).expect("just ensured");
@@ -865,7 +867,8 @@ impl AutoScopedParser {
             }
             ScopingInfo::Legacy => {
                 if !self.legacy_parsers.contains(&source) {
-                    let parser = Self::build_parser(builder)?;
+                    let scope = format!("legacy:{}", source);
+                    let parser = Self::build_parser(builder, &scope)?;
                     self.legacy_parsers.push(source, (parser, now));
                 }
                 let (parser, last_seen) =
@@ -916,12 +919,21 @@ impl AutoScopedParser {
             })
             .map(|(kind, _, _)| *kind);
 
+        // Pop the LRU entry. If a TemplateStore is configured, clear the
+        // evicted parser's templates from the store *before* dropping it —
+        // otherwise its scope's keys would linger forever, accumulating
+        // monotonically across source churn (no per-scope wipe API exists
+        // on the trait). V5/V7 (Legacy) parsers have no templates.
         match oldest {
             Some(MapKind::Ipfix) => {
-                self.ipfix_parsers.pop_lru();
+                if let Some((_, (mut parser, _))) = self.ipfix_parsers.pop_lru() {
+                    parser.clear_ipfix_templates();
+                }
             }
             Some(MapKind::V9) => {
-                self.v9_parsers.pop_lru();
+                if let Some((_, (mut parser, _))) = self.v9_parsers.pop_lru() {
+                    parser.clear_v9_templates();
+                }
             }
             Some(MapKind::Legacy) => {
                 self.legacy_parsers.pop_lru();
@@ -933,17 +945,23 @@ impl AutoScopedParser {
     /// Create a new parser instance using the configured builder or default
     fn build_parser(
         builder: Option<&NetflowParserBuilder>,
+        scope: &str,
     ) -> Result<NetflowParser, NetflowError> {
-        if let Some(builder) = builder {
+        let mut parser = if let Some(builder) = builder {
             builder
                 .clone()
                 .build()
                 .map_err(|err| NetflowError::Partial {
                     message: format!("Failed to build parser for source: {err}"),
-                })
+                })?
         } else {
-            Ok(NetflowParser::default())
-        }
+            NetflowParser::default()
+        };
+        // Override the template-store scope so per-source parsers do not
+        // collide on shared template IDs in the secondary store. Cheap when
+        // no store is configured (just an Arc<str> swap).
+        parser.set_template_store_scope(scope);
+        Ok(parser)
     }
 }
 

@@ -12,10 +12,15 @@ use super::{
     OptionsTemplateScopeField, OptionsTemplates, ScopeDataField, ScopeParser, Template,
     TemplateField, TemplateId, Templates, V9, V9FieldPair,
 };
+use crate::template_store::{
+    TemplateKind, TemplateStore, TemplateStoreKey, decode_v9_options_template,
+    decode_v9_template, encode_v9_options_template, encode_v9_template,
+};
 use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::metrics::CacheMetricsInner;
+use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 use crate::variable_versions::{
     Config, ConfigError, ParserConfig, ParserFields, PendingFlowCache, PendingFlowEntry,
@@ -44,6 +49,16 @@ pub struct V9Parser {
     pub(crate) max_records_per_flowset: usize,
     pub(crate) metrics: CacheMetricsInner,
     pub(crate) pending_flows: Option<PendingFlowCache>,
+    /// Optional secondary-tier template store. See [`crate::template_store`].
+    pub(crate) template_store: Option<Arc<dyn TemplateStore>>,
+    /// Scope written into every store key. Empty for single-source parsers;
+    /// `AutoScopedParser` overrides this per source. Held as `Arc<str>` so
+    /// per-key clones are cheap refcount bumps.
+    pub(crate) template_store_scope: Arc<str>,
+    /// Templates restored via the secondary store during the in-flight parse.
+    /// Drained by `NetflowParser` after each `parse_bytes` call to emit
+    /// `TemplateEvent::Restored` and to drive pending-flow replay.
+    pub(crate) restored_templates: Vec<(TemplateProtocol, u16)>,
 }
 
 impl Default for V9Parser {
@@ -58,6 +73,8 @@ impl Default for V9Parser {
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
+            template_store: None,
+            template_store_scope: Arc::from(""),
         };
 
         match Self::try_new(config) {
@@ -101,7 +118,221 @@ impl V9Parser {
             max_records_per_flowset: config.max_records_per_flowset,
             metrics: CacheMetricsInner::new(),
             pending_flows,
+            template_store: config.template_store,
+            template_store_scope: config.template_store_scope,
+            restored_templates: Vec::new(),
         })
+    }
+
+    /// Override the scope written into [`TemplateStoreKey`]s for store
+    /// reads/writes. Used by `AutoScopedParser` to give each per-source
+    /// parser an exporter-specific scope.
+    pub(crate) fn set_template_store_scope(&mut self, scope: Arc<str>) {
+        self.template_store_scope = scope;
+    }
+
+    /// Write-through: persist a freshly learned data template. No-op when
+    /// no store is configured. Backend failures are recorded in metrics
+    /// but do not abort packet parsing.
+    ///
+    /// The store handle is taken as a borrowed reference (no `Arc::clone`)
+    /// — `&self.template_store` and `&mut self.metrics` are disjoint
+    /// fields so the borrow checker accepts both simultaneously.
+    fn store_template(&mut self, template: &Template) {
+        let Some(store) = self.template_store.as_ref() else {
+            return;
+        };
+        let bytes = encode_v9_template(template);
+        let key = TemplateStoreKey::new(
+            Arc::clone(&self.template_store_scope),
+            TemplateKind::V9Data,
+            template.template_id,
+        );
+        if store.put(&key, &bytes).is_err() {
+            self.metrics.record_template_store_backend_error();
+        }
+    }
+
+    /// Write-through: persist a freshly learned options template. Same
+    /// semantics as `store_template` for the options-template cache.
+    fn store_options_template(&mut self, template: &OptionsTemplate) {
+        let Some(store) = self.template_store.as_ref() else {
+            return;
+        };
+        let bytes = encode_v9_options_template(template);
+        let key = TemplateStoreKey::new(
+            Arc::clone(&self.template_store_scope),
+            TemplateKind::V9Options,
+            template.template_id,
+        );
+        if store.put(&key, &bytes).is_err() {
+            self.metrics.record_template_store_backend_error();
+        }
+    }
+
+    /// Best-effort removal of an LRU-evicted entry from the secondary store.
+    fn evict_template_from_store(&mut self, kind: TemplateKind, template_id: u16) {
+        let Some(store) = self.template_store.as_ref() else {
+            return;
+        };
+        let key =
+            TemplateStoreKey::new(Arc::clone(&self.template_store_scope), kind, template_id);
+        if store.remove(&key).is_err() {
+            self.metrics.record_template_store_backend_error();
+        }
+    }
+
+    /// Insert a read-through-recovered template into the in-process LRU,
+    /// mirroring eviction back to the secondary store and tracking the
+    /// `Restored` event for hook firing after this packet completes.
+    ///
+    /// Takes raw `&mut` borrows of the cache, metrics, and event buffer
+    /// rather than `&mut self` so the caller can split disjoint field
+    /// borrows at the call site without re-borrowing the whole parser.
+    #[allow(clippy::too_many_arguments)]
+    fn install_restored_template<T>(
+        cache: &mut LruCache<TemplateId, TemplateWithTtl<Arc<T>>>,
+        template_id: u16,
+        arc: &Arc<T>,
+        ttl_enabled: bool,
+        metrics: &mut CacheMetricsInner,
+        store: &Arc<dyn TemplateStore>,
+        scope: &Arc<str>,
+        kind: TemplateKind,
+        restored: &mut Vec<(TemplateProtocol, u16)>,
+        protocol: TemplateProtocol,
+    ) {
+        let wrapped = TemplateWithTtl::new(Arc::clone(arc), ttl_enabled);
+        if let Some((evicted_key, _)) = cache.push(template_id, wrapped)
+            && evicted_key != template_id
+        {
+            metrics.record_eviction();
+            let key = TemplateStoreKey::new(Arc::clone(scope), kind, evicted_key);
+            if store.remove(&key).is_err() {
+                metrics.record_template_store_backend_error();
+            }
+        }
+        metrics.record_template_store_restored();
+        restored.push((protocol, template_id));
+    }
+
+    /// Read-through: fetch a missing data template from the secondary store
+    /// and repopulate the in-process LRU. Returns the template on hit.
+    ///
+    /// On `Codec` error the corrupted key is removed from the store so that a
+    /// fresh template announce can repopulate it cleanly. Backend errors are
+    /// counted in metrics but otherwise ignored — they do not abort parsing.
+    ///
+    /// The store handle is borrowed (no `Arc::clone`) — every field touched
+    /// during this call (`template_store`, `template_store_scope`, `metrics`,
+    /// `templates`, `restored_templates`, `ttl_config`, `max_field_count`,
+    /// `max_template_total_size`) is accessed via direct field access so
+    /// the borrow checker can split them. Method calls that take `&self` /
+    /// `&mut self` would re-borrow the whole struct and force a clone; we
+    /// avoid them here on purpose.
+    fn fetch_template_from_store(&mut self, template_id: u16) -> Option<Arc<Template>> {
+        let store = self.template_store.as_ref()?;
+        let key = TemplateStoreKey::new(
+            Arc::clone(&self.template_store_scope),
+            TemplateKind::V9Data,
+            template_id,
+        );
+        let bytes = match store.get(&key) {
+            Ok(Some(b)) => b,
+            Ok(None) => return None,
+            Err(_) => {
+                self.metrics.record_template_store_backend_error();
+                return None;
+            }
+        };
+        let template = match decode_v9_template(&bytes) {
+            Ok(t) => t,
+            Err(_) => {
+                self.metrics.record_template_store_codec_error();
+                if store.remove(&key).is_err() {
+                    self.metrics.record_template_store_backend_error();
+                }
+                return None;
+            }
+        };
+        // Validate against parser limits before trusting the payload. Use
+        // the limit-taking variant so we don't re-borrow self via is_valid.
+        if !template.is_valid_with_limits(self.max_field_count, self.max_template_total_size) {
+            return None;
+        }
+        let arc = Arc::new(template);
+        let ttl_enabled = self.ttl_config.is_some();
+        Self::install_restored_template(
+            &mut self.templates,
+            template_id,
+            &arc,
+            ttl_enabled,
+            &mut self.metrics,
+            store,
+            &self.template_store_scope,
+            TemplateKind::V9Data,
+            &mut self.restored_templates,
+            TemplateProtocol::V9,
+        );
+        Some(arc)
+    }
+
+    /// Read-through for V9 options templates. Same protocol as
+    /// `fetch_template_from_store`; see there for error and borrow-split
+    /// semantics.
+    fn fetch_options_template_from_store(
+        &mut self,
+        template_id: u16,
+    ) -> Option<Arc<OptionsTemplate>> {
+        let store = self.template_store.as_ref()?;
+        let key = TemplateStoreKey::new(
+            Arc::clone(&self.template_store_scope),
+            TemplateKind::V9Options,
+            template_id,
+        );
+        let bytes = match store.get(&key) {
+            Ok(Some(b)) => b,
+            Ok(None) => return None,
+            Err(_) => {
+                self.metrics.record_template_store_backend_error();
+                return None;
+            }
+        };
+        let template = match decode_v9_options_template(&bytes) {
+            Ok(t) => t,
+            Err(_) => {
+                self.metrics.record_template_store_codec_error();
+                if store.remove(&key).is_err() {
+                    self.metrics.record_template_store_backend_error();
+                }
+                return None;
+            }
+        };
+        if !template.is_valid_with_limits(self.max_field_count, self.max_template_total_size) {
+            return None;
+        }
+        let arc = Arc::new(template);
+        let ttl_enabled = self.ttl_config.is_some();
+        Self::install_restored_template(
+            &mut self.options_templates,
+            template_id,
+            &arc,
+            ttl_enabled,
+            &mut self.metrics,
+            store,
+            &self.template_store_scope,
+            TemplateKind::V9Options,
+            &mut self.restored_templates,
+            TemplateProtocol::V9,
+        );
+        Some(arc)
+    }
+
+    /// Drain the list of templates restored via the secondary store during
+    /// the most recent parse. Used by `NetflowParser::parse_bytes` to emit
+    /// `TemplateEvent::Restored` for each.
+    pub(crate) fn drain_restored_templates(&mut self) -> Vec<(TemplateProtocol, u16)> {
+        std::mem::take(&mut self.restored_templates)
     }
 }
 
@@ -171,6 +402,9 @@ impl ParserConfig for V9Parser {
 impl V9Parser {
     /// Parse a NetFlow V9 packet from raw bytes, using cached templates to decode data records.
     pub(crate) fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+        // Reset the per-parse restored-templates buffer so the next call
+        // sees only what was restored during *this* packet.
+        self.restored_templates.clear();
         match V9::parse(packet, self) {
             Ok((remaining, mut v9)) => {
                 self.process_pending_flows(&mut v9);
@@ -191,12 +425,21 @@ impl V9Parser {
         let Some(mut pending_cache) = self.pending_flows.take() else {
             return;
         };
-        let learned = Self::cache_notemplate_v9_flowsets(
+        let mut learned = Self::cache_notemplate_v9_flowsets(
             v9,
             &mut pending_cache,
             &mut self.metrics,
             self.max_error_sample_size,
         );
+        // Templates restored via the secondary store during this packet
+        // should also drive pending-flow replay — otherwise queued entries
+        // for IDs we just recovered from Redis/NATS/etc. would only resolve
+        // when the exporter re-announces the template.
+        for &(_, id) in &self.restored_templates {
+            if !learned.contains(&id) {
+                learned.push(id);
+            }
+        }
         self.replay_v9_pending_flows(v9, &mut pending_cache, &learned);
         self.pending_flows = Some(pending_cache);
     }
@@ -401,8 +644,10 @@ impl FlowSetBody {
                         && evicted_key != template.template_id
                     {
                         parser.metrics.record_eviction();
+                        parser.evict_template_from_store(TemplateKind::V9Data, evicted_key);
                     }
                     parser.metrics.record_insertion();
+                    parser.store_template(template);
                 }
                 let result = Templates {
                     templates: valid_templates,
@@ -445,8 +690,10 @@ impl FlowSetBody {
                         && evicted_key != template.template_id
                     {
                         parser.metrics.record_eviction();
+                        parser.evict_template_from_store(TemplateKind::V9Options, evicted_key);
                     }
                     parser.metrics.record_insertion();
+                    parser.store_options_template(template);
                 }
                 let result = OptionsTemplates {
                     templates: valid_templates,
@@ -475,6 +722,26 @@ impl FlowSetBody {
                     &parser.ttl_config,
                     &mut parser.metrics,
                 ) {
+                    parser.metrics.record_hit();
+                    let (i, options_data) = OptionsData::parse_with_limit(
+                        i,
+                        &template,
+                        parser.max_records_per_flowset,
+                    )?;
+                    return Ok((i, FlowSetBody::OptionsData(options_data)));
+                }
+
+                // Read-through: consult the secondary template store before
+                // declaring a miss. On hit, the fetched template is also
+                // pushed into the in-process LRU so subsequent flowsets are
+                // served from the hot path.
+                if let Some(template) = parser.fetch_template_from_store(id) {
+                    parser.metrics.record_hit();
+                    let (i, data) =
+                        Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    return Ok((i, FlowSetBody::Data(data)));
+                }
+                if let Some(template) = parser.fetch_options_template_from_store(id) {
                     parser.metrics.record_hit();
                     let (i, options_data) = OptionsData::parse_with_limit(
                         i,
@@ -522,8 +789,21 @@ impl FlowSetBody {
 impl Template {
     /// Validate the template against parser configuration
     pub fn is_valid(&self, parser: &V9Parser) -> bool {
+        self.is_valid_with_limits(parser.max_field_count, parser.max_template_total_size)
+    }
+
+    /// Validate the template against numeric limits, independent of parser
+    /// type. Used by the IPFIX parser when accepting V9-style templates
+    /// embedded in IPFIX messages, and by the secondary-store read-through
+    /// path. Centralizing the rule prevents drift between the live and
+    /// read-through paths.
+    pub(crate) fn is_valid_with_limits(
+        &self,
+        max_field_count: usize,
+        max_template_total_size: usize,
+    ) -> bool {
         // Check field count limit
-        if usize::from(self.field_count) > parser.max_field_count {
+        if usize::from(self.field_count) > max_field_count {
             return false;
         }
 
@@ -541,7 +821,7 @@ impl Template {
 
         // Check total size limit
         let total_size = usize::from(self.get_total_size());
-        if total_size > parser.max_template_total_size {
+        if total_size > max_template_total_size {
             return false;
         }
 
@@ -578,6 +858,17 @@ impl Template {
 impl OptionsTemplate {
     /// Validate the options template against parser configuration
     pub fn is_valid(&self, parser: &V9Parser) -> bool {
+        self.is_valid_with_limits(parser.max_field_count, parser.max_template_total_size)
+    }
+
+    /// Validate against numeric limits, independent of parser type. Used by
+    /// the IPFIX parser when accepting V9-style options templates and by the
+    /// secondary-store read-through path.
+    pub(crate) fn is_valid_with_limits(
+        &self,
+        max_field_count: usize,
+        max_template_total_size: usize,
+    ) -> bool {
         // Scope and option lengths must be multiples of 4 (each field is type_id:u16 + length:u16)
         if !self.options_scope_length.is_multiple_of(4)
             || !self.options_length.is_multiple_of(4)
@@ -607,16 +898,16 @@ impl OptionsTemplate {
         }
 
         // Check field count limits (individually and combined)
-        if scope_count > parser.max_field_count
-            || option_count > parser.max_field_count
-            || scope_count.saturating_add(option_count) > parser.max_field_count
+        if scope_count > max_field_count
+            || option_count > max_field_count
+            || scope_count.saturating_add(option_count) > max_field_count
         {
             return false;
         }
 
         // Check total size limit
         let total_size = usize::from(self.get_total_size());
-        if total_size > parser.max_template_total_size {
+        if total_size > max_template_total_size {
             return false;
         }
 

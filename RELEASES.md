@@ -1,3 +1,132 @@
+# 1.0.4
+
+## Fixes
+
+* **`TemplateStore`: source-eviction in `AutoScopedParser` no longer leaks
+  store entries.** When `max_sources` capacity was reached and a per-source
+  parser was popped from the LRU, every template that source had written
+  under its scope (e.g. `v9:10.0.0.1:2055/0`) was orphaned in the store
+  forever. `evict_global_lru` now calls `clear_v9_templates` /
+  `clear_ipfix_templates` on the evicted parser before dropping it, so the
+  external store keyspace tracks the live source set.
+
+* **`TemplateStore`: `clear_v9_templates` / `clear_ipfix_templates` now record
+  backend errors.** Previously these methods called `let _ = store.remove(...)`,
+  silently swallowing failures. They now bump
+  `template_store_backend_errors` on each failed `remove`, matching every
+  other store call site.
+
+* **`TemplateStore`: misleading inline doc comment on `clear_*_templates`
+  removed.** The comment claimed that after a clear, "subsequent reads do
+  not transparently repopulate the in-process cache via read-through" — true
+  only for templates that were in the in-process LRU at clear time. Templates
+  evicted from the LRU before the call, or written by another parser instance
+  under the same scope, remain reachable via read-through. The trait
+  intentionally exposes only `get`/`put`/`remove`, not a per-scope wipe; the
+  comment now documents this honestly.
+
+* **`set_template_store_scope` rustdoc**: clarified that the scope must be
+  set before the first `parse_bytes` call to avoid orphaning entries written
+  under the previous scope, and that `with_template_store_scope` on a builder
+  fed into `AutoScopedParser` is overridden by the auto-derived per-source
+  scope.
+
+* **Read-through hit semantics documented.** Clarified that a successful
+  `TemplateStore` read-through increments `hits` (counted as a hit, not a
+  miss) and that restored templates have their TTL re-stamped to
+  `Instant::now()`.
+
+## Tests
+
+* **Rewrote `read_through_drives_pending_flow_replay`.** The previous test
+  never queued a pending flow before the template arrived — it would have
+  passed even if the read-through-driven pending-flow replay code were
+  deleted. Now exercises the full path: data record arrives before any
+  template is known → queued → template is written to the store by another
+  replica → next data record's read-through restores the template AND
+  triggers replay of the queued flow.
+
+* **Strengthened `auto_scoped_parser_uses_per_source_scope`.** Now also
+  validates cross-replica round-trip: a fresh `AutoScopedParser` reading the
+  store must decode each source's data record against the correctly-scoped
+  template.
+
+* **Added eviction-cleanup test for `AutoScopedParser`** verifying that
+  evicted source parsers' store entries are removed.
+
+* **Coverage filled in** for backend `remove` failures (`inject_remove_failures`
+  is now exercised), IPFIX-side codec corruption rejection, IPFIX-side LRU
+  eviction propagation to the store, and IPFIX-side `TemplateEvent::Restored`
+  firing.
+
+## Examples
+
+* **New example: `horizontal_scale_out_template_store`.** Demonstrates the
+  feature's headline use case — two `NetflowParser` instances sharing an
+  `InMemoryTemplateStore`. Replica A learns a template and goes away;
+  replica B starts cold and decodes a data record against the template via
+  read-through. Run with:
+
+  ```sh
+  cargo run --example horizontal_scale_out_template_store
+  ```
+
+# 1.0.3
+
+## Features
+
+* **Pluggable secondary template storage (`TemplateStore`).** Templates can now
+  be persisted to and re-read from an external backend such as Redis or NATS
+  KV via a new `TemplateStore` trait. With a store configured the parser
+  writes through every learned template, consults the store on every cache
+  miss, and propagates LRU evictions, withdrawals, and explicit clears so the
+  store stays in sync. This unblocks running multiple stateless parser
+  instances behind a UDP load balancer without source-IP-affinity routing.
+
+  Wire up via the new builder hooks:
+
+  ```rust
+  let store = Arc::new(my_redis_backed_store);
+  let parser = NetflowParser::builder()
+      .with_template_store(store)
+      .with_template_store_scope("collector-eu-west-1")
+      .build()?;
+  ```
+
+  `AutoScopedParser` automatically derives a per-source scope so two exporters
+  using the same template ID with different layouts do not collide in the
+  store. The trait sees opaque `Vec<u8>` payloads encoded with a small custom
+  binary wire format — no `serde_json` or other runtime serializer is added
+  to the dependency tree. An `InMemoryTemplateStore` reference impl is
+  provided for tests. See the new `template_store` module for the protocol.
+
+* New public API: `TemplateStore`, `TemplateStoreKey`, `TemplateKind`,
+  `TemplateStoreError`, `InMemoryTemplateStore`,
+  `NetflowParserBuilder::with_template_store`,
+  `NetflowParserBuilder::with_template_store_scope`,
+  `NetflowParser::set_template_store_scope`.
+
+## Tests
+
+* **Restored 34 snapshot-based parser tests** in a new `restored_legacy_tests` module in `src/tests.rs`. These tests had been deleted in PR #210 ("further template validation"), leaving 33 orphaned `.snap` files that were swept up later in PR #262. Coverage included real-world v9/IPFIX captures (`it_parses_v9_ipv6flowlabel`, `it_parses_v9_template_and_data_packet`, `it_parses_ipfix_scappy_example`, mixed-enterprise field templates, multi-template IPFIX, etc.), version-filter checks (`it_doesnt_allow_v5/v7/v9/ipfix`), and re-export round-trip tests (`it_parses_*_and_re_exports`).
+* Tests adapted to current APIs: `TemplateWithTtl::new(...)` → `TemplateWithTtl::new_without_ttl(Arc::new(...))` (cache now stores Arc-wrapped templates); `with_allowed_versions(&[])` is rejected by the builder, so version-filter tests now allow only the *other* versions to verify filtering.
+* Snapshot count restored from 14 → 48.
+
+## Dependencies
+
+* Bumped `lru` from 0.16 to 0.18.
+* Bumped `etherparse` from 0.19 to 0.20.
+
+# 1.0.2
+
+## Performance
+
+* **Inlined `parse_data_fields` into V9 record loop** — eliminates per-record function call overhead and Vec allocation, giving the optimizer a single loop nest. ~8% improvement in V9 data parsing benchmarks (130 µs → 120 µs for 1000 flows).
+
+* **Added fast big-endian parsers (`fast_parse` module)** — hand-rolled `from_be_bytes` replacements for nom's generic `be_uint`, which LLVM cannot optimize into `bswap`/`rev` at wider widths. 9–26x speedup on micro-benchmarks for u64/u128 parsing. Applied to `DataNumber::parse`, IP/MAC field parsing, and IPFIX variable-length fields.
+
+* **Added `hot_path_bench`** for targeted V9/IPFIX data parsing benchmarks.
+
 # 1.0.1
 
 ## Documentation

@@ -5,10 +5,12 @@
 //! (`IPFixParser`) and manual parse impl blocks live in `parser.rs`.
 
 use super::lookup::IPFixField;
+use crate::template_store::TemplateStore;
 use crate::variable_versions::PendingFlowCache;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::metrics::CacheMetricsInner;
+use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 
 use nom::bytes::complete::take;
@@ -50,6 +52,16 @@ pub struct IPFixParser {
     pub(crate) enterprise_registry: Arc<EnterpriseFieldRegistry>,
     pub(crate) metrics: CacheMetricsInner,
     pub(crate) pending_flows: Option<PendingFlowCache>,
+    /// Optional secondary-tier template store. See [`crate::template_store`].
+    pub(crate) template_store: Option<Arc<dyn TemplateStore>>,
+    /// Scope written into every store key. Empty for single-source parsers;
+    /// `AutoScopedParser` overrides this per source. Held as `Arc<str>` so
+    /// per-key clones are cheap refcount bumps.
+    pub(crate) template_store_scope: Arc<str>,
+    /// Templates restored via the secondary store during the in-flight
+    /// parse. Drained after each `parse` call to fire `TemplateEvent::Restored`
+    /// hooks and to drive pending-flow replay.
+    pub(crate) restored_templates: Vec<(TemplateProtocol, u16)>,
 }
 
 /// A parsed IPFIX message containing a header and a list of flowsets.
@@ -352,8 +364,20 @@ pub(crate) trait CommonTemplate {
     }
 
     fn is_valid(&self, parser: &IPFixParser) -> bool {
+        self.is_valid_with_limits(parser.max_field_count, parser.max_template_total_size)
+    }
+
+    /// Validation against numeric limits, independent of parser type. Used
+    /// by the secondary-store read-through path to avoid re-borrowing the
+    /// whole `&IPFixParser` (which would conflict with the borrow held on
+    /// `self.template_store`).
+    fn is_valid_with_limits(
+        &self,
+        max_field_count: usize,
+        max_template_total_size: usize,
+    ) -> bool {
         // Check field count doesn't exceed maximum
-        if usize::from(self.get_field_count()) > parser.max_field_count {
+        if usize::from(self.get_field_count()) > max_field_count {
             return false;
         }
         // Check scope field count if applicable (RFC 7011 Section 3.4.2.2:
@@ -377,7 +401,7 @@ pub(crate) trait CommonTemplate {
             .iter()
             .filter(|f| f.field_length != 65535)
             .fold(0, |acc, f| acc.saturating_add(usize::from(f.field_length)));
-        if total_size > parser.max_template_total_size {
+        if total_size > max_template_total_size {
             return false;
         }
 
