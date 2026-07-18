@@ -1,3 +1,16 @@
+# 1.0.5
+
+## Fixes
+
+* **Accept repeated IPFIX fields and safe zero-length V9 fields.** V9 and
+  IPFIX-carried-V9 template validation previously rejected any field with a
+  zero `field_length`. This was too strict: an individual zero-length field is
+  valid as long as the complete record still consumes input. Validation now
+  rejects only the IPFIX variable-length sentinel (`65535`), which V9 does not
+  support, and rejects a template only when its total size is zero (an all-zero
+  template that would otherwise cause an infinite loop). This applies to V9
+  data templates, V9 options templates, and their IPFIX-carried equivalents.
+
 # 1.0.4
 
 ## Fixes
