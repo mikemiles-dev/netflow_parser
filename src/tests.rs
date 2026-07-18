@@ -95,6 +95,33 @@ mod base_tests {
         assert_yaml_snapshot!(v9);
     }
 
+    #[test]
+    fn v9_zero_length_options_member_parses_data_without_looping() {
+        use crate::variable_versions::v9::FlowSetBody;
+
+        // One zero-length System scope field and one two-byte option field.
+        // The complete record still consumes input through the option field.
+        let template = hex::decode(
+            "00090001000000000000000000000000000000010001001401000004000400010000002900020000",
+        )
+        .unwrap();
+        let data =
+            hex::decode("00090001000000000000000000000000000000010100000800070000").unwrap();
+        let mut parser = NetflowParser::default();
+
+        let template_result = parser.parse_bytes(&template);
+        assert!(template_result.error.is_none());
+        assert!(template_result.packets.iter().any(|packet| {
+            matches!(packet, NetflowPacket::V9(packet) if packet.flowsets.iter().any(|flowset| matches!(flowset.body, FlowSetBody::OptionsTemplate(_))))
+        }));
+
+        let data_result = parser.parse_bytes(&data);
+        assert!(data_result.error.is_none());
+        assert!(data_result.packets.iter().any(|packet| {
+            matches!(packet, NetflowPacket::V9(packet) if packet.flowsets.iter().any(|flowset| matches!(flowset.body, FlowSetBody::OptionsData(_))))
+        }));
+    }
+
     // Verify that combined v9 options template, data template, and data records parse together
     #[test]
     fn can_read_v9_with_options_template_and_template() {
@@ -187,6 +214,33 @@ mod base_tests {
         } else {
             panic!("Packet is not IPFix");
         }
+    }
+
+    #[test]
+    fn ipfix_repeated_information_elements_parse_template_and_data() {
+        use crate::variable_versions::ipfix::FlowSetBody;
+
+        // Template 256 repeats sourceIPv4Address twice before destinationIPv4Address.
+        let template = hex::decode(
+            "000a002400000000000000000000000100020014010000030008000400080004000c0004",
+        )
+        .unwrap();
+        let data =
+            hex::decode("000a0020000000000000000000000001010000100a0000010a0000020a000003")
+                .unwrap();
+        let mut parser = NetflowParser::default();
+
+        let template_result = parser.parse_bytes(&template);
+        assert!(template_result.error.is_none());
+        assert!(template_result.packets.iter().any(|packet| {
+            matches!(packet, NetflowPacket::IPFix(packet) if packet.flowsets.iter().any(|flowset| matches!(flowset.body, FlowSetBody::Template(_) | FlowSetBody::Templates(_))))
+        }));
+
+        let data_result = parser.parse_bytes(&data);
+        assert!(data_result.error.is_none());
+        assert!(data_result.packets.iter().any(|packet| {
+            matches!(packet, NetflowPacket::IPFix(packet) if packet.flowsets.iter().any(|flowset| matches!(flowset.body, FlowSetBody::Data(_))))
+        }));
     }
 
     // Verify that an IPFIX packet with template fields is parsed correctly
@@ -654,9 +708,9 @@ mod base_tests {
         assert!(template.is_valid(&parser));
     }
 
-    // Verify that an IPFIX template with duplicate field/enterprise pairs is rejected as invalid
+    // RFC 7011 Section 8 requires collectors to support repeated identical IEs.
     #[test]
-    fn test_ipfix_template_validation_duplicate_fields() {
+    fn test_ipfix_template_validation_allows_duplicate_fields() {
         use crate::variable_versions::ipfix::{IPFixParser, Template, TemplateField};
 
         let config = Config {
@@ -675,7 +729,7 @@ mod base_tests {
 
         let parser = IPFixParser::try_new(config).unwrap();
 
-        // Template with duplicate (field_type_number, enterprise_number) pair should fail
+        // Repeated (field_type_number, enterprise_number) pairs are valid.
         let template = Template {
             template_id: 256,
             field_count: 3,
@@ -701,7 +755,121 @@ mod base_tests {
             ],
         };
 
+        assert!(template.is_valid(&parser));
+    }
+
+    #[test]
+    fn test_v9_template_validation_allows_zero_length_member() {
+        use crate::variable_versions::v9::lookup::V9Field;
+        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
+
+        let config = Config {
+            max_template_cache_size: 100,
+            max_field_count: 10000,
+            max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            ttl_config: None,
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
+            pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
+        };
+        let parser = V9Parser::try_new(config).unwrap();
+
+        let template = Template {
+            template_id: 256,
+            field_count: 2,
+            fields: vec![
+                TemplateField {
+                    field_type_number: 1,
+                    field_type: V9Field::InBytes,
+                    field_length: 0,
+                },
+                TemplateField {
+                    field_type_number: 2,
+                    field_type: V9Field::InPkts,
+                    field_length: 4,
+                },
+            ],
+        };
+
+        assert!(template.is_valid(&parser));
+    }
+
+    #[test]
+    fn test_v9_template_validation_rejects_all_zero_length_fields() {
+        use crate::variable_versions::v9::lookup::V9Field;
+        use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
+
+        let config = Config {
+            max_template_cache_size: 100,
+            max_field_count: 10000,
+            max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            ttl_config: None,
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
+            pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
+        };
+        let parser = V9Parser::try_new(config).unwrap();
+
+        let template = Template {
+            template_id: 256,
+            field_count: 1,
+            fields: vec![TemplateField {
+                field_type_number: 1,
+                field_type: V9Field::InBytes,
+                field_length: 0,
+            }],
+        };
+
         assert!(!template.is_valid(&parser));
+    }
+
+    #[test]
+    fn test_v9_options_template_validation_allows_zero_length_scope_member() {
+        use crate::variable_versions::v9::lookup::{ScopeFieldType, V9Field};
+        use crate::variable_versions::v9::{
+            OptionsTemplate, OptionsTemplateScopeField, TemplateField, V9Parser,
+        };
+
+        let config = Config {
+            max_template_cache_size: 100,
+            max_field_count: 10000,
+            max_template_total_size: usize::from(u16::MAX),
+            max_error_sample_size: 256,
+            max_records_per_flowset:
+                crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            ttl_config: None,
+            enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
+            pending_flows_config: None,
+            template_store: None,
+            template_store_scope: std::sync::Arc::from(""),
+        };
+        let parser = V9Parser::try_new(config).unwrap();
+
+        let template = OptionsTemplate {
+            template_id: 256,
+            options_scope_length: 4,
+            options_length: 4,
+            scope_fields: vec![OptionsTemplateScopeField {
+                field_type_number: 1,
+                field_type: ScopeFieldType::System,
+                field_length: 0,
+            }],
+            option_fields: vec![TemplateField {
+                field_type_number: 34,
+                field_type: V9Field::SamplingInterval,
+                field_length: 4,
+            }],
+        };
+
+        assert!(template.is_valid(&parser));
     }
 
     // Verify that an IPFIX template with same field type but different enterprise numbers is valid

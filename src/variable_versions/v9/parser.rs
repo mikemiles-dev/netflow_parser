@@ -807,21 +807,16 @@ impl Template {
             return false;
         }
 
-        // Check fields are not empty and all fields have valid length
-        // (V9 does not support variable-length fields, so every field must have a concrete size;
-        // reject both zero-length and the variable-length sentinel 65535)
-        if self.fields.is_empty()
-            || self
-                .fields
-                .iter()
-                .any(|f| f.field_length == 0 || f.field_length == 65535)
-        {
+        // V9 does not support variable-length fields, so reject the IPFIX
+        // variable-length sentinel. Individual zero-length fields are valid as
+        // long as the complete record still consumes input.
+        if self.fields.is_empty() || self.fields.iter().any(|f| f.field_length == 65535) {
             return false;
         }
 
         // Check total size limit
         let total_size = usize::from(self.get_total_size());
-        if total_size > max_template_total_size {
+        if total_size == 0 || total_size > max_template_total_size {
             return false;
         }
 
@@ -883,16 +878,11 @@ impl OptionsTemplate {
             return false;
         }
 
-        // V9 does not support variable-length fields; reject zero-length
-        // (would cause infinite loops) and the variable-length sentinel 65535.
-        if self
-            .scope_fields
-            .iter()
-            .any(|f| f.field_length == 0 || f.field_length == 65535)
-            || self
-                .option_fields
-                .iter()
-                .any(|f| f.field_length == 0 || f.field_length == 65535)
+        // V9 does not support variable-length fields. Individual zero-length
+        // fields are safe when another field makes the complete record consume
+        // input; an all-zero template is rejected below.
+        if self.scope_fields.iter().any(|f| f.field_length == 65535)
+            || self.option_fields.iter().any(|f| f.field_length == 65535)
         {
             return false;
         }
@@ -907,7 +897,7 @@ impl OptionsTemplate {
 
         // Check total size limit
         let total_size = usize::from(self.get_total_size());
-        if total_size > max_template_total_size {
+        if total_size == 0 || total_size > max_template_total_size {
             return false;
         }
 

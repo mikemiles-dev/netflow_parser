@@ -1135,13 +1135,13 @@ impl FlowSetBody {
                 FlowSetBody::V9Templates,
                 |t: &V9Template, p: &IPFixParser| {
                     // Validate V9 templates using IPFIX parser limits.
-                    // V9 does not support variable-length fields, so reject
-                    // zero-length and the variable-length sentinel 65535.
+                    // V9 does not support variable-length fields. Individual
+                    // zero-length fields are safe when the complete record has
+                    // a nonzero size.
                     usize::from(t.field_count) <= p.max_field_count
                         && !t.fields.is_empty()
-                        && t.fields
-                            .iter()
-                            .all(|f| f.field_length > 0 && f.field_length != 65535)
+                        && t.fields.iter().all(|f| f.field_length != 65535)
+                        && t.get_total_size() > 0
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
                         && !t.has_duplicate_fields()
                 },
@@ -1163,14 +1163,13 @@ impl FlowSetBody {
                         && scope_count <= p.max_field_count
                         && option_count <= p.max_field_count
                         && scope_count.saturating_add(option_count) <= p.max_field_count
+                        && t.get_total_size() > 0
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
                         && !t.has_duplicate_scope_fields()
                         && !t.has_duplicate_option_fields()
-                        // V9 does not support variable-length fields; reject any
-                        // zero-length or variable-length sentinel (65535) fields,
-                        // consistent with the V9 parser's own validation.
-                        && t.scope_fields.iter().all(|f| f.field_length > 0 && f.field_length != 65535)
-                        && t.option_fields.iter().all(|f| f.field_length > 0 && f.field_length != 65535)
+                        // V9 does not support the IPFIX variable-length sentinel.
+                        && t.scope_fields.iter().all(|f| f.field_length != 65535)
+                        && t.option_fields.iter().all(|f| f.field_length != 65535)
                 },
                 |parser, templates| parser.add_v9_options_templates(templates),
                 None, // V9 doesn't support template withdrawal
