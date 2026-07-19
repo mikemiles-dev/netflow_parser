@@ -15,6 +15,11 @@ fn write_varlen_prefix(
     buf: &mut Vec<u8>,
     value_len: usize,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if value_len == 0 {
+        return Err(
+            "IPFIX variable-length field cannot have zero length (RFC 7011 Section 7)".into(),
+        );
+    }
     if value_len < 255 {
         buf.push(value_len as u8);
     } else {

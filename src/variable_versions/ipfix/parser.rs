@@ -1773,6 +1773,13 @@ impl TemplateField {
                 let (i, length) = parse_u8(i)?;
                 if length == 255 {
                     let (i, full_length) = parse_u16_be(i)?;
+                    // RFC 7011 Section 7: length values of 0 are not permitted
+                    if full_length == 0 {
+                        return Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Verify,
+                        )));
+                    }
                     // Validate length doesn't exceed remaining buffer
                     if (full_length as usize) > i.len() {
                         return Err(nom::Err::Error(nom::error::Error::new(
@@ -1782,6 +1789,13 @@ impl TemplateField {
                     }
                     Ok((i, full_length))
                 } else {
+                    // RFC 7011 Section 7: length values of 0 are not permitted
+                    if length == 0 {
+                        return Err(nom::Err::Error(nom::error::Error::new(
+                            i,
+                            nom::error::ErrorKind::Verify,
+                        )));
+                    }
                     // Validate length doesn't exceed remaining buffer
                     if (length as usize) > i.len() {
                         return Err(nom::Err::Error(nom::error::Error::new(

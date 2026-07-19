@@ -530,15 +530,12 @@ fn pending_replay_preserves_valid_fixed_and_variable_padding() {
         .with_ipfix_pending_flows(PendingFlowsConfig::default())
         .build()
         .unwrap();
-    // Empty interfaceName using both legal varlen encodings, one fixed byte,
-    // then one byte of legal short padding.
-    for body in [&[0, 7, 0][..], &[255, 0, 0, 8, 0][..]] {
-        assert!(
-            ipfix_parser
-                .parse_bytes(&ipfix_message(&[ipfix_data(256, body)]))
-                .is_ok()
-        );
-    }
+    // One variable-length byte, one fixed byte, then legal short padding.
+    assert!(
+        ipfix_parser
+            .parse_bytes(&ipfix_message(&[ipfix_data(256, &[1, b'x', 7, 0])]))
+            .is_ok()
+    );
     let replay = ipfix_parser.parse_bytes(&ipfix_message(&[ipfix_template_fields(
         256,
         &[(82, u16::MAX), (1, 1)],
@@ -547,7 +544,7 @@ fn pending_replay_preserves_valid_fixed_and_variable_padding() {
     let info = ipfix_parser.ipfix_cache_info();
     assert_eq!(info.pending_flow_count, 0);
     assert_eq!(info.metrics.pending_replay_failed, 0);
-    assert_eq!(info.metrics.pending_replayed, 2);
+    assert_eq!(info.metrics.pending_replayed, 1);
     let NetflowPacket::IPFix(packet) = &replay.packets[0] else {
         panic!("expected IPFIX packet")
     };
@@ -559,7 +556,7 @@ fn pending_replay_preserves_valid_fixed_and_variable_padding() {
             _ => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(data.len(), 2);
+    assert_eq!(data.len(), 1);
     for replayed in data {
         assert_eq!(replayed.fields.len(), 1);
         assert_eq!(replayed.fields[0].len(), 2);
