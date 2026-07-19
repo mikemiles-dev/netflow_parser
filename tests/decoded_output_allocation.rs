@@ -104,7 +104,11 @@ fn data(body_len: usize) -> Vec<u8> {
 fn default_limit_stays_bounded_and_pending_shortage_is_preflight_only() {
     let template = wide_template();
     let mut parser = NetflowParser::default();
-    assert!(parser.parse_bytes(&v9_message(&[template.clone()])).is_ok());
+    assert!(
+        parser
+            .parse_bytes(&v9_message(std::slice::from_ref(&template)))
+            .is_ok()
+    );
 
     let baseline = reset_peak();
     let result = parser.parse_bytes(&v9_message(&[data(1000)]));

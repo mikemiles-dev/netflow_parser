@@ -151,7 +151,11 @@ fn v9_value_budget_is_cumulative_across_flowsets_and_exact() {
         .with_v9_max_decoded_field_values_per_message(4)
         .build()
         .unwrap();
-    assert!(exact.parse_bytes(&v9_message(&[template.clone()])).is_ok());
+    assert!(
+        exact
+            .parse_bytes(&v9_message(std::slice::from_ref(&template)))
+            .is_ok()
+    );
     let result =
         exact.parse_bytes(&v9_message(&[v9_data(256, &[1, 2]), v9_data(256, &[3, 4])]));
     assert!(result.is_ok(), "{:?}", result.error);
@@ -227,7 +231,7 @@ fn ipfix_variable_field_payload_budget_excludes_length_prefix() {
         .unwrap();
     assert!(
         exact
-            .parse_bytes(&ipfix_message(&[template.clone()]))
+            .parse_bytes(&ipfix_message(std::slice::from_ref(&template)))
             .is_ok()
     );
     assert!(
