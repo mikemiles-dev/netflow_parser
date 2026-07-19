@@ -28,8 +28,8 @@ use crate::variable_versions::v9::{
     OptionsTemplate as V9OptionsTemplate, Template as V9Template,
 };
 use crate::variable_versions::{
-    Config, ConfigError, ParserConfig, ParserFields, PendingFlowCache, PendingFlowEntry,
-    PendingFlowsConfig,
+    Config, ConfigError, DecodedOutputBudget, ParserConfig, ParserFields, PendingFlowCache,
+    PendingFlowEntry, PendingFlowsConfig, PendingReplayOutcome,
 };
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
@@ -50,6 +50,10 @@ impl Default for IPFixParser {
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -98,6 +102,10 @@ impl IPFixParser {
             max_template_total_size: config.max_template_total_size,
             max_error_sample_size: config.max_error_sample_size,
             max_records_per_flowset: config.max_records_per_flowset,
+            decoded_output_budget: DecodedOutputBudget::new(
+                config.max_decoded_field_values_per_message,
+                config.max_decoded_field_payload_bytes_per_message,
+            ),
             enterprise_registry: config.enterprise_registry,
             metrics: CacheMetricsInner::new(),
             pending_flows,
@@ -424,6 +432,9 @@ impl ParserFields for IPFixParser {
     fn set_max_records_per_flowset_field(&mut self, count: usize) {
         self.max_records_per_flowset = count;
     }
+    fn set_decoded_output_limits_fields(&mut self, values: usize, payload_bytes: usize) {
+        self.decoded_output_budget.set_limits(values, payload_bytes);
+    }
     fn set_ttl_config_field(&mut self, config: Option<TtlConfig>) {
         self.ttl_config = config;
     }
@@ -482,19 +493,40 @@ impl IPFixParser {
         // Reset the per-parse restored-templates buffer so the next call
         // sees only what was restored during *this* packet.
         self.restored_templates.clear();
+        self.decoded_output_budget.reset();
         match IPFix::parse(packet, self) {
             Ok((remaining, mut ipfix)) => {
+                if let Some(exceeded) = self.decoded_output_budget.take_exceeded() {
+                    return ParsedNetflow::Error {
+                        error: NetflowError::DecodedOutputLimitExceeded {
+                            protocol: TemplateProtocol::Ipfix,
+                            limit: exceeded.limit,
+                            configured: exceeded.configured,
+                            attempted: exceeded.attempted,
+                        },
+                    };
+                }
                 self.process_pending_flows(&mut ipfix);
                 ParsedNetflow::Success {
                     packet: NetflowPacket::IPFix(ipfix),
                     remaining,
                 }
             }
-            Err(e) => ParsedNetflow::Error {
-                error: NetflowError::Partial {
-                    message: format!("IPFIX parse error: {}", e),
-                },
-            },
+            Err(e) => {
+                let error = if let Some(exceeded) = self.decoded_output_budget.take_exceeded() {
+                    NetflowError::DecodedOutputLimitExceeded {
+                        protocol: TemplateProtocol::Ipfix,
+                        limit: exceeded.limit,
+                        configured: exceeded.configured,
+                        attempted: exceeded.attempted,
+                    }
+                } else {
+                    NetflowError::Partial {
+                        message: format!("IPFIX parse error: {}", e),
+                    }
+                };
+                ParsedNetflow::Error { error }
+            }
         }
     }
 
@@ -628,28 +660,41 @@ impl IPFixParser {
     ) {
         for &template_id in learned {
             let entries = cache.drain(template_id, &mut self.metrics);
-            let total_entries = entries.len();
-            for (processed, entry) in entries.iter().enumerate() {
+            let mut entries = entries.into_iter();
+            while let Some(entry) = entries.next() {
                 // Bound flowset count, consistent with V9 replay.
                 if ipfix.flowsets.len() >= u16::MAX as usize {
-                    let remaining = (total_entries - processed) as u64;
-                    self.metrics.record_pending_replay_failed_n(remaining);
+                    let mut retained = Vec::with_capacity(entries.len().saturating_add(1));
+                    retained.push(entry);
+                    retained.extend(entries);
+                    cache.restore_replay_suffix(template_id, retained);
                     break;
                 }
                 let flowset_length =
                     u16::try_from(entry.raw_data.len().saturating_add(4)).unwrap_or(u16::MAX);
                 let Some(new_header_length) = ipfix.header.length.checked_add(flowset_length)
                 else {
-                    // Count this entry plus all remaining as failed.
-                    let remaining = (total_entries - processed) as u64;
-                    self.metrics.record_pending_replay_failed_n(remaining);
+                    let mut retained = Vec::with_capacity(entries.len().saturating_add(1));
+                    retained.push(entry);
+                    retained.extend(entries);
+                    cache.restore_replay_suffix(template_id, retained);
                     break;
                 };
-                if self.try_replay_ipfix_flow(&mut ipfix.flowsets, template_id, entry) {
-                    self.metrics.record_pending_replayed();
-                    ipfix.header.length = new_header_length;
-                } else {
-                    self.metrics.record_pending_replay_failed();
+                match self.try_replay_ipfix_flow(&mut ipfix.flowsets, template_id, &entry) {
+                    PendingReplayOutcome::Replayed => {
+                        self.metrics.record_pending_replayed();
+                        ipfix.header.length = new_header_length;
+                    }
+                    PendingReplayOutcome::Failed => {
+                        self.metrics.record_pending_replay_failed();
+                    }
+                    PendingReplayOutcome::TemporarilyDoesNotFit => {
+                        let mut retained = Vec::with_capacity(entries.len().saturating_add(1));
+                        retained.push(entry);
+                        retained.extend(entries);
+                        cache.restore_replay_suffix(template_id, retained);
+                        break;
+                    }
                 }
             }
         }
@@ -661,105 +706,194 @@ impl IPFixParser {
         flowsets: &mut Vec<FlowSet>,
         template_id: u16,
         entry: &PendingFlowEntry,
-    ) -> bool {
+    ) -> PendingReplayOutcome {
         // Use peek_valid_template to avoid false LRU promotion on failed parse.
-        // Promote only after successful replay.
+        // Preserve the established lookup priority and promote only after a
+        // complete entry has been materialized within the message budget.
+        self.try_replay_ipfix_data(flowsets, template_id, entry)
+            .or_else(|| self.try_replay_ipfix_options_data(flowsets, template_id, entry))
+            .or_else(|| self.try_replay_embedded_v9_data(flowsets, template_id, entry))
+            .or_else(|| self.try_replay_embedded_v9_options_data(flowsets, template_id, entry))
+            .unwrap_or(PendingReplayOutcome::Failed)
+    }
 
-        // Try IPFIX templates
-        if let Some(template) = crate::variable_versions::peek_valid_template(
+    fn try_replay_ipfix_data(
+        &mut self,
+        flowsets: &mut Vec<FlowSet>,
+        template_id: u16,
+        entry: &PendingFlowEntry,
+    ) -> Option<PendingReplayOutcome> {
+        let template = crate::variable_versions::peek_valid_template(
             &mut self.templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = Data::parse_with_registry(
+        )?;
+        let cost = crate::variable_versions::output_budget::measure_variable_output(
             &entry.raw_data,
-            &template,
-            &self.enterprise_registry,
+            template.get_fields(),
             self.max_records_per_flowset,
-        ) {
-            // Don't record_hit() — the original flowset already recorded
-            // a miss. Replay success is tracked via record_pending_replayed().
-            self.templates.promote(&template_id);
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
-                        .unwrap_or(u16::MAX),
-                },
-                body: FlowSetBody::Data(data),
-            });
-            return true;
-        }
+            |field| field.field_length,
+        );
+        let data = match self
+            .decoded_output_budget
+            .materialize_pending(cost, |budget| {
+                Data::parse_with_registry_and_budget(
+                    &entry.raw_data,
+                    &template,
+                    &self.enterprise_registry,
+                    self.max_records_per_flowset,
+                    budget,
+                )
+                .map(|(_, data)| data)
+            }) {
+            Ok(data) => data,
+            Err(error) => return Some(error.into()),
+        };
+        self.templates.promote(&template_id);
+        flowsets.push(Self::replayed_flowset(
+            template_id,
+            entry,
+            FlowSetBody::Data(data),
+        ));
+        Some(PendingReplayOutcome::Replayed)
+    }
 
-        // Try IPFIX options templates
-        if let Some(template) = crate::variable_versions::peek_valid_template(
+    fn try_replay_ipfix_options_data(
+        &mut self,
+        flowsets: &mut Vec<FlowSet>,
+        template_id: u16,
+        entry: &PendingFlowEntry,
+    ) -> Option<PendingReplayOutcome> {
+        let template = crate::variable_versions::peek_valid_template(
             &mut self.ipfix_options_templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = OptionsData::parse_with_registry(
+        )?;
+        let cost = crate::variable_versions::output_budget::measure_variable_output(
             &entry.raw_data,
-            &template,
-            &self.enterprise_registry,
+            template.get_fields(),
             self.max_records_per_flowset,
-        ) {
-            self.ipfix_options_templates.promote(&template_id);
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
-                        .unwrap_or(u16::MAX),
-                },
-                body: FlowSetBody::OptionsData(data),
-            });
-            return true;
-        }
+            |field| field.field_length,
+        );
+        let data = match self
+            .decoded_output_budget
+            .materialize_pending(cost, |budget| {
+                OptionsData::parse_with_registry_and_budget(
+                    &entry.raw_data,
+                    &template,
+                    &self.enterprise_registry,
+                    self.max_records_per_flowset,
+                    budget,
+                )
+                .map(|(_, data)| data)
+            }) {
+            Ok(data) => data,
+            Err(error) => return Some(error.into()),
+        };
+        self.ipfix_options_templates.promote(&template_id);
+        flowsets.push(Self::replayed_flowset(
+            template_id,
+            entry,
+            FlowSetBody::OptionsData(data),
+        ));
+        Some(PendingReplayOutcome::Replayed)
+    }
 
-        // Try V9 templates
-        if let Some(template) = crate::variable_versions::peek_valid_template(
+    fn try_replay_embedded_v9_data(
+        &mut self,
+        flowsets: &mut Vec<FlowSet>,
+        template_id: u16,
+        entry: &PendingFlowEntry,
+    ) -> Option<PendingReplayOutcome> {
+        let template = crate::variable_versions::peek_valid_template(
             &mut self.v9_templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) =
-            V9Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
-        {
-            self.v9_templates.promote(&template_id);
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
-                        .unwrap_or(u16::MAX),
-                },
-                body: FlowSetBody::V9Data(data),
-            });
-            return true;
-        }
+        )?;
+        let cost = V9Data::decoded_output_cost(
+            entry.raw_data.len(),
+            &template,
+            self.max_records_per_flowset,
+        );
+        let data = match self
+            .decoded_output_budget
+            .materialize_pending(cost, |budget| {
+                V9Data::parse_with_budget(
+                    &entry.raw_data,
+                    &template,
+                    self.max_records_per_flowset,
+                    budget,
+                )
+                .map(|(_, data)| data)
+            }) {
+            Ok(data) => data,
+            Err(error) => return Some(error.into()),
+        };
+        self.v9_templates.promote(&template_id);
+        flowsets.push(Self::replayed_flowset(
+            template_id,
+            entry,
+            FlowSetBody::V9Data(data),
+        ));
+        Some(PendingReplayOutcome::Replayed)
+    }
 
-        // Try V9 options templates
-        if let Some(template) = crate::variable_versions::peek_valid_template(
+    fn try_replay_embedded_v9_options_data(
+        &mut self,
+        flowsets: &mut Vec<FlowSet>,
+        template_id: u16,
+        entry: &PendingFlowEntry,
+    ) -> Option<PendingReplayOutcome> {
+        let template = crate::variable_versions::peek_valid_template(
             &mut self.v9_options_templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) = V9OptionsData::parse_with_limit(
-            &entry.raw_data,
+        )?;
+        let cost = V9OptionsData::decoded_output_cost(
+            entry.raw_data.len(),
             &template,
             self.max_records_per_flowset,
-        ) {
-            self.v9_options_templates.promote(&template_id);
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    header_id: template_id,
-                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
-                        .unwrap_or(u16::MAX),
-                },
-                body: FlowSetBody::V9OptionsData(data),
-            });
-            return true;
-        }
+        );
+        let data = match self
+            .decoded_output_budget
+            .materialize_pending(cost, |budget| {
+                V9OptionsData::parse_with_budget(
+                    &entry.raw_data,
+                    &template,
+                    self.max_records_per_flowset,
+                    budget,
+                )
+                .map(|(_, data)| data)
+            }) {
+            Ok(data) => data,
+            Err(error) => return Some(error.into()),
+        };
+        self.v9_options_templates.promote(&template_id);
+        flowsets.push(Self::replayed_flowset(
+            template_id,
+            entry,
+            FlowSetBody::V9OptionsData(data),
+        ));
+        Some(PendingReplayOutcome::Replayed)
+    }
 
-        false
+    fn replayed_flowset(
+        template_id: u16,
+        entry: &PendingFlowEntry,
+        body: FlowSetBody,
+    ) -> FlowSet {
+        FlowSet {
+            header: FlowSetHeader {
+                header_id: template_id,
+                length: u16::try_from(entry.raw_data.len().saturating_add(4))
+                    .unwrap_or(u16::MAX),
+            },
+            body,
+        }
     }
 
     /// Returns a sorted, deduplicated list of all available template IDs.
@@ -1202,11 +1336,12 @@ impl FlowSetBody {
                     if template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     }
-                    let (i, data) = Data::parse_with_registry(
+                    let (i, data) = Data::parse_with_registry_and_budget(
                         i,
                         &template,
                         &parser.enterprise_registry,
                         parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
                     )?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
@@ -1222,11 +1357,12 @@ impl FlowSetBody {
                     if template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     }
-                    let (i, data) = OptionsData::parse_with_registry(
+                    let (i, data) = OptionsData::parse_with_registry_and_budget(
                         i,
                         &template,
                         &parser.enterprise_registry,
                         parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
                     )?;
                     return Ok((i, FlowSetBody::OptionsData(data)));
                 }
@@ -1239,8 +1375,12 @@ impl FlowSetBody {
                     &mut parser.metrics,
                 ) {
                     parser.metrics.record_hit();
-                    let (i, data) =
-                        V9Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    let (i, data) = V9Data::parse_with_budget(
+                        i,
+                        &template,
+                        parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
+                    )?;
                     return Ok((i, FlowSetBody::V9Data(data)));
                 }
 
@@ -1252,10 +1392,11 @@ impl FlowSetBody {
                     &mut parser.metrics,
                 ) {
                     parser.metrics.record_hit();
-                    let (i, data) = V9OptionsData::parse_with_limit(
+                    let (i, data) = V9OptionsData::parse_with_budget(
                         i,
                         &template,
                         parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
                     )?;
                     return Ok((i, FlowSetBody::V9OptionsData(data)));
                 }
@@ -1271,11 +1412,12 @@ impl FlowSetBody {
                     if template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     }
-                    let (i, data) = Data::parse_with_registry(
+                    let (i, data) = Data::parse_with_registry_and_budget(
                         i,
                         &template,
                         &parser.enterprise_registry,
                         parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
                     )?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
@@ -1284,26 +1426,32 @@ impl FlowSetBody {
                     if template.get_fields().is_empty() {
                         return Ok((i, FlowSetBody::Empty));
                     }
-                    let (i, data) = OptionsData::parse_with_registry(
+                    let (i, data) = OptionsData::parse_with_registry_and_budget(
                         i,
                         &template,
                         &parser.enterprise_registry,
                         parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
                     )?;
                     return Ok((i, FlowSetBody::OptionsData(data)));
                 }
                 if let Some(template) = parser.fetch_v9_template_from_store(id) {
                     parser.metrics.record_hit();
-                    let (i, data) =
-                        V9Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    let (i, data) = V9Data::parse_with_budget(
+                        i,
+                        &template,
+                        parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
+                    )?;
                     return Ok((i, FlowSetBody::V9Data(data)));
                 }
                 if let Some(template) = parser.fetch_v9_options_template_from_store(id) {
                     parser.metrics.record_hit();
-                    let (i, data) = V9OptionsData::parse_with_limit(
+                    let (i, data) = V9OptionsData::parse_with_budget(
                         i,
                         &template,
                         parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
                     )?;
                     return Ok((i, FlowSetBody::V9OptionsData(data)));
                 }
@@ -1366,15 +1514,41 @@ fn collect_varlen_field_lengths(fields: &[TemplateField]) -> Vec<u16> {
 }
 
 impl Data {
-    /// Parse Data using the enterprise registry to resolve custom enterprise fields
-    pub(super) fn parse_with_registry<'a>(
+    pub(super) fn parse_with_registry_and_budget<'a>(
         i: &'a [u8],
         template: &Template,
         registry: &EnterpriseFieldRegistry,
         max_records: usize,
+        budget: &mut DecodedOutputBudget,
     ) -> IResult<&'a [u8], Self> {
         let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
-        let (i, fields) = FieldParser::parse_with_registry(i, template, registry, max_records)?;
+        let (i, fields) = FieldParser::parse_with_registry_and_budget(
+            i,
+            template,
+            registry,
+            max_records,
+            budget,
+        )?;
+        Ok((
+            i,
+            Self {
+                fields,
+                padding: vec![],
+                template_field_lengths,
+            },
+        ))
+    }
+
+    /// Parse one data body with explicit finite output limits.
+    pub fn parse_with_limits<'a>(
+        i: &'a [u8],
+        template: &Template,
+        limits: crate::DecodedOutputLimits,
+    ) -> IResult<&'a [u8], Self> {
+        let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
+        let mut budget = limits.budget();
+        let (i, fields) =
+            FieldParser::parse_with_budget(i, template, limits.max_records(), &mut budget)?;
         Ok((
             i,
             Self {
@@ -1387,15 +1561,41 @@ impl Data {
 }
 
 impl OptionsData {
-    /// Parse OptionsData using the enterprise registry to resolve custom enterprise fields
-    pub(super) fn parse_with_registry<'a>(
+    pub(super) fn parse_with_registry_and_budget<'a>(
         i: &'a [u8],
         template: &OptionsTemplate,
         registry: &EnterpriseFieldRegistry,
         max_records: usize,
+        budget: &mut DecodedOutputBudget,
     ) -> IResult<&'a [u8], Self> {
         let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
-        let (i, fields) = FieldParser::parse_with_registry(i, template, registry, max_records)?;
+        let (i, fields) = FieldParser::parse_with_registry_and_budget(
+            i,
+            template,
+            registry,
+            max_records,
+            budget,
+        )?;
+        Ok((
+            i,
+            Self {
+                fields,
+                padding: vec![],
+                template_field_lengths,
+            },
+        ))
+    }
+
+    /// Parse one options-data body with explicit finite output limits.
+    pub fn parse_with_limits<'a>(
+        i: &'a [u8],
+        template: &OptionsTemplate,
+        limits: crate::DecodedOutputLimits,
+    ) -> IResult<&'a [u8], Self> {
+        let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
+        let mut budget = limits.budget();
+        let (i, fields) =
+            FieldParser::parse_with_budget(i, template, limits.max_records(), &mut budget)?;
         Ok((
             i,
             Self {
@@ -1416,6 +1616,7 @@ impl<'a> FieldParser {
         mut i: &'a [u8],
         template: &T,
         max_records: usize,
+        budget: &mut DecodedOutputBudget,
         parse_field: F,
     ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>>
     where
@@ -1439,15 +1640,56 @@ impl<'a> FieldParser {
                 }
             })
             .sum();
-        // template_fields is non-empty (checked above) and each contributes >= 1 byte,
-        // so template_size is always > 0 here.
-        let estimated_records = (i.len() / template_size).min(max_records);
+        if template_size == 0 {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                i,
+                nom::error::ErrorKind::Verify,
+            )));
+        }
+        let field_count = template_fields.len();
+        let all_fixed = template_fields
+            .iter()
+            .all(|field| field.field_length != u16::MAX);
+        let fixed_payload_per_record = all_fixed.then_some(template_size);
+        let (remaining_values, remaining_payload) = budget.remaining();
+        let mut estimated_records = (i.len() / template_size)
+            .min(max_records)
+            .min(remaining_values / field_count);
+        if let Some(payload_per_record) = fixed_payload_per_record {
+            estimated_records = estimated_records.min(remaining_payload / payload_per_record);
+        }
         let mut res = Vec::with_capacity(estimated_records);
 
         // Try to parse as much as we can, but if it fails, just return what we have so far.
         while !i.is_empty() && res.len() < max_records {
+            if let Some(payload_per_record) = fixed_payload_per_record
+                && i.len() < payload_per_record
+            {
+                break;
+            }
             let before = i;
-            let mut vec = Vec::with_capacity(template_fields.len());
+            let checkpoint = budget.checkpoint();
+            let record_payload = if let Some(payload_per_record) = fixed_payload_per_record {
+                payload_per_record
+            } else {
+                let Some((_, payload)) =
+                    crate::variable_versions::output_budget::scan_variable_record(
+                        i,
+                        template_fields,
+                        |field| field.field_length,
+                    )
+                else {
+                    break;
+                };
+                payload
+            };
+            if budget.reserve(field_count, record_payload).is_err() {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    i,
+                    nom::error::ErrorKind::TooLarge,
+                )));
+            }
+            let mut vec = Vec::with_capacity(field_count);
             for field in template_fields.iter() {
                 match parse_field(field, i) {
                     Ok((remaining, field_value)) => {
@@ -1455,6 +1697,7 @@ impl<'a> FieldParser {
                         i = remaining;
                     }
                     Err(_) => {
+                        budget.rollback(checkpoint);
                         i = before;
                         return Ok((i, res));
                     }
@@ -1463,6 +1706,7 @@ impl<'a> FieldParser {
             // Guard against infinite loops: if no bytes were consumed after
             // parsing a full record, stop to prevent CPU-bound DoS.
             if std::ptr::eq(i, before) {
+                budget.rollback(checkpoint);
                 break;
             }
             res.push(vec);
@@ -1478,19 +1722,34 @@ impl<'a> FieldParser {
         template: &T,
         max_records: usize,
     ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
-        Self::parse_inner(i, template, max_records, |field, input| {
+        let mut budget = DecodedOutputBudget::new(
+            crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
+        );
+        Self::parse_inner(i, template, max_records, &mut budget, |field, input| {
             field.parse_as_field_value(input)
         })
     }
 
-    /// Same as parse but uses the enterprise registry to resolve custom enterprise fields
-    fn parse_with_registry<T: CommonTemplate>(
+    fn parse_with_budget<T: CommonTemplate>(
+        i: &'a [u8],
+        template: &T,
+        max_records: usize,
+        budget: &mut DecodedOutputBudget,
+    ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
+        Self::parse_inner(i, template, max_records, budget, |field, input| {
+            field.parse_as_field_value(input)
+        })
+    }
+
+    fn parse_with_registry_and_budget<T: CommonTemplate>(
         i: &'a [u8],
         template: &T,
         registry: &EnterpriseFieldRegistry,
         max_records: usize,
+        budget: &mut DecodedOutputBudget,
     ) -> IResult<&'a [u8], Vec<Vec<IPFixFieldPair>>> {
-        Self::parse_inner(i, template, max_records, |field, input| {
+        Self::parse_inner(i, template, max_records, budget, |field, input| {
             field.parse_as_field_value_with_registry(input, registry)
         })
     }

@@ -504,6 +504,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -529,6 +533,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -577,6 +585,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -625,6 +637,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -672,6 +688,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -719,6 +739,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -769,6 +793,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -809,6 +837,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -844,6 +876,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -883,6 +919,10 @@ mod base_tests {
             max_error_sample_size: 256,
             max_records_per_flowset:
                 crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,

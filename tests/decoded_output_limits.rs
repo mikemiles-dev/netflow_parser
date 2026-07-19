@@ -1,0 +1,472 @@
+use netflow_parser::variable_versions::{ipfix, v9};
+use netflow_parser::{
+    DecodedOutputLimit, DecodedOutputLimits, IpfixField, NetflowError, NetflowPacket,
+    NetflowParser, PendingFlowsConfig, TemplateProtocol, V9Field,
+};
+
+fn v9_message(flowsets: &[Vec<u8>]) -> Vec<u8> {
+    let mut packet = vec![
+        0,
+        9, // version
+        0,
+        flowsets.len() as u8, // current parser's declared count
+        0,
+        0,
+        0,
+        0, // sys_uptime
+        0,
+        0,
+        0,
+        0, // unix_secs
+        0,
+        0,
+        0,
+        1, // sequence
+        0,
+        0,
+        0,
+        1, // source_id
+    ];
+    for flowset in flowsets {
+        packet.extend_from_slice(flowset);
+    }
+    packet
+}
+
+fn v9_template(template_id: u16, fields: &[(u16, u16)]) -> Vec<u8> {
+    let length = 8 + fields.len() * 4;
+    let mut set = Vec::with_capacity(length);
+    set.extend_from_slice(&0u16.to_be_bytes());
+    set.extend_from_slice(&(length as u16).to_be_bytes());
+    set.extend_from_slice(&template_id.to_be_bytes());
+    set.extend_from_slice(&(fields.len() as u16).to_be_bytes());
+    for (field_type, field_length) in fields {
+        set.extend_from_slice(&field_type.to_be_bytes());
+        set.extend_from_slice(&field_length.to_be_bytes());
+    }
+    set
+}
+
+fn v9_options_template(template_id: u16) -> Vec<u8> {
+    let mut set = Vec::new();
+    set.extend_from_slice(&1u16.to_be_bytes());
+    set.extend_from_slice(&18u16.to_be_bytes());
+    set.extend_from_slice(&template_id.to_be_bytes());
+    set.extend_from_slice(&4u16.to_be_bytes());
+    set.extend_from_slice(&4u16.to_be_bytes());
+    set.extend_from_slice(&1u16.to_be_bytes());
+    set.extend_from_slice(&1u16.to_be_bytes());
+    set.extend_from_slice(&2u16.to_be_bytes());
+    set.extend_from_slice(&1u16.to_be_bytes());
+    set
+}
+
+fn v9_data(template_id: u16, body: &[u8]) -> Vec<u8> {
+    let mut set = Vec::with_capacity(body.len() + 4);
+    set.extend_from_slice(&template_id.to_be_bytes());
+    set.extend_from_slice(&((body.len() + 4) as u16).to_be_bytes());
+    set.extend_from_slice(body);
+    set
+}
+
+fn ipfix_message(sets: &[Vec<u8>]) -> Vec<u8> {
+    let length = 16 + sets.iter().map(Vec::len).sum::<usize>();
+    let mut packet = Vec::with_capacity(length);
+    packet.extend_from_slice(&10u16.to_be_bytes());
+    packet.extend_from_slice(&(length as u16).to_be_bytes());
+    packet.extend_from_slice(&0u32.to_be_bytes());
+    packet.extend_from_slice(&1u32.to_be_bytes());
+    packet.extend_from_slice(&1u32.to_be_bytes());
+    for set in sets {
+        packet.extend_from_slice(set);
+    }
+    packet
+}
+
+fn ipfix_template(template_id: u16, field_type: u16, field_length: u16) -> Vec<u8> {
+    ipfix_template_fields(template_id, &[(field_type, field_length)])
+}
+
+fn ipfix_template_fields(template_id: u16, fields: &[(u16, u16)]) -> Vec<u8> {
+    let mut set = Vec::new();
+    set.extend_from_slice(&2u16.to_be_bytes());
+    set.extend_from_slice(&((8 + fields.len() * 4) as u16).to_be_bytes());
+    set.extend_from_slice(&template_id.to_be_bytes());
+    set.extend_from_slice(&(fields.len() as u16).to_be_bytes());
+    for (field_type, field_length) in fields {
+        set.extend_from_slice(&field_type.to_be_bytes());
+        set.extend_from_slice(&field_length.to_be_bytes());
+    }
+    set
+}
+
+fn ipfix_options_template(template_id: u16) -> Vec<u8> {
+    let mut set = Vec::new();
+    set.extend_from_slice(&3u16.to_be_bytes());
+    set.extend_from_slice(&18u16.to_be_bytes());
+    set.extend_from_slice(&template_id.to_be_bytes());
+    set.extend_from_slice(&2u16.to_be_bytes());
+    set.extend_from_slice(&1u16.to_be_bytes());
+    set.extend_from_slice(&1u16.to_be_bytes());
+    set.extend_from_slice(&1u16.to_be_bytes());
+    set.extend_from_slice(&2u16.to_be_bytes());
+    set.extend_from_slice(&1u16.to_be_bytes());
+    set
+}
+
+fn ipfix_data(template_id: u16, body: &[u8]) -> Vec<u8> {
+    let mut set = Vec::with_capacity(body.len() + 4);
+    set.extend_from_slice(&template_id.to_be_bytes());
+    set.extend_from_slice(&((body.len() + 4) as u16).to_be_bytes());
+    set.extend_from_slice(body);
+    set
+}
+
+fn assert_limit(
+    error: Option<NetflowError>,
+    protocol: TemplateProtocol,
+    limit: DecodedOutputLimit,
+    configured: usize,
+    attempted: usize,
+) {
+    assert!(matches!(
+        error,
+        Some(NetflowError::DecodedOutputLimitExceeded {
+            protocol: actual_protocol,
+            limit: actual_limit,
+            configured: actual_configured,
+            attempted: actual_attempted,
+        }) if actual_protocol == protocol
+            && actual_limit == limit
+            && actual_configured == configured
+            && actual_attempted == attempted
+    ));
+}
+
+#[test]
+fn v9_value_budget_is_cumulative_across_flowsets_and_exact() {
+    let template = v9_template(256, &[(1, 1)]);
+
+    let mut exact = NetflowParser::builder()
+        .with_v9_max_decoded_field_values_per_message(4)
+        .build()
+        .unwrap();
+    assert!(exact.parse_bytes(&v9_message(&[template.clone()])).is_ok());
+    let result =
+        exact.parse_bytes(&v9_message(&[v9_data(256, &[1, 2]), v9_data(256, &[3, 4])]));
+    assert!(result.is_ok(), "{:?}", result.error);
+
+    let mut one_over = NetflowParser::builder()
+        .with_v9_max_decoded_field_values_per_message(3)
+        .build()
+        .unwrap();
+    assert!(one_over.parse_bytes(&v9_message(&[template])).is_ok());
+    let result =
+        one_over.parse_bytes(&v9_message(&[v9_data(256, &[1, 2]), v9_data(256, &[3, 4])]));
+    assert!(result.packets.is_empty());
+    assert_limit(
+        result.error,
+        TemplateProtocol::V9,
+        DecodedOutputLimit::FieldValues,
+        3,
+        4,
+    );
+}
+
+#[test]
+fn v9_options_budget_counts_scope_and_option_values() {
+    let mut parser = NetflowParser::builder()
+        .with_v9_max_decoded_field_values_per_message(1)
+        .build()
+        .unwrap();
+    assert!(
+        parser
+            .parse_bytes(&v9_message(&[v9_options_template(300)]))
+            .is_ok()
+    );
+    let result = parser.parse_bytes(&v9_message(&[v9_data(300, &[1, 2])]));
+    assert_limit(
+        result.error,
+        TemplateProtocol::V9,
+        DecodedOutputLimit::FieldValues,
+        1,
+        2,
+    );
+}
+
+#[test]
+fn ipfix_value_budget_is_cumulative_across_sets_and_exact() {
+    let template = ipfix_template(256, 1, 1);
+    let mut parser = NetflowParser::builder()
+        .with_ipfix_max_decoded_field_values_per_message(3)
+        .build()
+        .unwrap();
+    assert!(parser.parse_bytes(&ipfix_message(&[template])).is_ok());
+
+    let result = parser.parse_bytes(&ipfix_message(&[
+        ipfix_data(256, &[1, 2]),
+        ipfix_data(256, &[3, 4]),
+    ]));
+    assert!(result.packets.is_empty());
+    assert_limit(
+        result.error,
+        TemplateProtocol::Ipfix,
+        DecodedOutputLimit::FieldValues,
+        3,
+        4,
+    );
+}
+
+#[test]
+fn ipfix_variable_field_payload_budget_excludes_length_prefix() {
+    // interfaceName (82) is a String; 65535 selects RFC 7011 variable length.
+    let template = ipfix_template(256, 82, u16::MAX);
+    let mut exact = NetflowParser::builder()
+        .with_ipfix_max_decoded_field_payload_bytes_per_message(4)
+        .build()
+        .unwrap();
+    assert!(
+        exact
+            .parse_bytes(&ipfix_message(&[template.clone()]))
+            .is_ok()
+    );
+    assert!(
+        exact
+            .parse_bytes(&ipfix_message(&[ipfix_data(
+                256,
+                &[4, b't', b'e', b's', b't']
+            )]))
+            .is_ok()
+    );
+
+    let mut one_over = NetflowParser::builder()
+        .with_ipfix_max_decoded_field_payload_bytes_per_message(4)
+        .build()
+        .unwrap();
+    assert!(one_over.parse_bytes(&ipfix_message(&[template])).is_ok());
+    let result = one_over.parse_bytes(&ipfix_message(&[ipfix_data(
+        256,
+        &[5, b't', b'e', b's', b't', b'!'],
+    )]));
+    assert_limit(
+        result.error,
+        TemplateProtocol::Ipfix,
+        DecodedOutputLimit::FieldPayloadBytes,
+        4,
+        5,
+    );
+}
+
+#[test]
+fn v9_payload_budget_is_cumulative_across_flowsets() {
+    let template = v9_template(256, &[(1, 2)]);
+    let mut parser = NetflowParser::builder()
+        .with_v9_max_decoded_field_payload_bytes_per_message(3)
+        .build()
+        .unwrap();
+    assert!(parser.parse_bytes(&v9_message(&[template])).is_ok());
+    let result =
+        parser.parse_bytes(&v9_message(&[v9_data(256, &[0, 1]), v9_data(256, &[0, 2])]));
+    assert_limit(
+        result.error,
+        TemplateProtocol::V9,
+        DecodedOutputLimit::FieldPayloadBytes,
+        3,
+        4,
+    );
+}
+
+#[test]
+#[cfg(feature = "parse_unknown_fields")]
+fn default_value_budget_rejects_many_tiny_materialized_fields() {
+    let mut fields: Vec<(u16, u16)> = (1000..1064).map(|field| (field, 0)).collect();
+    fields.push((1, 1));
+    let mut parser = NetflowParser::default();
+    assert!(
+        parser
+            .parse_bytes(&v9_message(&[v9_template(256, &fields)]))
+            .is_ok()
+    );
+    let result = parser.parse_bytes(&v9_message(&[v9_data(256, &[1; 1009])]));
+    assert_limit(
+        result.error,
+        TemplateProtocol::V9,
+        DecodedOutputLimit::FieldValues,
+        netflow_parser::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+        65_585,
+    );
+}
+
+#[test]
+fn large_variable_value_is_rejected_before_payload_materialization() {
+    let template = ipfix_template(256, 82, u16::MAX);
+    let mut parser = NetflowParser::builder()
+        .with_ipfix_max_decoded_field_payload_bytes_per_message(4095)
+        .build()
+        .unwrap();
+    assert!(parser.parse_bytes(&ipfix_message(&[template])).is_ok());
+
+    let mut body = Vec::with_capacity(4099);
+    body.push(255);
+    body.extend_from_slice(&4096u16.to_be_bytes());
+    body.resize(4099, b'x');
+    let result = parser.parse_bytes(&ipfix_message(&[ipfix_data(256, &body)]));
+    assert_limit(
+        result.error,
+        TemplateProtocol::Ipfix,
+        DecodedOutputLimit::FieldPayloadBytes,
+        4095,
+        4096,
+    );
+}
+
+#[test]
+fn ipfix_native_and_embedded_options_count_every_value() {
+    for template in [ipfix_options_template(300), {
+        let mut embedded = v9_options_template(300);
+        embedded[0..2].copy_from_slice(&1u16.to_be_bytes());
+        embedded
+    }] {
+        let mut parser = NetflowParser::builder()
+            .with_ipfix_max_decoded_field_values_per_message(1)
+            .build()
+            .unwrap();
+        assert!(parser.parse_bytes(&ipfix_message(&[template])).is_ok());
+        let result = parser.parse_bytes(&ipfix_message(&[ipfix_data(300, &[1, 2])]));
+        assert_limit(
+            result.error,
+            TemplateProtocol::Ipfix,
+            DecodedOutputLimit::FieldValues,
+            1,
+            2,
+        );
+    }
+}
+
+#[test]
+fn ipfix_embedded_v9_data_uses_the_message_budget() {
+    let mut parser = NetflowParser::builder()
+        .with_ipfix_max_decoded_field_values_per_message(1)
+        .build()
+        .unwrap();
+    let template = v9_template(256, &[(1, 1)]);
+    assert!(parser.parse_bytes(&ipfix_message(&[template])).is_ok());
+    let result = parser.parse_bytes(&ipfix_message(&[ipfix_data(256, &[1, 2])]));
+    assert_limit(
+        result.error,
+        TemplateProtocol::Ipfix,
+        DecodedOutputLimit::FieldValues,
+        1,
+        2,
+    );
+}
+
+#[test]
+fn pending_variable_preflight_uses_the_parser_padding_boundary() {
+    let mut parser = NetflowParser::builder()
+        .with_ipfix_pending_flows(PendingFlowsConfig::default())
+        .with_ipfix_max_decoded_field_values_per_message(2)
+        .build()
+        .unwrap();
+
+    // One complete one-byte varlen + one-byte fixed record, then one byte of
+    // legal Set padding that is not a complete second record.
+    assert!(
+        parser
+            .parse_bytes(&ipfix_message(&[ipfix_data(256, &[1, b'x', 7, 0])]))
+            .is_ok()
+    );
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 1);
+
+    let template = ipfix_template_fields(256, &[(82, u16::MAX), (1, 1)]);
+    let replay = parser.parse_bytes(&ipfix_message(&[template]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    assert_eq!(parser.ipfix_cache_info().pending_flow_count, 0);
+    let NetflowPacket::IPFix(packet) = &replay.packets[0] else {
+        panic!("expected IPFIX packet")
+    };
+    assert!(packet.flowsets.len() >= 2, "pending flow was not appended");
+}
+
+#[test]
+fn pending_replay_retains_a_temporarily_non_fitting_suffix() {
+    let mut parser = NetflowParser::builder()
+        .with_v9_pending_flows(PendingFlowsConfig::default())
+        .with_v9_max_decoded_field_values_per_message(2)
+        .build()
+        .unwrap();
+
+    assert!(
+        parser
+            .parse_bytes(&v9_message(&[v9_data(256, &[1, 2])]))
+            .is_ok()
+    );
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+
+    let template = v9_template(256, &[(1, 1)]);
+    let current = parser.parse_bytes(&v9_message(&[template.clone(), v9_data(256, &[3])]));
+    assert!(current.is_ok(), "{:?}", current.error);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 1);
+
+    let replay = parser.parse_bytes(&v9_message(&[template]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 0);
+    let NetflowPacket::V9(packet) = &replay.packets[0] else {
+        panic!("expected v9 packet")
+    };
+    assert!(packet.flowsets.len() >= 2, "pending flow was not appended");
+}
+
+#[test]
+fn zero_output_limits_are_rejected() {
+    assert!(
+        NetflowParser::builder()
+            .with_max_decoded_field_values_per_message(0)
+            .build()
+            .is_err()
+    );
+    assert!(
+        NetflowParser::builder()
+            .with_max_decoded_field_payload_bytes_per_message(0)
+            .build()
+            .is_err()
+    );
+}
+
+#[test]
+fn low_level_data_and_options_companions_apply_explicit_bounds() {
+    let limits = DecodedOutputLimits::new(16, 1, 16).unwrap();
+
+    let v9_template = v9::Template {
+        template_id: 256,
+        field_count: 1,
+        fields: vec![v9::TemplateField {
+            field_type_number: 1,
+            field_type: V9Field::from(1),
+            field_length: 1,
+        }],
+    };
+    assert!(v9::Data::parse_with_limits(&[1], &v9_template, limits).is_ok());
+    assert!(v9::Data::parse_with_limits(&[1, 2], &v9_template, limits).is_err());
+
+    let ipfix_options = ipfix::OptionsTemplate {
+        template_id: 300,
+        field_count: 2,
+        scope_field_count: 1,
+        fields: vec![
+            ipfix::TemplateField {
+                field_type_number: 1,
+                field_length: 1,
+                enterprise_number: None,
+                field_type: IpfixField::new(1, None),
+            },
+            ipfix::TemplateField {
+                field_type_number: 2,
+                field_length: 1,
+                enterprise_number: None,
+                field_type: IpfixField::new(2, None),
+            },
+        ],
+    };
+    assert!(ipfix::OptionsData::parse_with_limits(&[1, 2], &ipfix_options, limits).is_err());
+}

@@ -6,6 +6,7 @@
 
 use super::lookup::IPFixField;
 use crate::template_store::TemplateStore;
+use crate::variable_versions::DecodedOutputBudget;
 use crate::variable_versions::PendingFlowCache;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
@@ -49,6 +50,7 @@ pub struct IPFixParser {
     pub(crate) max_template_total_size: usize,
     pub(crate) max_error_sample_size: usize,
     pub(crate) max_records_per_flowset: usize,
+    pub(crate) decoded_output_budget: DecodedOutputBudget,
     pub(crate) enterprise_registry: Arc<EnterpriseFieldRegistry>,
     pub(crate) metrics: CacheMetricsInner,
     pub(crate) pending_flows: Option<PendingFlowCache>,
