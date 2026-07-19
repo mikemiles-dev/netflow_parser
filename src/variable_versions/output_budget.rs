@@ -148,12 +148,16 @@ impl DecodedOutputBudget {
         values: usize,
         payload_bytes: usize,
     ) -> Result<(), OutputBudgetExceeded> {
-        let attempted_values = self.used_values.saturating_add(values);
+        let Some(attempted_values) = self.used_values.checked_add(values) else {
+            return Err(self.record_exceeded(DecodedOutputLimit::FieldValues, usize::MAX));
+        };
         if attempted_values > self.max_values {
             return Err(self.record_exceeded(DecodedOutputLimit::FieldValues, attempted_values));
         }
 
-        let attempted_payload = self.used_payload_bytes.saturating_add(payload_bytes);
+        let Some(attempted_payload) = self.used_payload_bytes.checked_add(payload_bytes) else {
+            return Err(self.record_exceeded(DecodedOutputLimit::FieldPayloadBytes, usize::MAX));
+        };
         if attempted_payload > self.max_payload_bytes {
             return Err(
                 self.record_exceeded(DecodedOutputLimit::FieldPayloadBytes, attempted_payload)
@@ -393,6 +397,30 @@ mod tests {
         assert!(budget.reserve(usize::MAX - 2, 0).is_ok());
         let error = budget.reserve(4, 0).unwrap_err();
         assert_eq!(error.attempted, usize::MAX);
+    }
+
+    #[test]
+    fn value_overflow_is_rejected_at_the_maximum_limit() {
+        let mut budget = DecodedOutputBudget::new(usize::MAX, usize::MAX);
+        assert!(budget.reserve(usize::MAX - 1, 0).is_ok());
+
+        let error = budget.reserve(2, 0).unwrap_err();
+        assert_eq!(error.limit, DecodedOutputLimit::FieldValues);
+        assert_eq!(error.configured, usize::MAX);
+        assert_eq!(error.attempted, usize::MAX);
+        assert_eq!(budget.used(), (usize::MAX - 1, 0));
+    }
+
+    #[test]
+    fn payload_overflow_is_rejected_at_the_maximum_limit() {
+        let mut budget = DecodedOutputBudget::new(usize::MAX, usize::MAX);
+        assert!(budget.reserve(0, usize::MAX - 1).is_ok());
+
+        let error = budget.reserve(0, 2).unwrap_err();
+        assert_eq!(error.limit, DecodedOutputLimit::FieldPayloadBytes);
+        assert_eq!(error.configured, usize::MAX);
+        assert_eq!(error.attempted, usize::MAX);
+        assert_eq!(budget.used(), (0, usize::MAX - 1));
     }
 
     #[test]
