@@ -27,6 +27,7 @@ use crate::variable_versions::v9::{
     DATA_TEMPLATE_V9_ID, Data as V9Data, OPTIONS_TEMPLATE_V9_ID, OptionsData as V9OptionsData,
     OptionsTemplate as V9OptionsTemplate, Template as V9Template,
 };
+use crate::variable_versions::wire::RecordBodyKind;
 use crate::variable_versions::{
     Config, ConfigError, DecodedOutputBudget, ParserConfig, ParserFields, PendingFlowCache,
     PendingFlowEntry, PendingFlowsConfig, PendingReplayOutcome,
@@ -729,27 +730,29 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         )?;
-        let cost = crate::variable_versions::output_budget::measure_variable_output(
+        let preflight = crate::variable_versions::output_budget::measure_variable_output(
             &entry.raw_data,
             template.get_fields(),
             self.max_records_per_flowset,
             |field| field.field_length,
+            RecordBodyKind::Ipfix,
         );
-        let data = match self
-            .decoded_output_budget
-            .materialize_pending(cost, |budget| {
-                Data::parse_with_registry_and_budget(
-                    &entry.raw_data,
-                    &template,
-                    &self.enterprise_registry,
-                    self.max_records_per_flowset,
-                    budget,
-                )
-                .map(|(_, data)| data)
-            }) {
-            Ok(data) => data,
-            Err(error) => return Some(error.into()),
-        };
+        let (mut data, padding_len) =
+            match self
+                .decoded_output_budget
+                .materialize_pending(preflight, |budget| {
+                    Data::parse_with_registry_and_budget(
+                        &entry.raw_data,
+                        &template,
+                        &self.enterprise_registry,
+                        self.max_records_per_flowset,
+                        budget,
+                    )
+                }) {
+                Ok(result) => result,
+                Err(error) => return Some(error.into()),
+            };
+        data.padding = entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
         self.templates.promote(&template_id);
         flowsets.push(Self::replayed_flowset(
             template_id,
@@ -771,27 +774,29 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         )?;
-        let cost = crate::variable_versions::output_budget::measure_variable_output(
+        let preflight = crate::variable_versions::output_budget::measure_variable_output(
             &entry.raw_data,
             template.get_fields(),
             self.max_records_per_flowset,
             |field| field.field_length,
+            RecordBodyKind::Ipfix,
         );
-        let data = match self
-            .decoded_output_budget
-            .materialize_pending(cost, |budget| {
-                OptionsData::parse_with_registry_and_budget(
-                    &entry.raw_data,
-                    &template,
-                    &self.enterprise_registry,
-                    self.max_records_per_flowset,
-                    budget,
-                )
-                .map(|(_, data)| data)
-            }) {
-            Ok(data) => data,
-            Err(error) => return Some(error.into()),
-        };
+        let (mut data, padding_len) =
+            match self
+                .decoded_output_budget
+                .materialize_pending(preflight, |budget| {
+                    OptionsData::parse_with_registry_and_budget(
+                        &entry.raw_data,
+                        &template,
+                        &self.enterprise_registry,
+                        self.max_records_per_flowset,
+                        budget,
+                    )
+                }) {
+                Ok(result) => result,
+                Err(error) => return Some(error.into()),
+            };
+        data.padding = entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
         self.ipfix_options_templates.promote(&template_id);
         flowsets.push(Self::replayed_flowset(
             template_id,
@@ -813,25 +818,27 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         )?;
-        let cost = V9Data::decoded_output_cost(
-            entry.raw_data.len(),
+        let preflight = V9Data::decoded_output_preflight(
+            &entry.raw_data,
             &template,
             self.max_records_per_flowset,
+            RecordBodyKind::Ipfix,
         );
-        let data = match self
-            .decoded_output_budget
-            .materialize_pending(cost, |budget| {
-                V9Data::parse_with_budget(
-                    &entry.raw_data,
-                    &template,
-                    self.max_records_per_flowset,
-                    budget,
-                )
-                .map(|(_, data)| data)
-            }) {
-            Ok(data) => data,
-            Err(error) => return Some(error.into()),
-        };
+        let (mut data, padding_len) =
+            match self
+                .decoded_output_budget
+                .materialize_pending(preflight, |budget| {
+                    V9Data::parse_with_budget(
+                        &entry.raw_data,
+                        &template,
+                        self.max_records_per_flowset,
+                        budget,
+                    )
+                }) {
+                Ok(result) => result,
+                Err(error) => return Some(error.into()),
+            };
+        data.padding = entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
         self.v9_templates.promote(&template_id);
         flowsets.push(Self::replayed_flowset(
             template_id,
@@ -853,23 +860,23 @@ impl IPFixParser {
             &self.ttl_config,
             &mut self.metrics,
         )?;
-        let cost = V9OptionsData::decoded_output_cost(
-            entry.raw_data.len(),
+        let preflight = V9OptionsData::decoded_output_preflight(
+            &entry.raw_data,
             &template,
             self.max_records_per_flowset,
+            RecordBodyKind::Ipfix,
         );
         let data = match self
             .decoded_output_budget
-            .materialize_pending(cost, |budget| {
+            .materialize_pending(preflight, |budget| {
                 V9OptionsData::parse_with_budget(
                     &entry.raw_data,
                     &template,
                     self.max_records_per_flowset,
                     budget,
                 )
-                .map(|(_, data)| data)
             }) {
-            Ok(data) => data,
+            Ok((data, _)) => data,
             Err(error) => return Some(error.into()),
         };
         self.v9_options_templates.promote(&template_id);
@@ -1766,13 +1773,6 @@ impl TemplateField {
                 let (i, length) = parse_u8(i)?;
                 if length == 255 {
                     let (i, full_length) = parse_u16_be(i)?;
-                    // RFC 7011 Section 7: length values of 0 are not permitted
-                    if full_length == 0 {
-                        return Err(nom::Err::Error(nom::error::Error::new(
-                            i,
-                            nom::error::ErrorKind::Verify,
-                        )));
-                    }
                     // Validate length doesn't exceed remaining buffer
                     if (full_length as usize) > i.len() {
                         return Err(nom::Err::Error(nom::error::Error::new(
@@ -1782,13 +1782,6 @@ impl TemplateField {
                     }
                     Ok((i, full_length))
                 } else {
-                    // RFC 7011 Section 7: length values of 0 are not permitted
-                    if length == 0 {
-                        return Err(nom::Err::Error(nom::error::Error::new(
-                            i,
-                            nom::error::ErrorKind::Verify,
-                        )));
-                    }
                     // Validate length doesn't exceed remaining buffer
                     if (length as usize) > i.len() {
                         return Err(nom::Err::Error(nom::error::Error::new(

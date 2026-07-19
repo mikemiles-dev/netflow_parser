@@ -80,6 +80,7 @@ pub(crate) mod pending_flows;
 pub mod template_events;
 pub mod ttl;
 pub mod v9;
+pub(crate) mod wire;
 
 // Re-export public types to preserve existing import paths
 pub use config::ParserConfig;

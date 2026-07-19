@@ -422,6 +422,191 @@ fn pending_replay_retains_a_temporarily_non_fitting_suffix() {
 }
 
 #[test]
+fn pending_replay_drops_incomplete_fixed_entry_and_continues_fifo() {
+    let mut parser = NetflowParser::builder()
+        .with_v9_pending_flows(PendingFlowsConfig::default())
+        .build()
+        .unwrap();
+
+    assert!(
+        parser
+            .parse_bytes(&v9_message(&[v9_data(256, &[1])]))
+            .is_ok()
+    );
+    assert!(
+        parser
+            .parse_bytes(&v9_message(&[v9_data(256, &[2, 3])]))
+            .is_ok()
+    );
+    assert_eq!(parser.v9_cache_info().pending_flow_count, 2);
+
+    let replay = parser.parse_bytes(&v9_message(&[v9_template(256, &[(1, 2)])]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    let info = parser.v9_cache_info();
+    assert_eq!(info.pending_flow_count, 0);
+    assert_eq!(info.metrics.pending_replay_failed, 1);
+    assert_eq!(info.metrics.pending_replayed, 1);
+
+    let NetflowPacket::V9(packet) = &replay.packets[0] else {
+        panic!("expected v9 packet")
+    };
+    let data = packet
+        .flowsets
+        .iter()
+        .filter_map(|flowset| match &flowset.body {
+            v9::FlowSetBody::Data(data) => Some(data),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(data.len(), 1);
+    assert_eq!(data[0].fields.len(), 1);
+}
+
+#[test]
+fn pending_replay_rejects_max_record_truncated_prefixes() {
+    let mut v9_parser = NetflowParser::builder()
+        .with_v9_pending_flows(PendingFlowsConfig::default())
+        .with_v9_max_records_per_flowset(1)
+        .build()
+        .unwrap();
+    assert!(
+        v9_parser
+            .parse_bytes(&v9_message(&[v9_data(256, &[1, 2])]))
+            .is_ok()
+    );
+    let replay = v9_parser.parse_bytes(&v9_message(&[v9_template(256, &[(1, 1)])]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    let info = v9_parser.v9_cache_info();
+    assert_eq!(info.pending_flow_count, 0);
+    assert_eq!(info.metrics.pending_replay_failed, 1);
+    assert_eq!(info.metrics.pending_replayed, 0);
+
+    let mut ipfix_parser = NetflowParser::builder()
+        .with_ipfix_pending_flows(PendingFlowsConfig::default())
+        .with_ipfix_max_records_per_flowset(1)
+        .build()
+        .unwrap();
+    assert!(
+        ipfix_parser
+            .parse_bytes(&ipfix_message(&[ipfix_data(256, &[1, b'x', 1, b'y'])]))
+            .is_ok()
+    );
+    let replay = ipfix_parser.parse_bytes(&ipfix_message(&[ipfix_template(256, 82, u16::MAX)]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    let info = ipfix_parser.ipfix_cache_info();
+    assert_eq!(info.pending_flow_count, 0);
+    assert_eq!(info.metrics.pending_replay_failed, 1);
+    assert_eq!(info.metrics.pending_replayed, 0);
+}
+
+#[test]
+fn pending_replay_preserves_valid_fixed_and_variable_padding() {
+    let mut v9_parser = NetflowParser::builder()
+        .with_v9_pending_flows(PendingFlowsConfig::default())
+        .build()
+        .unwrap();
+    assert!(
+        v9_parser
+            .parse_bytes(&v9_message(&[v9_data(256, &[1, 2, 3, 4, 0, 0])]))
+            .is_ok()
+    );
+    let replay = v9_parser.parse_bytes(&v9_message(&[v9_template(256, &[(1, 4)])]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    let NetflowPacket::V9(packet) = &replay.packets[0] else {
+        panic!("expected v9 packet")
+    };
+    let data = packet
+        .flowsets
+        .iter()
+        .find_map(|flowset| match &flowset.body {
+            v9::FlowSetBody::Data(data) => Some(data),
+            _ => None,
+        })
+        .expect("expected replayed v9 data");
+    assert_eq!(data.fields.len(), 1);
+    assert_eq!(data.padding, [0, 0]);
+
+    let mut ipfix_parser = NetflowParser::builder()
+        .with_ipfix_pending_flows(PendingFlowsConfig::default())
+        .build()
+        .unwrap();
+    // Empty interfaceName using both legal varlen encodings, one fixed byte,
+    // then one byte of legal short padding.
+    for body in [&[0, 7, 0][..], &[255, 0, 0, 8, 0][..]] {
+        assert!(
+            ipfix_parser
+                .parse_bytes(&ipfix_message(&[ipfix_data(256, body)]))
+                .is_ok()
+        );
+    }
+    let replay = ipfix_parser.parse_bytes(&ipfix_message(&[ipfix_template_fields(
+        256,
+        &[(82, u16::MAX), (1, 1)],
+    )]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    let info = ipfix_parser.ipfix_cache_info();
+    assert_eq!(info.pending_flow_count, 0);
+    assert_eq!(info.metrics.pending_replay_failed, 0);
+    assert_eq!(info.metrics.pending_replayed, 2);
+    let NetflowPacket::IPFix(packet) = &replay.packets[0] else {
+        panic!("expected IPFIX packet")
+    };
+    let data = packet
+        .flowsets
+        .iter()
+        .filter_map(|flowset| match &flowset.body {
+            ipfix::FlowSetBody::Data(data) => Some(data),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(data.len(), 2);
+    for replayed in data {
+        assert_eq!(replayed.fields.len(), 1);
+        assert_eq!(replayed.fields[0].len(), 2);
+        assert_eq!(replayed.padding, [0]);
+    }
+}
+
+#[test]
+fn pending_replay_rejects_every_incomplete_body_kind() {
+    let mut v9_parser = NetflowParser::builder()
+        .with_v9_pending_flows(PendingFlowsConfig::default())
+        .build()
+        .unwrap();
+    assert!(
+        v9_parser
+            .parse_bytes(&v9_message(&[v9_data(300, &[1])]))
+            .is_ok()
+    );
+    let replay = v9_parser.parse_bytes(&v9_message(&[v9_options_template(300)]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    assert_eq!(v9_parser.v9_cache_info().metrics.pending_replay_failed, 1);
+
+    for template in [
+        ipfix_template(300, 1, 2),
+        ipfix_options_template(300),
+        v9_template(300, &[(1, 2)]),
+        v9_options_template(300),
+    ] {
+        let mut parser = NetflowParser::builder()
+            .with_ipfix_pending_flows(PendingFlowsConfig::default())
+            .build()
+            .unwrap();
+        assert!(
+            parser
+                .parse_bytes(&ipfix_message(&[ipfix_data(300, &[1])]))
+                .is_ok()
+        );
+        let replay = parser.parse_bytes(&ipfix_message(&[template]));
+        assert!(replay.is_ok(), "{:?}", replay.error);
+        let info = parser.ipfix_cache_info();
+        assert_eq!(info.pending_flow_count, 0);
+        assert_eq!(info.metrics.pending_replay_failed, 1);
+        assert_eq!(info.metrics.pending_replayed, 0);
+    }
+}
+
+#[test]
 fn zero_output_limits_are_rejected() {
     assert!(
         NetflowParser::builder()
@@ -452,6 +637,35 @@ fn low_level_data_and_options_companions_apply_explicit_bounds() {
     };
     assert!(v9::Data::parse_with_limits(&[1], &v9_template, limits).is_ok());
     assert!(v9::Data::parse_with_limits(&[1, 2], &v9_template, limits).is_err());
+
+    let v9_options = v9::OptionsTemplate {
+        template_id: 300,
+        options_scope_length: 4,
+        options_length: 4,
+        scope_fields: vec![v9::OptionsTemplateScopeField {
+            field_type_number: 1,
+            field_type: v9::lookup::ScopeFieldType::from(1),
+            field_length: 1,
+        }],
+        option_fields: vec![v9::TemplateField {
+            field_type_number: 1,
+            field_type: V9Field::from(1),
+            field_length: 1,
+        }],
+    };
+    assert!(v9::OptionsData::parse_with_limits(&[1, 2], &v9_options, limits).is_err());
+
+    let ipfix_data = ipfix::Template {
+        template_id: 256,
+        field_count: 1,
+        fields: vec![ipfix::TemplateField {
+            field_type_number: 1,
+            field_length: 1,
+            enterprise_number: None,
+            field_type: IpfixField::new(1, None),
+        }],
+    };
+    assert!(ipfix::Data::parse_with_limits(&[1, 2], &ipfix_data, limits).is_err());
 
     let ipfix_options = ipfix::OptionsTemplate {
         template_id: 300,

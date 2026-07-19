@@ -1,5 +1,9 @@
 //! Cumulative decoded-output accounting shared by NetFlow v9 and IPFIX.
 
+use crate::variable_versions::wire::{
+    RecordBodyKind, minimum_record_size, record_body_is_complete,
+};
+
 /// Default maximum number of decoded field values returned by one message.
 pub const DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE: usize = 65_536;
 
@@ -84,6 +88,21 @@ pub(crate) enum PendingReplayOutcome {
     Replayed,
     TemporarilyDoesNotFit,
     Failed,
+}
+
+/// Exact allocation-free framing and decoded-cost result for one queued body.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PendingOutputPreflight {
+    field_values: usize,
+    field_payload_bytes: usize,
+    remainder_len: usize,
+}
+
+impl PendingOutputPreflight {
+    #[inline]
+    fn cost(self) -> (usize, usize) {
+        (self.field_values, self.field_payload_bytes)
+    }
 }
 
 impl From<PendingOutputError> for PendingReplayOutcome {
@@ -209,14 +228,15 @@ impl DecodedOutputBudget {
 
     /// Preflight one queued body, materialize it only when it fits the current
     /// message, then commit its actual decoded cost.
-    pub(crate) fn materialize_pending<T, E>(
+    pub(crate) fn materialize_pending<'a, T, E>(
         &mut self,
-        measured_cost: Option<(usize, usize)>,
-        parse: impl FnOnce(&mut DecodedOutputBudget) -> Result<T, E>,
-    ) -> Result<T, PendingOutputError> {
-        let Some(measured) = measured_cost else {
+        preflight: Option<PendingOutputPreflight>,
+        parse: impl FnOnce(&mut DecodedOutputBudget) -> Result<(&'a [u8], T), E>,
+    ) -> Result<(T, usize), PendingOutputError> {
+        let Some(preflight) = preflight else {
             return Err(PendingOutputError::InvalidOrNeverFits);
         };
+        let measured = preflight.cost();
         if measured.0 > self.max_values || measured.1 > self.max_payload_bytes {
             return Err(PendingOutputError::InvalidOrNeverFits);
         }
@@ -226,39 +246,63 @@ impl DecodedOutputBudget {
         }
 
         let mut scratch = Self::new(self.max_values, self.max_payload_bytes);
-        let value = parse(&mut scratch).map_err(|_| PendingOutputError::InvalidOrNeverFits)?;
+        let (remaining, value) =
+            parse(&mut scratch).map_err(|_| PendingOutputError::InvalidOrNeverFits)?;
         let actual = scratch.used();
-        if actual != measured {
+        if actual != measured || remaining.len() != preflight.remainder_len {
             return Err(PendingOutputError::InvalidOrNeverFits);
         }
         if self.reserve(actual.0, actual.1).is_err() {
             return Err(PendingOutputError::InvalidOrNeverFits);
         }
-        Ok(value)
+        Ok((value, preflight.remainder_len))
     }
 }
 
 pub(crate) fn measure_fixed_output<T>(
-    input_len: usize,
+    input: &[u8],
     fields: &[T],
     max_records: usize,
     width: impl Fn(&T) -> u16,
-) -> Option<(usize, usize)> {
+    body_kind: RecordBodyKind,
+) -> Option<PendingOutputPreflight> {
     if fields.is_empty() {
         return None;
     }
-    let payload_per_record = fields
-        .iter()
-        .map(|field| usize::from(width(field)))
-        .try_fold(0usize, usize::checked_add)?;
+    measure_fixed_widths(
+        input,
+        fields.len(),
+        fields.iter().map(width),
+        max_records,
+        body_kind,
+    )
+}
+
+pub(crate) fn measure_fixed_widths(
+    input: &[u8],
+    field_count: usize,
+    widths: impl IntoIterator<Item = u16>,
+    max_records: usize,
+    body_kind: RecordBodyKind,
+) -> Option<PendingOutputPreflight> {
+    if field_count == 0 {
+        return None;
+    }
+    let payload_per_record = minimum_record_size(widths, None)?;
     if payload_per_record == 0 {
         return None;
     }
-    let records = (input_len / payload_per_record).min(max_records);
-    Some((
-        records.checked_mul(fields.len())?,
-        records.checked_mul(payload_per_record)?,
-    ))
+    let records = (input.len() / payload_per_record).min(max_records);
+    let consumed = records.checked_mul(payload_per_record)?;
+    let remainder = input.get(consumed..)?;
+    if !record_body_is_complete(records, remainder, payload_per_record, body_kind) {
+        return None;
+    }
+    Some(PendingOutputPreflight {
+        field_values: records.checked_mul(field_count)?,
+        field_payload_bytes: consumed,
+        remainder_len: remainder.len(),
+    })
 }
 
 pub(crate) fn measure_variable_output<T>(
@@ -266,8 +310,14 @@ pub(crate) fn measure_variable_output<T>(
     fields: &[T],
     max_records: usize,
     width: impl Fn(&T) -> u16,
-) -> Option<(usize, usize)> {
+    body_kind: RecordBodyKind,
+) -> Option<PendingOutputPreflight> {
     if fields.is_empty() {
+        return None;
+    }
+
+    let minimum_record_size = minimum_record_size(fields.iter().map(&width), Some(u16::MAX))?;
+    if minimum_record_size == 0 {
         return None;
     }
 
@@ -282,7 +332,14 @@ pub(crate) fn measure_variable_output<T>(
         records = records.checked_add(1)?;
         payload_bytes = payload_bytes.checked_add(record_payload)?;
     }
-    Some((records.checked_mul(fields.len())?, payload_bytes))
+    if !record_body_is_complete(records, input, minimum_record_size, body_kind) {
+        return None;
+    }
+    Some(PendingOutputPreflight {
+        field_values: records.checked_mul(fields.len())?,
+        field_payload_bytes: payload_bytes,
+        remainder_len: input.len(),
+    })
 }
 
 /// Scan one complete variable-width record without allocating. The returned
@@ -321,16 +378,25 @@ mod tests {
     use super::*;
     use std::cell::Cell;
 
+    fn preflight(field_values: usize, field_payload_bytes: usize) -> PendingOutputPreflight {
+        PendingOutputPreflight {
+            field_values,
+            field_payload_bytes,
+            remainder_len: 0,
+        }
+    }
+
     #[test]
     fn pending_preflight_does_not_materialize_when_current_message_is_full() {
         let mut budget = DecodedOutputBudget::new(2, 2);
         budget.reserve(1, 1).unwrap();
         let called = Cell::new(false);
 
-        let result = budget.materialize_pending(Some((2, 2)), |_: &mut DecodedOutputBudget| {
-            called.set(true);
-            Ok::<_, ()>(())
-        });
+        let result =
+            budget.materialize_pending(Some(preflight(2, 2)), |_: &mut DecodedOutputBudget| {
+                called.set(true);
+                Ok::<_, ()>((&[][..], ()))
+            });
 
         assert_eq!(result, Err(PendingOutputError::TemporarilyDoesNotFit));
         assert!(!called.get());
@@ -341,10 +407,11 @@ mod tests {
         let mut budget = DecodedOutputBudget::new(2, 2);
         let called = Cell::new(false);
 
-        let result = budget.materialize_pending(Some((3, 1)), |_: &mut DecodedOutputBudget| {
-            called.set(true);
-            Ok::<_, ()>(())
-        });
+        let result =
+            budget.materialize_pending(Some(preflight(3, 1)), |_: &mut DecodedOutputBudget| {
+                called.set(true);
+                Ok::<_, ()>((&[][..], ()))
+            });
 
         assert_eq!(result, Err(PendingOutputError::InvalidOrNeverFits));
         assert!(!called.get());
@@ -354,9 +421,27 @@ mod tests {
     fn pending_materialization_rejects_a_preflight_cost_mismatch() {
         let mut budget = DecodedOutputBudget::new(3, 3);
 
-        let result = budget.materialize_pending(Some((1, 1)), |scratch| {
+        let result = budget.materialize_pending(Some(preflight(1, 1)), |scratch| {
             scratch.reserve(2, 1).unwrap();
-            Ok::<_, ()>(())
+            Ok::<_, ()>((&[][..], ()))
+        });
+
+        assert_eq!(result, Err(PendingOutputError::InvalidOrNeverFits));
+        assert_eq!(budget.used(), (0, 0));
+    }
+
+    #[test]
+    fn pending_materialization_rejects_a_preflight_boundary_mismatch() {
+        let mut budget = DecodedOutputBudget::new(3, 3);
+        let expected = PendingOutputPreflight {
+            field_values: 1,
+            field_payload_bytes: 1,
+            remainder_len: 1,
+        };
+
+        let result = budget.materialize_pending(Some(expected), |scratch| {
+            scratch.reserve(1, 1).unwrap();
+            Ok::<_, ()>((&[][..], ()))
         });
 
         assert_eq!(result, Err(PendingOutputError::InvalidOrNeverFits));
@@ -372,8 +457,15 @@ mod tests {
                 Some((&[][..], 1))
             );
             assert_eq!(
-                measure_variable_output(input, &widths, 1, |width| *width),
-                Some((2, 1))
+                measure_variable_output(
+                    input,
+                    &widths,
+                    1,
+                    |width| *width,
+                    RecordBodyKind::Ipfix,
+                )
+                .map(PendingOutputPreflight::cost),
+                Some((2, 1)),
             );
         }
     }

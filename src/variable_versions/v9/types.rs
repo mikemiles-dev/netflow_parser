@@ -256,34 +256,32 @@ impl OptionsData {
         Ok((remaining, Self { fields }))
     }
 
-    pub(crate) fn decoded_output_cost(
-        input_len: usize,
+    pub(crate) fn decoded_output_preflight(
+        input: &[u8],
         template: &OptionsTemplate,
         max_records: usize,
-    ) -> Option<(usize, usize)> {
-        let values_per_record = template
+        body_kind: crate::variable_versions::wire::RecordBodyKind,
+    ) -> Option<crate::variable_versions::output_budget::PendingOutputPreflight> {
+        let field_count = template
             .scope_fields
             .len()
             .checked_add(template.option_fields.len())?;
-        let payload_per_record = template
-            .scope_fields
-            .iter()
-            .map(|field| usize::from(field.field_length))
-            .chain(
-                template
-                    .option_fields
-                    .iter()
-                    .map(|field| usize::from(field.field_length)),
-            )
-            .try_fold(0usize, usize::checked_add)?;
-        if values_per_record == 0 || payload_per_record == 0 {
-            return None;
-        }
-        let records = (input_len / payload_per_record).min(max_records);
-        Some((
-            records.checked_mul(values_per_record)?,
-            records.checked_mul(payload_per_record)?,
-        ))
+        crate::variable_versions::output_budget::measure_fixed_widths(
+            input,
+            field_count,
+            template
+                .scope_fields
+                .iter()
+                .map(|field| field.field_length)
+                .chain(
+                    template
+                        .option_fields
+                        .iter()
+                        .map(|field| field.field_length),
+                ),
+            max_records,
+            body_kind,
+        )
     }
 
     /// Parse one options-data body with explicit finite output limits.
@@ -359,16 +357,18 @@ impl Data {
         ))
     }
 
-    pub(crate) fn decoded_output_cost(
-        input_len: usize,
+    pub(crate) fn decoded_output_preflight(
+        input: &[u8],
         template: &Template,
         max_records: usize,
-    ) -> Option<(usize, usize)> {
+        body_kind: crate::variable_versions::wire::RecordBodyKind,
+    ) -> Option<crate::variable_versions::output_budget::PendingOutputPreflight> {
         crate::variable_versions::output_budget::measure_fixed_output(
-            input_len,
+            input,
             &template.fields,
             max_records,
             |field| field.field_length,
+            body_kind,
         )
     }
 

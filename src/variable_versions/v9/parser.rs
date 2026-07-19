@@ -23,6 +23,7 @@ use crate::variable_versions::lazy_lru::LazyLruCache;
 use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
+use crate::variable_versions::wire::RecordBodyKind;
 use crate::variable_versions::{
     Config, ConfigError, DecodedOutputBudget, ParserConfig, ParserFields, PendingFlowCache,
     PendingFlowEntry, PendingFlowsConfig, PendingReplayOutcome,
@@ -577,25 +578,27 @@ impl V9Parser {
             &self.ttl_config,
             &mut self.metrics,
         ) {
-            let cost = Data::decoded_output_cost(
-                entry.raw_data.len(),
+            let preflight = Data::decoded_output_preflight(
+                &entry.raw_data,
                 &template,
                 self.max_records_per_flowset,
+                RecordBodyKind::NetFlowV9,
             );
-            let data = match self
-                .decoded_output_budget
-                .materialize_pending(cost, |budget| {
-                    Data::parse_with_budget(
-                        &entry.raw_data,
-                        &template,
-                        self.max_records_per_flowset,
-                        budget,
-                    )
-                    .map(|(_, data)| data)
-                }) {
-                Ok(data) => data,
-                Err(error) => return error.into(),
-            };
+            let (mut data, padding_len) =
+                match self
+                    .decoded_output_budget
+                    .materialize_pending(preflight, |budget| {
+                        Data::parse_with_budget(
+                            &entry.raw_data,
+                            &template,
+                            self.max_records_per_flowset,
+                            budget,
+                        )
+                    }) {
+                    Ok(result) => result,
+                    Err(error) => return error.into(),
+                };
+            data.padding = entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
             // Don't record_hit() here — the original flowset already
             // recorded a miss. Replay success is tracked separately
             // via record_pending_replayed() in the caller.
@@ -617,24 +620,24 @@ impl V9Parser {
             &self.ttl_config,
             &mut self.metrics,
         ) {
-            let cost = OptionsData::decoded_output_cost(
-                entry.raw_data.len(),
+            let preflight = OptionsData::decoded_output_preflight(
+                &entry.raw_data,
                 &template,
                 self.max_records_per_flowset,
+                RecordBodyKind::NetFlowV9,
             );
             let options_data =
                 match self
                     .decoded_output_budget
-                    .materialize_pending(cost, |budget| {
+                    .materialize_pending(preflight, |budget| {
                         OptionsData::parse_with_budget(
                             &entry.raw_data,
                             &template,
                             self.max_records_per_flowset,
                             budget,
                         )
-                        .map(|(_, data)| data)
                     }) {
-                    Ok(data) => data,
+                    Ok((data, _)) => data,
                     Err(error) => return error.into(),
                 };
             self.options_templates.promote(&template_id);
