@@ -1,6 +1,6 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use netflow_parser::NetflowParser;
 use netflow_parser::scoped_parser::AutoScopedParser;
+use netflow_parser::{NetflowPacket, NetflowParser};
 use std::hint::black_box;
 use std::net::SocketAddr;
 
@@ -196,6 +196,34 @@ impl Protocol {
             Self::Ipfix => ipfix_data_packet(flow_count),
         }
     }
+
+    fn assert_decoded_records(self, packets: &[NetflowPacket], expected: usize) {
+        assert_eq!(packets.len(), 1, "fixture must decode one outer packet");
+        let actual: usize = match (self, &packets[0]) {
+            (Self::V9, NetflowPacket::V9(packet)) => packet
+                .flowsets
+                .iter()
+                .map(|flowset| match &flowset.body {
+                    netflow_parser::variable_versions::v9::FlowSetBody::Data(data) => {
+                        data.fields.len()
+                    }
+                    _ => 0,
+                })
+                .sum(),
+            (Self::Ipfix, NetflowPacket::IPFix(packet)) => packet
+                .flowsets
+                .iter()
+                .map(|flowset| match &flowset.body {
+                    netflow_parser::variable_versions::ipfix::FlowSetBody::Data(data) => {
+                        data.fields.len()
+                    }
+                    _ => 0,
+                })
+                .sum(),
+            _ => panic!("fixture decoded as the wrong protocol"),
+        };
+        assert_eq!(actual, expected, "fixture decoded-record count mismatch");
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -241,7 +269,12 @@ fn bench_warmed_hot_paths(c: &mut Criterion) {
                         Scenario::DirectParse => {
                             let mut parser = NetflowParser::default();
                             assert!(parser.parse_bytes(&template).is_ok());
-                            assert!(parser.parse_bytes(packet).is_ok());
+                            let result = parser.parse_bytes(packet);
+                            assert!(result.is_ok());
+                            protocol.assert_decoded_records(
+                                &result.packets,
+                                usize::from(flow_count),
+                            );
                             b.iter(|| {
                                 drop(black_box(
                                     parser.parse_bytes(black_box(packet.as_slice())),
@@ -251,10 +284,11 @@ fn bench_warmed_hot_paths(c: &mut Criterion) {
                         Scenario::DirectIterator => {
                             let mut parser = NetflowParser::default();
                             assert!(parser.parse_bytes(&template).is_ok());
-                            assert_eq!(
-                                parser.iter_packets(packet).map(Result::unwrap).count(),
-                                1
-                            );
+                            let packets = parser
+                                .iter_packets(packet)
+                                .map(Result::unwrap)
+                                .collect::<Vec<_>>();
+                            protocol.assert_decoded_records(&packets, usize::from(flow_count));
                             b.iter(|| {
                                 for result in parser.iter_packets(black_box(packet.as_slice()))
                                 {
@@ -265,7 +299,12 @@ fn bench_warmed_hot_paths(c: &mut Criterion) {
                         Scenario::AutoParse => {
                             let mut parser = AutoScopedParser::new();
                             assert!(parser.parse_from_source(source, &template).is_ok());
-                            assert!(parser.parse_from_source(source, packet).is_ok());
+                            let result = parser.parse_from_source(source, packet);
+                            assert!(result.is_ok());
+                            protocol.assert_decoded_records(
+                                &result.packets,
+                                usize::from(flow_count),
+                            );
                             b.iter(|| {
                                 drop(black_box(
                                     parser.parse_from_source(
@@ -278,14 +317,12 @@ fn bench_warmed_hot_paths(c: &mut Criterion) {
                         Scenario::AutoIterator => {
                             let mut parser = AutoScopedParser::new();
                             assert!(parser.parse_from_source(source, &template).is_ok());
-                            assert_eq!(
-                                parser
-                                    .iter_packets_from_source(source, packet)
-                                    .unwrap()
-                                    .map(Result::unwrap)
-                                    .count(),
-                                1
-                            );
+                            let packets = parser
+                                .iter_packets_from_source(source, packet)
+                                .unwrap()
+                                .map(Result::unwrap)
+                                .collect::<Vec<_>>();
+                            protocol.assert_decoded_records(&packets, usize::from(flow_count));
                             b.iter(|| {
                                 let iterator = parser
                                     .iter_packets_from_source(
