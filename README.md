@@ -219,6 +219,8 @@ let parser = NetflowParser::builder()
 - Templates are keyed by template ID (per source)
 - Native and V9-style IPFIX data and Options templates share one Template ID namespace;
   each accepted definition becomes the sole owner of its ID
+- NetFlow v9 ordinary and Options templates share one Template ID namespace;
+  the last valid definition replaces the previous owner
 - Each parser instance maintains its own template cache
 - For multi-source deployments, use `RouterScopedParser` (see Template Management section)
 
