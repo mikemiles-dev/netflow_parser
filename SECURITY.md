@@ -156,7 +156,6 @@ The parser includes several DoS mitigations:
 - **Template Total Size Validation:** Maximum 65,535 bytes per template
 - **Error Sample Size Limit:** Default 256 bytes to prevent memory exhaustion
 - **LRU Template Cache:** Prevents unbounded cache growth
-- **Duplicate Field Detection:** Rejects malformed templates
 
 ### Memory Safety
 

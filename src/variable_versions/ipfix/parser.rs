@@ -1143,7 +1143,6 @@ impl FlowSetBody {
                         && t.fields.iter().all(|f| f.field_length != 65535)
                         && t.get_total_size() > 0
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
-                        && !t.has_duplicate_fields()
                 },
                 |parser, templates| parser.add_v9_templates(templates),
                 None, // V9 doesn't support template withdrawal
@@ -1165,8 +1164,6 @@ impl FlowSetBody {
                         && scope_count.saturating_add(option_count) <= p.max_field_count
                         && t.get_total_size() > 0
                         && usize::from(t.get_total_size()) <= p.max_template_total_size
-                        && !t.has_duplicate_scope_fields()
-                        && !t.has_duplicate_option_fields()
                         // V9 does not support the IPFIX variable-length sentinel.
                         && t.scope_fields.iter().all(|f| f.field_length != 65535)
                         && t.option_fields.iter().all(|f| f.field_length != 65535)

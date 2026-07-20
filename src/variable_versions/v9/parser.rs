@@ -820,11 +820,6 @@ impl Template {
             return false;
         }
 
-        // Check for duplicate field type numbers
-        if self.has_duplicate_fields() {
-            return false;
-        }
-
         true
     }
 
@@ -898,16 +893,6 @@ impl OptionsTemplate {
         // Check total size limit
         let total_size = usize::from(self.get_total_size());
         if total_size == 0 || total_size > max_template_total_size {
-            return false;
-        }
-
-        // Check for duplicate field type numbers in scope fields
-        if self.has_duplicate_scope_fields() {
-            return false;
-        }
-
-        // Check for duplicate field type numbers in option fields
-        if self.has_duplicate_option_fields() {
             return false;
         }
 

@@ -612,9 +612,9 @@ mod base_tests {
         assert!(!template.is_valid(&parser));
     }
 
-    // Verify that a v9 template with duplicate field type numbers is rejected as invalid
+    // Repeated descriptors are valid and their order is significant.
     #[test]
-    fn test_template_validation_duplicate_fields() {
+    fn test_v9_template_validation_allows_duplicate_fields() {
         use crate::variable_versions::v9::lookup::V9Field;
         use crate::variable_versions::v9::{Template, TemplateField, V9Parser};
 
@@ -634,7 +634,6 @@ mod base_tests {
 
         let parser = V9Parser::try_new(config).unwrap();
 
-        // Template with duplicate field_type_number (1) should fail validation
         let template = Template {
             template_id: 256,
             field_count: 3,
@@ -645,7 +644,7 @@ mod base_tests {
                     field_length: 4,
                 },
                 TemplateField {
-                    field_type_number: 1, // Duplicate!
+                    field_type_number: 1,
                     field_type: V9Field::InBytes,
                     field_length: 4,
                 },
@@ -657,7 +656,7 @@ mod base_tests {
             ],
         };
 
-        assert!(!template.is_valid(&parser));
+        assert!(template.is_valid(&parser));
     }
 
     // Verify that a well-formed v9 template with unique fields passes validation
