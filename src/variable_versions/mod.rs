@@ -73,6 +73,7 @@ pub(crate) mod fast_parse;
 pub mod field_types;
 pub mod field_value;
 pub mod ipfix;
+pub(crate) mod lazy_lru;
 pub mod metrics;
 pub(crate) mod pending_flows;
 pub mod template_events;
@@ -144,7 +145,7 @@ pub(crate) fn calculate_padding(body_size: usize) -> &'static [u8] {
 /// Returns None if the template doesn't exist or has expired.
 #[inline]
 pub(crate) fn get_valid_template<T: Clone>(
-    cache: &mut lru::LruCache<TemplateId, ttl::TemplateWithTtl<std::sync::Arc<T>>>,
+    cache: &mut lazy_lru::LazyLruCache<TemplateId, ttl::TemplateWithTtl<std::sync::Arc<T>>>,
     id: &TemplateId,
     ttl_config: &Option<TtlConfig>,
     metrics: &mut CacheMetricsInner,
@@ -170,7 +171,7 @@ pub(crate) fn get_valid_template<T: Clone>(
 /// Used in replay paths where the parse may fail — promotion should only
 /// happen on a successful replay (callers promote manually on success).
 pub(crate) fn peek_valid_template<T: Clone>(
-    cache: &mut lru::LruCache<TemplateId, ttl::TemplateWithTtl<std::sync::Arc<T>>>,
+    cache: &mut lazy_lru::LazyLruCache<TemplateId, ttl::TemplateWithTtl<std::sync::Arc<T>>>,
     id: &TemplateId,
     ttl_config: &Option<TtlConfig>,
     metrics: &mut CacheMetricsInner,

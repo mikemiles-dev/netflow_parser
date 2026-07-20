@@ -19,6 +19,7 @@ use crate::template_store::{
 use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
+use crate::variable_versions::lazy_lru::LazyLruCache;
 use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
@@ -28,7 +29,6 @@ use crate::variable_versions::{
 };
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
-use lru::LruCache;
 use nom::IResult;
 use nom::bytes::complete::take;
 use nom::error::{Error as NomError, ErrorKind};
@@ -39,8 +39,9 @@ use std::sync::Arc;
 /// Stateful NetFlow V9 parser with LRU template caching and optional pending flow support.
 #[derive(Debug)]
 pub struct V9Parser {
-    pub(crate) templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
-    pub(crate) options_templates: LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
+    pub(crate) templates: LazyLruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
+    pub(crate) options_templates:
+        LazyLruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
     pub(crate) ttl_config: Option<TtlConfig>,
     pub(crate) max_template_cache_size: usize,
     pub(crate) max_field_count: usize,
@@ -108,8 +109,8 @@ impl V9Parser {
             .transpose()?;
 
         Ok(Self {
-            templates: LruCache::new(cache_size),
-            options_templates: LruCache::new(cache_size),
+            templates: LazyLruCache::new(cache_size),
+            options_templates: LazyLruCache::new(cache_size),
             ttl_config: config.ttl_config,
             max_template_cache_size: config.max_template_cache_size,
             max_field_count: config.max_field_count,
@@ -191,7 +192,7 @@ impl V9Parser {
     /// borrows at the call site without re-borrowing the whole parser.
     #[allow(clippy::too_many_arguments)]
     fn install_restored_template<T>(
-        cache: &mut LruCache<TemplateId, TemplateWithTtl<Arc<T>>>,
+        cache: &mut LazyLruCache<TemplateId, TemplateWithTtl<Arc<T>>>,
         template_id: u16,
         arc: &Arc<T>,
         ttl_enabled: bool,

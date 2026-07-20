@@ -9,6 +9,7 @@ use crate::template_store::TemplateStore;
 use crate::variable_versions::PendingFlowCache;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
+use crate::variable_versions::lazy_lru::LazyLruCache;
 use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
@@ -24,7 +25,6 @@ use crate::variable_versions::v9::{
     Template as V9Template,
 };
 
-use lru::LruCache;
 use std::sync::Arc;
 
 use crate::variable_versions::TemplateId;
@@ -37,12 +37,12 @@ pub type IPFixFlowRecord = Vec<IPFixFieldPair>;
 /// Supports both native IPFIX templates and V9-style templates embedded in IPFIX messages.
 #[derive(Debug)]
 pub struct IPFixParser {
-    pub(crate) templates: LruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
-    pub(crate) v9_templates: LruCache<TemplateId, TemplateWithTtl<Arc<V9Template>>>,
+    pub(crate) templates: LazyLruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
+    pub(crate) v9_templates: LazyLruCache<TemplateId, TemplateWithTtl<Arc<V9Template>>>,
     pub(crate) ipfix_options_templates:
-        LruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
+        LazyLruCache<TemplateId, TemplateWithTtl<Arc<OptionsTemplate>>>,
     pub(crate) v9_options_templates:
-        LruCache<TemplateId, TemplateWithTtl<Arc<V9OptionsTemplate>>>,
+        LazyLruCache<TemplateId, TemplateWithTtl<Arc<V9OptionsTemplate>>>,
     pub(crate) ttl_config: Option<TtlConfig>,
     pub(crate) max_template_cache_size: usize,
     pub(crate) max_field_count: usize,
