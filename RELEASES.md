@@ -1,3 +1,13 @@
+# 1.0.6
+
+## Fixes
+
+* **Accept repeated NetFlow v9 fields.** NetFlow v9 templates are ordered field
+  lists and may contain the same field more than once. The parser previously
+  rejected those templates. Repeated data, scope, and option fields are now
+  accepted and every value is preserved in wire order. This applies to native
+  NetFlow v9 templates and to v9-style templates parsed through the IPFIX path.
+
 # 1.0.5
 
 ## Fixes
