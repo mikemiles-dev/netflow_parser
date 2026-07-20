@@ -21,6 +21,7 @@ use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::lazy_lru::LazyLruCache;
 use crate::variable_versions::metrics::CacheMetricsInner;
+use crate::variable_versions::output_budget::PendingOutputError;
 use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 use crate::variable_versions::wire::RecordBodyKind;
@@ -92,6 +93,10 @@ impl Default for V9Parser {
 }
 
 impl V9Parser {
+    pub(crate) fn start_decoded_output_message(&mut self) {
+        self.decoded_output_budget.reset();
+    }
+
     /// Validates a configuration without allocating parser internals.
     pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
         config.validate()
@@ -103,11 +108,18 @@ impl V9Parser {
     /// * `config` - Configuration struct containing max_template_cache_size and optional ttl_config
     ///
     /// # Errors
-    /// Returns `ConfigError` if `max_template_cache_size` is 0
+    /// Returns `ConfigError` if the template cache size or either decoded-output
+    /// limit is zero.
     pub fn try_new(config: Config) -> Result<Self, ConfigError> {
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
         )?;
+        if config.max_decoded_field_values_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldValueLimit(0));
+        }
+        if config.max_decoded_field_payload_bytes_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldPayloadByteLimit(0));
+        }
 
         let pending_flows = config
             .pending_flows_config
@@ -419,7 +431,6 @@ impl V9Parser {
         // Reset the per-parse restored-templates buffer so the next call
         // sees only what was restored during *this* packet.
         self.restored_templates.clear();
-        self.decoded_output_budget.reset();
         match V9::parse(packet, self) {
             Ok((remaining, mut v9)) => {
                 self.process_pending_flows(&mut v9);
@@ -584,34 +595,36 @@ impl V9Parser {
                 self.max_records_per_flowset,
                 RecordBodyKind::NetFlowV9,
             );
-            let (mut data, padding_len) =
-                match self
-                    .decoded_output_budget
-                    .materialize_pending(preflight, |budget| {
-                        Data::parse_with_budget(
-                            &entry.raw_data,
-                            &template,
-                            self.max_records_per_flowset,
-                            budget,
-                        )
-                    }) {
-                    Ok(result) => result,
-                    Err(error) => return error.into(),
-                };
-            data.padding = entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
-            // Don't record_hit() here — the original flowset already
-            // recorded a miss. Replay success is tracked separately
-            // via record_pending_replayed() in the caller.
-            self.templates.promote(&template_id);
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    flowset_id: template_id,
-                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
-                        .unwrap_or(u16::MAX),
-                },
-                body: FlowSetBody::Data(data),
-            });
-            return PendingReplayOutcome::Replayed;
+            match self
+                .decoded_output_budget
+                .materialize_pending(preflight, |budget| {
+                    Data::parse_with_budget(
+                        &entry.raw_data,
+                        &template,
+                        self.max_records_per_flowset,
+                        budget,
+                    )
+                }) {
+                Ok((mut data, padding_len)) => {
+                    data.padding =
+                        entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
+                    // Don't record_hit() here — the original flowset already
+                    // recorded a miss. Replay success is tracked separately
+                    // via record_pending_replayed() in the caller.
+                    self.templates.promote(&template_id);
+                    flowsets.push(FlowSet {
+                        header: FlowSetHeader {
+                            flowset_id: template_id,
+                            length: u16::try_from(entry.raw_data.len().saturating_add(4))
+                                .unwrap_or(u16::MAX),
+                        },
+                        body: FlowSetBody::Data(data),
+                    });
+                    return PendingReplayOutcome::Replayed;
+                }
+                Err(PendingOutputError::Invalid) => {}
+                Err(error) => return error.into(),
+            }
         }
         // Try options template (peek to avoid false LRU promotion on failed parse)
         if let Some(template) = crate::variable_versions::peek_valid_template(

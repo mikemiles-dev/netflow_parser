@@ -27,7 +27,10 @@ use super::parser::V9Parser;
 
 /// A parsed NetFlow V9 packet containing a header and a list of flowsets.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser))]
+#[nom(
+    ExtraArgs(parser: &mut V9Parser),
+    PreExec = "parser.start_decoded_output_message();"
+)]
 pub struct V9 {
     /// V9 Header
     pub header: Header,

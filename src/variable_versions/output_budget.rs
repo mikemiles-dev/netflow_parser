@@ -21,6 +21,9 @@ pub enum DecodedOutputLimit {
 }
 
 /// Finite limits for advanced one-body `Data` and `OptionsData` parsing.
+///
+/// Use [`DecodedOutputLimits::new`] to override the same finite defaults used
+/// by the stateful parser. All three values must be greater than zero.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DecodedOutputLimits {
     max_records: usize,
@@ -80,7 +83,8 @@ pub(crate) struct OutputBudgetExceeded {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PendingOutputError {
     TemporarilyDoesNotFit,
-    InvalidOrNeverFits,
+    NeverFits,
+    Invalid,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,7 +113,7 @@ impl From<PendingOutputError> for PendingReplayOutcome {
     fn from(error: PendingOutputError) -> Self {
         match error {
             PendingOutputError::TemporarilyDoesNotFit => Self::TemporarilyDoesNotFit,
-            PendingOutputError::InvalidOrNeverFits => Self::Failed,
+            PendingOutputError::NeverFits | PendingOutputError::Invalid => Self::Failed,
         }
     }
 }
@@ -213,6 +217,11 @@ impl DecodedOutputBudget {
     }
 
     #[inline]
+    pub(crate) fn is_exceeded(&self) -> bool {
+        self.exceeded.is_some()
+    }
+
+    #[inline]
     pub(crate) fn used(&self) -> (usize, usize) {
         (self.used_values, self.used_payload_bytes)
     }
@@ -233,29 +242,47 @@ impl DecodedOutputBudget {
         preflight: Option<PendingOutputPreflight>,
         parse: impl FnOnce(&mut DecodedOutputBudget) -> Result<(&'a [u8], T), E>,
     ) -> Result<(T, usize), PendingOutputError> {
+        let preflight = self.validate_pending_full_budget(preflight)?;
+        self.validate_pending_remaining(preflight)?;
+        let measured = preflight.cost();
+
+        let mut scratch = Self::new(self.max_values, self.max_payload_bytes);
+        let (remaining, value) =
+            parse(&mut scratch).map_err(|_| PendingOutputError::Invalid)?;
+        let actual = scratch.used();
+        if actual != measured || remaining.len() != preflight.remainder_len {
+            return Err(PendingOutputError::Invalid);
+        }
+        if self.reserve(actual.0, actual.1).is_err() {
+            return Err(PendingOutputError::Invalid);
+        }
+        Ok((value, preflight.remainder_len))
+    }
+
+    pub(crate) fn validate_pending_full_budget(
+        &self,
+        preflight: Option<PendingOutputPreflight>,
+    ) -> Result<PendingOutputPreflight, PendingOutputError> {
         let Some(preflight) = preflight else {
-            return Err(PendingOutputError::InvalidOrNeverFits);
+            return Err(PendingOutputError::Invalid);
         };
         let measured = preflight.cost();
         if measured.0 > self.max_values || measured.1 > self.max_payload_bytes {
-            return Err(PendingOutputError::InvalidOrNeverFits);
+            return Err(PendingOutputError::NeverFits);
         }
+        Ok(preflight)
+    }
+
+    pub(crate) fn validate_pending_remaining(
+        &self,
+        preflight: PendingOutputPreflight,
+    ) -> Result<(), PendingOutputError> {
+        let measured = preflight.cost();
         let remaining = self.remaining();
         if measured.0 > remaining.0 || measured.1 > remaining.1 {
             return Err(PendingOutputError::TemporarilyDoesNotFit);
         }
-
-        let mut scratch = Self::new(self.max_values, self.max_payload_bytes);
-        let (remaining, value) =
-            parse(&mut scratch).map_err(|_| PendingOutputError::InvalidOrNeverFits)?;
-        let actual = scratch.used();
-        if actual != measured || remaining.len() != preflight.remainder_len {
-            return Err(PendingOutputError::InvalidOrNeverFits);
-        }
-        if self.reserve(actual.0, actual.1).is_err() {
-            return Err(PendingOutputError::InvalidOrNeverFits);
-        }
-        Ok((value, preflight.remainder_len))
+        Ok(())
     }
 }
 
@@ -404,17 +431,21 @@ mod tests {
 
     #[test]
     fn pending_preflight_does_not_materialize_an_entry_that_can_never_fit() {
-        let mut budget = DecodedOutputBudget::new(2, 2);
-        let called = Cell::new(false);
+        for cost in [(3, 1), (1, 3)] {
+            let mut budget = DecodedOutputBudget::new(2, 2);
+            let called = Cell::new(false);
 
-        let result =
-            budget.materialize_pending(Some(preflight(3, 1)), |_: &mut DecodedOutputBudget| {
-                called.set(true);
-                Ok::<_, ()>((&[][..], ()))
-            });
+            let result = budget.materialize_pending(
+                Some(preflight(cost.0, cost.1)),
+                |_: &mut DecodedOutputBudget| {
+                    called.set(true);
+                    Ok::<_, ()>((&[][..], ()))
+                },
+            );
 
-        assert_eq!(result, Err(PendingOutputError::InvalidOrNeverFits));
-        assert!(!called.get());
+            assert_eq!(result, Err(PendingOutputError::NeverFits));
+            assert!(!called.get());
+        }
     }
 
     #[test]
@@ -426,7 +457,7 @@ mod tests {
             Ok::<_, ()>((&[][..], ()))
         });
 
-        assert_eq!(result, Err(PendingOutputError::InvalidOrNeverFits));
+        assert_eq!(result, Err(PendingOutputError::Invalid));
         assert_eq!(budget.used(), (0, 0));
     }
 
@@ -444,7 +475,7 @@ mod tests {
             Ok::<_, ()>((&[][..], ()))
         });
 
-        assert_eq!(result, Err(PendingOutputError::InvalidOrNeverFits));
+        assert_eq!(result, Err(PendingOutputError::Invalid));
         assert_eq!(budget.used(), (0, 0));
     }
 

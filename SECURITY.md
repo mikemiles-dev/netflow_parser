@@ -124,6 +124,10 @@ let parser = NetflowParser::builder()
     // Limit fields per template (DoS protection)
     .with_max_field_count(5000)
 
+    // Bound cumulative decoded output from each message
+    .with_max_decoded_field_values_per_message(65_536)
+    .with_max_decoded_field_payload_bytes_per_message(4 * 1024 * 1024)
+
     // Limit error sample size (prevents memory exhaustion)
     .with_max_error_sample_size(256)
 
@@ -154,6 +158,7 @@ The parser includes several DoS mitigations:
 
 - **Template Field Count Limit:** Default 10,000 fields per template
 - **Template Total Size Validation:** Maximum 65,535 bytes per template
+- **Cumulative Decoded Output:** Defaults to 65,536 field values and 4 MiB of field content per message
 - **Error Sample Size Limit:** Default 256 bytes to prevent memory exhaustion
 - **LRU Template Cache:** Prevents unbounded cache growth
 

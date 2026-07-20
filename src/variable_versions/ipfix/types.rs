@@ -68,7 +68,11 @@ pub struct IPFixParser {
 
 /// A parsed IPFIX message containing a header and a list of flowsets.
 #[derive(Nom, Debug, PartialEq, Clone, Serialize)]
-#[nom(ExtraArgs(parser: &mut IPFixParser))]
+#[nom(
+    ExtraArgs(parser: &mut IPFixParser),
+    PreExec = "parser.start_decoded_output_message();",
+    PostExec = "if parser.decoded_output_limit_was_exceeded() { return Err(nom::Err::Error(nom::error::Error::new(i, nom::error::ErrorKind::TooLarge))); }"
+)]
 pub struct IPFix {
     /// IPFix Header
     pub header: Header,

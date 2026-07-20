@@ -578,6 +578,8 @@ impl NetflowParserBuilder {
     }
 
     /// Sets the cumulative decoded field-value limit for both v9 and IPFIX messages.
+    ///
+    /// The default is 65,536. Zero is rejected by [`NetflowParserBuilder::build`].
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_max_decoded_field_values_per_message(mut self, count: usize) -> Self {
         self.v9_config.max_decoded_field_values_per_message = count;
@@ -586,6 +588,8 @@ impl NetflowParserBuilder {
     }
 
     /// Sets the cumulative decoded field-value limit for v9 messages.
+    ///
+    /// The default is 65,536. Zero is rejected by [`NetflowParserBuilder::build`].
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_v9_max_decoded_field_values_per_message(mut self, count: usize) -> Self {
         self.v9_config.max_decoded_field_values_per_message = count;
@@ -593,13 +597,18 @@ impl NetflowParserBuilder {
     }
 
     /// Sets the cumulative decoded field-value limit for IPFIX messages.
+    ///
+    /// The default is 65,536. Zero is rejected by [`NetflowParserBuilder::build`].
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_ipfix_max_decoded_field_values_per_message(mut self, count: usize) -> Self {
         self.ipfix_config.max_decoded_field_values_per_message = count;
         self
     }
 
-    /// Sets the cumulative decoded field-payload-byte limit for both protocols.
+    /// Sets the cumulative decoded field-content-byte limit for both protocols.
+    ///
+    /// The default is 4 MiB. IPFIX variable-length prefixes are excluded.
+    /// Zero is rejected by [`NetflowParserBuilder::build`].
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_max_decoded_field_payload_bytes_per_message(mut self, bytes: usize) -> Self {
         self.v9_config.max_decoded_field_payload_bytes_per_message = bytes;
@@ -608,14 +617,19 @@ impl NetflowParserBuilder {
         self
     }
 
-    /// Sets the cumulative decoded field-payload-byte limit for v9 messages.
+    /// Sets the cumulative decoded field-content-byte limit for v9 messages.
+    ///
+    /// The default is 4 MiB. Zero is rejected by [`NetflowParserBuilder::build`].
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_v9_max_decoded_field_payload_bytes_per_message(mut self, bytes: usize) -> Self {
         self.v9_config.max_decoded_field_payload_bytes_per_message = bytes;
         self
     }
 
-    /// Sets the cumulative decoded field-payload-byte limit for IPFIX messages.
+    /// Sets the cumulative decoded field-content-byte limit for IPFIX messages.
+    ///
+    /// The default is 4 MiB. Variable-length prefixes are excluded.
+    /// Zero is rejected by [`NetflowParserBuilder::build`].
     #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
     pub fn with_ipfix_max_decoded_field_payload_bytes_per_message(
         mut self,
@@ -931,6 +945,7 @@ impl NetflowParserBuilder {
     ///
     /// Returns an error if:
     /// - Template cache size is 0
+    /// - A decoded-output limit is 0
     /// - Parser initialization fails
     ///
     /// # Examples

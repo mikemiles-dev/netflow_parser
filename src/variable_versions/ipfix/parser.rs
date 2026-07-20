@@ -21,6 +21,7 @@ use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::lazy_lru::LazyLruCache;
 use crate::variable_versions::metrics::CacheMetricsInner;
+use crate::variable_versions::output_budget::{PendingOutputError, PendingOutputPreflight};
 use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 use crate::variable_versions::v9::{
@@ -30,7 +31,7 @@ use crate::variable_versions::v9::{
 use crate::variable_versions::wire::RecordBodyKind;
 use crate::variable_versions::{
     Config, ConfigError, DecodedOutputBudget, ParserConfig, ParserFields, PendingFlowCache,
-    PendingFlowEntry, PendingFlowsConfig, PendingReplayOutcome,
+    PendingFlowEntry, PendingFlowsConfig,
 };
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
@@ -41,6 +42,23 @@ use nom::multi::many0;
 use nom_derive::Parse;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+
+const MIN_REPLAY_TRIGGER_MESSAGE_LENGTH: u16 = 20;
+
+enum IpfixPendingReplayOutcome {
+    Replayed { new_header_length: u16 },
+    TemporarilyDoesNotFit,
+    Failed,
+}
+
+impl From<PendingOutputError> for IpfixPendingReplayOutcome {
+    fn from(error: PendingOutputError) -> Self {
+        match error {
+            PendingOutputError::TemporarilyDoesNotFit => Self::TemporarilyDoesNotFit,
+            PendingOutputError::NeverFits | PendingOutputError::Invalid => Self::Failed,
+        }
+    }
+}
 
 impl Default for IPFixParser {
     fn default() -> Self {
@@ -70,6 +88,14 @@ impl Default for IPFixParser {
 }
 
 impl IPFixParser {
+    pub(crate) fn start_decoded_output_message(&mut self) {
+        self.decoded_output_budget.reset();
+    }
+
+    pub(crate) fn decoded_output_limit_was_exceeded(&self) -> bool {
+        self.decoded_output_budget.is_exceeded()
+    }
+
     /// Validates a configuration without allocating parser internals.
     pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
         config.validate()
@@ -81,11 +107,18 @@ impl IPFixParser {
     /// * `config` - Configuration struct containing max_template_cache_size and optional ttl_config
     ///
     /// # Errors
-    /// Returns `ConfigError` if `max_template_cache_size` is 0
+    /// Returns `ConfigError` if the template cache size or either decoded-output
+    /// limit is zero.
     pub fn try_new(config: Config) -> Result<Self, ConfigError> {
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
         )?;
+        if config.max_decoded_field_values_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldValueLimit(0));
+        }
+        if config.max_decoded_field_payload_bytes_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldPayloadByteLimit(0));
+        }
 
         let pending_flows = config
             .pending_flows_config
@@ -494,19 +527,8 @@ impl IPFixParser {
         // Reset the per-parse restored-templates buffer so the next call
         // sees only what was restored during *this* packet.
         self.restored_templates.clear();
-        self.decoded_output_budget.reset();
         match IPFix::parse(packet, self) {
             Ok((remaining, mut ipfix)) => {
-                if let Some(exceeded) = self.decoded_output_budget.take_exceeded() {
-                    return ParsedNetflow::Error {
-                        error: NetflowError::DecodedOutputLimitExceeded {
-                            protocol: TemplateProtocol::Ipfix,
-                            limit: exceeded.limit,
-                            configured: exceeded.configured,
-                            attempted: exceeded.attempted,
-                        },
-                    };
-                }
                 self.process_pending_flows(&mut ipfix);
                 ParsedNetflow::Success {
                     packet: NetflowPacket::IPFix(ipfix),
@@ -671,25 +693,20 @@ impl IPFixParser {
                     cache.restore_replay_suffix(template_id, retained);
                     break;
                 }
-                let flowset_length =
-                    u16::try_from(entry.raw_data.len().saturating_add(4)).unwrap_or(u16::MAX);
-                let Some(new_header_length) = ipfix.header.length.checked_add(flowset_length)
-                else {
-                    let mut retained = Vec::with_capacity(entries.len().saturating_add(1));
-                    retained.push(entry);
-                    retained.extend(entries);
-                    cache.restore_replay_suffix(template_id, retained);
-                    break;
-                };
-                match self.try_replay_ipfix_flow(&mut ipfix.flowsets, template_id, &entry) {
-                    PendingReplayOutcome::Replayed => {
+                match self.try_replay_ipfix_flow(
+                    &mut ipfix.flowsets,
+                    template_id,
+                    &entry,
+                    ipfix.header.length,
+                ) {
+                    IpfixPendingReplayOutcome::Replayed { new_header_length } => {
                         self.metrics.record_pending_replayed();
                         ipfix.header.length = new_header_length;
                     }
-                    PendingReplayOutcome::Failed => {
+                    IpfixPendingReplayOutcome::Failed => {
                         self.metrics.record_pending_replay_failed();
                     }
-                    PendingReplayOutcome::TemporarilyDoesNotFit => {
+                    IpfixPendingReplayOutcome::TemporarilyDoesNotFit => {
                         let mut retained = Vec::with_capacity(entries.len().saturating_add(1));
                         retained.push(entry);
                         retained.extend(entries);
@@ -707,15 +724,37 @@ impl IPFixParser {
         flowsets: &mut Vec<FlowSet>,
         template_id: u16,
         entry: &PendingFlowEntry,
-    ) -> PendingReplayOutcome {
+        current_header_length: u16,
+    ) -> IpfixPendingReplayOutcome {
         // Use peek_valid_template to avoid false LRU promotion on failed parse.
         // Preserve the established lookup priority and promote only after a
         // complete entry has been materialized within the message budget.
-        self.try_replay_ipfix_data(flowsets, template_id, entry)
-            .or_else(|| self.try_replay_ipfix_options_data(flowsets, template_id, entry))
-            .or_else(|| self.try_replay_embedded_v9_data(flowsets, template_id, entry))
-            .or_else(|| self.try_replay_embedded_v9_options_data(flowsets, template_id, entry))
-            .unwrap_or(PendingReplayOutcome::Failed)
+        self.try_replay_ipfix_data(flowsets, template_id, entry, current_header_length)
+            .or_else(|| {
+                self.try_replay_ipfix_options_data(
+                    flowsets,
+                    template_id,
+                    entry,
+                    current_header_length,
+                )
+            })
+            .or_else(|| {
+                self.try_replay_embedded_v9_data(
+                    flowsets,
+                    template_id,
+                    entry,
+                    current_header_length,
+                )
+            })
+            .or_else(|| {
+                self.try_replay_embedded_v9_options_data(
+                    flowsets,
+                    template_id,
+                    entry,
+                    current_header_length,
+                )
+            })
+            .unwrap_or(IpfixPendingReplayOutcome::Failed)
     }
 
     fn try_replay_ipfix_data(
@@ -723,7 +762,8 @@ impl IPFixParser {
         flowsets: &mut Vec<FlowSet>,
         template_id: u16,
         entry: &PendingFlowEntry,
-    ) -> Option<PendingReplayOutcome> {
+        current_header_length: u16,
+    ) -> Option<IpfixPendingReplayOutcome> {
         let template = crate::variable_versions::peek_valid_template(
             &mut self.templates,
             &template_id,
@@ -737,10 +777,20 @@ impl IPFixParser {
             |field| field.field_length,
             RecordBodyKind::Ipfix,
         );
+        let (preflight, flowset_length, new_header_length) = match self
+            .validate_ipfix_pending_replay(
+                preflight,
+                entry.raw_data.len(),
+                current_header_length,
+            ) {
+            Ok(result) => result,
+            Err(PendingOutputError::Invalid) => return None,
+            Err(error) => return Some(error.into()),
+        };
         let (mut data, padding_len) =
             match self
                 .decoded_output_budget
-                .materialize_pending(preflight, |budget| {
+                .materialize_pending(Some(preflight), |budget| {
                     Data::parse_with_registry_and_budget(
                         &entry.raw_data,
                         &template,
@@ -750,16 +800,17 @@ impl IPFixParser {
                     )
                 }) {
                 Ok(result) => result,
+                Err(PendingOutputError::Invalid) => return None,
                 Err(error) => return Some(error.into()),
             };
         data.padding = entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
         self.templates.promote(&template_id);
         flowsets.push(Self::replayed_flowset(
             template_id,
-            entry,
+            flowset_length,
             FlowSetBody::Data(data),
         ));
-        Some(PendingReplayOutcome::Replayed)
+        Some(IpfixPendingReplayOutcome::Replayed { new_header_length })
     }
 
     fn try_replay_ipfix_options_data(
@@ -767,7 +818,8 @@ impl IPFixParser {
         flowsets: &mut Vec<FlowSet>,
         template_id: u16,
         entry: &PendingFlowEntry,
-    ) -> Option<PendingReplayOutcome> {
+        current_header_length: u16,
+    ) -> Option<IpfixPendingReplayOutcome> {
         let template = crate::variable_versions::peek_valid_template(
             &mut self.ipfix_options_templates,
             &template_id,
@@ -781,10 +833,20 @@ impl IPFixParser {
             |field| field.field_length,
             RecordBodyKind::Ipfix,
         );
+        let (preflight, flowset_length, new_header_length) = match self
+            .validate_ipfix_pending_replay(
+                preflight,
+                entry.raw_data.len(),
+                current_header_length,
+            ) {
+            Ok(result) => result,
+            Err(PendingOutputError::Invalid) => return None,
+            Err(error) => return Some(error.into()),
+        };
         let (mut data, padding_len) =
             match self
                 .decoded_output_budget
-                .materialize_pending(preflight, |budget| {
+                .materialize_pending(Some(preflight), |budget| {
                     OptionsData::parse_with_registry_and_budget(
                         &entry.raw_data,
                         &template,
@@ -794,16 +856,17 @@ impl IPFixParser {
                     )
                 }) {
                 Ok(result) => result,
+                Err(PendingOutputError::Invalid) => return None,
                 Err(error) => return Some(error.into()),
             };
         data.padding = entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
         self.ipfix_options_templates.promote(&template_id);
         flowsets.push(Self::replayed_flowset(
             template_id,
-            entry,
+            flowset_length,
             FlowSetBody::OptionsData(data),
         ));
-        Some(PendingReplayOutcome::Replayed)
+        Some(IpfixPendingReplayOutcome::Replayed { new_header_length })
     }
 
     fn try_replay_embedded_v9_data(
@@ -811,7 +874,8 @@ impl IPFixParser {
         flowsets: &mut Vec<FlowSet>,
         template_id: u16,
         entry: &PendingFlowEntry,
-    ) -> Option<PendingReplayOutcome> {
+        current_header_length: u16,
+    ) -> Option<IpfixPendingReplayOutcome> {
         let template = crate::variable_versions::peek_valid_template(
             &mut self.v9_templates,
             &template_id,
@@ -824,10 +888,20 @@ impl IPFixParser {
             self.max_records_per_flowset,
             RecordBodyKind::Ipfix,
         );
+        let (preflight, flowset_length, new_header_length) = match self
+            .validate_ipfix_pending_replay(
+                preflight,
+                entry.raw_data.len(),
+                current_header_length,
+            ) {
+            Ok(result) => result,
+            Err(PendingOutputError::Invalid) => return None,
+            Err(error) => return Some(error.into()),
+        };
         let (mut data, padding_len) =
             match self
                 .decoded_output_budget
-                .materialize_pending(preflight, |budget| {
+                .materialize_pending(Some(preflight), |budget| {
                     V9Data::parse_with_budget(
                         &entry.raw_data,
                         &template,
@@ -836,16 +910,17 @@ impl IPFixParser {
                     )
                 }) {
                 Ok(result) => result,
+                Err(PendingOutputError::Invalid) => return None,
                 Err(error) => return Some(error.into()),
             };
         data.padding = entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
         self.v9_templates.promote(&template_id);
         flowsets.push(Self::replayed_flowset(
             template_id,
-            entry,
+            flowset_length,
             FlowSetBody::V9Data(data),
         ));
-        Some(PendingReplayOutcome::Replayed)
+        Some(IpfixPendingReplayOutcome::Replayed { new_header_length })
     }
 
     fn try_replay_embedded_v9_options_data(
@@ -853,7 +928,8 @@ impl IPFixParser {
         flowsets: &mut Vec<FlowSet>,
         template_id: u16,
         entry: &PendingFlowEntry,
-    ) -> Option<PendingReplayOutcome> {
+        current_header_length: u16,
+    ) -> Option<IpfixPendingReplayOutcome> {
         let template = crate::variable_versions::peek_valid_template(
             &mut self.v9_options_templates,
             &template_id,
@@ -866,38 +942,76 @@ impl IPFixParser {
             self.max_records_per_flowset,
             RecordBodyKind::Ipfix,
         );
-        let data = match self
-            .decoded_output_budget
-            .materialize_pending(preflight, |budget| {
-                V9OptionsData::parse_with_budget(
-                    &entry.raw_data,
-                    &template,
-                    self.max_records_per_flowset,
-                    budget,
-                )
-            }) {
-            Ok((data, _)) => data,
+        let (preflight, flowset_length, new_header_length) = match self
+            .validate_ipfix_pending_replay(
+                preflight,
+                entry.raw_data.len(),
+                current_header_length,
+            ) {
+            Ok(result) => result,
+            Err(PendingOutputError::Invalid) => return None,
             Err(error) => return Some(error.into()),
         };
+        let data =
+            match self
+                .decoded_output_budget
+                .materialize_pending(Some(preflight), |budget| {
+                    V9OptionsData::parse_with_budget(
+                        &entry.raw_data,
+                        &template,
+                        self.max_records_per_flowset,
+                        budget,
+                    )
+                }) {
+                Ok((data, _)) => data,
+                Err(PendingOutputError::Invalid) => return None,
+                Err(error) => return Some(error.into()),
+            };
         self.v9_options_templates.promote(&template_id);
         flowsets.push(Self::replayed_flowset(
             template_id,
-            entry,
+            flowset_length,
             FlowSetBody::V9OptionsData(data),
         ));
-        Some(PendingReplayOutcome::Replayed)
+        Some(IpfixPendingReplayOutcome::Replayed { new_header_length })
     }
 
-    fn replayed_flowset(
-        template_id: u16,
-        entry: &PendingFlowEntry,
-        body: FlowSetBody,
-    ) -> FlowSet {
+    fn validate_ipfix_pending_replay(
+        &self,
+        preflight: Option<PendingOutputPreflight>,
+        body_length: usize,
+        current_header_length: u16,
+    ) -> Result<(PendingOutputPreflight, u16, u16), PendingOutputError> {
+        let preflight = self
+            .decoded_output_budget
+            .validate_pending_full_budget(preflight)?;
+        let flowset_length = body_length
+            .checked_add(4)
+            .and_then(|length| u16::try_from(length).ok())
+            .ok_or(PendingOutputError::NeverFits)?;
+
+        // Replay requires an IPFIX message with at least one Set header. If
+        // that minimum frame cannot contain this Set, no later trigger can.
+        if MIN_REPLAY_TRIGGER_MESSAGE_LENGTH
+            .checked_add(flowset_length)
+            .is_none()
+        {
+            return Err(PendingOutputError::NeverFits);
+        }
+
+        self.decoded_output_budget
+            .validate_pending_remaining(preflight)?;
+        let new_header_length = current_header_length
+            .checked_add(flowset_length)
+            .ok_or(PendingOutputError::TemporarilyDoesNotFit)?;
+        Ok((preflight, flowset_length, new_header_length))
+    }
+
+    fn replayed_flowset(template_id: u16, flowset_length: u16, body: FlowSetBody) -> FlowSet {
         FlowSet {
             header: FlowSetHeader {
                 header_id: template_id,
-                length: u16::try_from(entry.raw_data.len().saturating_add(4))
-                    .unwrap_or(u16::MAX),
+                length: flowset_length,
             },
             body,
         }

@@ -49,9 +49,9 @@ pub struct Config {
     /// Maximum number of data records to parse per flowset. Default: 1,024.
     /// This prevents CPU-bound DoS from maliciously large flowsets.
     pub max_records_per_flowset: usize,
-    /// Maximum decoded field values returned by one message.
+    /// Maximum decoded field values returned by one message. Default: 65,536.
     pub max_decoded_field_values_per_message: usize,
-    /// Maximum decoded field content bytes returned by one message.
+    /// Maximum decoded field content bytes returned by one message. Default: 4 MiB.
     pub max_decoded_field_payload_bytes_per_message: usize,
     /// Optional TTL configuration for template expiration.
     pub ttl_config: Option<TtlConfig>,
