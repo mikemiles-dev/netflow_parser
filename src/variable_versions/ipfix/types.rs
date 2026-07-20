@@ -35,6 +35,7 @@ pub type IPFixFieldPair = (IPFixField, FieldValue);
 pub type IPFixFlowRecord = Vec<IPFixFieldPair>;
 /// Stateful IPFIX parser with LRU template caches and optional pending flow support.
 /// Supports both native IPFIX templates and V9-style templates embedded in IPFIX messages.
+/// All accepted template representations share one logical Template ID namespace.
 #[derive(Debug)]
 pub struct IPFixParser {
     pub(crate) templates: LazyLruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
