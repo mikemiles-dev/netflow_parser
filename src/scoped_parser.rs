@@ -13,6 +13,12 @@ use std::net::SocketAddr;
 use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
+mod source_removal;
+pub use source_removal::{
+    SourceRemoval, SourceRemovalCause, SourceRemovalMetrics, SourceRemovalReporterError,
+};
+use source_removal::{ignore_source_removal, report_source_removal};
+
 /// Default maximum number of sources tracked by scoped parsers.
 /// Prevents unbounded memory growth from spoofed source addresses.
 pub const DEFAULT_MAX_SOURCES: usize = 10_000;
@@ -75,6 +81,8 @@ pub struct RouterScopedParser<K: Hash + Eq> {
     parser_builder: Option<NetflowParserBuilder>,
     /// Maximum number of sources to track.
     max_sources: usize,
+    /// Aggregate metrics retained after child parsers are removed.
+    source_removal_metrics: SourceRemovalMetrics,
 }
 
 impl<K: Hash + Eq> Default for RouterScopedParser<K> {
@@ -95,6 +103,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             ),
             parser_builder: None,
             max_sources: DEFAULT_MAX_SOURCES,
+            source_removal_metrics: SourceRemovalMetrics::default(),
         }
     }
 
@@ -131,6 +140,7 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             ),
             parser_builder: Some(builder),
             max_sources: DEFAULT_MAX_SOURCES,
+            source_removal_metrics: SourceRemovalMetrics::default(),
         })
     }
 
@@ -143,11 +153,45 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     /// # Errors
     ///
     /// Returns `ConfigError::InvalidMaxSources` if `max` is 0.
-    pub fn with_max_sources(mut self, max: usize) -> Result<Self, ConfigError> {
+    pub fn with_max_sources(self, max: usize) -> Result<Self, ConfigError> {
+        let mut reporter = ignore_source_removal::<K>;
+        self.with_max_sources_and_reporter(max, &mut reporter)
+    }
+
+    /// Set the maximum number of sources and report every source removed by
+    /// reducing the capacity.
+    ///
+    /// Reporting completes synchronously before this method returns.
+    /// Reporter errors and panics are isolated and counted in
+    /// [`source_removal_metrics`](Self::source_removal_metrics).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError::InvalidMaxSources` if `max` is 0.
+    pub fn with_max_sources_and_reporter<F>(
+        mut self,
+        max: usize,
+        reporter: &mut F,
+    ) -> Result<Self, ConfigError>
+    where
+        F: FnMut(&SourceRemoval<K>) -> Result<(), SourceRemovalReporterError>,
+    {
         if max == 0 {
             return Err(ConfigError::InvalidMaxSources(0));
         }
         self.max_sources = max;
+        while self.parsers.len() > max {
+            let Some((source, (parser, _))) = self.parsers.pop_lru() else {
+                break;
+            };
+            drop(parser);
+            report_source_removal(
+                source,
+                SourceRemovalCause::CapacityReduced,
+                &mut self.source_removal_metrics,
+                reporter,
+            );
+        }
         self.parsers
             .resize(NonZeroUsize::new(max).expect("max is non-zero"));
         Ok(self)
@@ -170,6 +214,21 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     pub fn parse_from_source(&mut self, source: K, data: &[u8]) -> ParseResult
     where
         K: Clone,
+    {
+        let mut reporter = ignore_source_removal::<K>;
+        self.parse_from_source_with_reporter(source, data, &mut reporter)
+    }
+
+    /// Parse data and synchronously report any source displaced by capacity pressure.
+    pub fn parse_from_source_with_reporter<F>(
+        &mut self,
+        source: K,
+        data: &[u8],
+        reporter: &mut F,
+    ) -> ParseResult
+    where
+        K: Clone,
+        F: FnMut(&SourceRemoval<K>) -> Result<(), SourceRemovalReporterError>,
     {
         // If the source already exists, LRU get promotes it and we parse.
         if let Some((parser, last_seen)) = self.parsers.get_mut(&source) {
@@ -195,7 +254,17 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         };
 
         let now = Instant::now();
-        self.parsers.push(source.clone(), (p, now));
+        if let Some((removed_source, (removed_parser, _))) =
+            self.parsers.push(source.clone(), (p, now))
+        {
+            drop(removed_parser);
+            report_source_removal(
+                removed_source,
+                SourceRemovalCause::CapacityPressure,
+                &mut self.source_removal_metrics,
+                reporter,
+            );
+        }
         // The entry we just pushed is guaranteed to exist; get_mut promotes it.
         let (parser, _) = self.parsers.get_mut(&source).expect("just inserted");
         parser.parse_bytes(data)
@@ -218,9 +287,31 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         &'a mut self,
         source: K,
         data: &'a [u8],
-    ) -> Result<impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a, NetflowError>
+    ) -> Result<
+        impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a + use<'a, K>,
+        NetflowError,
+    >
     where
         K: Clone,
+    {
+        let mut reporter = ignore_source_removal::<K>;
+        self.iter_packets_from_source_with_reporter(source, data, &mut reporter)
+    }
+
+    /// Iterate over packets and synchronously report any source displaced by
+    /// capacity pressure before the iterator is returned.
+    pub fn iter_packets_from_source_with_reporter<'a, F>(
+        &'a mut self,
+        source: K,
+        data: &'a [u8],
+        reporter: &mut F,
+    ) -> Result<
+        impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a + use<'a, K, F>,
+        NetflowError,
+    >
+    where
+        K: Clone,
+        F: FnMut(&SourceRemoval<K>) -> Result<(), SourceRemovalReporterError>,
     {
         // If the source already exists, promote it in the LRU and return iterator.
         // Note: contains() + get_mut() is intentional — get_mut() borrows self.parsers
@@ -246,7 +337,17 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
         };
 
         let now = Instant::now();
-        self.parsers.push(source.clone(), (p, now));
+        if let Some((removed_source, (removed_parser, _))) =
+            self.parsers.push(source.clone(), (p, now))
+        {
+            drop(removed_parser);
+            report_source_removal(
+                removed_source,
+                SourceRemovalCause::CapacityPressure,
+                &mut self.source_removal_metrics,
+                reporter,
+            );
+        }
         let (parser, _) = self.parsers.get_mut(&source).expect("just inserted");
         Ok(parser.iter_packets(data))
     }
@@ -258,6 +359,20 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
     where
         K: Clone,
     {
+        let mut reporter = ignore_source_removal::<K>;
+        self.prune_idle_sources_with_reporter(older_than, &mut reporter)
+    }
+
+    /// Remove idle sources and synchronously report every removal.
+    pub fn prune_idle_sources_with_reporter<F>(
+        &mut self,
+        older_than: Duration,
+        reporter: &mut F,
+    ) -> usize
+    where
+        K: Clone,
+        F: FnMut(&SourceRemoval<K>) -> Result<(), SourceRemovalReporterError>,
+    {
         let now = Instant::now();
         let keys_to_remove: Vec<K> = self
             .parsers
@@ -265,11 +380,25 @@ impl<K: Hash + Eq> RouterScopedParser<K> {
             .filter(|(_, (_, last_seen))| now.duration_since(*last_seen) >= older_than)
             .map(|(k, _)| k.clone())
             .collect();
-        let count = keys_to_remove.len();
+        let mut count = 0;
         for key in keys_to_remove {
-            self.parsers.pop(&key);
+            if let Some((source, (parser, _))) = self.parsers.pop_entry(&key) {
+                drop(parser);
+                report_source_removal(
+                    source,
+                    SourceRemovalCause::Idle,
+                    &mut self.source_removal_metrics,
+                    reporter,
+                );
+                count += 1;
+            }
         }
         count
+    }
+
+    /// Return aggregate implicit source-removal metrics.
+    pub fn source_removal_metrics(&self) -> SourceRemovalMetrics {
+        self.source_removal_metrics
     }
 
     /// Get statistics for a specific source's template cache.
@@ -394,6 +523,18 @@ pub struct V9SourceKey {
     pub source_id: u32,
 }
 
+/// Exact source identity used by [`AutoScopedParser`].
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AutoSourceKey {
+    /// IPFIX exporter address and Observation Domain ID.
+    Ipfix(IpfixSourceKey),
+    /// NetFlow v9 exporter address and Source ID.
+    V9(V9SourceKey),
+    /// NetFlow v5/v7 exporter address.
+    Legacy(SocketAddr),
+}
+
 /// Extract scoping information from a NetFlow packet header without full parsing.
 ///
 /// This function performs a lightweight parse of just the packet header to extract
@@ -511,6 +652,8 @@ pub struct AutoScopedParser {
     parser_builder: Option<NetflowParserBuilder>,
     /// Maximum number of sources to track across all caches.
     max_sources: usize,
+    /// Aggregate metrics retained after child parsers are removed.
+    source_removal_metrics: SourceRemovalMetrics,
 }
 
 impl Default for AutoScopedParser {
@@ -532,6 +675,7 @@ impl AutoScopedParser {
             legacy_parsers: LruCache::new(cap),
             parser_builder: None,
             max_sources: DEFAULT_MAX_SOURCES,
+            source_removal_metrics: SourceRemovalMetrics::default(),
         }
     }
 
@@ -569,6 +713,7 @@ impl AutoScopedParser {
             legacy_parsers: LruCache::new(cap),
             parser_builder: Some(builder),
             max_sources: DEFAULT_MAX_SOURCES,
+            source_removal_metrics: SourceRemovalMetrics::default(),
         })
     }
 
@@ -581,15 +726,67 @@ impl AutoScopedParser {
     /// # Errors
     ///
     /// Returns `ConfigError::InvalidMaxSources` if `max` is 0.
-    pub fn with_max_sources(mut self, max: usize) -> Result<Self, ConfigError> {
+    pub fn with_max_sources(self, max: usize) -> Result<Self, ConfigError> {
+        let mut reporter = ignore_source_removal::<AutoSourceKey>;
+        self.with_max_sources_and_reporter(max, &mut reporter)
+    }
+
+    /// Set the global source limit and report every source removed by reducing it.
+    ///
+    /// Reporting completes synchronously before this method returns.
+    /// Reporter errors and panics are isolated and counted in
+    /// [`source_removal_metrics`](Self::source_removal_metrics).
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError::InvalidMaxSources` if `max` is 0.
+    pub fn with_max_sources_and_reporter<F>(
+        mut self,
+        max: usize,
+        reporter: &mut F,
+    ) -> Result<Self, ConfigError>
+    where
+        F: FnMut(&SourceRemoval<AutoSourceKey>) -> Result<(), SourceRemovalReporterError>,
+    {
         if max == 0 {
             return Err(ConfigError::InvalidMaxSources(0));
         }
         self.max_sources = max;
-        // Size each per-protocol LRU cache to max. The global cross-cache
-        // eviction at `source_count() >= max_sources` enforces the true total
-        // limit; individual caches are capped so their internal LRU eviction
-        // doesn't fire before the global policy.
+        while self.ipfix_parsers.len() > max {
+            if let Some((source, (parser, _))) = self.ipfix_parsers.pop_lru() {
+                drop(parser);
+                report_source_removal(
+                    AutoSourceKey::Ipfix(source),
+                    SourceRemovalCause::CapacityReduced,
+                    &mut self.source_removal_metrics,
+                    reporter,
+                );
+            }
+        }
+        while self.v9_parsers.len() > max {
+            if let Some((source, (parser, _))) = self.v9_parsers.pop_lru() {
+                drop(parser);
+                report_source_removal(
+                    AutoSourceKey::V9(source),
+                    SourceRemovalCause::CapacityReduced,
+                    &mut self.source_removal_metrics,
+                    reporter,
+                );
+            }
+        }
+        while self.legacy_parsers.len() > max {
+            if let Some((source, (parser, _))) = self.legacy_parsers.pop_lru() {
+                drop(parser);
+                report_source_removal(
+                    AutoSourceKey::Legacy(source),
+                    SourceRemovalCause::CapacityReduced,
+                    &mut self.source_removal_metrics,
+                    reporter,
+                );
+            }
+        }
+        // Keep every physical cache at the global limit. The cross-cache
+        // pressure path below enforces the total source count.
         let cap = NonZeroUsize::new(max).expect("max is non-zero");
         self.ipfix_parsers.resize(cap);
         self.v9_parsers.resize(cap);
@@ -626,7 +823,21 @@ impl AutoScopedParser {
     /// let packets = parser.parse_from_source(source, &data);
     /// ```
     pub fn parse_from_source(&mut self, source: SocketAddr, data: &[u8]) -> ParseResult {
-        let parser = match self.get_or_create_parser(source, data) {
+        let mut reporter = ignore_source_removal::<AutoSourceKey>;
+        self.parse_from_source_with_reporter(source, data, &mut reporter)
+    }
+
+    /// Parse data and synchronously report any source displaced by capacity pressure.
+    pub fn parse_from_source_with_reporter<F>(
+        &mut self,
+        source: SocketAddr,
+        data: &[u8],
+        reporter: &mut F,
+    ) -> ParseResult
+    where
+        F: FnMut(&SourceRemoval<AutoSourceKey>) -> Result<(), SourceRemovalReporterError>,
+    {
+        let parser = match self.get_or_create_parser(source, data, reporter) {
             Ok(p) => p,
             Err(e) => {
                 return ParseResult {
@@ -655,9 +866,29 @@ impl AutoScopedParser {
         &'a mut self,
         source: SocketAddr,
         data: &'a [u8],
-    ) -> Result<impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a, NetflowError>
+    ) -> Result<
+        impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a + use<'a>,
+        NetflowError,
+    > {
+        let mut reporter = ignore_source_removal::<AutoSourceKey>;
+        self.iter_packets_from_source_with_reporter(source, data, &mut reporter)
+    }
+
+    /// Iterate over packets and synchronously report any source displaced by
+    /// capacity pressure before the iterator is returned.
+    pub fn iter_packets_from_source_with_reporter<'a, F>(
+        &'a mut self,
+        source: SocketAddr,
+        data: &'a [u8],
+        reporter: &mut F,
+    ) -> Result<
+        impl Iterator<Item = Result<NetflowPacket, NetflowError>> + 'a + use<'a, F>,
+        NetflowError,
+    >
+    where
+        F: FnMut(&SourceRemoval<AutoSourceKey>) -> Result<(), SourceRemovalReporterError>,
     {
-        let parser = self.get_or_create_parser(source, data)?;
+        let parser = self.get_or_create_parser(source, data, reporter)?;
         Ok(parser.iter_packets(data))
     }
 
@@ -665,6 +896,19 @@ impl AutoScopedParser {
     ///
     /// Returns the number of sources pruned.
     pub fn prune_idle_sources(&mut self, older_than: Duration) -> usize {
+        let mut reporter = ignore_source_removal::<AutoSourceKey>;
+        self.prune_idle_sources_with_reporter(older_than, &mut reporter)
+    }
+
+    /// Remove idle sources and synchronously report every removal.
+    pub fn prune_idle_sources_with_reporter<F>(
+        &mut self,
+        older_than: Duration,
+        reporter: &mut F,
+    ) -> usize
+    where
+        F: FnMut(&SourceRemoval<AutoSourceKey>) -> Result<(), SourceRemovalReporterError>,
+    {
         let now = Instant::now();
 
         let ipfix_keys: Vec<IpfixSourceKey> = self
@@ -688,19 +932,51 @@ impl AutoScopedParser {
             .map(|(k, _)| *k)
             .collect();
 
-        let count = ipfix_keys.len() + v9_keys.len() + legacy_keys.len();
+        let mut count = 0;
 
         for key in ipfix_keys {
-            self.ipfix_parsers.pop(&key);
+            if let Some((source, (parser, _))) = self.ipfix_parsers.pop_entry(&key) {
+                drop(parser);
+                report_source_removal(
+                    AutoSourceKey::Ipfix(source),
+                    SourceRemovalCause::Idle,
+                    &mut self.source_removal_metrics,
+                    reporter,
+                );
+                count += 1;
+            }
         }
         for key in v9_keys {
-            self.v9_parsers.pop(&key);
+            if let Some((source, (parser, _))) = self.v9_parsers.pop_entry(&key) {
+                drop(parser);
+                report_source_removal(
+                    AutoSourceKey::V9(source),
+                    SourceRemovalCause::Idle,
+                    &mut self.source_removal_metrics,
+                    reporter,
+                );
+                count += 1;
+            }
         }
         for key in legacy_keys {
-            self.legacy_parsers.pop(&key);
+            if let Some((source, (parser, _))) = self.legacy_parsers.pop_entry(&key) {
+                drop(parser);
+                report_source_removal(
+                    AutoSourceKey::Legacy(source),
+                    SourceRemovalCause::Idle,
+                    &mut self.source_removal_metrics,
+                    reporter,
+                );
+                count += 1;
+            }
         }
 
         count
+    }
+
+    /// Return aggregate implicit source-removal metrics.
+    pub fn source_removal_metrics(&self) -> SourceRemovalMetrics {
+        self.source_removal_metrics
     }
 
     /// Get the total number of registered sources across all scoping types.
@@ -803,11 +1079,15 @@ impl AutoScopedParser {
     }
 
     /// Get or create a parser for the given source, using LRU eviction when at capacity.
-    fn get_or_create_parser(
+    fn get_or_create_parser<F>(
         &mut self,
         source: SocketAddr,
         data: &[u8],
-    ) -> Result<&mut NetflowParser, NetflowError> {
+        reporter: &mut F,
+    ) -> Result<&mut NetflowParser, NetflowError>
+    where
+        F: FnMut(&SourceRemoval<AutoSourceKey>) -> Result<(), SourceRemovalReporterError>,
+    {
         let scoping = extract_scoping_info(data);
         let is_new = match &scoping {
             ScopingInfo::IPFix {
@@ -824,11 +1104,8 @@ impl AutoScopedParser {
             ScopingInfo::Unknown => false, // malformed packets don't create sources
         };
 
-        // When at capacity with a new source, evict the LRU entry from the
-        // appropriate cache. Each cache has its own capacity managed by LRU,
-        // but we also enforce a total cross-cache limit.
         if is_new && self.source_count() >= self.max_sources {
-            self.evict_global_lru();
+            self.evict_global_lru(reporter);
         }
 
         let builder = self.parser_builder.as_ref();
@@ -890,7 +1167,10 @@ impl AutoScopedParser {
 
     /// Evict the globally least-recently-used entry across all three caches.
     /// Uses O(1) peek at the LRU entry of each cache, then pops from the oldest.
-    fn evict_global_lru(&mut self) {
+    fn evict_global_lru<F>(&mut self, reporter: &mut F)
+    where
+        F: FnMut(&SourceRemoval<AutoSourceKey>) -> Result<(), SourceRemovalReporterError>,
+    {
         let ipfix_ts = self.ipfix_parsers.peek_lru().map(|(_, (_, ts))| *ts);
         let v9_ts = self.v9_parsers.peek_lru().map(|(_, (_, ts))| *ts);
         let legacy_ts = self.legacy_parsers.peek_lru().map(|(_, (_, ts))| *ts);
@@ -919,24 +1199,44 @@ impl AutoScopedParser {
             })
             .map(|(kind, _, _)| *kind);
 
-        // Pop the LRU entry. If a TemplateStore is configured, clear the
-        // evicted parser's templates from the store *before* dropping it —
-        // otherwise its scope's keys would linger forever, accumulating
-        // monotonically across source churn (no per-scope wipe API exists
-        // on the trait). V5/V7 (Legacy) parsers have no templates.
+        // Preserve the existing pressure-eviction behavior: clear the evicted
+        // AutoScoped child's protocol templates before dropping it. Other
+        // removal paths deliberately retain their pre-existing behavior.
         match oldest {
             Some(MapKind::Ipfix) => {
-                if let Some((_, (mut parser, _))) = self.ipfix_parsers.pop_lru() {
+                if let Some((source, (mut parser, _))) = self.ipfix_parsers.pop_lru() {
                     parser.clear_ipfix_templates();
+                    drop(parser);
+                    report_source_removal(
+                        AutoSourceKey::Ipfix(source),
+                        SourceRemovalCause::CapacityPressure,
+                        &mut self.source_removal_metrics,
+                        reporter,
+                    );
                 }
             }
             Some(MapKind::V9) => {
-                if let Some((_, (mut parser, _))) = self.v9_parsers.pop_lru() {
+                if let Some((source, (mut parser, _))) = self.v9_parsers.pop_lru() {
                     parser.clear_v9_templates();
+                    drop(parser);
+                    report_source_removal(
+                        AutoSourceKey::V9(source),
+                        SourceRemovalCause::CapacityPressure,
+                        &mut self.source_removal_metrics,
+                        reporter,
+                    );
                 }
             }
             Some(MapKind::Legacy) => {
-                self.legacy_parsers.pop_lru();
+                if let Some((source, (parser, _))) = self.legacy_parsers.pop_lru() {
+                    drop(parser);
+                    report_source_removal(
+                        AutoSourceKey::Legacy(source),
+                        SourceRemovalCause::CapacityPressure,
+                        &mut self.source_removal_metrics,
+                        reporter,
+                    );
+                }
             }
             None => {}
         }

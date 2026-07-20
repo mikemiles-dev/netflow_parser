@@ -766,6 +766,33 @@ let mut scoped = RouterScopedParser::<CustomKey>::new();
 
 **For standard NetFlow/IPFIX deployments, use `AutoScopedParser` instead.**
 
+#### Observing Implicit Source Removal
+
+Scoped parsers bound memory by removing sources during capacity pressure,
+idle pruning, or a capacity reduction. The existing methods keep their original
+signatures and discard detailed reports. Use the corresponding
+`*_with_reporter` companion when application state must be removed at the same
+time:
+
+```rust,ignore
+use netflow_parser::AutoScopedParser;
+
+let mut parser = AutoScopedParser::new().with_max_sources(10_000)?;
+let result = parser.parse_from_source_with_reporter(source, &data, &mut |removal| {
+    remove_application_state(&removal.source, removal.cause);
+    Ok(())
+});
+```
+
+Companions are available for parse, iterator, idle-prune, and max-source-resize
+operations on both `AutoScopedParser` and `RouterScopedParser`. Each report is
+delivered synchronously after the source is detached. Reporting does not add,
+remove, or otherwise change `TemplateStore` operations performed by the existing
+methods. Reporter errors and panics do not interrupt parser state changes and are
+counted in `source_removal_metrics()` together with removal causes. Explicit
+source-removal methods transfer the parser to the caller and do not emit an
+implicit-removal report.
+
 #### Custom Parser Configuration
 
 Configure parsers with custom settings:
