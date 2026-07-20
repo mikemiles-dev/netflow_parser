@@ -61,7 +61,8 @@ pub use variable_versions::ttl::TtlConfig;
 pub use variable_versions::{
     Config, ConfigError, DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
     DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE, DEFAULT_MAX_RECORDS_PER_FLOWSET,
-    DecodedOutputLimit, DecodedOutputLimits, NoTemplateInfo, PendingFlowsConfig,
+    DEFAULT_MAX_V9_FRAME_SIZE_BYTES, DecodedOutputLimit, DecodedOutputLimits, NoTemplateInfo,
+    PendingFlowsConfig,
 };
 
 // Rust-idiomatic naming aliases
@@ -283,6 +284,7 @@ pub struct NetflowParserBuilder {
     /// Raw version numbers passed to `with_allowed_versions`, for validation
     requested_versions: Option<Vec<u16>>,
     max_error_sample_size: usize,
+    v9_max_frame_size_bytes: usize,
     template_hooks: TemplateHooks,
     template_store: Option<Arc<dyn TemplateStore>>,
     template_store_scope: Arc<str>,
@@ -312,6 +314,7 @@ impl std::fmt::Debug for NetflowParserBuilder {
             .field("ipfix_config", &self.ipfix_config)
             .field("allowed_versions", &self.allowed_versions)
             .field("max_error_sample_size", &self.max_error_sample_size)
+            .field("v9_max_frame_size_bytes", &self.v9_max_frame_size_bytes)
             .field(
                 "template_hooks",
                 &format!("{} hooks", self.template_hooks.len()),
@@ -337,6 +340,7 @@ impl Default for NetflowParserBuilder {
             allowed_versions: versions_to_array(&[5, 7, 9, 10]),
             requested_versions: None,
             max_error_sample_size: 256,
+            v9_max_frame_size_bytes: DEFAULT_MAX_V9_FRAME_SIZE_BYTES,
             template_hooks: TemplateHooks::new(),
             template_store: None,
             template_store_scope: Arc::from(""),
@@ -641,6 +645,16 @@ impl NetflowParserBuilder {
         self
     }
 
+    /// Sets the maximum size of one caller-delimited NetFlow v9 export packet.
+    ///
+    /// The size includes the complete 20-byte v9 header. The default is 65,535
+    /// bytes. Callers using a transport that permits larger frames may raise it.
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_v9_max_frame_size_bytes(mut self, size: usize) -> Self {
+        self.v9_max_frame_size_bytes = size;
+        self
+    }
+
     /// Registers a custom enterprise field definition for both V9 and IPFIX parsers.
     ///
     /// This allows library users to define their own enterprise-specific fields without
@@ -926,6 +940,9 @@ impl NetflowParserBuilder {
     pub fn validate(&self) -> Result<(), ConfigError> {
         V9Parser::validate_config(&self.v9_config)?;
         IPFixParser::validate_config(&self.ipfix_config)?;
+        if self.v9_max_frame_size_bytes == 0 {
+            return Err(ConfigError::InvalidV9FrameSize(0));
+        }
         // Check that all requested versions are supported (5, 7, 9, 10)
         if let Some(versions) = &self.requested_versions {
             if versions.is_empty() {
@@ -961,13 +978,15 @@ impl NetflowParserBuilder {
     /// ```
     pub fn build(self) -> Result<NetflowParser, ConfigError> {
         self.validate()?;
+        let v9_max_frame_size_bytes = self.v9_max_frame_size_bytes;
         let mut v9_config = self.v9_config;
         let mut ipfix_config = self.ipfix_config;
         v9_config.template_store = self.template_store.clone();
         v9_config.template_store_scope = Arc::clone(&self.template_store_scope);
         ipfix_config.template_store = self.template_store;
         ipfix_config.template_store_scope = self.template_store_scope;
-        let v9_parser = V9Parser::try_new(v9_config)?;
+        let mut v9_parser = V9Parser::try_new(v9_config)?;
+        v9_parser.set_max_frame_size_bytes(v9_max_frame_size_bytes)?;
         let ipfix_parser = IPFixParser::try_new(ipfix_config)?;
 
         Ok(NetflowParser {
@@ -1679,6 +1698,10 @@ impl NetflowParser {
     /// * `packets` - All successfully parsed packets (even if error occurred)
     /// * `error` - `None` if fully successful, `Some(error)` if parsing stopped
     ///
+    /// NetFlow v9 has no packet-length field. Pass exactly one complete,
+    /// transport-delimited v9 export packet per call. Concatenated v9 packets
+    /// cannot be separated from FlowSets and are not supported.
+    ///
     /// # Examples
     ///
     /// ## Basic usage
@@ -1750,6 +1773,8 @@ impl NetflowParser {
 
     /// Returns an iterator that yields NetflowPacket items without allocating a Vec.
     /// This is useful for processing large batches of packets without collecting all results in memory.
+    /// NetFlow v9 input must still contain exactly one transport-delimited
+    /// export packet because v9 has no packet-length field.
     ///
     /// # Examples
     ///

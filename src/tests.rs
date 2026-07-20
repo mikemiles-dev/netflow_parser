@@ -122,33 +122,36 @@ mod base_tests {
         }));
     }
 
-    // Verify that combined v9 options template, data template, and data records parse together
+    // Verify that sequential v9 options template, data template, and data datagrams parse together
     #[test]
     fn can_read_v9_with_options_template_and_template() {
-        // Three v9 messages in one buffer: options template, data template,
+        // Three separately framed v9 messages: options template, data template,
         // and one data record using template 256.
         let hex_hex0 =
             "00090001000000000000000000000000000000010001001401000004000400010004002900020000";
         let hex_hex1 = "00090001000000000000000000000000000000010000000c0100000100080004";
         let hex_hex2 = "000900010000000000000000000000000000000101000008c0a80001";
 
-        let combined = format!("{}{}{}", hex_hex0, hex_hex1, hex_hex2);
-
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
             .build()
             .unwrap();
 
-        let packets = hex::decode(combined).unwrap();
-        let results = parser.parse_bytes(&packets).packets;
+        let mut results = Vec::new();
+        for packet_hex in [hex_hex0, hex_hex1, hex_hex2] {
+            let parsed = parser.parse_bytes(&hex::decode(packet_hex).unwrap());
+            assert!(parsed.error.is_none());
+            results.extend(parsed.packets);
+        }
         assert_yaml_snapshot!(results);
     }
 
     // Verify that a v9 template packet is parsed and can be serialized back to bytes
     #[test]
     fn can_read_v9() {
-        // Template
-        let hex = "0009000100000e1061db09bd000000010000000100000028010000080001000400020004000a00040004000400080004000c0004000700020015000400050001000600010016000400100004";
+        // One 40-byte Template FlowSet. An older fixture included 16 bytes
+        // beyond its declared FlowSet length; those bytes are not part of it.
+        let hex = "0009000100000e1061db09bd000000010000000100000028010000080001000400020004000a00040004000400080004000c00040007000200150004";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
@@ -349,10 +352,11 @@ mod base_tests {
         }
     }
 
-    // Verify that v9 options template followed by a zeroed-out data record parses correctly
+    // Verify that a malformed v9 options template is not cached and its subsequent
+    // data record is retained as NoTemplate without relying on bytes outside either FlowSet.
     #[test]
     fn options_no_data() {
-        let hex = "0009000100000001639073f3000000010000000100010034010200210001000400020004000e000400160004001500040009000100070002001000040011000400180004000600010005000100b0000200b1000200b2000200b4000200b7000200b8000200ad000200ac00010038000200b9000200bd000200be000200c1000200c2000200c5000200c3000200c4000200c6000200c7000200c8000200c9000200ca000200cb000200ce000200";
+        let hex = "0009000100000001639073f3000000010000000100010034010200210001000400020004000e00040016000400150004000900010007000200100004001100040018000400060001";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
@@ -362,7 +366,7 @@ mod base_tests {
         let packet = hex::decode(hex).unwrap();
         let _ = parser.parse_bytes(&packet);
 
-        let hex_data = "0009000100000002639073f300000002000000010102008400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let hex_data = "0009000100000002639073f30000000200000001010200840000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
         let packet = hex::decode(hex_data).unwrap();
         assert_yaml_snapshot!(parser.parse_bytes(&packet).packets);
@@ -395,9 +399,11 @@ mod base_tests {
     // Verify that v9 template followed by data in separate packets produces correct output
     #[test]
     fn v9_example_from_integration_test() {
-        let hex_template = "000900020000000563b32ef1000000010000000100000024010000060001000400020004000a00040004000400080004000c000400010038010000020001000400020004";
+        // Each packet ends at its declared FlowSet boundary. Older fixtures
+        // appended malformed bytes that the Count-as-FlowSet bug hid.
+        let hex_template = "000900010000000563b32ef1000000010000000100000024010000060001000400020004000a00040004000400080004000c000400010038";
 
-        let hex_hex1 = "000900020000000663b32ef10000000200000001010000240a70090a0a70090b00000001000000010000000100000001000000030000000601000008192a80e3192a80e4";
+        let hex_hex1 = "000900010000000663b32ef10000000200000001010000240a70090a0a70090b000000010000000100000001000000010000000300000006";
 
         let _hex_hex2 = "000900020000000763b32ef10000000300000001010000240a700a050a700a0600000001000000010000000100000001000000030000000601000008192a80e3192a80e4";
 
@@ -413,9 +419,10 @@ mod base_tests {
     // Verify that v9 multi-template data parsing works across sequential packets
     #[test]
     fn v9_example_from_integration_test_2() {
-        let hex1 = "000900020000000563b32ef1000000010000000100000024010000060001000400020004000a00040004000400080004000c000400010038010000020001000400020004";
+        // Same corrected caller-delimited fixture pair as the integration case above.
+        let hex1 = "000900010000000563b32ef1000000010000000100000024010000060001000400020004000a00040004000400080004000c000400010038";
 
-        let hex2 = "000900020000000663b32ef10000000200000001010000240a70090a0a70090b00000001000000010000000100000001000000030000000601000008192a80e3192a80e4";
+        let hex2 = "000900010000000663b32ef10000000200000001010000240a70090a0a70090b000000010000000100000001000000010000000300000006";
 
         let mut parser = NetflowParser::builder()
             .with_cache_size(100)
@@ -1080,9 +1087,14 @@ mod restored_legacy_tests {
     fn it_parses_v9_ipv6flowlabel() {
         let templates_hex = "0009000400a21e176658cb4600000155000000080000004c0102001100080004000c0004000f000400070002000b0002000a0002000e000200fc000400fd000400020004000100040016000400150004000400010005000101000002003d0001000000540103001300080004000c0004000f000400070002000b000200060001000a0002000e000200fc000400fd000400020004000100040016000400150004000400010005000100d1000801000002003d00010000005401050013001b0010001c0010003e001000070002000b000200060001000a0002000e000200fc000400fd00040002000400010004001600040015000400040001000500010050000601000002003d00010000005801060014001b0010001c0010003e0010001f000300070002000b000200060001000a0002000e000200fc000400fd00040002000400010004001600040015000400040001000500010050000601000002003d0001";
         let packets_hex = "0009000200a3a50e6658cbab000001640000000801020066c0a8120a8d180c0200000000c2c00035000200000000000000000000000000010000005200a31e7700a31e771100080001c0a8120a8d180c02000000009e230035000200000000000000000000000000010000005200a3197b00a3197b110008000101060063fd010008000000002a20235f1f7b9379fd00000000000000b2f208fffe2011800000000000000000000000000000000001f676e2b5003500000200000000000000000000000000010000006600a3197b00a3197b1100109027e0436d86dd01";
-        let combined = format!("{}{}", templates_hex, packets_hex);
-        let packets = hex::decode(combined).unwrap();
-        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&packets).packets);
+        let mut parser = NetflowParser::default();
+        let mut packets = Vec::new();
+        for packet_hex in [templates_hex, packets_hex] {
+            let parsed = parser.parse_bytes(&hex::decode(packet_hex).unwrap());
+            assert!(parsed.error.is_none());
+            packets.extend(parsed.packets);
+        }
+        assert_yaml_snapshot!(packets);
     }
 
     #[test]
@@ -1140,14 +1152,22 @@ mod restored_legacy_tests {
             4, 0, 12, 0, 4, 0, 2, 0, 4, 1, 0, 0, 28, 1, 2, 3, 4, 1, 2, 3, 3, 1, 2, 3, 2, 0, 2,
             0, 2, 0, 1, 2, 3, 4, 5, 6, 7,
         ];
-        let mut all = vec![];
-        all.extend_from_slice(&v9_packet);
-        all.extend_from_slice(&v5_packet);
-        all.extend_from_slice(&v7_packet);
-        all.extend_from_slice(&v9_packet);
-        all.extend_from_slice(&ipfix_packet);
-        all.extend_from_slice(&v5_packet);
-        assert_yaml_snapshot!(NetflowParser::default().parse_bytes(&all).packets);
+        let mut parser = NetflowParser::default();
+        let mut packets = parser.parse_bytes(&v9_packet).packets;
+
+        let mut legacy_batch = Vec::new();
+        legacy_batch.extend_from_slice(&v5_packet);
+        legacy_batch.extend_from_slice(&v7_packet);
+        packets.extend(parser.parse_bytes(&legacy_batch).packets);
+
+        packets.extend(parser.parse_bytes(&v9_packet).packets);
+
+        let mut sized_batch = Vec::new();
+        sized_batch.extend_from_slice(&ipfix_packet);
+        sized_batch.extend_from_slice(&v5_packet);
+        packets.extend(parser.parse_bytes(&sized_batch).packets);
+
+        assert_yaml_snapshot!(packets);
     }
 
     #[test]

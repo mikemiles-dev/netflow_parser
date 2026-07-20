@@ -5,7 +5,7 @@ expression: "parser.parse_bytes(&hex::decode(hex_hex1).unwrap()).packets"
 - V9:
     header:
       version: 9
-      count: 2
+      count: 1
       sys_up_time: 6
       unix_secs: 1672687345
       sequence_number: 2
@@ -36,9 +36,3 @@ expression: "parser.parse_bytes(&hex::decode(hex_hex1).unwrap()).packets"
                   - Ip4Addr: 0.0.0.1
                 - - Ipv4DstAddr
                   - Ip4Addr: 0.0.0.1
-      - header:
-          flowset_id: 256
-          length: 8
-        body:
-          Data:
-            fields: []

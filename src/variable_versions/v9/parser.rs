@@ -16,7 +16,9 @@ use crate::template_store::{
     TemplateKind, TemplateStore, TemplateStoreKey, decode_v9_options_template,
     decode_v9_template, encode_v9_options_template, encode_v9_template,
 };
-use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
+use crate::variable_versions::config::{
+    DEFAULT_MAX_RECORDS_PER_FLOWSET, DEFAULT_MAX_V9_FRAME_SIZE_BYTES,
+};
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::lazy_lru::LazyLruCache;
@@ -51,6 +53,7 @@ pub struct V9Parser {
     pub(crate) max_error_sample_size: usize,
     pub(crate) max_records_per_flowset: usize,
     pub(crate) decoded_output_budget: DecodedOutputBudget,
+    max_frame_size_bytes: usize,
     pub(crate) metrics: CacheMetricsInner,
     pub(crate) pending_flows: Option<PendingFlowCache>,
     /// Optional secondary-tier template store. See [`crate::template_store`].
@@ -139,6 +142,7 @@ impl V9Parser {
                 config.max_decoded_field_values_per_message,
                 config.max_decoded_field_payload_bytes_per_message,
             ),
+            max_frame_size_bytes: DEFAULT_MAX_V9_FRAME_SIZE_BYTES,
             metrics: CacheMetricsInner::new(),
             pending_flows,
             template_store: config.template_store,
@@ -152,6 +156,20 @@ impl V9Parser {
     /// parser an exporter-specific scope.
     pub(crate) fn set_template_store_scope(&mut self, scope: Arc<str>) {
         self.template_store_scope = scope;
+    }
+
+    /// Returns the maximum accepted size of one caller-delimited v9 frame.
+    pub fn max_frame_size_bytes(&self) -> usize {
+        self.max_frame_size_bytes
+    }
+
+    /// Sets the maximum accepted size of one caller-delimited v9 frame.
+    pub fn set_max_frame_size_bytes(&mut self, size: usize) -> Result<(), ConfigError> {
+        if size == 0 {
+            return Err(ConfigError::InvalidV9FrameSize(size));
+        }
+        self.max_frame_size_bytes = size;
+        Ok(())
     }
 
     /// Write-through: persist a freshly learned data template. No-op when
@@ -426,8 +444,34 @@ impl ParserConfig for V9Parser {
 }
 
 impl V9Parser {
-    /// Parse a NetFlow V9 packet from raw bytes, using cached templates to decode data records.
+    /// Parse a NetFlow v9 packet after the version field has been consumed.
     pub(crate) fn parse<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+        // Restore the two-byte version field consumed by the version router so
+        // the configured limit applies to the complete wire frame.
+        let Some(frame_size) = packet.len().checked_add(2) else {
+            return ParsedNetflow::Error {
+                error: NetflowError::Partial {
+                    message: "V9 frame size overflow".to_string(),
+                },
+            };
+        };
+        if frame_size > self.max_frame_size_bytes {
+            return ParsedNetflow::Error {
+                error: NetflowError::Partial {
+                    message: format!(
+                        "V9 frame size {} exceeds configured maximum {}",
+                        frame_size, self.max_frame_size_bytes
+                    ),
+                },
+            };
+        }
+        if frame_size == 20 {
+            return ParsedNetflow::Error {
+                error: NetflowError::Partial {
+                    message: "V9 export packet must contain at least one FlowSet".to_string(),
+                },
+            };
+        }
         // Reset the per-parse restored-templates buffer so the next call
         // sees only what was restored during *this* packet.
         self.restored_templates.clear();
@@ -572,7 +616,6 @@ impl V9Parser {
                 }
             }
         }
-        v9.header.count = u16::try_from(v9.flowsets.len()).unwrap_or(u16::MAX);
     }
 
     /// Try to replay a pending flow entry using available templates.
@@ -1089,23 +1132,20 @@ impl ScopeDataField {
 
 impl FlowSetParser {
     pub(super) fn parse_flowsets<'a>(
-        i: &'a [u8],
+        mut remaining: &'a [u8],
         parser: &mut V9Parser,
-        record_count: u16,
     ) -> IResult<&'a [u8], Vec<FlowSet>> {
-        // Cap pre-allocation to avoid memory amplification from untrusted header.count
-        let cap = (record_count as usize).min(64);
-        let (remaining, flowsets) = (0..record_count).try_fold(
-            (i, Vec::with_capacity(cap)),
-            |(remaining, mut flowsets), _| {
-                if remaining.is_empty() {
-                    return Ok((remaining, flowsets));
-                }
-                let (i, flowset) = FlowSet::parse(remaining, parser)?;
-                flowsets.push(flowset);
-                Ok((i, flowsets))
-            },
-        )?;
+        let capacity = (remaining.len() / 4).min(64);
+        let mut flowsets = Vec::with_capacity(capacity);
+        while !remaining.is_empty() {
+            let before = remaining;
+            let (next, flowset) = FlowSet::parse(remaining, parser)?;
+            if next.len() >= before.len() {
+                return Err(nom::Err::Error(NomError::new(remaining, ErrorKind::Verify)));
+            }
+            flowsets.push(flowset);
+            remaining = next;
+        }
 
         Ok((remaining, flowsets))
     }

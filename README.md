@@ -222,6 +222,26 @@ let parser = NetflowParser::builder()
 - Each parser instance maintains its own template cache
 - For multi-source deployments, use `RouterScopedParser` (see Template Management section)
 
+### NetFlow v9 Frame Boundaries
+
+NetFlow v9 does not carry a packet-length field. Its header `Count` is the
+number of Template, Options Template, and Data records, not the number of
+FlowSets and not a byte length. Pass exactly one complete, transport-delimited
+v9 export packet to each `parse_bytes` or `iter_packets` call.
+
+The default maximum v9 frame size is 65,535 bytes, including the 20-byte
+header. Callers using a transport that permits larger frames can configure a
+higher finite bound:
+
+```rust
+use netflow_parser::NetflowParser;
+
+let parser = NetflowParser::builder()
+    .with_v9_max_frame_size_bytes(128 * 1024)
+    .build()
+    .expect("valid frame limit");
+```
+
 ### Maximum Field Count (Security)
 
 Configure the maximum number of fields allowed per template to prevent DoS attacks via malicious packets with excessive field counts:

@@ -87,7 +87,7 @@ pub use config::ParserConfig;
 pub(crate) use config::ParserFields;
 pub use config::{
     Config, ConfigError, DEFAULT_MAX_RECORDS_PER_FLOWSET, DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
-    MAX_FIELD_COUNT,
+    DEFAULT_MAX_V9_FRAME_SIZE_BYTES, MAX_FIELD_COUNT,
 };
 pub use output_budget::{
     DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
