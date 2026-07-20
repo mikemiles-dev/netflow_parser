@@ -252,10 +252,10 @@ The parser also automatically validates:
 - **Template Total Size**: Maximum sum of all field lengths per template (default: u16::MAX = 65,535 bytes)
   - Prevents DoS attacks via templates with excessive total field lengths
   - Configurable via `Config::max_template_total_size`
-- **Duplicate Field Detection**: Templates with duplicate field IDs are rejected
-  - For V9: Validates unique `field_type_number` values
-  - For IPFIX: Validates unique `(field_type_number, enterprise_number)` pairs
-  - Catches malformed or corrupted template definitions
+- **Repeated Fields**: Repeated field descriptors are valid and retained in
+  wire order for both V9 and IPFIX
+  - Each occurrence is decoded as a distinct value in the record
+  - Descriptor order is significant and preserved
 
 ### Template TTL (Time-to-Live)
 
