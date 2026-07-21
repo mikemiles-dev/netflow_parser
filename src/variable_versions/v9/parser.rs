@@ -210,20 +210,16 @@ impl V9Parser {
 
     /// Remove one physical cache entry and report whether it was still a live owner.
     fn remove_cached_owner<T>(
-        cache: &mut LruCache<TemplateId, TemplateWithTtl<Arc<T>>>,
+        cache: &mut LazyLruCache<TemplateId, TemplateWithTtl<Arc<T>>>,
         template_id: TemplateId,
         ttl_config: &Option<TtlConfig>,
         metrics: &mut CacheMetricsInner,
     ) -> bool {
-        let Some(expired) = cache
-            .peek(&template_id)
-            .map(|entry| ttl_config.as_ref().is_some_and(|ttl| entry.is_expired(ttl)))
-        else {
+        let Some(entry) = cache.pop(&template_id) else {
             return false;
         };
 
-        cache.pop(&template_id);
-        if expired {
+        if ttl_config.as_ref().is_some_and(|ttl| entry.is_expired(ttl)) {
             metrics.record_expiration();
             false
         } else {
