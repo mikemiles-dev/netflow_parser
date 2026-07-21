@@ -1060,6 +1060,38 @@ impl IPFixParser {
         }
     }
 
+    fn drain_pending_template_ids(&mut self, template_ids: &[u16]) {
+        let Some(cache) = self.pending_flows.as_mut() else {
+            return;
+        };
+        for &template_id in template_ids {
+            let dropped = cache.drain(template_id, &mut self.metrics).len() as u64;
+            if dropped > 0 {
+                self.metrics.record_pending_dropped_n(dropped);
+            }
+        }
+    }
+
+    fn remove_data_template_owners(&mut self, template_ids: &[u16]) {
+        for &template_id in template_ids {
+            self.templates.pop(&template_id);
+            self.v9_templates.pop(&template_id);
+            self.evict_from_store(TemplateKind::IpfixData, template_id);
+            self.evict_from_store(TemplateKind::IpfixV9Data, template_id);
+        }
+        self.drain_pending_template_ids(template_ids);
+    }
+
+    fn remove_options_template_owners(&mut self, template_ids: &[u16]) {
+        for &template_id in template_ids {
+            self.ipfix_options_templates.pop(&template_id);
+            self.v9_options_templates.pop(&template_id);
+            self.evict_from_store(TemplateKind::IpfixOptions, template_id);
+            self.evict_from_store(TemplateKind::IpfixV9Options, template_id);
+        }
+        self.drain_pending_template_ids(template_ids);
+    }
+
     /// Remove an IPFIX template by ID (RFC 7011 Section 8.1 template withdrawal).
     /// Also purges any pending flows cached under this template ID to prevent
     /// stale data from being replayed against a replacement template.
@@ -1069,34 +1101,13 @@ impl IPFixParser {
     /// handles both individual and bulk withdrawal.
     fn withdraw_ipfix_template(&mut self, template_id: u16) {
         if template_id == DATA_TEMPLATE_IPFIX_ID {
-            // "Withdraw all data templates" — clear entire data template
-            // cache and drain pending flows only for those template IDs.
-            // Pending flows for options template IDs are left untouched
-            // since those templates remain valid.
-            let ids: Vec<u16> = self.templates.iter().map(|(&id, _)| id).collect();
-            for id in &ids {
-                self.templates.pop(id);
-                self.evict_from_store(TemplateKind::IpfixData, *id);
-            }
-            if let Some(ref mut cache) = self.pending_flows {
-                for &id in &ids {
-                    let drained = cache.drain(id, &mut self.metrics);
-                    let n = drained.len() as u64;
-                    if n > 0 {
-                        self.metrics.record_pending_dropped_n(n);
-                    }
-                }
-            }
+            let mut ids: Vec<u16> = self.templates.iter().map(|(&id, _)| id).collect();
+            ids.extend(self.v9_templates.iter().map(|(&id, _)| id));
+            ids.sort_unstable();
+            ids.dedup();
+            self.remove_data_template_owners(&ids);
         } else {
-            self.templates.pop(&template_id);
-            self.evict_from_store(TemplateKind::IpfixData, template_id);
-            if let Some(ref mut cache) = self.pending_flows {
-                let drained = cache.drain(template_id, &mut self.metrics);
-                let n = drained.len() as u64;
-                if n > 0 {
-                    self.metrics.record_pending_dropped_n(n);
-                }
-            }
+            self.remove_data_template_owners(&[template_id]);
         }
     }
 
@@ -1107,37 +1118,17 @@ impl IPFixParser {
     /// field_count == 0 signals "withdraw ALL options templates".
     fn withdraw_ipfix_options_template(&mut self, template_id: u16) {
         if template_id == OPTIONS_TEMPLATE_IPFIX_ID {
-            // "Withdraw all options templates" — clear entire options template
-            // cache and drain pending flows only for those template IDs.
-            // Pending flows for data template IDs are left untouched.
-            let ids: Vec<u16> = self
+            let mut ids: Vec<u16> = self
                 .ipfix_options_templates
                 .iter()
                 .map(|(&id, _)| id)
                 .collect();
-            for id in &ids {
-                self.ipfix_options_templates.pop(id);
-                self.evict_from_store(TemplateKind::IpfixOptions, *id);
-            }
-            if let Some(ref mut cache) = self.pending_flows {
-                for &id in &ids {
-                    let drained = cache.drain(id, &mut self.metrics);
-                    let n = drained.len() as u64;
-                    if n > 0 {
-                        self.metrics.record_pending_dropped_n(n);
-                    }
-                }
-            }
+            ids.extend(self.v9_options_templates.iter().map(|(&id, _)| id));
+            ids.sort_unstable();
+            ids.dedup();
+            self.remove_options_template_owners(&ids);
         } else {
-            self.ipfix_options_templates.pop(&template_id);
-            self.evict_from_store(TemplateKind::IpfixOptions, template_id);
-            if let Some(ref mut cache) = self.pending_flows {
-                let drained = cache.drain(template_id, &mut self.metrics);
-                let n = drained.len() as u64;
-                if n > 0 {
-                    self.metrics.record_pending_dropped_n(n);
-                }
-            }
+            self.remove_options_template_owners(&[template_id]);
         }
     }
 }
