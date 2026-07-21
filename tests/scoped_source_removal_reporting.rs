@@ -277,6 +277,46 @@ fn auto_resize_reports_every_existing_per_cache_removal() {
 }
 
 #[test]
+fn auto_resize_enforces_global_limit_across_protocol_caches() {
+    let mut parser = AutoScopedParser::new()
+        .with_max_sources(6)
+        .expect("valid limit");
+
+    for source in ["198.51.100.10:2055", "198.51.100.11:2055"] {
+        let source: SocketAddr = source.parse().unwrap();
+        let _ = parser.parse_from_source(source, &V5_PACKET);
+    }
+    for (source, source_id) in [("198.51.100.20:2055", 20), ("198.51.100.21:2055", 21)] {
+        let source: SocketAddr = source.parse().unwrap();
+        let _ = parser.parse_from_source(source, &v9_template_packet(source_id, 256));
+    }
+    for (source, observation_domain_id) in
+        [("198.51.100.30:2055", 30), ("198.51.100.31:2055", 31)]
+    {
+        let source: SocketAddr = source.parse().unwrap();
+        let _ = parser.parse_from_source(source, &empty_ipfix_packet(observation_domain_id));
+    }
+    assert_eq!(parser.source_count(), 6);
+
+    let mut removals = Vec::new();
+    parser = parser
+        .with_max_sources_and_reporter(2, &mut |removal| {
+            removals.push(removal.clone());
+            Ok(())
+        })
+        .expect("valid resize");
+
+    assert_eq!(parser.source_count(), 2);
+    assert_eq!(removals.len(), 4);
+    assert!(
+        removals
+            .iter()
+            .all(|removal| removal.cause == SourceRemovalCause::CapacityReduced)
+    );
+    assert_eq!(parser.source_removal_metrics().capacity_reduced, 4);
+}
+
+#[test]
 fn reporter_errors_and_panics_do_not_interrupt_pressure_replacement() {
     let mut parser = RouterScopedParser::<String>::new()
         .with_max_sources(1)

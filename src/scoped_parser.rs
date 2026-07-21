@@ -752,38 +752,17 @@ impl AutoScopedParser {
             return Err(ConfigError::InvalidMaxSources(0));
         }
         self.max_sources = max;
-        while self.ipfix_parsers.len() > max {
-            if let Some((source, (parser, _))) = self.ipfix_parsers.pop_lru() {
-                drop(parser);
-                report_source_removal(
-                    AutoSourceKey::Ipfix(source),
-                    SourceRemovalCause::CapacityReduced,
-                    &mut self.source_removal_metrics,
-                    reporter,
-                );
-            }
-        }
-        while self.v9_parsers.len() > max {
-            if let Some((source, (parser, _))) = self.v9_parsers.pop_lru() {
-                drop(parser);
-                report_source_removal(
-                    AutoSourceKey::V9(source),
-                    SourceRemovalCause::CapacityReduced,
-                    &mut self.source_removal_metrics,
-                    reporter,
-                );
-            }
-        }
-        while self.legacy_parsers.len() > max {
-            if let Some((source, (parser, _))) = self.legacy_parsers.pop_lru() {
-                drop(parser);
-                report_source_removal(
-                    AutoSourceKey::Legacy(source),
-                    SourceRemovalCause::CapacityReduced,
-                    &mut self.source_removal_metrics,
-                    reporter,
-                );
-            }
+        while self.source_count() > max {
+            let Some((source, parser)) = self.pop_global_lru() else {
+                break;
+            };
+            drop(parser);
+            report_source_removal(
+                source,
+                SourceRemovalCause::CapacityReduced,
+                &mut self.source_removal_metrics,
+                reporter,
+            );
         }
         // Keep every physical cache at the global limit. The cross-cache
         // pressure path below enforces the total source count.
@@ -1167,10 +1146,7 @@ impl AutoScopedParser {
 
     /// Evict the globally least-recently-used entry across all three caches.
     /// Uses O(1) peek at the LRU entry of each cache, then pops from the oldest.
-    fn evict_global_lru<F>(&mut self, reporter: &mut F)
-    where
-        F: FnMut(&SourceRemoval<AutoSourceKey>) -> Result<(), SourceRemovalReporterError>,
-    {
+    fn pop_global_lru(&mut self) -> Option<(AutoSourceKey, NetflowParser)> {
         let ipfix_ts = self.ipfix_parsers.peek_lru().map(|(_, (_, ts))| *ts);
         let v9_ts = self.v9_parsers.peek_lru().map(|(_, (_, ts))| *ts);
         let legacy_ts = self.legacy_parsers.peek_lru().map(|(_, (_, ts))| *ts);
@@ -1199,47 +1175,46 @@ impl AutoScopedParser {
             })
             .map(|(kind, _, _)| *kind);
 
+        match oldest {
+            Some(MapKind::Ipfix) => self
+                .ipfix_parsers
+                .pop_lru()
+                .map(|(source, (parser, _))| (AutoSourceKey::Ipfix(source), parser)),
+            Some(MapKind::V9) => self
+                .v9_parsers
+                .pop_lru()
+                .map(|(source, (parser, _))| (AutoSourceKey::V9(source), parser)),
+            Some(MapKind::Legacy) => self
+                .legacy_parsers
+                .pop_lru()
+                .map(|(source, (parser, _))| (AutoSourceKey::Legacy(source), parser)),
+            None => None,
+        }
+    }
+
+    fn evict_global_lru<F>(&mut self, reporter: &mut F)
+    where
+        F: FnMut(&SourceRemoval<AutoSourceKey>) -> Result<(), SourceRemovalReporterError>,
+    {
+        let Some((source, mut parser)) = self.pop_global_lru() else {
+            return;
+        };
+
         // Preserve the existing pressure-eviction behavior: clear the evicted
         // AutoScoped child's protocol templates before dropping it. Other
         // removal paths deliberately retain their pre-existing behavior.
-        match oldest {
-            Some(MapKind::Ipfix) => {
-                if let Some((source, (mut parser, _))) = self.ipfix_parsers.pop_lru() {
-                    parser.clear_ipfix_templates();
-                    drop(parser);
-                    report_source_removal(
-                        AutoSourceKey::Ipfix(source),
-                        SourceRemovalCause::CapacityPressure,
-                        &mut self.source_removal_metrics,
-                        reporter,
-                    );
-                }
-            }
-            Some(MapKind::V9) => {
-                if let Some((source, (mut parser, _))) = self.v9_parsers.pop_lru() {
-                    parser.clear_v9_templates();
-                    drop(parser);
-                    report_source_removal(
-                        AutoSourceKey::V9(source),
-                        SourceRemovalCause::CapacityPressure,
-                        &mut self.source_removal_metrics,
-                        reporter,
-                    );
-                }
-            }
-            Some(MapKind::Legacy) => {
-                if let Some((source, (parser, _))) = self.legacy_parsers.pop_lru() {
-                    drop(parser);
-                    report_source_removal(
-                        AutoSourceKey::Legacy(source),
-                        SourceRemovalCause::CapacityPressure,
-                        &mut self.source_removal_metrics,
-                        reporter,
-                    );
-                }
-            }
-            None => {}
+        match source {
+            AutoSourceKey::Ipfix(_) => parser.clear_ipfix_templates(),
+            AutoSourceKey::V9(_) => parser.clear_v9_templates(),
+            AutoSourceKey::Legacy(_) => {}
         }
+        drop(parser);
+        report_source_removal(
+            source,
+            SourceRemovalCause::CapacityPressure,
+            &mut self.source_removal_metrics,
+            reporter,
+        );
     }
 
     /// Create a new parser instance using the configured builder or default
