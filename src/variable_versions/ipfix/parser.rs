@@ -43,7 +43,8 @@ use nom_derive::Parse;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
-const MIN_REPLAY_TRIGGER_MESSAGE_LENGTH: u16 = 20;
+const MIN_STORE_REPLAY_TRIGGER_MESSAGE_LENGTH: u16 = 20;
+const MIN_TEMPLATE_REPLAY_TRIGGER_MESSAGE_LENGTH: u16 = 28;
 
 enum IpfixPendingReplayOutcome {
     Replayed { new_header_length: u16 },
@@ -990,12 +991,15 @@ impl IPFixParser {
             .and_then(|length| u16::try_from(length).ok())
             .ok_or(PendingOutputError::NeverFits)?;
 
-        // Replay requires an IPFIX message with at least one Set header. If
-        // that minimum frame cannot contain this Set, no later trigger can.
-        if MIN_REPLAY_TRIGGER_MESSAGE_LENGTH
-            .checked_add(flowset_length)
-            .is_none()
-        {
+        // A store-backed parser can restore a template from an empty Data Set
+        // (16-byte message header plus 4-byte Set header). Without a store,
+        // replay requires a valid one-field Template Set, which needs 28 bytes.
+        let minimum_trigger_length = if self.template_store.is_some() {
+            MIN_STORE_REPLAY_TRIGGER_MESSAGE_LENGTH
+        } else {
+            MIN_TEMPLATE_REPLAY_TRIGGER_MESSAGE_LENGTH
+        };
+        if minimum_trigger_length.checked_add(flowset_length).is_none() {
             return Err(PendingOutputError::NeverFits);
         }
 

@@ -1,8 +1,10 @@
 use netflow_parser::variable_versions::{ipfix, v9};
 use netflow_parser::{
-    Config, ConfigError, DecodedOutputLimit, DecodedOutputLimits, IpfixField, NetflowError,
-    NetflowPacket, NetflowParser, PendingFlowsConfig, TemplateProtocol, V9Field,
+    Config, ConfigError, DecodedOutputLimit, DecodedOutputLimits, InMemoryTemplateStore,
+    IpfixField, NetflowError, NetflowPacket, NetflowParser, PendingFlowsConfig,
+    TemplateProtocol, V9Field,
 };
+use std::sync::Arc;
 
 fn v9_message(flowsets: &[Vec<u8>]) -> Vec<u8> {
     let mut packet = vec![
@@ -120,6 +122,16 @@ fn ipfix_data(template_id: u16, body: &[u8]) -> Vec<u8> {
     set.extend_from_slice(&((body.len() + 4) as u16).to_be_bytes());
     set.extend_from_slice(body);
     set
+}
+
+fn ipfix_replay_boundary_body() -> Vec<u8> {
+    // The replayed Set is 65,508 bytes: it fits after a 20-byte store-backed
+    // trigger, but not after the smallest 28-byte on-wire Template message.
+    let mut body = Vec::with_capacity(65_504);
+    body.push(255);
+    body.extend_from_slice(&65_501u16.to_be_bytes());
+    body.resize(65_504, b'x');
+    body
 }
 
 fn assert_limit(
@@ -717,6 +729,62 @@ fn ipfix_pending_replay_classifies_entries_before_framing_pressure() {
     let info = parser.ipfix_cache_info();
     assert_eq!(info.pending_flow_count, 0);
     assert_eq!(info.metrics.pending_replay_failed, 1);
+    assert_eq!(info.metrics.pending_replayed, 1);
+}
+
+#[test]
+fn ipfix_no_store_drops_entry_that_cannot_fit_with_template_trigger() {
+    let mut parser = NetflowParser::builder()
+        .with_ipfix_pending_flows(PendingFlowsConfig::default())
+        .build()
+        .unwrap();
+
+    let body = ipfix_replay_boundary_body();
+    assert!(
+        parser
+            .parse_bytes(&ipfix_message(&[ipfix_data(256, &body)]))
+            .is_ok()
+    );
+
+    let replay = parser.parse_bytes(&ipfix_message(&[ipfix_template(256, 82, u16::MAX)]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    let info = parser.ipfix_cache_info();
+    assert_eq!(info.pending_flow_count, 0);
+    assert_eq!(info.metrics.pending_replay_failed, 1);
+    assert_eq!(info.metrics.pending_replayed, 0);
+}
+
+#[test]
+fn ipfix_store_restoration_replays_at_twenty_byte_boundary() {
+    let store = Arc::new(InMemoryTemplateStore::new());
+    let mut parser = NetflowParser::builder()
+        .with_template_store(store.clone())
+        .with_ipfix_pending_flows(PendingFlowsConfig::default())
+        .build()
+        .unwrap();
+
+    let body = ipfix_replay_boundary_body();
+    assert!(
+        parser
+            .parse_bytes(&ipfix_message(&[ipfix_data(256, &body)]))
+            .is_ok()
+    );
+
+    let mut writer = NetflowParser::builder()
+        .with_template_store(store)
+        .build()
+        .unwrap();
+    assert!(
+        writer
+            .parse_bytes(&ipfix_message(&[ipfix_template(256, 82, u16::MAX)]))
+            .is_ok()
+    );
+
+    let replay = parser.parse_bytes(&ipfix_message(&[ipfix_data(256, &[])]));
+    assert!(replay.is_ok(), "{:?}", replay.error);
+    let info = parser.ipfix_cache_info();
+    assert_eq!(info.pending_flow_count, 0);
+    assert_eq!(info.metrics.pending_replay_failed, 0);
     assert_eq!(info.metrics.pending_replayed, 1);
 }
 
