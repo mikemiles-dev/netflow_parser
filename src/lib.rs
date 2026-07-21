@@ -41,8 +41,9 @@ fn count_valid_templates<T>(
 
 // Re-export scoped parser types for convenience
 pub use scoped_parser::{
-    AutoScopedParser, DEFAULT_MAX_SOURCES, IpfixSourceKey, RouterScopedParser, ScopingInfo,
-    V9SourceKey, extract_scoping_info,
+    AutoScopedParser, AutoSourceKey, DEFAULT_MAX_SOURCES, IpfixSourceKey, RouterScopedParser,
+    ScopingInfo, SourceRemoval, SourceRemovalCause, SourceRemovalMetrics,
+    SourceRemovalReporterError, V9SourceKey, extract_scoping_info,
 };
 
 // Re-export template event types for convenience
