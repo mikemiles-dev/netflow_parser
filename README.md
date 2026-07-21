@@ -214,6 +214,7 @@ let parser = NetflowParser::builder()
 ```
 
 **Cache Behavior:**
+- Empty template caches reserve no entry storage; each cache grows as templates arrive
 - When the cache is full, the least recently used template is evicted
 - Templates are keyed by template ID (per source)
 - Each parser instance maintains its own template cache

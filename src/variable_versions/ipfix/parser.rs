@@ -19,6 +19,7 @@ use crate::template_store::{
 use crate::variable_versions::config::DEFAULT_MAX_RECORDS_PER_FLOWSET;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
+use crate::variable_versions::lazy_lru::LazyLruCache;
 use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
@@ -33,7 +34,6 @@ use crate::variable_versions::{
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
 use crate::variable_versions::fast_parse::{parse_u8, parse_u16_be};
-use lru::LruCache;
 use nom::IResult;
 use nom::combinator::complete;
 use nom::multi::many0;
@@ -88,10 +88,10 @@ impl IPFixParser {
             .transpose()?;
 
         Ok(Self {
-            templates: LruCache::new(cache_size),
-            v9_templates: LruCache::new(cache_size),
-            ipfix_options_templates: LruCache::new(cache_size),
-            v9_options_templates: LruCache::new(cache_size),
+            templates: LazyLruCache::new(cache_size),
+            v9_templates: LazyLruCache::new(cache_size),
+            ipfix_options_templates: LazyLruCache::new(cache_size),
+            v9_options_templates: LazyLruCache::new(cache_size),
             ttl_config: config.ttl_config,
             max_template_cache_size: config.max_template_cache_size,
             max_field_count: config.max_field_count,
@@ -159,7 +159,7 @@ impl IPFixParser {
     /// checker reaching for splits.
     #[allow(clippy::too_many_arguments)]
     fn install_restored<T>(
-        cache: &mut LruCache<crate::variable_versions::TemplateId, TemplateWithTtl<Arc<T>>>,
+        cache: &mut LazyLruCache<crate::variable_versions::TemplateId, TemplateWithTtl<Arc<T>>>,
         template_id: u16,
         arc: &Arc<T>,
         ttl_enabled: bool,
@@ -835,7 +835,7 @@ impl HasTemplateId for V9OptionsTemplate {
 /// metrics. Returns the IDs of any entries the LRU evicted to make room so the
 /// caller can mirror the eviction into the secondary template store.
 fn insert_templates<T: HasTemplateId>(
-    cache: &mut LruCache<u16, TemplateWithTtl<Arc<T>>>,
+    cache: &mut LazyLruCache<u16, TemplateWithTtl<Arc<T>>>,
     templates: &[T],
     ttl_enabled: bool,
     metrics: &mut CacheMetricsInner,

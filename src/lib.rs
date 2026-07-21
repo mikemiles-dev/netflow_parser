@@ -27,7 +27,10 @@ use std::sync::Arc;
 
 /// Count non-expired templates in an LRU cache, respecting TTL if configured.
 fn count_valid_templates<T>(
-    cache: &lru::LruCache<u16, variable_versions::ttl::TemplateWithTtl<T>>,
+    cache: &variable_versions::lazy_lru::LazyLruCache<
+        u16,
+        variable_versions::ttl::TemplateWithTtl<T>,
+    >,
     ttl_config: &Option<variable_versions::ttl::TtlConfig>,
 ) -> usize {
     match ttl_config {
