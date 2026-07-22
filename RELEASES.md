@@ -1,5 +1,14 @@
 # 1.0.6
 
+## Features
+
+* **Report scoped source removals.** `AutoScopedParser` and
+  `RouterScopedParser` now provide opt-in reporter variants for parsing, idle
+  pruning, and capacity changes. Reports identify the exact removed source and
+  whether capacity pressure, idle pruning, or a capacity reduction removed it.
+  Existing APIs remain source-compatible wrappers, and reporter errors or
+  panics cannot interrupt the completed parser-state transition.
+
 ## Fixes
 
 * **Accept repeated NetFlow v9 fields.** NetFlow v9 templates are ordered field
@@ -7,6 +16,40 @@
   rejected those templates. Repeated data, scope, and option fields are now
   accepted and every value is preserved in wire order. This applies to native
   NetFlow v9 templates and to v9-style templates parsed through the IPFIX path.
+
+* **Correct NetFlow v9 `Count` and packet framing.** `Count` is now treated as
+  the number of Template, Options Template, and Data records rather than the
+  number of FlowSets. Parsing consumes one complete caller-delimited v9 packet,
+  preserves the received `Count`, and rejects incomplete trailing FlowSets.
+  Serialization recomputes the emitted record count and rejects empty or
+  overflowing output. A configurable positive frame-size limit defaults to
+  65,535 bytes.
+
+* **Enforce one active NetFlow v9 template per Template ID.** Data and Options
+  templates share one logical ID namespace, so the last valid definition in
+  wire order now replaces the previous kind. Cross-kind replacement updates
+  collision/expiration metrics and removes the superseded `TemplateStore` key.
+
+* **Enforce one active IPFIX template per Template ID.** Native Data, native
+  Options, v9-style Data, and v9-style Options definitions now share one
+  logical owner. The last valid definition in wire order wins, superseded
+  in-memory and persisted owners are removed, and individual or class-wide
+  withdrawals also remove equivalent v9-style owners.
+
+* **Bound cumulative decoded output per message.** NetFlow v9 and IPFIX now
+  default to limits of 65,536 decoded field values and 4 MiB of decoded field
+  content per message. Checked preflight accounting rejects over-limit messages
+  with `DecodedOutputLimitExceeded` before proportional materialization and
+  applies the remaining budget to pending-flow replay. Builder and low-level
+  parser APIs allow callers to configure explicit positive limits.
+
+## Performance
+
+* **Allocate template caches lazily.** The two NetFlow v9 and four IPFIX
+  template LRUs no longer reserve their configured capacity when an empty
+  parser is created. Backing storage is allocated incrementally on insertion
+  and released when the final entry is removed, while preserving configured
+  capacities, LRU behavior, metrics, persistence, and public APIs.
 
 # 1.0.5
 
