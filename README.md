@@ -217,6 +217,8 @@ let parser = NetflowParser::builder()
 - Empty template caches reserve no entry storage; each cache grows as templates arrive
 - When the cache is full, the least recently used template is evicted
 - Templates are keyed by template ID (per source)
+- Native and V9-style IPFIX data and Options templates share one Template ID namespace;
+  each accepted definition becomes the sole owner of its ID
 - Each parser instance maintains its own template cache
 - For multi-source deployments, use `RouterScopedParser` (see Template Management section)
 

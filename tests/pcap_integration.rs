@@ -130,7 +130,7 @@ fn test_pcap_template_caching() {
 
     // IPFIX.pcap should have exactly 15 templates (IDs 256-270)
     assert_eq!(
-        ipfix_info.current_size, 17,
+        ipfix_info.current_size, 15,
         "Expected exact IPFIX template cache size"
     );
     assert_eq!(
@@ -179,7 +179,7 @@ fn test_pcap_cache_metrics() {
     let metrics = &ipfix_info.metrics;
 
     assert_eq!(
-        ipfix_info.current_size, 17,
+        ipfix_info.current_size, 15,
         "Expected exact IPFIX template cache size"
     );
     assert_eq!(metrics.hits, 5754, "Expected exact cache hit count");

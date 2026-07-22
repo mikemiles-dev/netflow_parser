@@ -1090,126 +1090,265 @@ impl HasTemplateId for V9OptionsTemplate {
     }
 }
 
-/// Insert templates into an LRU cache, recording collision/eviction/insertion
-/// metrics. Returns the IDs of any entries the LRU evicted to make room so the
-/// caller can mirror the eviction into the secondary template store.
-fn insert_templates<T: HasTemplateId>(
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum IpfixTemplateSlot {
+    IpfixData,
+    IpfixOptions,
+    V9Data,
+    V9Options,
+}
+
+impl IpfixTemplateSlot {
+    const ALL: [Self; 4] = [
+        Self::IpfixData,
+        Self::IpfixOptions,
+        Self::V9Data,
+        Self::V9Options,
+    ];
+
+    fn store_kind(self) -> TemplateKind {
+        match self {
+            Self::IpfixData => TemplateKind::IpfixData,
+            Self::IpfixOptions => TemplateKind::IpfixOptions,
+            Self::V9Data => TemplateKind::IpfixV9Data,
+            Self::V9Options => TemplateKind::IpfixV9Options,
+        }
+    }
+}
+
+/// Remove one physical cache entry and report whether it was still a live owner.
+fn remove_cached_owner<T>(
     cache: &mut LazyLruCache<u16, TemplateWithTtl<Arc<T>>>,
-    templates: &[T],
+    template_id: u16,
+    ttl_config: &Option<TtlConfig>,
+    metrics: &mut CacheMetricsInner,
+) -> bool {
+    let Some(expired) = cache
+        .peek(&template_id)
+        .map(|entry| ttl_config.as_ref().is_some_and(|ttl| entry.is_expired(ttl)))
+    else {
+        return false;
+    };
+
+    cache.pop(&template_id);
+    if expired {
+        metrics.record_expiration();
+        false
+    } else {
+        true
+    }
+}
+
+/// Insert one template and return any different Template ID evicted by the LRU.
+fn insert_template<T: HasTemplateId>(
+    cache: &mut LazyLruCache<u16, TemplateWithTtl<Arc<T>>>,
+    template: &T,
     ttl_enabled: bool,
     metrics: &mut CacheMetricsInner,
-) -> Vec<u16> {
-    let mut evicted_ids = Vec::new();
-    for t in templates {
-        let arc_template = Arc::new(t.clone());
-        let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
-        if let Some(existing) = cache.peek(&t.template_id())
-            && existing.template.as_ref() != t
-        {
-            metrics.record_collision();
-        }
-        // push() returns Some in two cases: (1) a different key was LRU-evicted
-        // to make room, or (2) the same key existed and its value was replaced.
-        // Only count case (1) as an eviction.
-        if let Some((evicted_key, _evicted)) = cache.push(t.template_id(), wrapped)
-            && evicted_key != t.template_id()
-        {
-            metrics.record_eviction();
-            evicted_ids.push(evicted_key);
-        }
-        metrics.record_insertion();
+) -> Option<u16> {
+    let template_id = template.template_id();
+    if let Some(existing) = cache.peek(&template_id)
+        && existing.template.as_ref() != template
+    {
+        metrics.record_collision();
     }
-    evicted_ids
+
+    let wrapped = TemplateWithTtl::new(Arc::new(template.clone()), ttl_enabled);
+    let evicted_id = cache
+        .push(template_id, wrapped)
+        .and_then(|(evicted_id, _)| (evicted_id != template_id).then_some(evicted_id));
+    if evicted_id.is_some() {
+        metrics.record_eviction();
+    }
+    metrics.record_insertion();
+    evicted_id
 }
 
 impl IPFixParser {
+    /// Remove every physical owner except the slot receiving the new definition.
+    fn remove_other_template_owners(
+        &mut self,
+        installed_slot: IpfixTemplateSlot,
+        template_id: u16,
+    ) {
+        let mut replaced_live_owner = false;
+        if installed_slot != IpfixTemplateSlot::IpfixData {
+            replaced_live_owner |= remove_cached_owner(
+                &mut self.templates,
+                template_id,
+                &self.ttl_config,
+                &mut self.metrics,
+            );
+        }
+        if installed_slot != IpfixTemplateSlot::IpfixOptions {
+            replaced_live_owner |= remove_cached_owner(
+                &mut self.ipfix_options_templates,
+                template_id,
+                &self.ttl_config,
+                &mut self.metrics,
+            );
+        }
+        if installed_slot != IpfixTemplateSlot::V9Data {
+            replaced_live_owner |= remove_cached_owner(
+                &mut self.v9_templates,
+                template_id,
+                &self.ttl_config,
+                &mut self.metrics,
+            );
+        }
+        if installed_slot != IpfixTemplateSlot::V9Options {
+            replaced_live_owner |= remove_cached_owner(
+                &mut self.v9_options_templates,
+                template_id,
+                &self.ttl_config,
+                &mut self.metrics,
+            );
+        }
+        if replaced_live_owner {
+            self.metrics.record_collision();
+        }
+
+        if self.template_store.is_some() {
+            for slot in IpfixTemplateSlot::ALL {
+                if slot != installed_slot {
+                    self.evict_from_store(slot.store_kind(), template_id);
+                }
+            }
+        }
+    }
+
     /// Add templates to the parser by cloning from slice.
     fn add_ipfix_templates(&mut self, templates: &[Template]) {
         let ttl_enabled = self.ttl_config.is_some();
-        let evicted = insert_templates(
-            &mut self.templates,
-            templates,
-            ttl_enabled,
-            &mut self.metrics,
-        );
-        if self.template_store.is_some() {
-            for t in templates {
+        for template in templates {
+            self.remove_other_template_owners(
+                IpfixTemplateSlot::IpfixData,
+                template.template_id,
+            );
+            let evicted = insert_template(
+                &mut self.templates,
+                template,
+                ttl_enabled,
+                &mut self.metrics,
+            );
+            if self.template_store.is_some() {
                 self.put_to_store(
                     TemplateKind::IpfixData,
-                    t.template_id,
-                    encode_ipfix_template(t),
+                    template.template_id,
+                    encode_ipfix_template(template),
                 );
-            }
-            for id in evicted {
-                self.evict_from_store(TemplateKind::IpfixData, id);
+                if let Some(id) = evicted {
+                    self.evict_from_store(TemplateKind::IpfixData, id);
+                }
             }
         }
     }
 
     fn add_ipfix_options_templates(&mut self, templates: &[OptionsTemplate]) {
         let ttl_enabled = self.ttl_config.is_some();
-        let evicted = insert_templates(
-            &mut self.ipfix_options_templates,
-            templates,
-            ttl_enabled,
-            &mut self.metrics,
-        );
-        if self.template_store.is_some() {
-            for t in templates {
+        for template in templates {
+            self.remove_other_template_owners(
+                IpfixTemplateSlot::IpfixOptions,
+                template.template_id,
+            );
+            let evicted = insert_template(
+                &mut self.ipfix_options_templates,
+                template,
+                ttl_enabled,
+                &mut self.metrics,
+            );
+            if self.template_store.is_some() {
                 self.put_to_store(
                     TemplateKind::IpfixOptions,
-                    t.template_id,
-                    encode_ipfix_options_template(t),
+                    template.template_id,
+                    encode_ipfix_options_template(template),
                 );
-            }
-            for id in evicted {
-                self.evict_from_store(TemplateKind::IpfixOptions, id);
+                if let Some(id) = evicted {
+                    self.evict_from_store(TemplateKind::IpfixOptions, id);
+                }
             }
         }
     }
 
     fn add_v9_templates(&mut self, templates: &[V9Template]) {
         let ttl_enabled = self.ttl_config.is_some();
-        let evicted = insert_templates(
-            &mut self.v9_templates,
-            templates,
-            ttl_enabled,
-            &mut self.metrics,
-        );
-        if self.template_store.is_some() {
-            for t in templates {
+        for template in templates {
+            self.remove_other_template_owners(IpfixTemplateSlot::V9Data, template.template_id);
+            let evicted = insert_template(
+                &mut self.v9_templates,
+                template,
+                ttl_enabled,
+                &mut self.metrics,
+            );
+            if self.template_store.is_some() {
                 self.put_to_store(
                     TemplateKind::IpfixV9Data,
-                    t.template_id,
-                    encode_v9_template(t),
+                    template.template_id,
+                    encode_v9_template(template),
                 );
-            }
-            for id in evicted {
-                self.evict_from_store(TemplateKind::IpfixV9Data, id);
+                if let Some(id) = evicted {
+                    self.evict_from_store(TemplateKind::IpfixV9Data, id);
+                }
             }
         }
     }
 
     fn add_v9_options_templates(&mut self, templates: &[V9OptionsTemplate]) {
         let ttl_enabled = self.ttl_config.is_some();
-        let evicted = insert_templates(
-            &mut self.v9_options_templates,
-            templates,
-            ttl_enabled,
-            &mut self.metrics,
-        );
-        if self.template_store.is_some() {
-            for t in templates {
+        for template in templates {
+            self.remove_other_template_owners(
+                IpfixTemplateSlot::V9Options,
+                template.template_id,
+            );
+            let evicted = insert_template(
+                &mut self.v9_options_templates,
+                template,
+                ttl_enabled,
+                &mut self.metrics,
+            );
+            if self.template_store.is_some() {
                 self.put_to_store(
                     TemplateKind::IpfixV9Options,
-                    t.template_id,
-                    encode_v9_options_template(t),
+                    template.template_id,
+                    encode_v9_options_template(template),
                 );
-            }
-            for id in evicted {
-                self.evict_from_store(TemplateKind::IpfixV9Options, id);
+                if let Some(id) = evicted {
+                    self.evict_from_store(TemplateKind::IpfixV9Options, id);
+                }
             }
         }
+    }
+
+    fn drain_pending_template_ids(&mut self, template_ids: &[u16]) {
+        let Some(cache) = self.pending_flows.as_mut() else {
+            return;
+        };
+        for &template_id in template_ids {
+            let dropped = cache.drain(template_id, &mut self.metrics).len() as u64;
+            if dropped > 0 {
+                self.metrics.record_pending_dropped_n(dropped);
+            }
+        }
+    }
+
+    fn remove_data_template_owners(&mut self, template_ids: &[u16]) {
+        for &template_id in template_ids {
+            self.templates.pop(&template_id);
+            self.v9_templates.pop(&template_id);
+            self.evict_from_store(TemplateKind::IpfixData, template_id);
+            self.evict_from_store(TemplateKind::IpfixV9Data, template_id);
+        }
+        self.drain_pending_template_ids(template_ids);
+    }
+
+    fn remove_options_template_owners(&mut self, template_ids: &[u16]) {
+        for &template_id in template_ids {
+            self.ipfix_options_templates.pop(&template_id);
+            self.v9_options_templates.pop(&template_id);
+            self.evict_from_store(TemplateKind::IpfixOptions, template_id);
+            self.evict_from_store(TemplateKind::IpfixV9Options, template_id);
+        }
+        self.drain_pending_template_ids(template_ids);
     }
 
     /// Remove an IPFIX template by ID (RFC 7011 Section 8.1 template withdrawal).
@@ -1221,34 +1360,13 @@ impl IPFixParser {
     /// handles both individual and bulk withdrawal.
     fn withdraw_ipfix_template(&mut self, template_id: u16) {
         if template_id == DATA_TEMPLATE_IPFIX_ID {
-            // "Withdraw all data templates" — clear entire data template
-            // cache and drain pending flows only for those template IDs.
-            // Pending flows for options template IDs are left untouched
-            // since those templates remain valid.
-            let ids: Vec<u16> = self.templates.iter().map(|(&id, _)| id).collect();
-            for id in &ids {
-                self.templates.pop(id);
-                self.evict_from_store(TemplateKind::IpfixData, *id);
-            }
-            if let Some(ref mut cache) = self.pending_flows {
-                for &id in &ids {
-                    let drained = cache.drain(id, &mut self.metrics);
-                    let n = drained.len() as u64;
-                    if n > 0 {
-                        self.metrics.record_pending_dropped_n(n);
-                    }
-                }
-            }
+            let mut ids: Vec<u16> = self.templates.iter().map(|(&id, _)| id).collect();
+            ids.extend(self.v9_templates.iter().map(|(&id, _)| id));
+            ids.sort_unstable();
+            ids.dedup();
+            self.remove_data_template_owners(&ids);
         } else {
-            self.templates.pop(&template_id);
-            self.evict_from_store(TemplateKind::IpfixData, template_id);
-            if let Some(ref mut cache) = self.pending_flows {
-                let drained = cache.drain(template_id, &mut self.metrics);
-                let n = drained.len() as u64;
-                if n > 0 {
-                    self.metrics.record_pending_dropped_n(n);
-                }
-            }
+            self.remove_data_template_owners(&[template_id]);
         }
     }
 
@@ -1259,37 +1377,17 @@ impl IPFixParser {
     /// field_count == 0 signals "withdraw ALL options templates".
     fn withdraw_ipfix_options_template(&mut self, template_id: u16) {
         if template_id == OPTIONS_TEMPLATE_IPFIX_ID {
-            // "Withdraw all options templates" — clear entire options template
-            // cache and drain pending flows only for those template IDs.
-            // Pending flows for data template IDs are left untouched.
-            let ids: Vec<u16> = self
+            let mut ids: Vec<u16> = self
                 .ipfix_options_templates
                 .iter()
                 .map(|(&id, _)| id)
                 .collect();
-            for id in &ids {
-                self.ipfix_options_templates.pop(id);
-                self.evict_from_store(TemplateKind::IpfixOptions, *id);
-            }
-            if let Some(ref mut cache) = self.pending_flows {
-                for &id in &ids {
-                    let drained = cache.drain(id, &mut self.metrics);
-                    let n = drained.len() as u64;
-                    if n > 0 {
-                        self.metrics.record_pending_dropped_n(n);
-                    }
-                }
-            }
+            ids.extend(self.v9_options_templates.iter().map(|(&id, _)| id));
+            ids.sort_unstable();
+            ids.dedup();
+            self.remove_options_template_owners(&ids);
         } else {
-            self.ipfix_options_templates.pop(&template_id);
-            self.evict_from_store(TemplateKind::IpfixOptions, template_id);
-            if let Some(ref mut cache) = self.pending_flows {
-                let drained = cache.drain(template_id, &mut self.metrics);
-                let n = drained.len() as u64;
-                if n > 0 {
-                    self.metrics.record_pending_dropped_n(n);
-                }
-            }
+            self.remove_options_template_owners(&[template_id]);
         }
     }
 }
@@ -1442,13 +1540,9 @@ impl FlowSetBody {
             ),
             // Parse Data
             _ => {
-                // NOTE: Template ID collision across cache types is possible and
-                // expected when both IPFIX and V9-style templates coexist in
-                // the same parser (the IPFIX parser accepts both flavors).
-                // The lookup order below defines priority: IPFIX templates >
-                // IPFIX options > V9 templates > V9 options. If the same
-                // template ID appears in multiple caches, only the first
-                // match is used and others are silently shadowed.
+                // Definition installation keeps these physical caches disjoint by
+                // Template ID, so this probe order selects representation rather
+                // than resolving competing owners.
 
                 // Try IPFix templates
                 if let Some(template) = crate::variable_versions::get_valid_template(
