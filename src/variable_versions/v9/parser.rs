@@ -39,6 +39,9 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 
 /// Stateful NetFlow V9 parser with LRU template caching and optional pending flow support.
+///
+/// Ordinary and Options templates share one protocol-level Template ID namespace.
+/// The last valid definition received for an ID is its sole logical owner.
 #[derive(Debug)]
 pub struct V9Parser {
     pub(crate) templates: LazyLruCache<TemplateId, TemplateWithTtl<Arc<Template>>>,
@@ -193,8 +196,8 @@ impl V9Parser {
         }
     }
 
-    /// Best-effort removal of an LRU-evicted entry from the secondary store.
-    fn evict_template_from_store(&mut self, kind: TemplateKind, template_id: u16) {
+    /// Best-effort removal of a superseded or evicted entry from the secondary store.
+    fn remove_template_from_store(&mut self, kind: TemplateKind, template_id: u16) {
         let Some(store) = self.template_store.as_ref() else {
             return;
         };
@@ -203,6 +206,87 @@ impl V9Parser {
         if store.remove(&key).is_err() {
             self.metrics.record_template_store_backend_error();
         }
+    }
+
+    /// Remove one physical cache entry and report whether it was still a live owner.
+    fn remove_cached_owner<T>(
+        cache: &mut LazyLruCache<TemplateId, TemplateWithTtl<Arc<T>>>,
+        template_id: TemplateId,
+        ttl_config: &Option<TtlConfig>,
+        metrics: &mut CacheMetricsInner,
+    ) -> bool {
+        let Some(entry) = cache.pop(&template_id) else {
+            return false;
+        };
+
+        if ttl_config.as_ref().is_some_and(|ttl| entry.is_expired(ttl)) {
+            metrics.record_expiration();
+            false
+        } else {
+            true
+        }
+    }
+
+    /// Install an ordinary template as the sole owner of its Template ID.
+    fn install_template(&mut self, template: &Template) {
+        let template_id = template.template_id;
+        if Self::remove_cached_owner(
+            &mut self.options_templates,
+            template_id,
+            &self.ttl_config,
+            &mut self.metrics,
+        ) {
+            self.metrics.record_collision();
+        }
+        self.remove_template_from_store(TemplateKind::V9Options, template_id);
+
+        if let Some(existing) = self.templates.peek(&template_id)
+            && existing.template.as_ref() != template
+        {
+            self.metrics.record_collision();
+        }
+
+        let wrapped =
+            TemplateWithTtl::new(Arc::new(template.clone()), self.ttl_config.is_some());
+        if let Some((evicted_key, _)) = self.templates.push(template_id, wrapped)
+            && evicted_key != template_id
+        {
+            self.metrics.record_eviction();
+            self.remove_template_from_store(TemplateKind::V9Data, evicted_key);
+        }
+        self.metrics.record_insertion();
+        self.store_template(template);
+    }
+
+    /// Install an Options template as the sole owner of its Template ID.
+    fn install_options_template(&mut self, template: &OptionsTemplate) {
+        let template_id = template.template_id;
+        if Self::remove_cached_owner(
+            &mut self.templates,
+            template_id,
+            &self.ttl_config,
+            &mut self.metrics,
+        ) {
+            self.metrics.record_collision();
+        }
+        self.remove_template_from_store(TemplateKind::V9Data, template_id);
+
+        if let Some(existing) = self.options_templates.peek(&template_id)
+            && existing.template.as_ref() != template
+        {
+            self.metrics.record_collision();
+        }
+
+        let wrapped =
+            TemplateWithTtl::new(Arc::new(template.clone()), self.ttl_config.is_some());
+        if let Some((evicted_key, _)) = self.options_templates.push(template_id, wrapped)
+            && evicted_key != template_id
+        {
+            self.metrics.record_eviction();
+            self.remove_template_from_store(TemplateKind::V9Options, evicted_key);
+        }
+        self.metrics.record_insertion();
+        self.store_options_template(template);
     }
 
     /// Insert a read-through-recovered template into the in-process LRU,
@@ -707,29 +791,8 @@ impl FlowSetBody {
                         nom::error::ErrorKind::Verify,
                     )));
                 }
-                let ttl_enabled = parser.ttl_config.is_some();
                 for template in &valid_templates {
-                    let arc_template = Arc::new(template.clone());
-                    let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
-                    // Check for collision (same ID, different definition)
-                    // Use peek() to avoid affecting LRU ordering
-                    if let Some(existing) = parser.templates.peek(&template.template_id)
-                        && existing.template.as_ref() != template
-                    {
-                        parser.metrics.record_collision();
-                    }
-                    // push() returns Some in two cases: (1) a different key was LRU-evicted
-                    // to make room, or (2) the same key existed and its value was replaced.
-                    // Only count case (1) as an eviction.
-                    if let Some((evicted_key, _evicted)) =
-                        parser.templates.push(template.template_id, wrapped)
-                        && evicted_key != template.template_id
-                    {
-                        parser.metrics.record_eviction();
-                        parser.evict_template_from_store(TemplateKind::V9Data, evicted_key);
-                    }
-                    parser.metrics.record_insertion();
-                    parser.store_template(template);
+                    parser.install_template(template);
                 }
                 let result = Templates {
                     templates: valid_templates,
@@ -752,30 +815,8 @@ impl FlowSetBody {
                         nom::error::ErrorKind::Verify,
                     )));
                 }
-                // Store templates efficiently using Arc for zero-cost sharing
-                let ttl_enabled = parser.ttl_config.is_some();
                 for template in &valid_templates {
-                    let arc_template = Arc::new(template.clone());
-                    let wrapped = TemplateWithTtl::new(arc_template, ttl_enabled);
-                    // Check for collision (same ID, different definition)
-                    // Use peek() to avoid affecting LRU ordering
-                    if let Some(existing) = parser.options_templates.peek(&template.template_id)
-                        && existing.template.as_ref() != template
-                    {
-                        parser.metrics.record_collision();
-                    }
-                    // push() returns Some in two cases: (1) a different key was LRU-evicted
-                    // to make room, or (2) the same key existed and its value was replaced.
-                    // Only count case (1) as an eviction.
-                    if let Some((evicted_key, _evicted)) =
-                        parser.options_templates.push(template.template_id, wrapped)
-                        && evicted_key != template.template_id
-                    {
-                        parser.metrics.record_eviction();
-                        parser.evict_template_from_store(TemplateKind::V9Options, evicted_key);
-                    }
-                    parser.metrics.record_insertion();
-                    parser.store_options_template(template);
+                    parser.install_options_template(template);
                 }
                 let result = OptionsTemplates {
                     templates: valid_templates,
