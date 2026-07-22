@@ -159,6 +159,7 @@ The parser includes several DoS mitigations:
 - **Template Field Count Limit:** Default 10,000 fields per template
 - **Template Total Size Validation:** Maximum 65,535 bytes per template
 - **Cumulative Decoded Output:** Defaults to 65,536 field values and 4 MiB of field content per message
+- **NetFlow v9 Frame Size Limit:** Default 65,535 bytes per caller-delimited packet
 - **Error Sample Size Limit:** Default 256 bytes to prevent memory exhaustion
 - **LRU Template Cache:** Prevents unbounded cache growth
 

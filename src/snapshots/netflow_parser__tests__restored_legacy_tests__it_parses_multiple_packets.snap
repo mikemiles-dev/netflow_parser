@@ -1,6 +1,6 @@
 ---
 source: src/tests.rs
-expression: "NetflowParser::default().parse_bytes(&all).packets"
+expression: packets
 ---
 - V9:
     header:

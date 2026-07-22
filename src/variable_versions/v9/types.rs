@@ -35,7 +35,7 @@ pub struct V9 {
     /// V9 Header
     pub header: Header,
     /// Flowsets
-    #[nom(Parse = "{ |i| FlowSetParser::parse_flowsets(i, parser, header.count) }")]
+    #[nom(Parse = "{ |i| FlowSetParser::parse_flowsets(i, parser) }")]
     pub flowsets: Vec<FlowSet>,
 }
 
@@ -45,7 +45,8 @@ pub struct Header {
     /// The version of NetFlow records exported in this packet; for Version 9, this value is 9
     #[nom(Value = "9")]
     pub version: u16,
-    /// Number of FlowSet records (both template and data) contained within this packet
+    /// Total number of Template, Options Template, and Data records in this packet.
+    /// This is exporter-declared metadata and does not delimit the FlowSet sequence.
     pub count: u16,
     /// Time in milliseconds since this device was first booted
     pub sys_up_time: u32,

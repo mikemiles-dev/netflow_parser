@@ -110,7 +110,9 @@ impl V9 {
     /// Convert the V9 struct to a `Vec<u8>` of bytes in big-endian order for exporting.
     ///
     /// `NoTemplate` flowsets are omitted from the output, and `header.count`
-    /// is recomputed to match the number of actually-serialized flowsets.
+    /// is recomputed to match the number of actually serialized records.
+    /// Returns an error if no FlowSet can be emitted or a FlowSet length or
+    /// total record count exceeds the corresponding 16-bit wire field.
     pub fn to_be_bytes(&self) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let mut result = Vec::new();
 
@@ -123,12 +125,19 @@ impl V9 {
         result.extend_from_slice(&self.header.source_id.to_be_bytes());
 
         let mut emitted_count: u16 = 0;
+        let mut emitted_flowset = false;
         for set in self.flowsets.iter() {
-            let body_bytes = match &set.body {
-                FlowSetBody::Template(t) => Self::serialize_template_body(t),
-                FlowSetBody::OptionsTemplate(o) => Self::serialize_options_template_body(o),
-                FlowSetBody::Data(d) => Self::serialize_data_body(d)?,
-                FlowSetBody::OptionsData(o) => Self::serialize_options_data_body(o)?,
+            let (body_bytes, record_count) = match &set.body {
+                FlowSetBody::Template(t) => {
+                    (Self::serialize_template_body(t), t.templates.len())
+                }
+                FlowSetBody::OptionsTemplate(o) => {
+                    (Self::serialize_options_template_body(o), o.templates.len())
+                }
+                FlowSetBody::Data(d) => (Self::serialize_data_body(d)?, d.fields.len()),
+                FlowSetBody::OptionsData(o) => {
+                    (Self::serialize_options_data_body(o)?, o.fields.len())
+                }
                 FlowSetBody::NoTemplate(_) | FlowSetBody::Empty => continue,
             };
             // Compute flowset length from actual serialized body instead
@@ -143,12 +152,19 @@ impl V9 {
             result.extend_from_slice(&set.header.flowset_id.to_be_bytes());
             result.extend_from_slice(&flowset_length.to_be_bytes());
             result.extend_from_slice(&body_bytes);
+            emitted_flowset = true;
+            let record_count = u16::try_from(record_count)
+                .map_err(|_| format!("V9 record count exceeds u16::MAX ({})", u16::MAX))?;
             emitted_count = emitted_count
-                .checked_add(1)
-                .ok_or_else(|| format!("V9 flowset count exceeds u16::MAX ({})", u16::MAX))?;
+                .checked_add(record_count)
+                .ok_or_else(|| format!("V9 record count exceeds u16::MAX ({})", u16::MAX))?;
         }
 
-        // Patch header.count with actual number of serialized flowsets
+        if !emitted_flowset {
+            return Err("V9 export packet must contain at least one FlowSet".into());
+        }
+
+        // Patch header.count with the total number of serialized records.
         result[2..4].copy_from_slice(&emitted_count.to_be_bytes());
 
         Ok(result)

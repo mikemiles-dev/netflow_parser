@@ -27,6 +27,9 @@ pub const MAX_FIELD_COUNT: usize = 10_000;
 /// This prevents CPU-bound DoS from maliciously large flowsets.
 pub const DEFAULT_MAX_RECORDS_PER_FLOWSET: usize = 1024;
 
+/// Default maximum size of one caller-delimited NetFlow v9 export packet.
+pub const DEFAULT_MAX_V9_FRAME_SIZE_BYTES: usize = 65_535;
+
 /// Configuration for V9 and IPFIX parsers.
 ///
 /// Controls template cache size, field limits, TTL, enterprise field definitions,
@@ -104,6 +107,8 @@ pub enum ConfigError {
     InvalidDecodedFieldValueLimit(usize),
     /// Decoded field-payload-byte message limit must be greater than 0.
     InvalidDecodedFieldPayloadByteLimit(usize),
+    /// NetFlow v9 frame size must be greater than 0
+    InvalidV9FrameSize(usize),
     /// Pending flow max_total_bytes must be >= max_entry_size_bytes
     InvalidPendingTotalBytes {
         max_total_bytes: usize,
@@ -191,6 +196,13 @@ impl std::fmt::Display for ConfigError {
                     f,
                     "Invalid max decoded field payload bytes per message: {}. Must be greater than 0.",
                     bytes
+                )
+            }
+            ConfigError::InvalidV9FrameSize(size) => {
+                write!(
+                    f,
+                    "Invalid NetFlow v9 frame size: {}. Must be greater than 0.",
+                    size
                 )
             }
             ConfigError::EmptyAllowedVersions => {
