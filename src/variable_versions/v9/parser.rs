@@ -21,11 +21,13 @@ use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
 use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::lazy_lru::LazyLruCache;
 use crate::variable_versions::metrics::CacheMetricsInner;
+use crate::variable_versions::output_budget::PendingOutputError;
 use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
+use crate::variable_versions::wire::RecordBodyKind;
 use crate::variable_versions::{
-    Config, ConfigError, ParserConfig, ParserFields, PendingFlowCache, PendingFlowEntry,
-    PendingFlowsConfig,
+    Config, ConfigError, DecodedOutputBudget, ParserConfig, ParserFields, PendingFlowCache,
+    PendingFlowEntry, PendingFlowsConfig, PendingReplayOutcome,
 };
 use crate::{NetflowError, NetflowPacket, ParsedNetflow};
 
@@ -48,6 +50,7 @@ pub struct V9Parser {
     pub(crate) max_template_total_size: usize,
     pub(crate) max_error_sample_size: usize,
     pub(crate) max_records_per_flowset: usize,
+    pub(crate) decoded_output_budget: DecodedOutputBudget,
     pub(crate) metrics: CacheMetricsInner,
     pub(crate) pending_flows: Option<PendingFlowCache>,
     /// Optional secondary-tier template store. See [`crate::template_store`].
@@ -71,6 +74,10 @@ impl Default for V9Parser {
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -86,6 +93,10 @@ impl Default for V9Parser {
 }
 
 impl V9Parser {
+    pub(crate) fn start_decoded_output_message(&mut self) {
+        self.decoded_output_budget.reset();
+    }
+
     /// Validates a configuration without allocating parser internals.
     pub fn validate_config(config: &Config) -> Result<(), ConfigError> {
         config.validate()
@@ -97,11 +108,18 @@ impl V9Parser {
     /// * `config` - Configuration struct containing max_template_cache_size and optional ttl_config
     ///
     /// # Errors
-    /// Returns `ConfigError` if `max_template_cache_size` is 0
+    /// Returns `ConfigError` if the template cache size or either decoded-output
+    /// limit is zero.
     pub fn try_new(config: Config) -> Result<Self, ConfigError> {
         let cache_size = NonZeroUsize::new(config.max_template_cache_size).ok_or(
             ConfigError::InvalidCacheSize(config.max_template_cache_size),
         )?;
+        if config.max_decoded_field_values_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldValueLimit(0));
+        }
+        if config.max_decoded_field_payload_bytes_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldPayloadByteLimit(0));
+        }
 
         let pending_flows = config
             .pending_flows_config
@@ -117,6 +135,10 @@ impl V9Parser {
             max_template_total_size: config.max_template_total_size,
             max_error_sample_size: config.max_error_sample_size,
             max_records_per_flowset: config.max_records_per_flowset,
+            decoded_output_budget: DecodedOutputBudget::new(
+                config.max_decoded_field_values_per_message,
+                config.max_decoded_field_payload_bytes_per_message,
+            ),
             metrics: CacheMetricsInner::new(),
             pending_flows,
             template_store: config.template_store,
@@ -353,6 +375,9 @@ impl ParserFields for V9Parser {
     fn set_max_records_per_flowset_field(&mut self, count: usize) {
         self.max_records_per_flowset = count;
     }
+    fn set_decoded_output_limits_fields(&mut self, values: usize, payload_bytes: usize) {
+        self.decoded_output_budget.set_limits(values, payload_bytes);
+    }
     fn set_ttl_config_field(&mut self, config: Option<TtlConfig>) {
         self.ttl_config = config;
     }
@@ -414,11 +439,21 @@ impl V9Parser {
                     remaining,
                 }
             }
-            Err(e) => ParsedNetflow::Error {
-                error: NetflowError::Partial {
-                    message: format!("V9 parse error: {}", e),
-                },
-            },
+            Err(e) => {
+                let error = if let Some(exceeded) = self.decoded_output_budget.take_exceeded() {
+                    NetflowError::DecodedOutputLimitExceeded {
+                        protocol: TemplateProtocol::V9,
+                        limit: exceeded.limit,
+                        configured: exceeded.configured,
+                        attempted: exceeded.attempted,
+                    }
+                } else {
+                    NetflowError::Partial {
+                        message: format!("V9 parse error: {}", e),
+                    }
+                };
+                ParsedNetflow::Error { error }
+            }
         }
     }
 
@@ -513,18 +548,27 @@ impl V9Parser {
     ) {
         for &template_id in learned {
             let entries = cache.drain(template_id, &mut self.metrics);
-            let total_entries = entries.len();
-            for (processed, entry) in entries.iter().enumerate() {
+            let mut entries = entries.into_iter();
+            while let Some(entry) = entries.next() {
                 if v9.flowsets.len() >= u16::MAX as usize {
-                    // Count this entry plus all remaining as failed, then break.
-                    let remaining = (total_entries - processed) as u64;
-                    self.metrics.record_pending_replay_failed_n(remaining);
+                    let mut retained = Vec::with_capacity(entries.len().saturating_add(1));
+                    retained.push(entry);
+                    retained.extend(entries);
+                    cache.restore_replay_suffix(template_id, retained);
                     break;
                 }
-                if self.try_replay_v9_flow(&mut v9.flowsets, template_id, entry) {
-                    self.metrics.record_pending_replayed();
-                } else {
-                    self.metrics.record_pending_replay_failed();
+                match self.try_replay_v9_flow(&mut v9.flowsets, template_id, &entry) {
+                    PendingReplayOutcome::Replayed => self.metrics.record_pending_replayed(),
+                    PendingReplayOutcome::Failed => {
+                        self.metrics.record_pending_replay_failed();
+                    }
+                    PendingReplayOutcome::TemporarilyDoesNotFit => {
+                        let mut retained = Vec::with_capacity(entries.len().saturating_add(1));
+                        retained.push(entry);
+                        retained.extend(entries);
+                        cache.restore_replay_suffix(template_id, retained);
+                        break;
+                    }
                 }
             }
         }
@@ -537,29 +581,50 @@ impl V9Parser {
         flowsets: &mut Vec<FlowSet>,
         template_id: u16,
         entry: &PendingFlowEntry,
-    ) -> bool {
+    ) -> PendingReplayOutcome {
         // Try regular template (peek to avoid false LRU promotion on failed parse)
         if let Some(template) = crate::variable_versions::peek_valid_template(
             &mut self.templates,
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, data)) =
-            Data::parse_with_limit(&entry.raw_data, &template, self.max_records_per_flowset)
-        {
-            // Don't record_hit() here — the original flowset already
-            // recorded a miss. Replay success is tracked separately
-            // via record_pending_replayed() in the caller.
-            self.templates.promote(&template_id);
-            flowsets.push(FlowSet {
-                header: FlowSetHeader {
-                    flowset_id: template_id,
-                    length: u16::try_from(entry.raw_data.len().saturating_add(4))
-                        .unwrap_or(u16::MAX),
-                },
-                body: FlowSetBody::Data(data),
-            });
-            return true;
+        ) {
+            let preflight = Data::decoded_output_preflight(
+                &entry.raw_data,
+                &template,
+                self.max_records_per_flowset,
+                RecordBodyKind::NetFlowV9,
+            );
+            match self
+                .decoded_output_budget
+                .materialize_pending(preflight, |budget| {
+                    Data::parse_with_budget(
+                        &entry.raw_data,
+                        &template,
+                        self.max_records_per_flowset,
+                        budget,
+                    )
+                }) {
+                Ok((mut data, padding_len)) => {
+                    data.padding =
+                        entry.raw_data[entry.raw_data.len() - padding_len..].to_vec();
+                    // Don't record_hit() here — the original flowset already
+                    // recorded a miss. Replay success is tracked separately
+                    // via record_pending_replayed() in the caller.
+                    self.templates.promote(&template_id);
+                    flowsets.push(FlowSet {
+                        header: FlowSetHeader {
+                            flowset_id: template_id,
+                            length: u16::try_from(entry.raw_data.len().saturating_add(4))
+                                .unwrap_or(u16::MAX),
+                        },
+                        body: FlowSetBody::Data(data),
+                    });
+                    return PendingReplayOutcome::Replayed;
+                }
+                Err(PendingOutputError::Invalid) => {}
+                Err(error) => return error.into(),
+            }
         }
         // Try options template (peek to avoid false LRU promotion on failed parse)
         if let Some(template) = crate::variable_versions::peek_valid_template(
@@ -567,11 +632,27 @@ impl V9Parser {
             &template_id,
             &self.ttl_config,
             &mut self.metrics,
-        ) && let Ok((_, options_data)) = OptionsData::parse_with_limit(
-            &entry.raw_data,
-            &template,
-            self.max_records_per_flowset,
         ) {
+            let preflight = OptionsData::decoded_output_preflight(
+                &entry.raw_data,
+                &template,
+                self.max_records_per_flowset,
+                RecordBodyKind::NetFlowV9,
+            );
+            let options_data =
+                match self
+                    .decoded_output_budget
+                    .materialize_pending(preflight, |budget| {
+                        OptionsData::parse_with_budget(
+                            &entry.raw_data,
+                            &template,
+                            self.max_records_per_flowset,
+                            budget,
+                        )
+                    }) {
+                    Ok((data, _)) => data,
+                    Err(error) => return error.into(),
+                };
             self.options_templates.promote(&template_id);
             flowsets.push(FlowSet {
                 header: FlowSetHeader {
@@ -581,9 +662,9 @@ impl V9Parser {
                 },
                 body: FlowSetBody::OptionsData(options_data),
             });
-            return true;
+            return PendingReplayOutcome::Replayed;
         }
-        false
+        PendingReplayOutcome::Failed
     }
 
     /// Returns a sorted, deduplicated list of all available template IDs.
@@ -711,8 +792,12 @@ impl FlowSetBody {
                     &mut parser.metrics,
                 ) {
                     parser.metrics.record_hit();
-                    let (i, data) =
-                        Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    let (i, data) = Data::parse_with_budget(
+                        i,
+                        &template,
+                        parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
+                    )?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
 
@@ -724,10 +809,11 @@ impl FlowSetBody {
                     &mut parser.metrics,
                 ) {
                     parser.metrics.record_hit();
-                    let (i, options_data) = OptionsData::parse_with_limit(
+                    let (i, options_data) = OptionsData::parse_with_budget(
                         i,
                         &template,
                         parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
                     )?;
                     return Ok((i, FlowSetBody::OptionsData(options_data)));
                 }
@@ -738,16 +824,21 @@ impl FlowSetBody {
                 // served from the hot path.
                 if let Some(template) = parser.fetch_template_from_store(id) {
                     parser.metrics.record_hit();
-                    let (i, data) =
-                        Data::parse_with_limit(i, &template, parser.max_records_per_flowset)?;
+                    let (i, data) = Data::parse_with_budget(
+                        i,
+                        &template,
+                        parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
+                    )?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
                 if let Some(template) = parser.fetch_options_template_from_store(id) {
                     parser.metrics.record_hit();
-                    let (i, options_data) = OptionsData::parse_with_limit(
+                    let (i, options_data) = OptionsData::parse_with_budget(
                         i,
                         &template,
                         parser.max_records_per_flowset,
+                        &mut parser.decoded_output_budget,
                     )?;
                     return Ok((i, FlowSetBody::OptionsData(options_data)));
                 }
@@ -1023,9 +1114,23 @@ impl FlowSetParser {
 impl<'a> FieldParser {
     #[inline]
     pub(super) fn parse(
+        input: &'a [u8],
+        template: &Template,
+        max_records: usize,
+    ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
+        let mut budget = DecodedOutputBudget::new(
+            crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
+        );
+        Self::parse_with_budget(input, template, max_records, &mut budget)
+    }
+
+    #[inline]
+    pub(super) fn parse_with_budget(
         mut input: &'a [u8],
         template: &Template,
         max_records: usize,
+        budget: &mut DecodedOutputBudget,
     ) -> IResult<&'a [u8], Vec<Vec<V9FieldPair>>> {
         let template_fields = &template.fields;
         // Estimate per-record size for capacity pre-allocation.
@@ -1047,11 +1152,19 @@ impl<'a> FieldParser {
 
         // Calculate how many complete records we can parse based on input length
         let record_count = (input.len() / template_total_size).min(max_records);
-        let mut res = Vec::with_capacity(record_count);
         let field_count = template_fields.len();
+        let (remaining_values, remaining_payload) = budget.remaining();
+        let bounded_capacity = record_count
+            .min(remaining_values / field_count)
+            .min(remaining_payload / template_total_size);
+        let mut res = Vec::with_capacity(bounded_capacity);
 
         for _ in 0..record_count {
             let before = input;
+            let checkpoint = budget.checkpoint();
+            if budget.reserve(field_count, template_total_size).is_err() {
+                return Err(nom::Err::Error(NomError::new(input, ErrorKind::TooLarge)));
+            }
             let mut record = Vec::with_capacity(field_count);
 
             for template_field in template_fields {
@@ -1061,6 +1174,7 @@ impl<'a> FieldParser {
                         record.push((template_field.field_type, field_value));
                     }
                     Err(_) => {
+                        budget.rollback(checkpoint);
                         input = before;
                         return Ok((input, res));
                     }
@@ -1070,6 +1184,7 @@ impl<'a> FieldParser {
             // Guard against infinite loops: if no bytes were consumed after
             // parsing a full record, stop to prevent CPU-bound DoS.
             if std::ptr::eq(input, before) {
+                budget.rollback(checkpoint);
                 break;
             }
             res.push(record);

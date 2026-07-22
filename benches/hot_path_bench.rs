@@ -1,6 +1,8 @@
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use netflow_parser::NetflowParser;
+use netflow_parser::scoped_parser::AutoScopedParser;
+use netflow_parser::{NetflowPacket, NetflowParser};
 use std::hint::black_box;
+use std::net::SocketAddr;
 
 fn v9_template_packet() -> Vec<u8> {
     vec![
@@ -167,55 +169,179 @@ fn ipfix_data_packet(flow_count: u16) -> Vec<u8> {
     packet
 }
 
-fn bench_warm_v9_data_hot_path(c: &mut Criterion) {
-    let template = v9_template_packet();
-    let mut group = c.benchmark_group("Hot Path V9 Data");
-
-    for flow_count in [100u16, 500, 1000] {
-        let data = v9_data_packet(flow_count);
-        group.throughput(Throughput::Bytes(data.len() as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(flow_count), &data, |b, pkt| {
-            let mut parser = NetflowParser::default();
-            let template_result = parser.parse_bytes(&template);
-            assert!(template_result.error.is_none());
-            assert_eq!(template_result.packets.len(), 1);
-
-            b.iter(|| {
-                let result = parser.parse_bytes(black_box(pkt));
-                black_box(result.packets.len());
-            });
-        });
-    }
-
-    group.finish();
+#[derive(Clone, Copy)]
+enum Protocol {
+    V9,
+    Ipfix,
 }
 
-fn bench_warm_ipfix_data_hot_path(c: &mut Criterion) {
-    let template = ipfix_template_packet();
-    let mut group = c.benchmark_group("Hot Path IPFIX Data");
-
-    for flow_count in [100u16, 500, 1000] {
-        let data = ipfix_data_packet(flow_count);
-        group.throughput(Throughput::Bytes(data.len() as u64));
-        group.bench_with_input(BenchmarkId::from_parameter(flow_count), &data, |b, pkt| {
-            let mut parser = NetflowParser::default();
-            let template_result = parser.parse_bytes(&template);
-            assert!(template_result.error.is_none());
-            assert_eq!(template_result.packets.len(), 1);
-
-            b.iter(|| {
-                let result = parser.parse_bytes(black_box(pkt));
-                black_box(result.packets.len());
-            });
-        });
+impl Protocol {
+    fn name(self) -> &'static str {
+        match self {
+            Self::V9 => "v9",
+            Self::Ipfix => "ipfix",
+        }
     }
 
-    group.finish();
+    fn template_packet(self) -> Vec<u8> {
+        match self {
+            Self::V9 => v9_template_packet(),
+            Self::Ipfix => ipfix_template_packet(),
+        }
+    }
+
+    fn data_packet(self, flow_count: u16) -> Vec<u8> {
+        match self {
+            Self::V9 => v9_data_packet(flow_count),
+            Self::Ipfix => ipfix_data_packet(flow_count),
+        }
+    }
+
+    fn assert_decoded_records(self, packets: &[NetflowPacket], expected: usize) {
+        assert_eq!(packets.len(), 1, "fixture must decode one outer packet");
+        let actual: usize = match (self, &packets[0]) {
+            (Self::V9, NetflowPacket::V9(packet)) => packet
+                .flowsets
+                .iter()
+                .map(|flowset| match &flowset.body {
+                    netflow_parser::variable_versions::v9::FlowSetBody::Data(data) => {
+                        data.fields.len()
+                    }
+                    _ => 0,
+                })
+                .sum(),
+            (Self::Ipfix, NetflowPacket::IPFix(packet)) => packet
+                .flowsets
+                .iter()
+                .map(|flowset| match &flowset.body {
+                    netflow_parser::variable_versions::ipfix::FlowSetBody::Data(data) => {
+                        data.fields.len()
+                    }
+                    _ => 0,
+                })
+                .sum(),
+            _ => panic!("fixture decoded as the wrong protocol"),
+        };
+        assert_eq!(actual, expected, "fixture decoded-record count mismatch");
+    }
 }
 
-criterion_group!(
-    benches,
-    bench_warm_v9_data_hot_path,
-    bench_warm_ipfix_data_hot_path
-);
+#[derive(Clone, Copy)]
+enum Scenario {
+    DirectParse,
+    DirectIterator,
+    AutoParse,
+    AutoIterator,
+}
+
+impl Scenario {
+    fn name(self) -> &'static str {
+        match self {
+            Self::DirectParse => "direct/parse",
+            Self::DirectIterator => "direct/iterator",
+            Self::AutoParse => "auto/parse",
+            Self::AutoIterator => "auto/iterator",
+        }
+    }
+}
+
+fn bench_warmed_hot_paths(c: &mut Criterion) {
+    let source = SocketAddr::from(([192, 0, 2, 1], 2055));
+
+    for protocol in [Protocol::V9, Protocol::Ipfix] {
+        let template = protocol.template_packet();
+        for scenario in [
+            Scenario::DirectParse,
+            Scenario::DirectIterator,
+            Scenario::AutoParse,
+            Scenario::AutoIterator,
+        ] {
+            let mut group =
+                c.benchmark_group(format!("Hot Path/{}/{}", protocol.name(), scenario.name()));
+
+            for flow_count in [1u16, 1000] {
+                let data = protocol.data_packet(flow_count);
+                group.throughput(Throughput::Elements(u64::from(flow_count)));
+                group.bench_with_input(
+                    BenchmarkId::from_parameter(flow_count),
+                    &data,
+                    |b, packet| match scenario {
+                        Scenario::DirectParse => {
+                            let mut parser = NetflowParser::default();
+                            assert!(parser.parse_bytes(&template).is_ok());
+                            let result = parser.parse_bytes(packet);
+                            assert!(result.is_ok());
+                            protocol.assert_decoded_records(
+                                &result.packets,
+                                usize::from(flow_count),
+                            );
+                            b.iter(|| {
+                                drop(black_box(
+                                    parser.parse_bytes(black_box(packet.as_slice())),
+                                ));
+                            });
+                        }
+                        Scenario::DirectIterator => {
+                            let mut parser = NetflowParser::default();
+                            assert!(parser.parse_bytes(&template).is_ok());
+                            let packets = parser
+                                .iter_packets(packet)
+                                .map(Result::unwrap)
+                                .collect::<Vec<_>>();
+                            protocol.assert_decoded_records(&packets, usize::from(flow_count));
+                            b.iter(|| {
+                                for result in parser.iter_packets(black_box(packet.as_slice()))
+                                {
+                                    black_box(result.unwrap());
+                                }
+                            });
+                        }
+                        Scenario::AutoParse => {
+                            let mut parser = AutoScopedParser::new();
+                            assert!(parser.parse_from_source(source, &template).is_ok());
+                            let result = parser.parse_from_source(source, packet);
+                            assert!(result.is_ok());
+                            protocol.assert_decoded_records(
+                                &result.packets,
+                                usize::from(flow_count),
+                            );
+                            b.iter(|| {
+                                drop(black_box(
+                                    parser.parse_from_source(
+                                        source,
+                                        black_box(packet.as_slice()),
+                                    ),
+                                ));
+                            });
+                        }
+                        Scenario::AutoIterator => {
+                            let mut parser = AutoScopedParser::new();
+                            assert!(parser.parse_from_source(source, &template).is_ok());
+                            let packets = parser
+                                .iter_packets_from_source(source, packet)
+                                .unwrap()
+                                .map(Result::unwrap)
+                                .collect::<Vec<_>>();
+                            protocol.assert_decoded_records(&packets, usize::from(flow_count));
+                            b.iter(|| {
+                                let iterator = parser
+                                    .iter_packets_from_source(
+                                        source,
+                                        black_box(packet.as_slice()),
+                                    )
+                                    .unwrap();
+                                for result in iterator {
+                                    black_box(result.unwrap());
+                                }
+                            });
+                        }
+                    },
+                );
+            }
+            group.finish();
+        }
+    }
+}
+
+criterion_group!(benches, bench_warmed_hot_paths);
 criterion_main!(benches);

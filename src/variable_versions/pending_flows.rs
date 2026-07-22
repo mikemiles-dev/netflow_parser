@@ -337,6 +337,32 @@ impl PendingFlowCache {
         result
     }
 
+    /// Restore an unprocessed FIFO suffix after replay reaches a cumulative
+    /// message budget. The entries came from `drain` immediately before this
+    /// call, so reinserting them cannot exceed the cache's prior byte or key
+    /// limits and must not change pending-flow metrics.
+    pub(crate) fn restore_replay_suffix(
+        &mut self,
+        template_id: u16,
+        entries: Vec<PendingFlowEntry>,
+    ) {
+        if entries.is_empty() {
+            return;
+        }
+        let restored_bytes = entries
+            .iter()
+            .map(|entry| entry.raw_data.len())
+            .fold(0usize, usize::saturating_add);
+        let displaced = self.cache.push(template_id, entries);
+        debug_assert!(
+            displaced.is_none(),
+            "drained pending key was unexpectedly replaced"
+        );
+        self.total_bytes = self.total_bytes.saturating_add(restored_bytes);
+        #[cfg(debug_assertions)]
+        self.debug_verify_total_bytes();
+    }
+
     /// Remove expired entries from a single template's vector.
     /// If all entries expire, the key is removed from the cache.
     fn prune_expired_for_template(

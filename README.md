@@ -258,6 +258,35 @@ The parser also automatically validates:
   - Each occurrence is decoded as a distinct value in the record
   - Descriptor order is significant and preserved
 
+### Cumulative Decoded Output Limits
+
+A small NetFlow v9 or IPFIX message can expand into many decoded field values,
+especially when a template contains zero-width or very small fields. The parser
+therefore applies two cumulative limits to each message, including pending data
+replayed when a template arrives:
+
+- 65,536 decoded field values
+- 4 MiB of decoded field content
+
+The content-byte limit counts field contents, not IPFIX variable-length prefixes.
+Both limits must be greater than zero. A message that exceeds either limit is
+rejected with `NetflowError::DecodedOutputLimitExceeded`; no packet from that
+message is returned.
+
+```rust
+use netflow_parser::NetflowParser;
+
+let parser = NetflowParser::builder()
+    .with_max_decoded_field_values_per_message(32_768)
+    .with_max_decoded_field_payload_bytes_per_message(2 * 1024 * 1024)
+    .build()
+    .expect("valid limits");
+```
+
+Use the `with_v9_*` and `with_ipfix_*` variants to configure the protocols
+independently. These limits complement the per-FlowSet record limit; they bound
+the combined decoded output of all Sets or FlowSets in one message.
+
 ### Template TTL (Time-to-Live)
 
 > **Note:** Only time-based TTL is supported. See [RELEASES.md](RELEASES.md) for details.

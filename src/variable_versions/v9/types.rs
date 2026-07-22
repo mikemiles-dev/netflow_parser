@@ -7,6 +7,8 @@
 use super::lookup::{ScopeFieldType, V9Field};
 use crate::variable_versions::field_value::FieldValue;
 
+use crate::DecodedOutputLimits;
+use crate::variable_versions::DecodedOutputBudget;
 use nom::bytes::complete::take;
 use nom::combinator::{complete, map_res};
 use nom_derive::{Nom, Parse};
@@ -25,7 +27,10 @@ use super::parser::V9Parser;
 
 /// A parsed NetFlow V9 packet containing a header and a list of flowsets.
 #[derive(Debug, PartialEq, Clone, Serialize, Nom)]
-#[nom(ExtraArgs(parser: &mut V9Parser))]
+#[nom(
+    ExtraArgs(parser: &mut V9Parser),
+    PreExec = "parser.start_decoded_output_message();"
+)]
 pub struct V9 {
     /// V9 Header
     pub header: Header,
@@ -180,21 +185,116 @@ impl OptionsData {
         template: &OptionsTemplate,
         max_records: usize,
     ) -> nom::IResult<&'a [u8], Self> {
-        let mut fields = Vec::new();
+        let mut budget = DecodedOutputBudget::new(
+            crate::DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            crate::DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
+        );
+        Self::parse_with_budget(i, template, max_records, &mut budget)
+    }
+
+    pub(crate) fn parse_with_budget<'a>(
+        i: &'a [u8],
+        template: &OptionsTemplate,
+        max_records: usize,
+        budget: &mut DecodedOutputBudget,
+    ) -> nom::IResult<&'a [u8], Self> {
+        let values_per_record = template
+            .scope_fields
+            .len()
+            .saturating_add(template.option_fields.len());
+        let payload_per_record = template
+            .scope_fields
+            .iter()
+            .map(|field| usize::from(field.field_length))
+            .chain(
+                template
+                    .option_fields
+                    .iter()
+                    .map(|field| usize::from(field.field_length)),
+            )
+            .fold(0usize, usize::saturating_add);
+        if values_per_record == 0 || payload_per_record == 0 {
+            return Err(nom::Err::Error(nom::error::Error::new(
+                i,
+                nom::error::ErrorKind::Verify,
+            )));
+        }
+
+        let (remaining_values, remaining_payload) = budget.remaining();
+        let bounded_capacity = max_records
+            .min(i.len() / payload_per_record)
+            .min(remaining_values / values_per_record)
+            .min(remaining_payload / payload_per_record);
+        let mut fields = Vec::with_capacity(bounded_capacity);
         let mut remaining = i;
         while !remaining.is_empty() && fields.len() < max_records {
+            if remaining.len() < payload_per_record {
+                break;
+            }
+            let checkpoint = budget.checkpoint();
+            if budget
+                .reserve(values_per_record, payload_per_record)
+                .is_err()
+            {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    remaining,
+                    nom::error::ErrorKind::TooLarge,
+                )));
+            }
             match complete(|i| OptionsDataFields::parse(i, template))(remaining) {
                 Ok((i, record)) => {
                     if std::ptr::eq(i, remaining) {
+                        budget.rollback(checkpoint);
                         break;
                     }
                     remaining = i;
                     fields.push(record);
                 }
-                Err(_) => break,
+                Err(_) => {
+                    budget.rollback(checkpoint);
+                    break;
+                }
             }
         }
         Ok((remaining, Self { fields }))
+    }
+
+    pub(crate) fn decoded_output_preflight(
+        input: &[u8],
+        template: &OptionsTemplate,
+        max_records: usize,
+        body_kind: crate::variable_versions::wire::RecordBodyKind,
+    ) -> Option<crate::variable_versions::output_budget::PendingOutputPreflight> {
+        let field_count = template
+            .scope_fields
+            .len()
+            .checked_add(template.option_fields.len())?;
+        crate::variable_versions::output_budget::measure_fixed_widths(
+            input,
+            field_count,
+            template
+                .scope_fields
+                .iter()
+                .map(|field| field.field_length)
+                .chain(
+                    template
+                        .option_fields
+                        .iter()
+                        .map(|field| field.field_length),
+                ),
+            max_records,
+            body_kind,
+        )
+    }
+
+    /// Parse one options-data body with explicit finite output limits.
+    pub fn parse_with_limits<'a>(
+        i: &'a [u8],
+        template: &OptionsTemplate,
+        limits: DecodedOutputLimits,
+    ) -> nom::IResult<&'a [u8], Self> {
+        let mut budget = limits.budget();
+        Self::parse_with_budget(i, template, limits.max_records(), &mut budget)
     }
 }
 
@@ -244,13 +344,13 @@ impl Data {
         }
     }
 
-    /// Parse data records with a configurable maximum record limit.
-    pub(crate) fn parse_with_limit<'a>(
+    pub(crate) fn parse_with_budget<'a>(
         i: &'a [u8],
         template: &Template,
         max_records: usize,
+        budget: &mut DecodedOutputBudget,
     ) -> nom::IResult<&'a [u8], Self> {
-        let (i, fields) = FieldParser::parse(i, template, max_records)?;
+        let (i, fields) = FieldParser::parse_with_budget(i, template, max_records, budget)?;
         Ok((
             i,
             Self {
@@ -258,6 +358,31 @@ impl Data {
                 padding: vec![],
             },
         ))
+    }
+
+    pub(crate) fn decoded_output_preflight(
+        input: &[u8],
+        template: &Template,
+        max_records: usize,
+        body_kind: crate::variable_versions::wire::RecordBodyKind,
+    ) -> Option<crate::variable_versions::output_budget::PendingOutputPreflight> {
+        crate::variable_versions::output_budget::measure_fixed_output(
+            input,
+            &template.fields,
+            max_records,
+            |field| field.field_length,
+            body_kind,
+        )
+    }
+
+    /// Parse one data body with explicit finite output limits.
+    pub fn parse_with_limits<'a>(
+        i: &'a [u8],
+        template: &Template,
+        limits: DecodedOutputLimits,
+    ) -> nom::IResult<&'a [u8], Self> {
+        let mut budget = limits.budget();
+        Self::parse_with_budget(i, template, limits.max_records(), &mut budget)
     }
 }
 

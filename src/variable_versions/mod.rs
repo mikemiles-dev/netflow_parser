@@ -75,10 +75,12 @@ pub mod field_value;
 pub mod ipfix;
 pub(crate) mod lazy_lru;
 pub mod metrics;
+pub(crate) mod output_budget;
 pub(crate) mod pending_flows;
 pub mod template_events;
 pub mod ttl;
 pub mod v9;
+pub(crate) mod wire;
 
 // Re-export public types to preserve existing import paths
 pub use config::ParserConfig;
@@ -87,10 +89,15 @@ pub use config::{
     Config, ConfigError, DEFAULT_MAX_RECORDS_PER_FLOWSET, DEFAULT_MAX_TEMPLATE_CACHE_SIZE,
     MAX_FIELD_COUNT,
 };
+pub use output_budget::{
+    DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
+    DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE, DecodedOutputLimit, DecodedOutputLimits,
+};
 pub use pending_flows::PendingFlowsConfig;
 
 // Re-export crate-internal types for use by sibling modules
 pub(crate) use config::TemplateId;
+pub(crate) use output_budget::{DecodedOutputBudget, PendingReplayOutcome};
 pub(crate) use pending_flows::{PendingFlowCache, PendingFlowEntry};
 
 use crate::variable_versions::metrics::CacheMetricsInner;

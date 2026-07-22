@@ -1,6 +1,10 @@
 //! Parser configuration, traits, and constants for V9 and IPFIX parsers.
 
 use super::metrics::CacheMetricsInner;
+use super::output_budget::{
+    DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
+    DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+};
 use super::pending_flows::{PendingFlowCache, PendingFlowsConfig};
 use crate::template_store::TemplateStore;
 use crate::variable_versions::enterprise_registry::EnterpriseFieldRegistry;
@@ -45,6 +49,10 @@ pub struct Config {
     /// Maximum number of data records to parse per flowset. Default: 1,024.
     /// This prevents CPU-bound DoS from maliciously large flowsets.
     pub max_records_per_flowset: usize,
+    /// Maximum decoded field values returned by one message. Default: 65,536.
+    pub max_decoded_field_values_per_message: usize,
+    /// Maximum decoded field content bytes returned by one message. Default: 4 MiB.
+    pub max_decoded_field_payload_bytes_per_message: usize,
     /// Optional TTL configuration for template expiration.
     pub ttl_config: Option<TtlConfig>,
     /// Registry of custom enterprise-specific field definitions for IPFIX.
@@ -92,6 +100,10 @@ pub enum ConfigError {
     EmptyAllowedVersions,
     /// Max records per flowset must be greater than 0
     InvalidRecordsPerFlowset(usize),
+    /// Decoded field-value message limit must be greater than 0.
+    InvalidDecodedFieldValueLimit(usize),
+    /// Decoded field-payload-byte message limit must be greater than 0.
+    InvalidDecodedFieldPayloadByteLimit(usize),
     /// Pending flow max_total_bytes must be >= max_entry_size_bytes
     InvalidPendingTotalBytes {
         max_total_bytes: usize,
@@ -167,6 +179,20 @@ impl std::fmt::Display for ConfigError {
                     count
                 )
             }
+            ConfigError::InvalidDecodedFieldValueLimit(count) => {
+                write!(
+                    f,
+                    "Invalid max decoded field values per message: {}. Must be greater than 0.",
+                    count
+                )
+            }
+            ConfigError::InvalidDecodedFieldPayloadByteLimit(bytes) => {
+                write!(
+                    f,
+                    "Invalid max decoded field payload bytes per message: {}. Must be greater than 0.",
+                    bytes
+                )
+            }
             ConfigError::EmptyAllowedVersions => {
                 write!(
                     f,
@@ -205,6 +231,9 @@ impl Default for Config {
             max_template_total_size: usize::from(u16::MAX),
             max_error_sample_size: 256,
             max_records_per_flowset: DEFAULT_MAX_RECORDS_PER_FLOWSET,
+            max_decoded_field_values_per_message: DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE,
+            max_decoded_field_payload_bytes_per_message:
+                DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
             ttl_config: None,
             enterprise_registry: Arc::new(EnterpriseFieldRegistry::new()),
             pending_flows_config: None,
@@ -254,6 +283,12 @@ impl Config {
         if self.max_records_per_flowset == 0 {
             return Err(ConfigError::InvalidRecordsPerFlowset(0));
         }
+        if self.max_decoded_field_values_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldValueLimit(0));
+        }
+        if self.max_decoded_field_payload_bytes_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldPayloadByteLimit(0));
+        }
         if self.max_error_sample_size == 0 {
             return Err(ConfigError::InvalidErrorSampleSize(0));
         }
@@ -279,6 +314,7 @@ pub(crate) trait ParserFields {
     fn set_max_template_total_size_field(&mut self, size: usize);
     fn set_max_error_sample_size_field(&mut self, size: usize);
     fn set_max_records_per_flowset_field(&mut self, count: usize);
+    fn set_decoded_output_limits_fields(&mut self, values: usize, payload_bytes: usize);
     fn set_ttl_config_field(&mut self, config: Option<TtlConfig>);
     /// Apply an enterprise registry update. Default is a no-op (V9 has no registry).
     fn set_enterprise_registry(&mut self, _registry: Arc<EnterpriseFieldRegistry>) {}
@@ -308,6 +344,12 @@ pub trait ParserConfig: ParserFields {
         if config.max_records_per_flowset == 0 {
             return Err(ConfigError::InvalidRecordsPerFlowset(0));
         }
+        if config.max_decoded_field_values_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldValueLimit(0));
+        }
+        if config.max_decoded_field_payload_bytes_per_message == 0 {
+            return Err(ConfigError::InvalidDecodedFieldPayloadByteLimit(0));
+        }
         if config.max_error_sample_size == 0 {
             return Err(ConfigError::InvalidErrorSampleSize(0));
         }
@@ -326,6 +368,10 @@ pub trait ParserConfig: ParserFields {
         self.set_max_template_total_size_field(config.max_template_total_size);
         self.set_max_error_sample_size_field(config.max_error_sample_size);
         self.set_max_records_per_flowset_field(config.max_records_per_flowset);
+        self.set_decoded_output_limits_fields(
+            config.max_decoded_field_values_per_message,
+            config.max_decoded_field_payload_bytes_per_message,
+        );
         self.set_ttl_config_field(config.ttl_config);
         self.set_enterprise_registry(config.enterprise_registry);
         // Safety: validate_config above already verified pending_flows_config,

@@ -59,7 +59,9 @@ pub use variable_versions::enterprise_registry::{EnterpriseFieldDef, EnterpriseF
 pub use variable_versions::metrics::{CacheInfo, CacheMetrics, ParserCacheInfo};
 pub use variable_versions::ttl::TtlConfig;
 pub use variable_versions::{
-    Config, ConfigError, DEFAULT_MAX_RECORDS_PER_FLOWSET, NoTemplateInfo, PendingFlowsConfig,
+    Config, ConfigError, DEFAULT_MAX_DECODED_FIELD_PAYLOAD_BYTES_PER_MESSAGE,
+    DEFAULT_MAX_DECODED_FIELD_VALUES_PER_MESSAGE, DEFAULT_MAX_RECORDS_PER_FLOWSET,
+    DecodedOutputLimit, DecodedOutputLimits, NoTemplateInfo, PendingFlowsConfig,
 };
 
 // Rust-idiomatic naming aliases
@@ -576,6 +578,69 @@ impl NetflowParserBuilder {
         self
     }
 
+    /// Sets the cumulative decoded field-value limit for both v9 and IPFIX messages.
+    ///
+    /// The default is 65,536. Zero is rejected by [`NetflowParserBuilder::build`].
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_max_decoded_field_values_per_message(mut self, count: usize) -> Self {
+        self.v9_config.max_decoded_field_values_per_message = count;
+        self.ipfix_config.max_decoded_field_values_per_message = count;
+        self
+    }
+
+    /// Sets the cumulative decoded field-value limit for v9 messages.
+    ///
+    /// The default is 65,536. Zero is rejected by [`NetflowParserBuilder::build`].
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_v9_max_decoded_field_values_per_message(mut self, count: usize) -> Self {
+        self.v9_config.max_decoded_field_values_per_message = count;
+        self
+    }
+
+    /// Sets the cumulative decoded field-value limit for IPFIX messages.
+    ///
+    /// The default is 65,536. Zero is rejected by [`NetflowParserBuilder::build`].
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_ipfix_max_decoded_field_values_per_message(mut self, count: usize) -> Self {
+        self.ipfix_config.max_decoded_field_values_per_message = count;
+        self
+    }
+
+    /// Sets the cumulative decoded field-content-byte limit for both protocols.
+    ///
+    /// The default is 4 MiB. IPFIX variable-length prefixes are excluded.
+    /// Zero is rejected by [`NetflowParserBuilder::build`].
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_max_decoded_field_payload_bytes_per_message(mut self, bytes: usize) -> Self {
+        self.v9_config.max_decoded_field_payload_bytes_per_message = bytes;
+        self.ipfix_config
+            .max_decoded_field_payload_bytes_per_message = bytes;
+        self
+    }
+
+    /// Sets the cumulative decoded field-content-byte limit for v9 messages.
+    ///
+    /// The default is 4 MiB. Zero is rejected by [`NetflowParserBuilder::build`].
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_v9_max_decoded_field_payload_bytes_per_message(mut self, bytes: usize) -> Self {
+        self.v9_config.max_decoded_field_payload_bytes_per_message = bytes;
+        self
+    }
+
+    /// Sets the cumulative decoded field-content-byte limit for IPFIX messages.
+    ///
+    /// The default is 4 MiB. Variable-length prefixes are excluded.
+    /// Zero is rejected by [`NetflowParserBuilder::build`].
+    #[must_use = "builder methods consume self and return a new builder; the return value must be used"]
+    pub fn with_ipfix_max_decoded_field_payload_bytes_per_message(
+        mut self,
+        bytes: usize,
+    ) -> Self {
+        self.ipfix_config
+            .max_decoded_field_payload_bytes_per_message = bytes;
+        self
+    }
+
     /// Registers a custom enterprise field definition for both V9 and IPFIX parsers.
     ///
     /// This allows library users to define their own enterprise-specific fields without
@@ -881,6 +946,7 @@ impl NetflowParserBuilder {
     ///
     /// Returns an error if:
     /// - Template cache size is 0
+    /// - A decoded-output limit is 0
     /// - Parser initialization fails
     ///
     /// # Examples
@@ -989,6 +1055,18 @@ pub enum NetflowError {
         /// Description of the partial parse result
         message: String,
     },
+
+    /// A complete v9/IPFIX message would exceed a configured decoded-output limit.
+    DecodedOutputLimitExceeded {
+        /// Protocol of the rejected message.
+        protocol: TemplateProtocol,
+        /// Which cumulative limit was exceeded.
+        limit: DecodedOutputLimit,
+        /// Configured finite limit.
+        configured: usize,
+        /// Cumulative amount required at the rejection boundary.
+        attempted: usize,
+    },
 }
 
 impl std::fmt::Display for NetflowError {
@@ -1032,6 +1110,15 @@ impl std::fmt::Display for NetflowError {
             NetflowError::Partial { message } => {
                 write!(f, "Partial parse error: {}", message)
             }
+            NetflowError::DecodedOutputLimitExceeded {
+                protocol,
+                limit,
+                configured,
+                attempted,
+            } => write!(
+                f,
+                "Decoded output limit exceeded for {protocol:?}: {limit:?} attempted {attempted}, configured {configured}"
+            ),
         }
     }
 }
