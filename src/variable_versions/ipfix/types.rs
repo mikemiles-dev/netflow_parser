@@ -157,6 +157,30 @@ pub struct FlowSetHeader {
     pub length: u16,
 }
 
+pub(super) fn serialization_field_lengths<K>(
+    template_fields: &[TemplateField],
+    records: &[Vec<(K, FieldValue)>],
+) -> Vec<u16> {
+    let needs_metadata = template_fields
+        .iter()
+        .any(|field| field.field_length == u16::MAX)
+        || records.iter().any(|record| {
+            record
+                .iter()
+                .zip(template_fields)
+                .any(|((_, value), field)| value.byte_len() != usize::from(field.field_length))
+        });
+
+    if needs_metadata {
+        template_fields
+            .iter()
+            .map(|field| field.field_length)
+            .collect()
+    } else {
+        Vec::new()
+    }
+}
+
 /// Parsed IPFIX data records decoded using an IPFIX template.
 #[derive(Debug, Clone, Serialize, Nom)]
 #[nom(ExtraArgs(template: &Template))]
@@ -168,19 +192,12 @@ pub struct Data {
     pub fields: Vec<IPFixFlowRecord>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
-    /// Original template field lengths, used to emit RFC 7011 variable-length
-    /// prefixes during serialization.  Not included in equality comparisons.
-    /// Only populated when the template contains variable-length fields
-    /// (field_length == 65535) to avoid unnecessary allocations.
+    /// Original template field lengths needed for lossless serialization.
+    /// Not included in equality comparisons. Populated only when a template
+    /// contains variable-length fields or a decoded value has a different
+    /// in-memory width than its wire field.
     #[serde(skip_serializing)]
-    #[nom(Value({
-        let fields = template.get_fields();
-        if fields.iter().any(|f| f.field_length == 65535) {
-            fields.iter().map(|f| f.field_length).collect::<Vec<u16>>()
-        } else {
-            Vec::new()
-        }
-    }))]
+    #[nom(Value(serialization_field_lengths(template.get_fields(), &fields)))]
     pub(crate) template_field_lengths: Vec<u16>,
 }
 
@@ -195,9 +212,9 @@ impl Data {
     ///
     /// The resulting `Data` has no template field length metadata, so
     /// serialization via [`IPFix::to_be_bytes()`]
-    /// assumes all fields are fixed-length.  Use
-    /// [`Data::with_template_field_lengths`] when the template contains
-    /// variable-length fields (field_length == 65535).
+    /// assumes all fields use their value's natural fixed width. Use
+    /// [`Data::with_template_field_lengths`] when the template contains a
+    /// variable-length field or a different fixed wire width.
     pub fn new(fields: Vec<IPFixFlowRecord>) -> Self {
         debug_assert!(
             !fields.iter().any(|record| record
@@ -215,13 +232,14 @@ impl Data {
 
     /// Returns `true` if this data record has variable-length field metadata.
     pub fn has_varlen_metadata(&self) -> bool {
-        !self.template_field_lengths.is_empty()
+        self.template_field_lengths.contains(&u16::MAX)
     }
 
     /// Creates a new Data instance with explicit template field lengths.
     ///
     /// Required for correct round-trip serialization when the template
-    /// contains variable-length fields (RFC 7011, field_length == 65535).
+    /// contains variable-length fields (RFC 7011, field_length == 65535) or
+    /// fixed widths that differ from the decoded value's in-memory width.
     /// Each entry in `template_field_lengths` corresponds to the template
     /// field at the same index; entries with value 65535 cause an RFC 7011
     /// variable-length prefix to be emitted during serialization.
@@ -263,18 +281,12 @@ pub struct OptionsData {
     pub fields: Vec<Vec<IPFixFieldPair>>,
     #[serde(skip_serializing)]
     pub padding: Vec<u8>,
-    /// Original template field lengths, used to emit RFC 7011 variable-length
-    /// prefixes during serialization.  Not included in equality comparisons.
-    /// Only populated when the template contains variable-length fields.
+    /// Original template field lengths needed for lossless serialization.
+    /// Not included in equality comparisons. Populated only when a template
+    /// contains variable-length fields or a decoded value has a different
+    /// in-memory width than its wire field.
     #[serde(skip_serializing)]
-    #[nom(Value({
-        let fields = template.get_fields();
-        if fields.iter().any(|f| f.field_length == 65535) {
-            fields.iter().map(|f| f.field_length).collect::<Vec<u16>>()
-        } else {
-            Vec::new()
-        }
-    }))]
+    #[nom(Value(serialization_field_lengths(template.get_fields(), &fields)))]
     pub(crate) template_field_lengths: Vec<u16>,
 }
 
