@@ -973,6 +973,11 @@ impl FieldValue {
                 let (i, f) = f64::parse(remaining)?;
                 (i, FieldValue::Float64(f))
             }
+            FieldDataType::Float64 if field_length == 4 => {
+                let (i, bytes) = take(4u16)(remaining)?;
+                let f = f32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+                (i, FieldValue::Float64(f64::from(f)))
+            }
             // Fall back to raw bytes for typed fields with unexpected length
             FieldDataType::ProtocolType
             | FieldDataType::ForwardingStatus
