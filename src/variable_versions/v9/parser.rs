@@ -26,7 +26,7 @@ use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::output_budget::PendingOutputError;
 use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
-use crate::variable_versions::wire::RecordBodyKind;
+use crate::variable_versions::wire::{RecordBodyKind, is_v9_padding};
 use crate::variable_versions::{
     Config, ConfigError, DecodedOutputBudget, ParserConfig, ParserFields, PendingFlowCache,
     PendingFlowEntry, PendingFlowsConfig, PendingReplayOutcome,
@@ -813,6 +813,26 @@ impl V9Parser {
 // ---------------------------------------------------------------------------
 
 impl FlowSetBody {
+    fn parse_data<'a>(
+        i: &'a [u8],
+        parser: &mut V9Parser,
+        template: &Template,
+    ) -> IResult<&'a [u8], Data> {
+        let (remainder, mut data) = Data::parse_with_budget(
+            i,
+            template,
+            parser.max_records_per_flowset,
+            &mut parser.decoded_output_budget,
+        )?;
+        if !data.fields.is_empty()
+            && is_v9_padding(remainder.len(), usize::from(template.get_total_size()))
+        {
+            data.padding = remainder.to_vec();
+            return Ok((&[], data));
+        }
+        Ok((remainder, data))
+    }
+
     pub(super) fn parse<'a>(
         i: &'a [u8],
         parser: &mut V9Parser,
@@ -876,12 +896,7 @@ impl FlowSetBody {
                     &mut parser.metrics,
                 ) {
                     parser.metrics.record_hit();
-                    let (i, data) = Data::parse_with_budget(
-                        i,
-                        &template,
-                        parser.max_records_per_flowset,
-                        &mut parser.decoded_output_budget,
-                    )?;
+                    let (i, data) = Self::parse_data(i, parser, &template)?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
 
@@ -908,12 +923,7 @@ impl FlowSetBody {
                 // served from the hot path.
                 if let Some(template) = parser.fetch_template_from_store(id) {
                     parser.metrics.record_hit();
-                    let (i, data) = Data::parse_with_budget(
-                        i,
-                        &template,
-                        parser.max_records_per_flowset,
-                        &mut parser.decoded_output_budget,
-                    )?;
+                    let (i, data) = Self::parse_data(i, parser, &template)?;
                     return Ok((i, FlowSetBody::Data(data)));
                 }
                 if let Some(template) = parser.fetch_options_template_from_store(id) {
