@@ -914,6 +914,10 @@ impl FieldValue {
                 let (i, status) = ForwardingStatus::parse(remaining)?;
                 (i, FieldValue::ForwardingStatus(status))
             }
+            FieldDataType::ForwardingStatus if matches!(field_length, 2..=4) => {
+                let (i, status) = DataNumber::parse(remaining, field_length, false)?;
+                (i, FieldValue::DataNumber(status))
+            }
             FieldDataType::FragmentFlags if field_length == 1 => {
                 let (i, flags) = FragmentFlags::parse(remaining)?;
                 (i, FieldValue::FragmentFlags(flags))
