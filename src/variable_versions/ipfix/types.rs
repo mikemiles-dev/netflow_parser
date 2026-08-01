@@ -65,6 +65,9 @@ pub struct IPFixParser {
     /// parse. Drained after each `parse` call to fire `TemplateEvent::Restored`
     /// hooks and to drive pending-flow replay.
     pub(crate) restored_templates: Vec<(TemplateProtocol, u16)>,
+    /// Set when a native Template Set has a reserved-ID definition and no
+    /// valid definition.
+    pub(crate) reserved_template_id_error: bool,
 }
 
 /// A parsed IPFIX message containing a header and a list of flowsets.
@@ -364,6 +367,7 @@ pub struct TemplateField {
 /// Shared interface for IPFIX `Template` and `OptionsTemplate`, providing
 /// field access and validation against parser configuration limits.
 pub(crate) trait CommonTemplate {
+    fn get_template_id(&self) -> u16;
     fn get_fields(&self) -> &[TemplateField];
     fn get_field_count(&self) -> u16;
     fn get_scope_field_count(&self) -> Option<u16> {
@@ -383,6 +387,10 @@ pub(crate) trait CommonTemplate {
         max_field_count: usize,
         max_template_total_size: usize,
     ) -> bool {
+        if self.get_template_id() < 256 {
+            return false;
+        }
+
         // Check field count doesn't exceed maximum
         if usize::from(self.get_field_count()) > max_field_count {
             return false;
@@ -417,6 +425,10 @@ pub(crate) trait CommonTemplate {
 }
 
 impl CommonTemplate for Template {
+    fn get_template_id(&self) -> u16 {
+        self.template_id
+    }
+
     fn get_fields(&self) -> &[TemplateField] {
         &self.fields
     }
@@ -427,6 +439,10 @@ impl CommonTemplate for Template {
 }
 
 impl CommonTemplate for OptionsTemplate {
+    fn get_template_id(&self) -> u16 {
+        self.template_id
+    }
+
     fn get_fields(&self) -> &[TemplateField] {
         &self.fields
     }

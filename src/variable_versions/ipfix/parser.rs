@@ -147,6 +147,7 @@ impl IPFixParser {
             template_store: config.template_store,
             template_store_scope: config.template_store_scope,
             restored_templates: Vec::new(),
+            reserved_template_id_error: false,
         })
     }
 
@@ -528,7 +529,13 @@ impl IPFixParser {
         // Reset the per-parse restored-templates buffer so the next call
         // sees only what was restored during *this* packet.
         self.restored_templates.clear();
+        self.reserved_template_id_error = false;
         match IPFix::parse(packet, self) {
+            Ok(_) if self.reserved_template_id_error => ParsedNetflow::Error {
+                error: NetflowError::Partial {
+                    message: "IPFIX parse error: reserved Template ID".to_string(),
+                },
+            },
             Ok((remaining, mut ipfix)) => {
                 self.process_pending_flows(&mut ipfix);
                 ParsedNetflow::Success {
@@ -1410,6 +1417,11 @@ impl FlowSetBody {
     {
         let (i, templates) = many0(complete(parse_fn))(i)?;
 
+        let has_reserved_definition = withdraw_template.is_some()
+            && templates
+                .iter()
+                .any(|t| t.field_count() > 0 && t.template_id() < 256);
+
         // Handle template withdrawals (RFC 7011 Section 8.1):
         // Templates with field_count=0 signal withdrawal from the cache.
         // Skip withdrawal for IDs that also have a new definition in the
@@ -1442,6 +1454,9 @@ impl FlowSetBody {
             .filter(|t| validate(t, parser))
             .collect();
         if valid_templates.is_empty() {
+            if has_reserved_definition {
+                parser.reserved_template_id_error = true;
+            }
             // If we processed withdrawals, return Empty instead of error
             if had_withdrawals {
                 return Ok((i, FlowSetBody::Empty));
