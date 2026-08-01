@@ -65,6 +65,8 @@ pub struct IPFixParser {
     /// parse. Drained after each `parse` call to fire `TemplateEvent::Restored`
     /// hooks and to drive pending-flow replay.
     pub(crate) restored_templates: Vec<(TemplateProtocol, u16)>,
+    /// Set when a Data Set has no body bytes.
+    pub(crate) empty_data_set_error: bool,
 }
 
 /// A parsed IPFIX message containing a header and a list of flowsets.

@@ -125,7 +125,7 @@ fn ipfix_data(template_id: u16, body: &[u8]) -> Vec<u8> {
 }
 
 fn ipfix_replay_boundary_body() -> Vec<u8> {
-    // The replayed Set is 65,508 bytes: it fits after a 20-byte store-backed
+    // The replayed Set is 65,508 bytes: it fits after a 22-byte store-backed
     // trigger, but not after the smallest 28-byte on-wire Template message.
     let mut body = Vec::with_capacity(65_504);
     body.push(255);
@@ -755,7 +755,7 @@ fn ipfix_no_store_drops_entry_that_cannot_fit_with_template_trigger() {
 }
 
 #[test]
-fn ipfix_store_restoration_replays_at_twenty_byte_boundary() {
+fn ipfix_store_restoration_replays_with_valid_data_trigger() {
     let store = Arc::new(InMemoryTemplateStore::new());
     let mut parser = NetflowParser::builder()
         .with_template_store(store.clone())
@@ -780,7 +780,7 @@ fn ipfix_store_restoration_replays_at_twenty_byte_boundary() {
             .is_ok()
     );
 
-    let replay = parser.parse_bytes(&ipfix_message(&[ipfix_data(256, &[])]));
+    let replay = parser.parse_bytes(&ipfix_message(&[ipfix_data(256, &[1, b'y'])]));
     assert!(replay.is_ok(), "{:?}", replay.error);
     let info = parser.ipfix_cache_info();
     assert_eq!(info.pending_flow_count, 0);

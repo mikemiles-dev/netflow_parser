@@ -147,6 +147,7 @@ impl IPFixParser {
             template_store: config.template_store,
             template_store_scope: config.template_store_scope,
             restored_templates: Vec::new(),
+            empty_data_set_error: false,
         })
     }
 
@@ -528,7 +529,13 @@ impl IPFixParser {
         // Reset the per-parse restored-templates buffer so the next call
         // sees only what was restored during *this* packet.
         self.restored_templates.clear();
+        self.empty_data_set_error = false;
         match IPFix::parse(packet, self) {
+            Ok(_) if self.empty_data_set_error => ParsedNetflow::Error {
+                error: NetflowError::Partial {
+                    message: "IPFIX parse error: empty Data Set".to_string(),
+                },
+            },
             Ok((remaining, mut ipfix)) => {
                 self.process_pending_flows(&mut ipfix);
                 ParsedNetflow::Success {
@@ -1540,6 +1547,14 @@ impl FlowSetBody {
             ),
             // Parse Data
             _ => {
+                if id > 255 && i.is_empty() {
+                    parser.empty_data_set_error = true;
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )));
+                }
+
                 // Definition installation keeps these physical caches disjoint by
                 // Template ID, so this probe order selects representation rather
                 // than resolving competing owners.

@@ -279,6 +279,9 @@ impl IPFix {
             }
 
             let flowset_bytes = Self::serialize_flowset_body(&flow.body)?;
+            if flow.header.header_id > 255 && flowset_bytes.is_empty() {
+                return Err("IPFIX data Set must contain at least one record".into());
+            }
 
             // Compute set length from actual serialized body instead of
             // trusting flow.header.length, which can be stale when
