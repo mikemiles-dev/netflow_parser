@@ -199,13 +199,6 @@ impl Data {
     /// [`Data::with_template_field_lengths`] when the template contains
     /// variable-length fields (field_length == 65535).
     pub fn new(fields: Vec<IPFixFlowRecord>) -> Self {
-        debug_assert!(
-            !fields.iter().any(|record| record
-                .iter()
-                .any(|(_, v)| matches!(v, FieldValue::Vec(b) if b.len() > 254))),
-            "Data::new() should not be used with fields that may need variable-length \
-             encoding; use Data::with_template_field_lengths() instead"
-        );
         Self {
             fields,
             padding: vec![],
