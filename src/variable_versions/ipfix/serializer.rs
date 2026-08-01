@@ -2,7 +2,7 @@
 //!
 //! Type definitions live in the parent `ipfix` module (`mod.rs`).
 
-use super::{FlowSetBody, IPFix, TemplateField, calculate_padding};
+use super::{FlowSetBody, IPFix, OptionsTemplate, TemplateField, calculate_padding};
 use crate::variable_versions::v9::ScopeDataField as V9ScopeDataField;
 
 /// Write an RFC 7011 Section 7 variable-length encoding prefix.
@@ -80,6 +80,17 @@ impl IPFix {
         }
     }
 
+    fn write_ipfix_options_template(buf: &mut Vec<u8>, template: &OptionsTemplate) {
+        buf.extend_from_slice(&template.template_id.to_be_bytes());
+        buf.extend_from_slice(&template.field_count.to_be_bytes());
+        if template.field_count > 0 {
+            buf.extend_from_slice(&template.scope_field_count.to_be_bytes());
+            for field in &template.fields {
+                Self::write_ipfix_template_field(buf, field);
+            }
+        }
+    }
+
     /// Serialize FlowSetBody to bytes
     fn serialize_flowset_body(
         body: &FlowSetBody,
@@ -120,12 +131,7 @@ impl IPFix {
             }
             FlowSetBody::OptionsTemplate(options_template) => {
                 let mut result = Vec::new();
-                result.extend_from_slice(&options_template.template_id.to_be_bytes());
-                result.extend_from_slice(&options_template.field_count.to_be_bytes());
-                result.extend_from_slice(&options_template.scope_field_count.to_be_bytes());
-                for field in options_template.fields.iter() {
-                    Self::write_ipfix_template_field(&mut result, field);
-                }
+                Self::write_ipfix_options_template(&mut result, options_template);
                 result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)
             }
@@ -160,13 +166,8 @@ impl IPFix {
             }
             FlowSetBody::OptionsTemplates(templates) => {
                 let mut result = Vec::new();
-                for template in templates.iter() {
-                    result.extend_from_slice(&template.template_id.to_be_bytes());
-                    result.extend_from_slice(&template.field_count.to_be_bytes());
-                    result.extend_from_slice(&template.scope_field_count.to_be_bytes());
-                    for field in template.fields.iter() {
-                        Self::write_ipfix_template_field(&mut result, field);
-                    }
+                for template in templates {
+                    Self::write_ipfix_options_template(&mut result, template);
                 }
                 result.extend_from_slice(calculate_padding(result.len()));
                 Ok(result)

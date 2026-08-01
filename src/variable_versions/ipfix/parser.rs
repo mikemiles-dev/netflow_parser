@@ -625,10 +625,12 @@ impl IPFixParser {
                     }
                 }
                 FlowSetBody::Template(t) => {
-                    learned_template_ids.push(t.template_id);
+                    if t.field_count > 0 {
+                        learned_template_ids.push(t.template_id);
+                    }
                 }
                 FlowSetBody::Templates(ts) => {
-                    for t in ts.iter() {
+                    for t in ts.iter().filter(|t| t.field_count > 0) {
                         learned_template_ids.push(t.template_id);
                     }
                 }
@@ -641,10 +643,12 @@ impl IPFixParser {
                     }
                 }
                 FlowSetBody::OptionsTemplate(t) => {
-                    learned_template_ids.push(t.template_id);
+                    if t.field_count > 0 {
+                        learned_template_ids.push(t.template_id);
+                    }
                 }
                 FlowSetBody::OptionsTemplates(ts) => {
-                    for t in ts.iter() {
+                    for t in ts.iter().filter(|t| t.field_count > 0) {
                         learned_template_ids.push(t.template_id);
                     }
                 }
@@ -1392,7 +1396,27 @@ impl IPFixParser {
     }
 }
 
+type WithdrawTemplate = (u16, fn(&mut IPFixParser, u16));
+
 impl FlowSetBody {
+    fn parse_ipfix_options_template(i: &[u8]) -> IResult<&[u8], OptionsTemplate> {
+        let (remaining, template_id) = parse_u16_be(i)?;
+        let (remaining, field_count) = parse_u16_be(remaining)?;
+        if field_count == 0 {
+            return Ok((
+                remaining,
+                OptionsTemplate {
+                    template_id,
+                    field_count,
+                    scope_field_count: 0,
+                    fields: Vec::new(),
+                },
+            ));
+        }
+
+        OptionsTemplate::parse(i)
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn parse_templates<'a, T, F>(
         i: &'a [u8],
@@ -1402,7 +1426,7 @@ impl FlowSetBody {
         multi_variant: fn(Vec<T>) -> FlowSetBody,
         validate: fn(&T, &IPFixParser) -> bool,
         add_templates: fn(&mut IPFixParser, &[T]),
-        withdraw_template: Option<fn(&mut IPFixParser, u16)>,
+        withdraw_template: Option<WithdrawTemplate>,
     ) -> IResult<&'a [u8], FlowSetBody>
     where
         T: Clone + HasTemplateId,
@@ -1410,52 +1434,35 @@ impl FlowSetBody {
     {
         let (i, templates) = many0(complete(parse_fn))(i)?;
 
-        // Handle template withdrawals (RFC 7011 Section 8.1):
-        // Templates with field_count=0 signal withdrawal from the cache.
-        // Skip withdrawal for IDs that also have a new definition in the
-        // same flowset — the new definition will simply replace the old one
-        // without needlessly draining pending flows.
-        let mut had_withdrawals = false;
-        if let Some(withdraw_fn) = withdraw_template {
-            for t in &templates {
-                if t.field_count() == 0 {
-                    let id = t.template_id();
-                    // "Withdraw all" IDs (2 for data, 3 for options) always
-                    // take effect regardless of other templates in the batch.
-                    let has_redefinition = id != DATA_TEMPLATE_IPFIX_ID
-                        && id != OPTIONS_TEMPLATE_IPFIX_ID
-                        && templates
-                            .iter()
-                            .any(|other| other.template_id() == id && other.field_count() > 0);
-                    if !has_redefinition {
-                        withdraw_fn(parser, id);
-                    }
-                    had_withdrawals = true;
+        // Definitions and withdrawals take effect in their wire order. Keep
+        // withdrawals in the parsed representation so re-export can preserve
+        // the original Template Set.
+        let mut accepted_templates = Vec::with_capacity(templates.len());
+        for template in templates {
+            if template.field_count() == 0 {
+                // Reserved IDs can be zero-valued Set padding, not withdrawals.
+                if let Some((withdraw_all_id, withdraw_fn)) = withdraw_template
+                    && (template.template_id() == withdraw_all_id
+                        || template.template_id() >= 256)
+                {
+                    withdraw_fn(parser, template.template_id());
+                    accepted_templates.push(template);
                 }
+            } else if validate(&template, parser) {
+                add_templates(parser, std::slice::from_ref(&template));
+                accepted_templates.push(template);
             }
         }
 
-        // Filter to only valid templates (withdrawals will be filtered out
-        // since they have empty fields, failing the is_valid check)
-        let valid_templates: Vec<_> = templates
-            .into_iter()
-            .filter(|t| validate(t, parser))
-            .collect();
-        if valid_templates.is_empty() {
-            // If we processed withdrawals, return Empty instead of error
-            if had_withdrawals {
-                return Ok((i, FlowSetBody::Empty));
-            }
+        if accepted_templates.is_empty() {
             return Err(nom::Err::Error(nom::error::Error::new(
                 i,
                 nom::error::ErrorKind::Verify,
             )));
         }
-        // Pass slice to add_templates to clone only what's needed
-        add_templates(parser, &valid_templates);
-        match valid_templates.len() {
+        match accepted_templates.len() {
             1 => {
-                if let Some(template) = valid_templates.into_iter().next() {
+                if let Some(template) = accepted_templates.into_iter().next() {
                     Ok((i, single_variant(template)))
                 } else {
                     Err(nom::Err::Error(nom::error::Error::new(
@@ -1464,7 +1471,7 @@ impl FlowSetBody {
                     )))
                 }
             }
-            _ => Ok((i, multi_variant(valid_templates))),
+            _ => Ok((i, multi_variant(accepted_templates))),
         }
     }
 
@@ -1482,7 +1489,9 @@ impl FlowSetBody {
                 FlowSetBody::Templates,
                 |t: &Template, p: &IPFixParser| t.is_valid(p),
                 |parser, templates| parser.add_ipfix_templates(templates),
-                Some(|parser: &mut IPFixParser, id| parser.withdraw_ipfix_template(id)),
+                Some((DATA_TEMPLATE_IPFIX_ID, |parser: &mut IPFixParser, id| {
+                    parser.withdraw_ipfix_template(id)
+                })),
             ),
             DATA_TEMPLATE_V9_ID => Self::parse_templates(
                 i,
@@ -1531,12 +1540,14 @@ impl FlowSetBody {
             OPTIONS_TEMPLATE_IPFIX_ID => Self::parse_templates(
                 i,
                 parser,
-                OptionsTemplate::parse,
+                Self::parse_ipfix_options_template,
                 FlowSetBody::OptionsTemplate,
                 FlowSetBody::OptionsTemplates,
                 |t: &OptionsTemplate, p: &IPFixParser| t.is_valid(p),
                 |parser, templates| parser.add_ipfix_options_templates(templates),
-                Some(|parser: &mut IPFixParser, id| parser.withdraw_ipfix_options_template(id)),
+                Some((OPTIONS_TEMPLATE_IPFIX_ID, |parser: &mut IPFixParser, id| {
+                    parser.withdraw_ipfix_options_template(id);
+                })),
             ),
             // Parse Data
             _ => {
