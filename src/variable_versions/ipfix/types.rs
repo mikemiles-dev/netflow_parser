@@ -84,6 +84,28 @@ pub struct IPFix {
             many0(complete(|i| FlowSet::parse(i, parser)
                 .map(|(i, flow_set)| (i, flow_set))
             ))(i)
+            .and_then(|(rest, flow_sets)| {
+                // many0 stops at the first Set it cannot parse and the tail is
+                // then dropped silently, so a Set declaring an impossible
+                // length discards every valid Data Set behind it while the
+                // message still reports success. Reject that framing error
+                // here per RFC 7011 Section 9.1.
+                //
+                // Only the Set Header framing is judged: a declared length
+                // below the 4-octet header, or one overrunning the Set region,
+                // cannot be walked past and means the message is malformed. A
+                // well-framed Set whose contents this parser does not decode is
+                // left to the existing lenient handling, since skipping it
+                // safely is a separate concern. Fewer than 4 octets cannot
+                // begin a Set and are tolerated as trailing padding.
+                if rest.len() >= 4 {
+                    let declared = u16::from_be_bytes([rest[2], rest[3]]) as usize;
+                    if declared < 4 || declared > rest.len() {
+                        return Err(nom::Err::Error(nom::error::Error::new(rest, nom::error::ErrorKind::Verify)));
+                    }
+                }
+                Ok((rest, flow_sets))
+            })
             .map(|(_, flow_sets)| flow_sets) // Extract the Vec<FlowSet>
         })"
     )]

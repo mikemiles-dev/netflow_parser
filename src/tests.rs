@@ -246,9 +246,15 @@ mod base_tests {
         }));
     }
 
-    // Verify that an IPFIX packet with template fields is parsed correctly
+    // This capture declares a 48-octet message, leaving a 32-octet Set region,
+    // but its first Set declares 36 octets and so overruns that region. It is
+    // now rejected as malformed.
+    //
+    // The previous snapshot recorded a successful parse whose flowsets list was
+    // empty: the overrunning Set was dropped silently and nothing was decoded,
+    // so this vector never exercised template parsing despite its name.
     #[test]
-    fn can_read_ipfix() {
+    fn overrunning_ipfix_set_is_rejected() {
         let hex = "000a003062a0b1b9000000086c6a7e110001002400030008000100040002000400090001000d00010004000400080004000c00040005000100060001";
 
         let mut parser = NetflowParser::builder()
@@ -261,9 +267,20 @@ mod base_tests {
         assert_yaml_snapshot!(ipfix);
     }
 
-    // Verify that an IPFIX options template with many fields is parsed without error
+    // This capture is internally inconsistent and is now rejected as malformed.
+    //
+    // Its Options Template record declares field_count 20 (a 86-octet record)
+    // and its Set declares 176 octets, but 46 field specifications are
+    // physically present. That leaves 20 octets after the Set inside a
+    // 196-octet Set region, and those octets declare a Set length of 2 — below
+    // the 4-octet Set Header, so the walk cannot advance past them.
+    //
+    // Previously the trailing octets were dropped silently and the message
+    // reported success. It now reports a framing error instead of pretending
+    // the message was fully consumed. This vector therefore no longer provides
+    // options-template coverage; a well-formed capture is needed for that.
     #[test]
-    fn options() {
+    fn options_template_with_inconsistent_set_framing_is_rejected() {
         let hex_options_template = "000a00d46319088e0000036e8b7148d2000300b0000e001400070006000f0006001000060034000200350006008800020090000200910002009200020093000200990002009a0002009e0002009f000200a1000200a2000200a3000200a4000200a5000200aa000200ab000200ac000200ad000200b0000200b1000200b2000200b4000200b5000200b6000200b7000200b8000200b9000200bd000200be000200bf000200c0000200c1000400c2000200c3000200c4000200c5000200c6000200c7000200c8000200c9000200ca000200cb0002";
 
         let mut parser = NetflowParser::builder()
@@ -274,12 +291,12 @@ mod base_tests {
         let packet = hex::decode(hex_options_template).unwrap();
         let result = parser.parse_bytes(&packet);
         assert!(
-            !result.packets.is_empty(),
-            "expected packets from options template"
+            result.error.is_some(),
+            "expected a framing error for the trailing 20 octets"
         );
         assert!(
-            result.error.is_none(),
-            "unexpected error parsing options template"
+            result.packets.is_empty(),
+            "a malformed message must not yield packets"
         );
     }
 

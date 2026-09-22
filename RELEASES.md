@@ -2,6 +2,30 @@
 
 ## Fixes
 
+* **Reject IPFIX Sets that declare an impossible length.** Set iteration
+  stopped at the first Set it could not parse and then discarded the rest of
+  the message without reporting anything, so a Set declaring a length below the
+  4-octet Set Header, or one overrunning the Set region, silently destroyed
+  every valid Data Set behind it while the message still reported success. A
+  truncated datagram therefore decoded as a short but apparently complete
+  message, and a collector had no way to detect the loss. Such framing is now
+  rejected per [RFC 7011 section 9.1](https://www.rfc-editor.org/rfc/rfc7011.html#section-9.1).
+  Reported by Costa Tsaousis (#310).
+
+  Only Set Header framing is judged. A well-formed Set whose contents this
+  parser does not decode keeps its previous handling, and fewer than 4 trailing
+  octets are still tolerated as padding.
+
+  **Behavior change:** messages that previously parsed as successful-but-empty
+  now return an error. Two bundled test captures were affected, both internally
+  inconsistent — one declares a 48-octet message whose first Set claims 36 of
+  its 32 available octets, the other leaves 20 octets that cannot form a Set.
+  Neither decoded any flowset before this change.
+
+  Committed template state from a rejected message's valid prefix is *not* yet
+  rolled back; that needs a transaction boundary across the template caches and
+  is tracked by an ignored test in `tests/ipfix_set_framing.rs`.
+
 * **Route each chained message to its own scope in `AutoScopedParser`.**
   `parse_from_source` derived the scope once from the first message's header
   and then parsed the entire buffer with that one child parser. A single call
