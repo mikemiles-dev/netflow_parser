@@ -1,7 +1,7 @@
 [package]
 name = "netflow_parser"
 description = "Parser for Netflow Cisco V5, V7, V9, IPFIX"
-version = "1.0.6"
+version = "1.1.0"
 edition = "2024"
 rust-version = "1.88"
 authors = ["Michael Mileusnich <michael.mileusnich@gmail.com>"]
@@ -9,7 +9,6 @@ exclude = [".DS_Store", ".github/", ".claude/", ".amazonq/", "openspec/", "rust_
 license = "MIT OR Apache-2.0"
 categories = ["encoding", "network-programming", "parser-implementations",]
 keywords = ["netflow", "ipfix", "parser", "network", "cisco"]
-readme = "README.md"
 repository = "https://github.com/mikemiles-dev/netflow_parser/"
 
 [package.metadata.docs.rs]

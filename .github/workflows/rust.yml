@@ -85,6 +85,11 @@ jobs:
       uses: actions-rust-lang/setup-rust-toolchain@v2
       with:
         toolchain: nightly  # cargo-fuzz requires nightly
+        # Nightly cargo adds new manifest lints continuously (e.g.
+        # cargo::non_kebab_case_bins, which the cargo-fuzz naming convention
+        # requires us to trip). Lint hygiene is enforced by the pinned-stable
+        # clippy job; this job exists to find crashes.
+        build-warnings: warn
     - name: Install cargo-fuzz
       run: cargo install cargo-fuzz
     - name: Run fuzzer
