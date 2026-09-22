@@ -1801,8 +1801,16 @@ impl NetflowParser {
         }
     }
 
+    /// Parse exactly one export packet, returning the unconsumed remainder.
+    ///
+    /// `AutoScopedParser` uses this to route each message in a chained buffer
+    /// to its own scoped child parser, which requires advancing one message at
+    /// a time rather than handing the whole buffer to a single parser.
     #[inline]
-    fn parse_packet_by_version<'a>(&mut self, packet: &'a [u8]) -> ParsedNetflow<'a> {
+    pub(crate) fn parse_packet_by_version<'a>(
+        &mut self,
+        packet: &'a [u8],
+    ) -> ParsedNetflow<'a> {
         // Snapshot metrics before parsing to detect collisions/evictions/expirations
         let hooks_active = !self.template_hooks.is_empty();
         let v9_metrics_before = if hooks_active {
