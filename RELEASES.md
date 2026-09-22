@@ -1,3 +1,26 @@
+# 1.1.0
+
+## Dependencies
+
+* Bumped `etherparse` from 0.20 to 0.21 (dev-dependency, used by the pcap
+  examples and tests).
+
+## Continuous Integration
+
+* Bumped `actions-rust-lang/setup-rust-toolchain` from v1 to v2. v2 enforces
+  warning-free builds via cargo's `build.warnings` config instead of
+  `RUSTFLAGS="-D warnings"`, which additionally denies cargo *manifest* lints.
+
+* Fixed the nightly fuzzer job, which the above change broke: nightly cargo
+  emits `cargo::non_kebab_case_bins` for the `fuzz_target_1` and
+  `fuzz_round_trip` binaries required by the cargo-fuzz naming convention. The
+  job now sets `build-warnings: warn`; lint hygiene remains enforced by the
+  pinned-stable clippy job.
+
+* Dropped the explicit `package.readme` key, which cargo infers from
+  `README.md` and newer cargo flags via `cargo::manual_readme`. The packaged
+  manifest is unchanged.
+
 # 1.0.6
 
 ## Features
