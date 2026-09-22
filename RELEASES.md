@@ -1,5 +1,24 @@
 # 1.1.0
 
+## Fixes
+
+* **Route each chained message to its own scope in `AutoScopedParser`.**
+  `parse_from_source` derived the scope once from the first message's header
+  and then parsed the entire buffer with that one child parser. A single call
+  carrying several chained IPFIX messages with different Observation Domain IDs
+  therefore cached every domain's templates against the first domain. When two
+  domains reused a Template ID with different field layouts, data records
+  decoded to the wrong fields and no error was reported — a `sourceIPv4Address`
+  would silently decode as a `packetDeltaCount`. The scope is now re-derived
+  from each message in the buffer, so every message reaches its own
+  `(source_addr, observation_domain_id)` parser, as
+  [RFC 7011 section 8](https://www.rfc-editor.org/rfc/rfc7011.html#section-8)
+  requires. Reported by Costa Tsaousis (#325).
+
+  `iter_packets_from_source` still borrows a single child parser for the
+  iterator's lifetime and retains this limitation; it is now documented. Fixing
+  it requires an iterator able to own several child parsers.
+
 ## Dependencies
 
 * Bumped `etherparse` from 0.20 to 0.21 (dev-dependency, used by the pcap

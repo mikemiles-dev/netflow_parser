@@ -5,7 +5,7 @@
 
 use crate::{
     ConfigError, NetflowError, NetflowPacket, NetflowParser, NetflowParserBuilder, ParseResult,
-    ParserCacheInfo,
+    ParsedNetflow, ParserCacheInfo,
 };
 use lru::LruCache;
 use std::hash::Hash;
@@ -816,16 +816,51 @@ impl AutoScopedParser {
     where
         F: FnMut(&SourceRemoval<AutoSourceKey>) -> Result<(), SourceRemovalReporterError>,
     {
-        let parser = match self.get_or_create_parser(source, data, reporter) {
-            Ok(p) => p,
-            Err(e) => {
-                return ParseResult {
-                    packets: vec![],
-                    error: Some(e),
-                };
+        if data.is_empty() {
+            return ParseResult {
+                packets: vec![],
+                error: None,
+            };
+        }
+
+        // A single call may carry several chained export packets, and each one
+        // declares its own scope. Re-derive the scope from the head of the
+        // remaining buffer on every iteration so a message is never parsed by
+        // another domain's parser, which would mix its templates into the wrong
+        // cache and silently misdecode data records that reuse a Template ID.
+        let mut packets = Vec::new();
+        let mut remaining = data;
+        let mut error = None;
+
+        while !remaining.is_empty() {
+            let parser = match self.get_or_create_parser(source, remaining, reporter) {
+                Ok(p) => p,
+                Err(e) => {
+                    error = Some(e);
+                    break;
+                }
+            };
+
+            match parser.parse_packet_by_version(remaining) {
+                ParsedNetflow::Success {
+                    packet,
+                    remaining: new_remaining,
+                } => {
+                    packets.push(packet);
+                    remaining = new_remaining;
+                }
+                ParsedNetflow::UnallowedVersion { version } => {
+                    error = Some(NetflowError::FilteredVersion { version });
+                    break;
+                }
+                ParsedNetflow::Error { error: e } => {
+                    error = Some(e);
+                    break;
+                }
             }
-        };
-        parser.parse_bytes(data)
+        }
+
+        ParseResult { packets, error }
     }
 
     /// Parse NetFlow data from a source using the iterator API.
@@ -841,6 +876,22 @@ impl AutoScopedParser {
     /// # Returns
     ///
     /// An iterator over parsed NetFlow packets.
+    ///
+    /// # Chained messages and scoping
+    ///
+    /// Unlike [`parse_from_source`](Self::parse_from_source), this method
+    /// selects one scoped parser from the *first* message and borrows it for
+    /// the iterator's whole lifetime. If `data` chains several IPFIX messages
+    /// carrying different Observation Domain IDs, every message is parsed by
+    /// the first domain's parser, so templates from later domains are cached
+    /// against the wrong scope. When those domains reuse a Template ID with
+    /// different field layouts, data records decode to the wrong fields
+    /// without reporting an error.
+    ///
+    /// Pass one message per call, or use
+    /// [`parse_from_source`](Self::parse_from_source), which routes each
+    /// chained message to its own scope. Lifting this limitation requires an
+    /// iterator able to own several child parsers.
     pub fn iter_packets_from_source<'a>(
         &'a mut self,
         source: SocketAddr,
