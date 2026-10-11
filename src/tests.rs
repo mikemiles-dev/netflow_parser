@@ -282,6 +282,62 @@ mod base_tests {
         assert_yaml_snapshot!(error);
     }
 
+    // The `overrunning_ipfix_set_is_rejected` capture declares Set ID 1, which
+    // an IPFIX message routes to the V9-style options template path rather than
+    // to anything IPFIX-native -- so despite its former name it never covered
+    // IPFIX template fields. Retiring it did leave that V9-in-IPFIX path
+    // without a vector, which this well-formed message restores.
+    #[test]
+    fn v9_options_template_inside_an_ipfix_message_is_cached() {
+        let mut set = Vec::new();
+        set.extend_from_slice(&1u16.to_be_bytes()); // Set ID 1: V9 options template
+        set.extend_from_slice(&22u16.to_be_bytes()); // 4 header + 6 record + 4 scope + 8 option
+        set.extend_from_slice(&300u16.to_be_bytes()); // template_id
+        set.extend_from_slice(&4u16.to_be_bytes()); // options_scope_length: one field
+        set.extend_from_slice(&8u16.to_be_bytes()); // options_length: two fields
+        set.extend_from_slice(&1u16.to_be_bytes()); // scope field: System
+        set.extend_from_slice(&4u16.to_be_bytes());
+        set.extend_from_slice(&8u16.to_be_bytes()); // option field: IPV4_SRC_ADDR
+        set.extend_from_slice(&4u16.to_be_bytes());
+        set.extend_from_slice(&2u16.to_be_bytes()); // option field: IN_PKTS
+        set.extend_from_slice(&4u16.to_be_bytes());
+
+        let mut packet = Vec::new();
+        packet.extend_from_slice(&10u16.to_be_bytes());
+        packet.extend_from_slice(&38u16.to_be_bytes()); // 16 header + 22 Set
+        packet.extend_from_slice(&1_700_000_000u32.to_be_bytes());
+        packet.extend_from_slice(&11u32.to_be_bytes());
+        packet.extend_from_slice(&77u32.to_be_bytes());
+        packet.extend_from_slice(&set);
+        assert_eq!(packet.len(), 38);
+
+        let mut parser = NetflowParser::default();
+        let result = parser.parse_bytes(&packet);
+
+        assert!(result.error.is_none(), "{:?}", result.error);
+        assert!(
+            parser.ipfix_template_ids().contains(&300),
+            "the options template must reach the cache: {:?}",
+            parser.ipfix_template_ids()
+        );
+
+        let Some(crate::NetflowPacket::IPFix(ipfix)) = result.packets.first() else {
+            panic!("expected one IPFIX packet, got {:?}", result.packets);
+        };
+        let [flowset] = ipfix.flowsets.as_slice() else {
+            panic!("expected exactly one flowset, got {:?}", ipfix.flowsets);
+        };
+        match &flowset.body {
+            crate::variable_versions::ipfix::FlowSetBody::V9OptionsTemplate(t) => {
+                assert_eq!(t.template_id, 300);
+                assert_eq!(t.scope_fields.len(), 1);
+                assert_eq!(t.option_fields.len(), 2);
+                assert_eq!(t.option_fields[0].field_length, 4);
+            }
+            other => panic!("expected a V9OptionsTemplate body, got {other:?}"),
+        }
+    }
+
     // This capture is internally inconsistent and is now rejected as malformed.
     //
     // Its Options Template record declares field_count 20 (a 86-octet record)
@@ -292,8 +348,9 @@ mod base_tests {
     //
     // Previously the trailing octets were dropped silently and the message
     // reported success. It now reports a framing error instead of pretending
-    // the message was fully consumed. This vector therefore no longer provides
-    // options-template coverage; a well-formed capture is needed for that.
+    // the message was fully consumed. IPFIX Options Template Sets are still
+    // covered by tests/decoded_output_limits.rs, tests/round_trip.rs and
+    // tests/template_store.rs, so nothing is lost by retiring this vector.
     #[test]
     fn options_template_with_inconsistent_set_framing_is_rejected() {
         let hex_options_template = "000a00d46319088e0000036e8b7148d2000300b0000e001400070006000f0006001000060034000200350006008800020090000200910002009200020093000200990002009a0002009e0002009f000200a1000200a2000200a3000200a4000200a5000200aa000200ab000200ac000200ad000200b0000200b1000200b2000200b4000200b5000200b6000200b7000200b8000200b9000200bd000200be000200bf000200c0000200c1000400c2000200c3000200c4000200c5000200c6000200c7000200c8000200c9000200ca000200cb0002";

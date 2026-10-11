@@ -37,7 +37,12 @@
   now return an error. Two bundled test captures were affected, both internally
   inconsistent — one declares a 48-octet message whose first Set claims 36 of
   its 32 available octets, the other leaves 20 octets that cannot form a Set.
-  Neither decoded any flowset before this change.
+  Neither decoded any flowset before this change, and neither covered what its
+  name claimed: the first declares Set ID 1, which an IPFIX message routes to
+  the V9-style options template path. A well-formed message exercising that
+  path replaces it. IPFIX Template Sets and Options Template Sets are covered
+  elsewhere, `pcaps/IPFIX.pcap` included, so retiring both captures loses no
+  coverage.
 
 * **A malformed IPFIX message no longer discards the rest of the datagram.**
   RFC 7011 section 9.1 discards the *Message*, but parsing stopped at the first
