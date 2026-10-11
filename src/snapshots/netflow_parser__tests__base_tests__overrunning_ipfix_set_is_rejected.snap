@@ -1,0 +1,11 @@
+---
+source: src/tests.rs
+expression: error
+---
+MalformedSetFraming:
+  offset: 0
+  declared: 36
+  available: 32
+  export_time: 1654698425
+  sequence_number: 8
+  observation_domain_id: 1818918417

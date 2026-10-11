@@ -65,6 +65,94 @@ pub struct IPFixParser {
     /// parse. Drained after each `parse` call to fire `TemplateEvent::Restored`
     /// hooks and to drive pending-flow replay.
     pub(crate) restored_templates: Vec<(TemplateProtocol, u16)>,
+    /// Set Header framing violation found while validating the in-flight
+    /// message, if any. Taken by `IPFixParser::parse` to build a precise
+    /// error. Mirrors the `DecodedOutputBudget::take_exceeded` pattern, since
+    /// `map_res` discards the nom error we construct inside the `Parse`
+    /// attribute.
+    pub(crate) set_framing_error: Option<SetFramingViolation>,
+}
+
+/// A Set Header inside an IPFIX message declared a length that cannot be
+/// walked past: either below the 4-octet Set Header itself, or beyond the end
+/// of the Set region.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub(crate) struct SetFramingViolation {
+    /// Octet offset of the offending Set Header within the Set region, i.e.
+    /// relative to the end of the 16-octet Message Header.
+    pub(crate) offset: usize,
+    /// Length the offending Set Header declared.
+    pub(crate) declared: usize,
+    /// Octets actually remaining from `offset` to the end of the Set region.
+    pub(crate) available: usize,
+    /// Export time from the discarded message's header.
+    pub(crate) export_time: u32,
+    /// Sequence number from the discarded message's header.
+    pub(crate) sequence_number: u32,
+    /// Observation Domain ID from the discarded message's header.
+    pub(crate) observation_domain_id: u32,
+}
+
+/// Where a Set Header chain broke, independent of which message carried it.
+/// [`SetFramingViolation`] pairs this with the discarded message's header.
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub(crate) struct SetFramingLocation {
+    pub(crate) offset: usize,
+    pub(crate) declared: usize,
+    pub(crate) available: usize,
+}
+
+/// Largest trailing run of zero octets tolerated as inter-Set alignment
+/// padding. Exporters align Sets to 4- or 8-octet boundaries, so a legitimate
+/// tail is at most 7 octets; a longer zero run means the message was truncated
+/// or zero-filled, which must not be mistaken for padding.
+const MAX_TRAILING_PADDING: usize = 7;
+
+/// Walks the Set Header chain across `region` and reports the first Set whose
+/// declared length cannot be walked past.
+///
+/// Only framing is judged — Set contents are not decoded here. Running this
+/// before any Set is parsed means a message rejected for bad framing commits
+/// no template or pending-flow state, and gives the offending offset, which
+/// `map_res` would otherwise discard. The caller pairs the location with the
+/// discarded message's header, so the rejection still identifies the exporter
+/// and the sequence number the lost records sat behind.
+///
+/// A trailing run of fewer than 4 octets cannot begin a Set, and a trailing
+/// run of up to [`MAX_TRAILING_PADDING`] zero octets is alignment padding;
+/// both are accepted.
+pub(crate) fn validate_set_framing(region: &[u8]) -> Result<(), SetFramingLocation> {
+    let mut offset = 0usize;
+    loop {
+        let tail = &region[offset..];
+        if tail.len() < 4 {
+            // Too short to begin a Set; tolerated as trailing padding.
+            return Ok(());
+        }
+        let declared = usize::from(u16::from_be_bytes([tail[2], tail[3]]));
+        if declared < 4 {
+            // An all-zero tail is alignment padding rather than a Set. A zero
+            // run followed by more data is not, so the `all` check below is
+            // what keeps this from excusing a zero gap mid-message.
+            if tail.len() <= MAX_TRAILING_PADDING && tail.iter().all(|&b| b == 0) {
+                return Ok(());
+            }
+            return Err(SetFramingLocation {
+                offset,
+                declared,
+                available: tail.len(),
+            });
+        }
+        if declared > tail.len() {
+            return Err(SetFramingLocation {
+                offset,
+                declared,
+                available: tail.len(),
+            });
+        }
+        // `declared >= 4` guarantees progress, so this terminates.
+        offset += declared;
+    }
 }
 
 /// A parsed IPFIX message containing a header and a list of flowsets.
@@ -81,6 +169,33 @@ pub struct IPFix {
     #[nom(
         PreExec = "let length = header.length.checked_sub(16).ok_or(nom::Err::Error(nom::error::Error::new(i, nom::error::ErrorKind::Verify)))?;",
         Parse = "map_res(take(length), |i| {
+            // Validate the whole Set Header chain before walking it. many0
+            // stops at the first Set it cannot parse and the tail is then
+            // dropped silently, so a Set declaring an impossible length
+            // discards every valid Data Set behind it while the message still
+            // reports success. Reject that framing per RFC 7011 Section 9.1.
+            //
+            // Checking up front rather than at the point many0 stopped means
+            // no template or pending-flow state from the message is committed
+            // before the rejection, and catches a bad length anywhere in the
+            // chain rather than only at the stop point. Only framing is judged:
+            // a well-framed Set whose contents this parser does not decode
+            // keeps its existing lenient handling, since skipping it safely is
+            // a separate concern.
+            //
+            // map_res discards the nom error constructed here, so the precise
+            // violation is stashed on the parser for IPFixParser::parse.
+            if let Err(location) = validate_set_framing(i) {
+                parser.set_framing_error = Some(SetFramingViolation {
+                    offset: location.offset,
+                    declared: location.declared,
+                    available: location.available,
+                    export_time: header.export_time,
+                    sequence_number: header.sequence_number,
+                    observation_domain_id: header.observation_domain_id,
+                });
+                return Err(nom::Err::Error(nom::error::Error::new(i, nom::error::ErrorKind::Verify)));
+            }
             many0(complete(|i| FlowSet::parse(i, parser)
                 .map(|(i, flow_set)| (i, flow_set))
             ))(i)

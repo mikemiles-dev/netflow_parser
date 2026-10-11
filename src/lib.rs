@@ -1008,6 +1008,16 @@ pub(crate) enum ParsedNetflow<'a> {
     Error {
         error: NetflowError,
     },
+    /// This message is discarded, but its header located the next one, so
+    /// parsing can resume instead of abandoning the rest of the datagram.
+    /// Only produced for protocols that carry a message length (IPFIX); v5,
+    /// v7 and v9 have no way to find the next message after a failure.
+    MessageDiscarded {
+        error: NetflowError,
+        /// Bytes starting at the next message. Always strictly shorter than
+        /// the input, so the caller's loop cannot stall.
+        remaining: &'a [u8],
+    },
     UnallowedVersion {
         version: u16,
     },
@@ -1075,6 +1085,34 @@ pub enum NetflowError {
         message: String,
     },
 
+    /// An IPFIX Set Header declared a length that cannot be walked past:
+    /// either below the 4-octet Set Header itself, or beyond the end of the
+    /// Set region.
+    ///
+    /// The whole Message is discarded per
+    /// [RFC 7011 section 9.1](https://www.rfc-editor.org/rfc/rfc7011.html#section-9.1).
+    /// Distinct from [`NetflowError::Partial`], which reports a datagram
+    /// truncated in flight: this one means the exporter emitted an illegal Set
+    /// length, and carries the offset so the offending Set can be located.
+    MalformedSetFraming {
+        /// Octet offset of the offending Set Header, relative to the end of
+        /// the 16-octet Message Header.
+        offset: usize,
+        /// Length the Set Header declared.
+        declared: usize,
+        /// Octets actually remaining from `offset` to the end of the Set region.
+        available: usize,
+        /// Export time from the discarded message's header.
+        export_time: u32,
+        /// Sequence number from the discarded message's header. The Message
+        /// Header parsed cleanly even though its Sets did not, so a collector
+        /// can still account for the records it did not receive.
+        sequence_number: u32,
+        /// Observation Domain ID from the discarded message's header, naming
+        /// the exporter that emitted the illegal Set length.
+        observation_domain_id: u32,
+    },
+
     /// A complete v9/IPFIX message would exceed a configured decoded-output limit.
     DecodedOutputLimitExceeded {
         /// Protocol of the rejected message.
@@ -1129,6 +1167,19 @@ impl std::fmt::Display for NetflowError {
             NetflowError::Partial { message } => {
                 write!(f, "Partial parse error: {}", message)
             }
+            NetflowError::MalformedSetFraming {
+                offset,
+                declared,
+                available,
+                export_time,
+                sequence_number,
+                observation_domain_id,
+            } => write!(
+                f,
+                "Malformed IPFIX Set framing: Set at offset {offset} declared length {declared}, \
+                 {available} octets available in the Set region (observation domain \
+                 {observation_domain_id}, sequence {sequence_number}, export time {export_time})"
+            ),
             NetflowError::DecodedOutputLimitExceeded {
                 protocol,
                 limit,
@@ -1239,6 +1290,16 @@ impl<'a> Iterator for NetflowPacketIterator<'a> {
             ParsedNetflow::Error { error } => {
                 self.errored = true;
                 self.remaining = &[];
+                Some(Err(error))
+            }
+            ParsedNetflow::MessageDiscarded {
+                error,
+                remaining: new_remaining,
+            } => {
+                // Recoverable: this message is discarded but the next one was
+                // located, so yield the error and keep iterating rather than
+                // abandoning the rest of the datagram.
+                self.remaining = new_remaining;
                 Some(Err(error))
             }
         }
@@ -1757,13 +1818,27 @@ impl NetflowParser {
                     remaining = new_remaining;
                 }
                 ParsedNetflow::UnallowedVersion { version } => {
-                    error = Some(NetflowError::FilteredVersion { version });
+                    error.get_or_insert(NetflowError::FilteredVersion { version });
                     break;
                 }
                 ParsedNetflow::Error { error: e } => {
-                    // Store error but keep successfully parsed packets
-                    error = Some(e);
+                    // Store error but keep successfully parsed packets. A
+                    // discarded message earlier in the datagram may already
+                    // have recorded one, and that first error is the one
+                    // closest to the root cause.
+                    error.get_or_insert(e);
                     break;
+                }
+                ParsedNetflow::MessageDiscarded {
+                    error: e,
+                    remaining: new_remaining,
+                } => {
+                    // RFC 7011 Section 9.1 discards the Message, not the rest
+                    // of the datagram. The header located the next message, so
+                    // keep going; the first error is the one reported, since
+                    // `ParseResult` carries a single error.
+                    error.get_or_insert(e);
+                    remaining = new_remaining;
                 }
             }
         }
