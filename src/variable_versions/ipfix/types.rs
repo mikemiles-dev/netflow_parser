@@ -16,8 +16,8 @@ use crate::variable_versions::template_events::TemplateProtocol;
 use crate::variable_versions::ttl::{TemplateWithTtl, TtlConfig};
 
 use nom::bytes::complete::take;
-use nom::combinator::{complete, map_res};
-use nom::multi::{count, many0};
+use nom::combinator::map_res;
+use nom::multi::count;
 use nom_derive::{Nom, Parse};
 use serde::Serialize;
 
@@ -121,13 +121,18 @@ const MAX_TRAILING_PADDING: usize = 7;
 /// A trailing run of fewer than 4 octets cannot begin a Set, and a trailing
 /// run of up to [`MAX_TRAILING_PADDING`] zero octets is alignment padding;
 /// both are accepted.
-pub(crate) fn validate_set_framing(region: &[u8]) -> Result<(), SetFramingLocation> {
+///
+/// Returns the octet offset where the Set chain ends, i.e. where tolerated
+/// padding begins. [`walk_set_chain`] relies on that boundary rather than
+/// re-deriving the padding rule, which would risk disagreeing with it and
+/// stalling on a zero tail.
+pub(crate) fn validate_set_framing(region: &[u8]) -> Result<usize, SetFramingLocation> {
     let mut offset = 0usize;
     loop {
         let tail = &region[offset..];
         if tail.len() < 4 {
             // Too short to begin a Set; tolerated as trailing padding.
-            return Ok(());
+            return Ok(offset);
         }
         let declared = usize::from(u16::from_be_bytes([tail[2], tail[3]]));
         if declared < 4 {
@@ -135,7 +140,7 @@ pub(crate) fn validate_set_framing(region: &[u8]) -> Result<(), SetFramingLocati
             // run followed by more data is not, so the `all` check below is
             // what keeps this from excusing a zero gap mid-message.
             if tail.len() <= MAX_TRAILING_PADDING && tail.iter().all(|&b| b == 0) {
-                return Ok(());
+                return Ok(offset);
             }
             return Err(SetFramingLocation {
                 offset,
@@ -152,6 +157,67 @@ pub(crate) fn validate_set_framing(region: &[u8]) -> Result<(), SetFramingLocati
         }
         // `declared >= 4` guarantees progress, so this terminates.
         offset += declared;
+    }
+}
+
+/// Decodes each Set in a framing-validated chain, skipping any whose body
+/// cannot be decoded rather than abandoning the rest of the message.
+///
+/// `many0` stopped at the first Set it could not parse, and the Sets behind it
+/// were dropped with no indication — the half of netflow_parser#310 that the
+/// framing check could not reach, because such a Set is perfectly well framed.
+/// Since [`validate_set_framing`] has already proved every declared length in
+/// `chain`, the next Set's offset is known even when the current one fails, so
+/// the walk can step over it.
+///
+/// A skipped Set is recorded as [`FlowSetBody::NoTemplate`] carrying
+/// [`NoTemplateReason::UndecodableBody`], which keeps the loss visible without
+/// making it eligible for pending-flow replay.
+pub(crate) fn walk_set_chain(chain: &[u8], parser: &mut IPFixParser) -> Vec<FlowSet> {
+    let mut flow_sets = Vec::new();
+    let mut rest = chain;
+
+    while rest.len() >= 4 {
+        // A message that has already blown its decoded-output budget is
+        // rejected wholesale by the PostExec hook, so continuing to decode
+        // Sets would be work spent on output that is about to be discarded.
+        if parser.decoded_output_limit_was_exceeded() {
+            break;
+        }
+
+        // Framing is validated, so `declared` is within 4..=rest.len() and the
+        // split always advances.
+        let declared = usize::from(u16::from_be_bytes([rest[2], rest[3]]));
+        if declared < 4 || declared > rest.len() {
+            break;
+        }
+        let (set_bytes, remainder) = rest.split_at(declared);
+
+        match FlowSet::parse(set_bytes, parser) {
+            Ok((_, flow_set)) => flow_sets.push(flow_set),
+            Err(_) => flow_sets.push(undecodable_set(set_bytes, parser.max_error_sample_size)),
+        }
+        rest = remainder;
+    }
+
+    flow_sets
+}
+
+/// Records a well-framed Set whose body could not be decoded, keeping a
+/// bounded sample of the octets for diagnosis.
+fn undecodable_set(set_bytes: &[u8], max_error_sample_size: usize) -> FlowSet {
+    let header_id = u16::from_be_bytes([set_bytes[0], set_bytes[1]]);
+    let length = u16::from_be_bytes([set_bytes[2], set_bytes[3]]);
+    let body = &set_bytes[4..];
+    let limit = body.len().min(max_error_sample_size);
+
+    FlowSet {
+        header: FlowSetHeader { header_id, length },
+        body: FlowSetBody::NoTemplate(NoTemplateInfo::undecodable(
+            header_id,
+            body[..limit].to_vec(),
+            limit < body.len(),
+        )),
     }
 }
 
@@ -185,21 +251,25 @@ pub struct IPFix {
             //
             // map_res discards the nom error constructed here, so the precise
             // violation is stashed on the parser for IPFixParser::parse.
-            if let Err(location) = validate_set_framing(i) {
-                parser.set_framing_error = Some(SetFramingViolation {
-                    offset: location.offset,
-                    declared: location.declared,
-                    available: location.available,
-                    export_time: header.export_time,
-                    sequence_number: header.sequence_number,
-                    observation_domain_id: header.observation_domain_id,
-                });
-                return Err(nom::Err::Error(nom::error::Error::new(i, nom::error::ErrorKind::Verify)));
+            match validate_set_framing(i) {
+                Err(location) => {
+                    parser.set_framing_error = Some(SetFramingViolation {
+                        offset: location.offset,
+                        declared: location.declared,
+                        available: location.available,
+                        export_time: header.export_time,
+                        sequence_number: header.sequence_number,
+                        observation_domain_id: header.observation_domain_id,
+                    });
+                    Err(nom::Err::Error(nom::error::Error::new(i, nom::error::ErrorKind::Verify)))
+                }
+                // Walk the validated chain rather than many0, which halted at
+                // the first Set it could not decode and silently dropped the
+                // Sets behind it. See walk_set_chain.
+                Ok(chain_end) => Ok::<_, nom::Err<nom::error::Error<&[u8]>>>(
+                    walk_set_chain(&i[..chain_end], parser)
+                ),
             }
-            many0(complete(|i| FlowSet::parse(i, parser)
-                .map(|(i, flow_set)| (i, flow_set))
-            ))(i)
-            .map(|(_, flow_sets)| flow_sets) // Extract the Vec<FlowSet>
         })"
     )]
     pub flowsets: Vec<FlowSet>,
