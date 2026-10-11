@@ -9,4 +9,46 @@ expression: "NetflowParser::default().parse_bytes(&packet).packets"
       export_time: 16909060
       sequence_number: 0
       observation_domain_id: 16909060
-    flowsets: []
+    flowsets:
+      - header:
+          header_id: 2
+          length: 20
+        body:
+          NoTemplate:
+            template_id: 2
+            raw_data:
+              - 1
+              - 0
+              - 0
+              - 3
+              - 0
+              - 8
+              - 0
+              - 4
+              - 0
+              - 12
+              - 0
+              - 4
+              - 0
+              - 65
+              - 0
+              - 0
+            truncated: false
+            reason: UndecodableBody
+      - header:
+          header_id: 256
+          length: 12
+        body:
+          NoTemplate:
+            template_id: 256
+            raw_data:
+              - 1
+              - 2
+              - 3
+              - 4
+              - 1
+              - 2
+              - 3
+              - 4
+            truncated: false
+            reason: MissingTemplate
