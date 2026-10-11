@@ -850,12 +850,24 @@ impl AutoScopedParser {
                     remaining = new_remaining;
                 }
                 ParsedNetflow::UnallowedVersion { version } => {
-                    error = Some(NetflowError::FilteredVersion { version });
+                    error.get_or_insert(NetflowError::FilteredVersion { version });
                     break;
                 }
                 ParsedNetflow::Error { error: e } => {
-                    error = Some(e);
+                    // Keep the first error; a discarded message earlier in the
+                    // chain may already have recorded one.
+                    error.get_or_insert(e);
                     break;
+                }
+                ParsedNetflow::MessageDiscarded {
+                    error: e,
+                    remaining: new_remaining,
+                } => {
+                    // Only this message is discarded, so keep walking the
+                    // chain; the loop re-derives the scope from the next
+                    // message's header on the following iteration.
+                    error.get_or_insert(e);
+                    remaining = new_remaining;
                 }
             }
         }

@@ -2,6 +2,61 @@
 
 ## Fixes
 
+* **Reject IPFIX Sets that declare an impossible length.** Set iteration
+  stopped at the first Set it could not parse and then discarded the rest of
+  the message without reporting anything, so a Set declaring a length below the
+  4-octet Set Header, or one overrunning the Set region, silently destroyed
+  every valid Data Set behind it while the message still reported success. A
+  truncated datagram therefore decoded as a short but apparently complete
+  message, and a collector had no way to detect the loss. Such framing is now
+  rejected per [RFC 7011 section 9.1](https://www.rfc-editor.org/rfc/rfc7011.html#section-9.1).
+  Reported by Costa Tsaousis (#310).
+
+  The whole Set Header chain is validated before any Set is parsed, so a bad
+  length is caught wherever it sits rather than only where the walk stopped,
+  and a message rejected for framing commits no template or pending-flow
+  state. Failures surface as the new `NetflowError::MalformedSetFraming`,
+  carrying the offending Set's offset, its declared length and the octets
+  actually available — distinct from `NetflowError::Partial`, which continues
+  to mean a datagram truncated in flight.
+
+  The error also carries the discarded message's `export_time`,
+  `sequence_number` and `observation_domain_id`. The Message Header parses
+  cleanly even when its Sets do not, so a rejection still names the exporter
+  that emitted the illegal length and the sequence number the lost records sat
+  behind, which is what a collector needs to account for the gap.
+
+  Only Set Header framing is judged. A well-formed Set whose contents this
+  parser does not decode keeps its previous handling. Trailing octets too few
+  to begin a Set are tolerated as before, as is a trailing run of up to 7 zero
+  octets: Sets align to 4- or 8-octet boundaries, so that is the largest
+  legitimate alignment tail. A longer zero run means a truncated or zero-filled
+  message and is rejected.
+
+  **Behavior change:** messages that previously parsed as successful-but-empty
+  now return an error. Two bundled test captures were affected, both internally
+  inconsistent — one declares a 48-octet message whose first Set claims 36 of
+  its 32 available octets, the other leaves 20 octets that cannot form a Set.
+  Neither decoded any flowset before this change.
+
+* **A malformed IPFIX message no longer discards the rest of the datagram.**
+  RFC 7011 section 9.1 discards the *Message*, but parsing stopped at the first
+  message-level error and abandoned every message chained behind it — so one
+  bad message cost a whole datagram's worth of flows. The IPFIX Message Header
+  carries its own length, so when it locates a successor inside the buffer,
+  that message is now reported as discarded and parsing resumes at the next
+  one. `parse_bytes` and `iter_packets` both resume, as does
+  `AutoScopedParser::parse_from_source`, which re-derives the scope from each
+  surviving message's header.
+
+  Because several messages in one datagram can now fail, `ParseResult.error`
+  and the error yielded by `iter_packets` report the **first** error rather than
+  the last. `iter_packets` previously stopped iterating after any error; it now
+  yields the error and continues when the next message is locatable, and still
+  stops on errors that leave no trustworthy boundary to resume from. v5, v7 and
+  v9 are unaffected: none of them can locate the next message after a failure,
+  so they remain a hard stop.
+
 * **Route each chained message to its own scope in `AutoScopedParser`.**
   `parse_from_source` derived the scope once from the first message's header
   and then parsed the entire buffer with that one child parser. A single call

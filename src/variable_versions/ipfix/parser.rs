@@ -147,6 +147,7 @@ impl IPFixParser {
             template_store: config.template_store,
             template_store_scope: config.template_store_scope,
             restored_templates: Vec::new(),
+            set_framing_error: None,
         })
     }
 
@@ -528,6 +529,8 @@ impl IPFixParser {
         // Reset the per-parse restored-templates buffer so the next call
         // sees only what was restored during *this* packet.
         self.restored_templates.clear();
+        // Likewise for any framing violation left by a previous message.
+        self.set_framing_error = None;
         match IPFix::parse(packet, self) {
             Ok((remaining, mut ipfix)) => {
                 self.process_pending_flows(&mut ipfix);
@@ -537,7 +540,16 @@ impl IPFixParser {
                 }
             }
             Err(e) => {
-                let error = if let Some(exceeded) = self.decoded_output_budget.take_exceeded() {
+                let error = if let Some(violation) = self.set_framing_error.take() {
+                    NetflowError::MalformedSetFraming {
+                        offset: violation.offset,
+                        declared: violation.declared,
+                        available: violation.available,
+                        export_time: violation.export_time,
+                        sequence_number: violation.sequence_number,
+                        observation_domain_id: violation.observation_domain_id,
+                    }
+                } else if let Some(exceeded) = self.decoded_output_budget.take_exceeded() {
                     NetflowError::DecodedOutputLimitExceeded {
                         protocol: TemplateProtocol::Ipfix,
                         limit: exceeded.limit,
@@ -549,9 +561,46 @@ impl IPFixParser {
                         message: format!("IPFIX parse error: {}", e),
                     }
                 };
-                ParsedNetflow::Error { error }
+                // RFC 7011 Section 9.1 discards the Message. The Message
+                // Header carries its own length, so when it points inside this
+                // buffer the next message can still be parsed rather than
+                // losing the rest of the datagram with it.
+                match Self::next_message(packet) {
+                    Some(remaining) => ParsedNetflow::MessageDiscarded { error, remaining },
+                    None => ParsedNetflow::Error { error },
+                }
             }
         }
+    }
+
+    /// Bytes following this message, derived from the Message Header's own
+    /// length field, or `None` when that length does not locate a further
+    /// message inside `packet`.
+    ///
+    /// `packet` starts just past the 2-octet Version field, which
+    /// `parse_packet_by_version` has already consumed, so the declared length
+    /// is read from the front and the message occupies `declared - 2` octets
+    /// of this slice.
+    ///
+    /// Returns `None` for a length below the 16-octet Message Header or one
+    /// that does not leave a further message, since neither can be trusted to
+    /// point at a real message boundary. The returned slice is always strictly
+    /// shorter than `packet`, so callers resuming from it cannot stall.
+    fn next_message(packet: &[u8]) -> Option<&[u8]> {
+        /// Total octets of an IPFIX Message Header, Version field included.
+        const MESSAGE_HEADER_LEN: usize = 16;
+        /// Version octets already consumed before `packet` begins.
+        const VERSION_LEN: usize = 2;
+
+        let declared = usize::from(u16::from_be_bytes([*packet.first()?, *packet.get(1)?]));
+        if declared < MESSAGE_HEADER_LEN {
+            return None;
+        }
+        let consumed = declared - VERSION_LEN;
+        if consumed >= packet.len() {
+            return None;
+        }
+        packet.get(consumed..)
     }
 
     fn process_pending_flows(&mut self, ipfix: &mut IPFix) {
