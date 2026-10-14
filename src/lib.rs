@@ -2061,13 +2061,15 @@ impl NetflowParser {
                 for fs in &ipfix.flowsets {
                     match &fs.body {
                         variable_versions::ipfix::FlowSetBody::Template(t) => {
-                            self.template_hooks.trigger(&TemplateEvent::Learned {
-                                template_id: Some(t.template_id),
-                                protocol: TemplateProtocol::Ipfix,
-                            });
+                            if t.field_count > 0 {
+                                self.template_hooks.trigger(&TemplateEvent::Learned {
+                                    template_id: Some(t.template_id),
+                                    protocol: TemplateProtocol::Ipfix,
+                                });
+                            }
                         }
                         variable_versions::ipfix::FlowSetBody::Templates(ts) => {
-                            for t in ts {
+                            for t in ts.iter().filter(|t| t.field_count > 0) {
                                 self.template_hooks.trigger(&TemplateEvent::Learned {
                                     template_id: Some(t.template_id),
                                     protocol: TemplateProtocol::Ipfix,
@@ -2089,13 +2091,15 @@ impl NetflowParser {
                             }
                         }
                         variable_versions::ipfix::FlowSetBody::OptionsTemplate(t) => {
-                            self.template_hooks.trigger(&TemplateEvent::Learned {
-                                template_id: Some(t.template_id),
-                                protocol: TemplateProtocol::Ipfix,
-                            });
+                            if t.field_count > 0 {
+                                self.template_hooks.trigger(&TemplateEvent::Learned {
+                                    template_id: Some(t.template_id),
+                                    protocol: TemplateProtocol::Ipfix,
+                                });
+                            }
                         }
                         variable_versions::ipfix::FlowSetBody::OptionsTemplates(ts) => {
-                            for t in ts {
+                            for t in ts.iter().filter(|t| t.field_count > 0) {
                                 self.template_hooks.trigger(&TemplateEvent::Learned {
                                     template_id: Some(t.template_id),
                                     protocol: TemplateProtocol::Ipfix,
