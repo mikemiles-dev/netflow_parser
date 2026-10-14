@@ -140,6 +140,9 @@ impl V9 {
                 }
                 FlowSetBody::NoTemplate(_) | FlowSetBody::Empty => continue,
             };
+            if set.header.flowset_id > 255 && body_bytes.is_empty() {
+                return Err("V9 data FlowSet must contain at least one record".into());
+            }
             // Compute flowset length from actual serialized body instead
             // of trusting set.header.length, which can be stale when
             // padding was auto-calculated or the body was modified.
