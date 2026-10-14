@@ -268,7 +268,7 @@ expression: lookup
 - UnsignedDataNumber
 - DurationSeconds
 - DurationSeconds
-- String
+- Vec
 - UnsignedDataNumber
 - DurationMicrosNTP
 - DurationMillis

@@ -906,7 +906,7 @@ ipfix_field_enum! {
     ReverseMessageScope = 263 => FieldDataType::UnsignedDataNumber,
     ReverseMinExportSeconds = 264 => FieldDataType::DurationSeconds,
     ReverseMinFlowStartSeconds = 265 => FieldDataType::DurationSeconds,
-    ReverseOpaqueOctets = 266 => FieldDataType::String,
+    ReverseOpaqueOctets = 266 => FieldDataType::Vec,
     ReverseSessionScope = 267 => FieldDataType::UnsignedDataNumber,
     ReverseMaxFlowEndMicroseconds = 268 => FieldDataType::DurationMicrosNTP,
     ReverseMaxFlowEndMilliseconds = 269 => FieldDataType::DurationMillis,
@@ -1377,7 +1377,7 @@ MessageMd5checksum = 262 => FieldDataType::Vec,
 MessageScope = 263 => FieldDataType::UnsignedDataNumber,
 MinExportSeconds = 264 => FieldDataType::DurationSeconds,
 MinFlowStartSeconds = 265 => FieldDataType::DurationSeconds,
-OpaqueOctets = 266 => FieldDataType::String,
+OpaqueOctets = 266 => FieldDataType::Vec,
 SessionScope = 267 => FieldDataType::UnsignedDataNumber,
 MaxFlowEndMicroseconds = 268 => FieldDataType::DurationMicrosNTP,
 MaxFlowEndMilliseconds = 269 => FieldDataType::DurationMillis,
@@ -1623,7 +1623,7 @@ mod ipfix_lookup_tests {
 
     use crate::variable_versions::field_value::FieldDataType;
 
-    use super::IANAIPFixField;
+    use super::{IANAIPFixField, IPFixField, REVERSE_INFO_ENTERPRISE_NUMBER};
 
     use insta::assert_yaml_snapshot;
 
@@ -1647,5 +1647,9 @@ mod ipfix_lookup_tests {
         }
 
         assert_yaml_snapshot!(lookup);
+        assert_eq!(
+            FieldDataType::from(IPFixField::new(266, Some(REVERSE_INFO_ENTERPRISE_NUMBER))),
+            FieldDataType::Vec
+        );
     }
 }
