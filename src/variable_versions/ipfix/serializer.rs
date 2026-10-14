@@ -3,6 +3,7 @@
 //! Type definitions live in the parent `ipfix` module (`mod.rs`).
 
 use super::{FlowSetBody, IPFix, TemplateField, calculate_padding};
+use crate::variable_versions::field_value::FieldValue;
 use crate::variable_versions::v9::ScopeDataField as V9ScopeDataField;
 
 /// Write an RFC 7011 Section 7 variable-length encoding prefix.
@@ -59,7 +60,12 @@ fn serialize_data_fields(
             if is_varlen {
                 write_varlen_prefix(result, v.byte_len())?;
             }
-            v.write_be_bytes(result)?;
+            match (v, template_field_lengths.get(idx).copied()) {
+                (FieldValue::Float64(value), Some(4)) => {
+                    result.extend_from_slice(&(*value as f32).to_be_bytes());
+                }
+                _ => v.write_be_bytes(result)?,
+            }
         }
     }
     Ok(())

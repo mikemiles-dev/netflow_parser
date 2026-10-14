@@ -4,6 +4,7 @@
 //! Parsing impl blocks for IPFIX types (FlowSetBody, FieldParser, TemplateField, etc.)
 //! are also defined here.
 
+use super::types::serialization_field_lengths;
 use super::{
     CommonTemplate, DATA_TEMPLATE_IPFIX_ID, DEFAULT_MAX_TEMPLATE_CACHE_SIZE, Data, FieldParser,
     FlowSet, FlowSetBody, FlowSetHeader, IPFix, IPFixFieldPair, IPFixParser, MAX_FIELD_COUNT,
@@ -1772,15 +1773,6 @@ impl OptionsTemplate {
     }
 }
 
-/// Collect template field lengths only when at least one field is variable-length.
-fn collect_varlen_field_lengths(fields: &[TemplateField]) -> Vec<u16> {
-    if fields.iter().any(|f| f.field_length == 65535) {
-        fields.iter().map(|f| f.field_length).collect()
-    } else {
-        Vec::new()
-    }
-}
-
 impl Data {
     pub(super) fn parse_with_registry_and_budget<'a>(
         i: &'a [u8],
@@ -1789,7 +1781,6 @@ impl Data {
         max_records: usize,
         budget: &mut DecodedOutputBudget,
     ) -> IResult<&'a [u8], Self> {
-        let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
         let (i, fields) = FieldParser::parse_with_registry_and_budget(
             i,
             template,
@@ -1797,6 +1788,8 @@ impl Data {
             max_records,
             budget,
         )?;
+        let template_field_lengths =
+            serialization_field_lengths(template.get_fields(), &fields);
         Ok((
             i,
             Self {
@@ -1813,10 +1806,11 @@ impl Data {
         template: &Template,
         limits: crate::DecodedOutputLimits,
     ) -> IResult<&'a [u8], Self> {
-        let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
         let mut budget = limits.budget();
         let (i, fields) =
             FieldParser::parse_with_budget(i, template, limits.max_records(), &mut budget)?;
+        let template_field_lengths =
+            serialization_field_lengths(template.get_fields(), &fields);
         Ok((
             i,
             Self {
@@ -1836,7 +1830,6 @@ impl OptionsData {
         max_records: usize,
         budget: &mut DecodedOutputBudget,
     ) -> IResult<&'a [u8], Self> {
-        let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
         let (i, fields) = FieldParser::parse_with_registry_and_budget(
             i,
             template,
@@ -1844,6 +1837,8 @@ impl OptionsData {
             max_records,
             budget,
         )?;
+        let template_field_lengths =
+            serialization_field_lengths(template.get_fields(), &fields);
         Ok((
             i,
             Self {
@@ -1860,10 +1855,11 @@ impl OptionsData {
         template: &OptionsTemplate,
         limits: crate::DecodedOutputLimits,
     ) -> IResult<&'a [u8], Self> {
-        let template_field_lengths = collect_varlen_field_lengths(template.get_fields());
         let mut budget = limits.budget();
         let (i, fields) =
             FieldParser::parse_with_budget(i, template, limits.max_records(), &mut budget)?;
+        let template_field_lengths =
+            serialization_field_lengths(template.get_fields(), &fields);
         Ok((
             i,
             Self {
