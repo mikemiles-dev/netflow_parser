@@ -19,7 +19,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 nom = "7.1.3"
 nom-derive = "0.10.1"
 serde = { version = "1.0.166", features = ["derive"] }
-lru = "0.18"
+lru = "0.19"
 
 [features]
 default = ["parse_unknown_fields"]
