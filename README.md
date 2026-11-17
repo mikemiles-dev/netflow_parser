@@ -22,6 +22,7 @@ A Netflow Parser library for Cisco V5, V7, V9, and IPFIX written in Rust. Suppor
   - [Pending Flow Caching](#pending-flow-caching)
   - [Filtering Versions](#filtering-versions)
   - [Error Handling Configuration](#error-handling-configuration)
+  - [Chained messages and error recovery](#chained-messages-and-error-recovery)
   - [Custom Enterprise Fields (IPFIX)](#custom-enterprise-fields-ipfix)
 - [Netflow Common](#netflow-common)
 - [Re-Exporting Flows](#re-exporting-flows)
@@ -353,6 +354,20 @@ let parser = NetflowParser::builder()
 
 When using template-based protocols (V9/IPFIX), data packets sometimes arrive before their corresponding template. By default these flows are reported as `NoTemplate` and lost. With pending flow caching enabled, these flows are automatically cached and replayed when the template arrives.
 
+**Not every `NoTemplate` flowset is replayable.** `NoTemplateInfo::reason`
+distinguishes the two cases, and `NoTemplateInfo::is_replayable()` answers the
+question directly:
+
+| `NoTemplateReason` | Meaning | Cached for replay |
+| --- | --- | --- |
+| `MissingTemplate` | The template ID is not in the cache. The records may decode once it arrives. | yes |
+| `UndecodableBody` | The Set is well framed but its body does not match the octets present. | no |
+
+An `UndecodableBody` flowset is never cached, because no template arriving later
+changes its octets — caching it would retry it forever. It is still reported in
+`flowsets` so the loss stays visible. Such a Set is skipped rather than ending
+the walk, so the Sets behind it still decode.
+
 **Disabled by default.** Enable via the builder pattern:
 
 ```rust
@@ -469,9 +484,17 @@ for packet in result.packets {
 
 // Check for errors
 if let Some(e) = result.error {
-    eprintln!("Error after {} packets: {}", packet_count, e);
+    eprintln!("{} packets parsed, first error: {}", packet_count, e);
 }
 ```
+
+**`error` is the first error, and packets may follow it.** A malformed IPFIX
+message is discarded on its own rather than ending the parse: because the IPFIX
+Message Header carries its own length, the parser resumes at the next message in
+the datagram (see [Chained messages](#chained-messages-and-error-recovery)). So
+`result.packets` can contain packets from both before and after the reported
+error, and when several messages fail, `error` holds the first — the one closest
+to the root cause.
 
 **iter_packets()** yields `Result<NetflowPacket, NetflowError>` for per-packet error handling:
 
@@ -485,7 +508,35 @@ for result in parser.iter_packets(&buffer) {
 }
 ```
 
-**Error types**: `Incomplete`, `UnsupportedVersion`, `FilteredVersion`, `ParseError`, `Partial`. All implement `Display` and `std::error::Error`.
+**Iteration continues past a recoverable error.** When a discarded IPFIX message
+locates the next one, the iterator yields the error and resumes, so a single bad
+message does not end the stream. It stops only on an error that leaves no
+trustworthy boundary to resume from — a declared length below the 16-octet
+Message Header, one that leaves nothing behind it, or a filtered version. v5, v7
+and v9 cannot locate the next message after a failure and always stop.
+
+### Chained messages and error recovery
+
+A single datagram may carry several chained IPFIX messages.
+[RFC 7011 section 9.1](https://www.rfc-editor.org/rfc/rfc7011.html#section-9.1)
+requires discarding a malformed *message*, not the rest of the datagram, so the
+parser resumes at the next message whenever the header locates one. One bad
+message therefore costs only its own records.
+
+`AutoScopedParser::parse_from_source` resumes the same way, and re-derives the
+scope from each surviving message's header, so a message is never decoded with
+another observation domain's templates.
+
+**Error types**: `Incomplete`, `UnsupportedVersion`, `FilteredVersion`, `ParseError`, `Partial`, `MalformedSetFraming`, `DecodedOutputLimitExceeded`. All implement `Display` and `std::error::Error`.
+
+`MalformedSetFraming` is reported when an IPFIX Set Header declares a length
+that cannot be walked past — below the 4-octet Set Header, or beyond the end of
+the Set region. It carries the offending Set's `offset`, its `declared` length
+and the octets `available`, plus the discarded message's `export_time`,
+`sequence_number` and `observation_domain_id`, so a collector can identify the
+exporter at fault and account for the records it did not receive. It is
+deliberately distinct from `Partial`, which continues to mean a datagram
+truncated in flight.
 
 #### Error Sample Size Configuration
 
