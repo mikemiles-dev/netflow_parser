@@ -103,27 +103,67 @@ pub(crate) use pending_flows::{PendingFlowCache, PendingFlowEntry};
 use crate::variable_versions::metrics::CacheMetricsInner;
 use crate::variable_versions::ttl::TtlConfig;
 
-/// Information about a data flowset that couldn't be parsed due to missing template.
+/// Why a flowset was not decoded into records.
+///
+/// Distinguishes the two cases that both leave a [`NoTemplateInfo`] behind,
+/// because only one of them can ever succeed on a retry.
+#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize)]
+pub enum NoTemplateReason {
+    /// The flowset's template ID was not in the cache. The records may still
+    /// decode once the template arrives, so these are eligible for
+    /// pending-flow replay.
+    #[default]
+    MissingTemplate,
+    /// The Set was well framed but its body could not be decoded — a record
+    /// count or field layout that does not match the octets present, for
+    /// instance. Replaying it cannot help, because no later template changes
+    /// the bytes, so these are never cached for retry.
+    UndecodableBody,
+}
+
+/// Information about a data flowset that couldn't be parsed.
 /// This provides context to help diagnose template-related issues.
 #[non_exhaustive]
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct NoTemplateInfo {
-    /// The template ID that was requested but not found
+    /// The template ID that was requested but not found, or the Set ID of a
+    /// Set whose body could not be decoded
     pub template_id: u16,
     /// The unparsed flowset data (for potential retry after template arrives)
     pub raw_data: Vec<u8>,
     /// Whether the raw_data was truncated due to size limits
     pub truncated: bool,
+    /// Why the flowset was not decoded. Only [`NoTemplateReason::MissingTemplate`]
+    /// is eligible for pending-flow replay.
+    pub reason: NoTemplateReason,
 }
 
 impl NoTemplateInfo {
-    /// Create a new NoTemplateInfo with the given template ID and raw data
+    /// Create a new NoTemplateInfo for a flowset whose template is missing
     pub fn new(template_id: u16, raw_data: Vec<u8>) -> Self {
         Self {
             template_id,
             raw_data,
             truncated: false,
+            reason: NoTemplateReason::MissingTemplate,
         }
+    }
+
+    /// Create a new NoTemplateInfo for a well-framed Set whose body could not
+    /// be decoded. Never eligible for pending-flow replay.
+    pub fn undecodable(set_id: u16, raw_data: Vec<u8>, truncated: bool) -> Self {
+        Self {
+            template_id: set_id,
+            raw_data,
+            truncated,
+            reason: NoTemplateReason::UndecodableBody,
+        }
+    }
+
+    /// Whether this flowset could decode on a retry once its template arrives.
+    pub fn is_replayable(&self) -> bool {
+        matches!(self.reason, NoTemplateReason::MissingTemplate)
     }
 }
 
@@ -132,6 +172,7 @@ impl PartialEq for NoTemplateInfo {
         self.template_id == other.template_id
             && self.raw_data == other.raw_data
             && self.truncated == other.truncated
+            && self.reason == other.reason
     }
 }
 

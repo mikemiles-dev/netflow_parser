@@ -16,6 +16,7 @@ use crate::template_store::{
     TemplateKind, TemplateStore, TemplateStoreKey, decode_v9_options_template,
     decode_v9_template, encode_v9_options_template, encode_v9_template,
 };
+use crate::variable_versions::NoTemplateReason;
 use crate::variable_versions::config::{
     DEFAULT_MAX_RECORDS_PER_FLOWSET, DEFAULT_MAX_V9_FRAME_SIZE_BYTES,
 };
@@ -621,6 +622,12 @@ impl V9Parser {
         for (i, flowset) in v9.flowsets.iter_mut().enumerate() {
             match &mut flowset.body {
                 FlowSetBody::NoTemplate(info) => {
+                    // A Set whose body could not be decoded is not waiting on a
+                    // template: no template that arrives later changes its
+                    // octets, so caching it for replay would retry it forever.
+                    if !info.is_replayable() {
+                        continue;
+                    }
                     // Reject flowsets with impossibly small headers (RFC minimum is 4).
                     // Also reject truncated raw_data (oversized entry at parse time).
                     // The flowset is kept in output as diagnostic data.
@@ -951,6 +958,7 @@ impl FlowSetBody {
                         template_id: id,
                         raw_data,
                         truncated,
+                        reason: NoTemplateReason::MissingTemplate,
                     };
                     Ok((&[] as &[u8], FlowSetBody::NoTemplate(info)))
                 } else {

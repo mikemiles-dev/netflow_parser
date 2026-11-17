@@ -44,6 +44,32 @@
   elsewhere, `pcaps/IPFIX.pcap` included, so retiring both captures loses no
   coverage.
 
+* **A Set this parser cannot decode no longer discards the Sets behind it.**
+  Set iteration stopped at the first Set whose body failed to decode and
+  dropped the rest of the message without reporting anything — the remaining
+  half of #310, which the Set-framing check could not reach, because such a Set
+  is perfectly well framed and only its *body* is undecodable. A Template Set
+  declaring more fields than its octets carry, for instance, silently destroyed
+  every valid Data Set behind it while the message reported success.
+
+  Because Set framing is now validated across the whole chain before any Set is
+  parsed, the next Set's offset is known even when the current one fails, so the
+  walk steps over it and keeps decoding. The skipped Set is reported as
+  `FlowSetBody::NoTemplate` carrying the new
+  `NoTemplateInfo::reason` of `NoTemplateReason::UndecodableBody`, so the loss
+  stays visible without consuming the single `ParseResult::error` slot.
+
+  `reason` also distinguishes the pre-existing case: a flowset whose template is
+  merely absent reports `NoTemplateReason::MissingTemplate` and remains eligible
+  for pending-flow replay. An undecodable Set never is — no template arriving
+  later changes its octets, so caching it would retry it forever.
+  `NoTemplateInfo::is_replayable()` exposes the distinction.
+
+  Three bundled test snapshots recorded `flowsets: []` before this change and
+  now show the Sets that were being dropped, so they were not testing what their
+  names claimed. `NoTemplateInfo` is `#[non_exhaustive]`, so adding `reason` is
+  not a breaking change.
+
 * **A malformed IPFIX message no longer discards the rest of the datagram.**
   RFC 7011 section 9.1 discards the *Message*, but parsing stopped at the first
   message-level error and abandoned every message chained behind it — so one
