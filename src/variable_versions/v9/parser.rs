@@ -978,6 +978,10 @@ impl Template {
         max_field_count: usize,
         max_template_total_size: usize,
     ) -> bool {
+        if self.template_id < 256 {
+            return false;
+        }
+
         // Check field count limit
         if usize::from(self.field_count) > max_field_count {
             return false;
@@ -1035,6 +1039,10 @@ impl OptionsTemplate {
         max_field_count: usize,
         max_template_total_size: usize,
     ) -> bool {
+        if self.template_id < 256 {
+            return false;
+        }
+
         // Scope and option lengths must be multiples of 4 (each field is type_id:u16 + length:u16)
         if !self.options_scope_length.is_multiple_of(4)
             || !self.options_length.is_multiple_of(4)
