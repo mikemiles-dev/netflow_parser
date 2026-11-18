@@ -868,6 +868,13 @@ impl FlowSetBody {
                 Ok((i, FlowSetBody::OptionsTemplate(result)))
             }
             _ => {
+                if id > 255 && i.is_empty() {
+                    return Err(nom::Err::Error(nom::error::Error::new(
+                        i,
+                        nom::error::ErrorKind::Verify,
+                    )));
+                }
+
                 // Try regular templates
                 if let Some(template) = crate::variable_versions::get_valid_template(
                     &mut parser.templates,
