@@ -379,6 +379,13 @@ impl DataNumber {
             (3, true) => parse_i24_be(i).map(|(i, j)| (i, Self::I24(j))),
             (4, true) => parse_i32_be(i).map(|(i, j)| (i, Self::I32(j))),
             (4, false) => parse_u32_be(i).map(|(i, j)| (i, Self::U32(j))),
+            (5..=7, false) => {
+                let (i, bytes) = take(field_length)(i)?;
+                let mut value = [0u8; 8];
+                let start = value.len() - usize::from(field_length);
+                value[start..].copy_from_slice(bytes);
+                Ok((i, Self::U64(u64::from_be_bytes(value))))
+            }
             (8, false) => parse_u64_be(i).map(|(i, j)| (i, Self::U64(j))),
             (8, true) => parse_i64_be(i).map(|(i, j)| (i, Self::I64(j))),
             (16, false) => parse_u128_be(i).map(|(i, j)| (i, Self::U128(j))),
